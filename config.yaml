@@ -1,0 +1,32 @@
+# 通用批量处理配置
+batch_processing:
+  enabled: true
+  skip_existing: false
+  strict_exit_on_batch_failure: false  # false: 部分失败也返回0；true: 只要有失败就返回1
+  max_latest_books: 5  # GitHub 打包最多保留最新 N 本书
+  # specific_books: []  # 注释掉此行，默认处理所有可用书籍
+
+# 全局配置
+output_dir: "output"
+resource_base_dir: "resource"
+template_dir: "src/templates"
+static_dir: "src/static"
+
+# 默认书籍配置（可选，仅当无法从文件夹名自动识别时使用）
+# 程序会自动从文件夹名称提取书名和作者信息
+default_book:
+  year: 2025  # 后备年份
+
+# 远程服务器地址（main.py 读取后生成 output/js/remote-config.js，URL 以 base64 存储并混淆）
+remote_servers:
+  cloudflare:
+    - https://books.example.com/
+  github_api: https://api.github.com/repos/zhao-zg/books/releases/latest
+  github_mirrors:
+    - https://gh-proxy.com/
+    - https://ghproxy.net/
+    - https://proxy.11891189.xyz/
+    - https://proxy.07170501.xyz/
+  ip_apis:
+    - https://myip.ipip.net
+    - https://ipinfo.io/json

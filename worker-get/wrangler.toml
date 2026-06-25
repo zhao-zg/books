@@ -1,0 +1,23 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "books-get"
+
+workers_dev = false
+usage_model = "standard_v2"
+account_id = "__ACCOUNT_ID__"
+
+assets = { directory = "./assets" }
+
+[custom_domain]
+hostname = "books.1189.dpdns.org"
+
+main = "worker.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat_v2"]
+
+[account]
+id = "__ACCOUNT_ID__"
+
+[[routes]]
+pattern = "books-get.kis5n.kunyun.info"
+custom_domain = true
+zone_id = "__ZONE_ID__"

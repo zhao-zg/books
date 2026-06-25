@@ -1,0 +1,29 @@
+{
+  "name": "books",
+  "version": "1.0.0",
+  "description": "书报 - 电子书阅读应用",
+  "scripts": {
+    "build": "python main.py",
+    "encrypt:app-update": "python encrypt_app_update.py",
+    "restore:app-update": "python encrypt_app_update.py --restore",
+    "cap:init": "npx cap init",
+    "cap:add": "npx cap add android",
+    "cap:sync": "npx cap sync",
+    "cap:open": "npx cap open android",
+    "android:build": "npm run build && npm run cap:sync && cd android && ./gradlew assembleRelease",
+    "android:dev": "npm run build && npm run cap:sync && npm run cap:open"
+  },
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "^5.1.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.3",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "javascript-obfuscator": "^4.1.0"
+  }
+}

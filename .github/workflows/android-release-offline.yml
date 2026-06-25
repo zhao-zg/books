@@ -1,0 +1,865 @@
+name: 构建离线版APK
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  deployments: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      
+    - name: 设置 Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        
+    - name: 设置 Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: 设置 Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: 安装 LibreOffice
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libreoffice
+        
+    - name: 安装 Python 依赖
+      run: pip install -r requirements.txt
+      
+    - name: 提取并配置版本号
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        if [ -z "$VERSION" ]; then
+          VERSION="0.1.0"
+        fi
+        
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "=== 版本号: $VERSION ==="
+        
+        # 更新 app_config.json
+        echo "更新 app_config.json..."
+        python3 << PYTHON_EOF
+        import json
+        
+        with open('app_config.json', 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        config['version'] = '$VERSION'
+        
+        with open('app_config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        print(f'✓ app_config.json 版本号已更新为: $VERSION')
+        PYTHON_EOF
+        
+        # 验证
+        cat app_config.json | grep version
+        echo ""
+      
+    - name: 安装 Node.js 依赖
+      run: |
+        npm install
+        echo "✓ Node.js 依赖安装完成"
+        npm list --depth=0 | grep capacitor || echo "无"
+        
+        # 安装代码混淆工具（用于加密）
+        npm install -g javascript-obfuscator
+        echo "✓ javascript-obfuscator 已安装"
+      
+    - name: 生成完整静态网站
+      run: |
+        echo "=== 生成完整静态网站 ==="
+        python main.py
+        echo "✓ 静态网站生成完成"
+        # 删除赞助二维码（APK 走远程获取，不需要打包）
+        rm -rf output/images/zanzhu-wx.png output/images/zanzhu-zfb.jpg
+        echo "✓ 已移除赞助图片（APK 不打包）"
+        du -sh output/
+        find output/ -type f | wc -l
+        echo "文件总数"
+    
+    - name: 🔐 验证混淆结果（由 main.py 完成）
+      run: |
+        echo "=== 验证混淆结果 ==="
+        for f in remote-config.js app-update.js theme-toggle.js; do
+          if grep -q "_0x" output/js/$f; then
+            echo "✅ $f 混淆验证通过"
+            ls -lh output/js/$f
+          else
+            echo "❌ $f 混淆可能失败"
+            exit 1
+          fi
+        done
+        # 删除备份文件（如有）
+        rm -f app-update.js.backup
+        
+    - name: 添加 Android 平台
+      run: |
+        echo "=== 添加 Android 平台 ==="
+        
+        # 如果 android 目录已存在（因为 Git 中有自定义插件文件），先删除
+        if [ -d "android" ]; then
+          echo "检测到 android 目录已存在，先删除..."
+          rm -rf android
+        fi
+        
+        npx cap add android
+        
+        if [ ! -d "android" ]; then
+          echo "✗ Android 平台添加失败"
+          exit 1
+        fi
+        
+        echo "✓ Android 平台添加完成"
+        du -sh android/app/src/main/assets/
+    
+    - name: 恢复自定义 APK 安装插件文件
+      run: |
+        echo "=== 恢复自定义 APK 安装插件文件 ==="
+        
+        # 从 Git 恢复整个自定义插件目录（通配符方式，新增文件无需修改 workflow）
+        git checkout -- android/app/src/main/java/com/books/app/
+        
+        # 恢复 AndroidManifest.xml（包含所有必要权限，已在 Git 中追踪）
+        git checkout -- android/app/src/main/AndroidManifest.xml
+        echo "✓ AndroidManifest.xml 已从 Git 恢复（含省电/前台服务/唤醒锁等权限）"
+        
+        echo ""
+        echo "=== 验证插件文件 ==="
+        PLUGIN_DIR="android/app/src/main/java/com/books/app"
+        for f in MainActivity.java ApkInstallerPlugin.java ImageSaverPlugin.java \
+                  NativeTTSPlugin.java TTSForegroundService.java \
+                  CrashReporter.java CrashLogPlugin.java; do
+          if [ -f "$PLUGIN_DIR/$f" ]; then
+            echo "✓ $f 已恢复"
+          else
+            echo "✗ $f 恢复失败"
+            exit 1
+          fi
+        done
+        
+        echo ""
+        echo "✓ 所有自定义插件文件已恢复"
+    - name: 配置 Android 图标（使用预生成的 PNG）
+      run: |
+        echo "=== 配置 Android 图标 ==="
+        
+        # 检查预生成的图标目录
+        if [ ! -d "android_icons" ]; then
+          echo "✗ 错误: 找不到 android_icons 目录"
+          exit 1
+        fi
+        
+        # 复制预生成的图标到 Android 项目
+        echo "复制预生成的图标..."
+        cp -r android_icons/* android/app/src/main/res/
+        
+        # 验证图标
+        echo ""
+        echo "=== 验证图标 ==="
+        for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+          icon_file="android/app/src/main/res/mipmap-$density/ic_launcher.png"
+          if [ -f "$icon_file" ]; then
+            size=$(du -h "$icon_file" | cut -f1)
+            echo "✓ mipmap-$density/ic_launcher.png ($size)"
+          else
+            echo "✗ mipmap-$density/ic_launcher.png 不存在"
+          fi
+        done
+        
+        echo ""
+        echo "✓ Android 图标配置完成"
+      
+    - name: 配置 Android 版本信息
+      run: |
+        echo "=== 配置 Android 版本信息 ==="
+        
+        # 使用环境变量中的 VERSION
+        VERSION=${{ env.VERSION }}
+        
+        # 计算 versionCode
+        IFS='.' read -ra PARTS <<< "$VERSION"
+        VERSION_CODE=$((${PARTS[0]} * 10000 + ${PARTS[1]:-0} * 100 + ${PARTS[2]:-0}))
+        
+        # 创建 variables.gradle
+        cat > android/variables.gradle << 'EOF'
+        ext {
+            minSdkVersion = 22
+            compileSdkVersion = 34
+            targetSdkVersion = 34
+            androidxActivityVersion = '1.8.0'
+            androidxAppCompatVersion = '1.6.1'
+            androidxCoordinatorLayoutVersion = '1.2.0'
+            androidxCoreVersion = '1.12.0'
+            androidxFragmentVersion = '1.6.2'
+            coreSplashScreenVersion = '1.0.1'
+            androidxWebkitVersion = '1.9.0'
+            junitVersion = '4.13.2'
+            androidxJunitVersion = '1.1.5'
+            androidxEspressoCoreVersion = '3.5.1'
+            cordovaAndroidVersion = '10.1.1'
+        }
+        EOF
+        
+        # 配置版本号
+        echo "当前版本: $VERSION"
+        echo "版本代码: $VERSION_CODE"
+        
+        # 使用 Python 脚本来可靠地修改 build.gradle
+        cat > update_version.py << 'PYTHON_EOF'
+        import re
+        import sys
+        
+        gradle_file = 'android/app/build.gradle'
+        version_code = sys.argv[1]
+        version_name = sys.argv[2]
+        
+        with open(gradle_file, 'r') as f:
+            content = f.read()
+        
+        # 替换或添加 versionCode
+        if re.search(r'versionCode\s+\d+', content):
+            content = re.sub(r'versionCode\s+\d+', f'versionCode {version_code}', content)
+            print(f'✓ 替换 versionCode: {version_code}')
+        else:
+            content = re.sub(r'(defaultConfig\s*\{)', rf'\1\n        versionCode {version_code}', content)
+            print(f'✓ 插入 versionCode: {version_code}')
+        
+        # 替换或添加 versionName
+        if re.search(r'versionName\s+"[^"]*"', content):
+            content = re.sub(r'versionName\s+"[^"]*"', f'versionName "{version_name}"', content)
+            print(f'✓ 替换 versionName: {version_name}')
+        else:
+            content = re.sub(r'(defaultConfig\s*\{)', rf'\1\n        versionName "{version_name}"', content)
+            print(f'✓ 插入 versionName: {version_name}')
+        
+        # 确保有 namespace
+        if not re.search(r'namespace\s+["\']', content):
+            content = re.sub(r'(android\s*\{)', r'\1\n    namespace "com.books.app"', content)
+            print('✓ 插入 namespace: com.books.app')
+        
+        with open(gradle_file, 'w') as f:
+            f.write(content)
+        
+        print(f'\n✓ 版本配置完成: versionCode={version_code}, versionName={version_name}')
+        PYTHON_EOF
+        
+        python3 update_version.py "$VERSION_CODE" "$VERSION"
+        
+        # 验证版本号是否正确注入
+        echo ""
+        echo "=== 验证 build.gradle 中的版本信息 ==="
+        grep -A 10 "defaultConfig" android/app/build.gradle | grep -E "(versionCode|versionName)" || echo "警告: 未找到版本信息"
+        
+        echo ""
+      
+    - name: 裁剪历史内容（APK 仅保留最新 N 个）
+      run: |
+        echo "=== 裁剪历史内容，仅保留最新 N 个 ==="
+        python3 << 'PY'
+        import yaml, json, shutil, re, os
+
+        with open('config.yaml', encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
+        max_n = cfg.get('batch_processing', {}).get('max_latest_trainings', 7)
+
+        with open('output/trainings.json', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # trainings.json 已按时间倒序排列，只保留最新 N 个
+        non_collection = [t for t in data['trainings'] if not t.get('is_collection')]
+        keep = {t['path'] for t in non_collection[:max_n]}
+        print(f'保留的内容 ({max_n}): {sorted(keep)}')
+
+        output_dir = 'output'
+        removed = 0
+        for entry in os.listdir(output_dir):
+            if not re.match(r'^\d{4}-\d{2}$', entry):
+                continue
+            if entry in keep:
+                continue
+            shutil.rmtree(os.path.join(output_dir, entry))
+            removed += 1
+
+        # 资源包不打入 APK，按需下载
+        rp_dir = os.path.join(output_dir, 'resource-packs')
+        if os.path.isdir(rp_dir):
+            shutil.rmtree(rp_dir)
+            print('已移除 resource-packs/（APK 不打包）')
+
+        print(f'已删除 {removed} 个历史内容目录')
+        PY
+        echo ""
+        echo "=== 裁剪后 output/ 目录内容 ==="
+        ls output/ | grep -E '^[0-9]{4}-[0-9]{2}$' || echo "(无 YYYY-MM 目录)"
+        du -sh output/
+
+    - name: 同步 Capacitor
+      run: |
+        echo "=== 同步 Capacitor ==="
+        npx cap sync android
+        echo "✓ 同步完成"
+        
+        echo ""
+        echo "=== 验证资源大小 ==="
+        du -sh android/app/src/main/assets/
+        find android/app/src/main/assets/ -type f | wc -l
+    
+    - name: 重新应用自定义图标（sync 后）
+      run: |
+        echo "=== 重新应用自定义图标 ==="
+        echo "注意：cap sync 可能会覆盖图标，需要重新复制"
+        
+        # 删除可能存在的默认图标
+        rm -rf android/app/src/main/res/mipmap-*
+        
+        # 复制预生成的图标
+        cp -r android_icons/* android/app/src/main/res/
+        
+        # 验证图标已复制
+    
+    - name: 配置自定义插件和 AndroidManifest（sync 后）
+      run: |
+        echo "=== 配置自定义插件和 AndroidManifest ==="
+        
+        # 删除 Capacitor 生成的默认 MainActivity
+        rm -f android/app/src/main/java/com/books/app/MainActivity.java
+        
+        # 从 Git 恢复所有自定义插件文件（包含 NativeTTS Foreground Service）
+        mkdir -p android/app/src/main/java/com/books/app
+        for f in MainActivity.java ApkInstallerPlugin.java ImageSaverPlugin.java \
+                  NativeTTSPlugin.java TTSForegroundService.java \
+                  CrashReporter.java CrashLogPlugin.java; do
+          git checkout HEAD -- android/app/src/main/java/com/books/app/$f
+        done
+        
+        # 恢复 AndroidManifest.xml，确保我们手动添加的省电优化权限等不会被 sync 覆盖
+        git checkout HEAD -- android/app/src/main/AndroidManifest.xml
+        
+        # 恢复自定义主题/颜色资源（防止 cap sync 覆盖）
+        mkdir -p android/app/src/main/res/values
+        git checkout HEAD -- android/app/src/main/res/values/styles.xml
+        git checkout HEAD -- android/app/src/main/res/values/colors.xml
+        
+        # 验证插件文件
+        for f in MainActivity.java ApkInstallerPlugin.java NativeTTSPlugin.java TTSForegroundService.java; do
+          if [ ! -f "android/app/src/main/java/com/books/app/$f" ]; then
+            echo "✗ $f 恢复失败"
+            exit 1
+          fi
+        done
+        echo "✓ 所有自定义插件文件已恢复"
+        
+        # AndroidManifest.xml 已在"恢复自定义插件文件"步骤中从 Git 恢复，
+        # 其中包含所有必要权限（FOREGROUND_SERVICE、WAKE_LOCK、
+        # REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 等）和组件声明。
+        manifest_file="android/app/src/main/AndroidManifest.xml"
+        if [ -f "$manifest_file" ]; then
+          echo "✓ AndroidManifest.xml 已就绪（来自 Git）"
+          grep -E "uses-permission|service|activity" "$manifest_file" | grep -v "^--$" || true
+        else
+          echo "✗ AndroidManifest.xml 不存在"
+          exit 1
+        fi
+        echo "✓ AndroidManifest 配置完成"
+
+
+    - name: 配置启动窗口背景色（与 HTML 加载页一致）
+      run: |
+        echo "=== 配置启动窗口背景色 ==="
+        styles_file="android/app/src/main/res/values/styles.xml"
+        if [ -f "$styles_file" ]; then
+          # 在 AppTheme 中注入 windowBackground，避免启动到 WebView 前闪白
+          python3 << 'PY'
+        import re
+        path = 'android/app/src/main/res/values/styles.xml'
+        with open(path, 'r') as f:
+            content = f.read()
+        item = '        <item name="android:windowBackground">#fafbff</item>\n'
+        if 'windowBackground' not in content:
+            # 插入到 AppTheme style 块内第一个 <item> 之前
+            content = re.sub(
+                r'(<style name="AppTheme"[^>]*>)',
+                r'\1\n' + item.rstrip('\n'),
+                content
+            )
+            with open(path, 'w') as f:
+                f.write(content)
+            print('✓ windowBackground 已注入')
+        else:
+            print('ℹ windowBackground 已存在，跳过')
+        PY
+          echo "✓ styles.xml 处理完成"
+          grep -A5 "AppTheme" "$styles_file" | head -8
+        else
+          echo "✗ styles.xml 不存在，跳过"
+        fi
+
+    - name: 配置网络安全策略
+      run: |
+        echo "=== 配置网络安全策略 ==="
+        mkdir -p android/app/src/main/res/xml
+        cat > android/app/src/main/res/xml/network_security_config.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <network-security-config>
+            <base-config cleartextTrafficPermitted="true">
+                <trust-anchors>
+                    <certificates src="system" />
+                </trust-anchors>
+            </base-config>
+        </network-security-config>
+        EOF
+        
+        if ! grep -q "networkSecurityConfig" android/app/src/main/AndroidManifest.xml; then
+          sed -i 's/<application/<application android:networkSecurityConfig="@xml\/network_security_config"/' android/app/src/main/AndroidManifest.xml
+        fi
+        
+        echo "✓ 网络安全配置完成"
+        
+        echo ""
+        echo "=== 配置 APK 安装权限 ==="
+        
+        manifest_file="android/app/src/main/AndroidManifest.xml"
+        
+        # 添加 APK 安装权限（Android 8.0+）
+        if ! grep -q "REQUEST_INSTALL_PACKAGES" "$manifest_file"; then
+          # 在 <manifest> 标签后添加权限
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />' "$manifest_file"
+          echo "✓ 添加 REQUEST_INSTALL_PACKAGES 权限"
+        fi
+        
+        # 添加存储权限（Android 10 以下）
+        if ! grep -q "WRITE_EXTERNAL_STORAGE" "$manifest_file"; then
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />' "$manifest_file"
+          echo "✓ 添加 WRITE_EXTERNAL_STORAGE 权限"
+        fi
+        
+        if ! grep -q "READ_EXTERNAL_STORAGE" "$manifest_file"; then
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />' "$manifest_file"
+          echo "✓ 添加 READ_EXTERNAL_STORAGE 权限"
+        fi
+        
+        # 添加 FileProvider 配置
+        if ! grep -q "FileProvider" "$manifest_file"; then
+          # 创建 file_paths.xml
+          mkdir -p android/app/src/main/res/xml
+          cat > android/app/src/main/res/xml/file_paths.xml << 'FILEPATHS_EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <paths xmlns:android="http://schemas.android.com/apk/res/android">
+            <cache-path name="cache" path="." />
+            <external-path name="external" path="." />
+            <external-cache-path name="external_cache" path="." />
+            <external-path name="downloads" path="Download/" />
+        </paths>
+        FILEPATHS_EOF
+          
+          # 在 </application> 前添加 FileProvider
+          sed -i 's|</application>|        <provider\n            android:name="androidx.core.content.FileProvider"\n            android:authorities="${applicationId}.fileprovider"\n            android:exported="false"\n            android:grantUriPermissions="true">\n            <meta-data\n                android:name="android.support.FILE_PROVIDER_PATHS"\n                android:resource="@xml/file_paths" />\n        </provider>\n    </application>|' "$manifest_file"
+          echo "✓ 添加 FileProvider 配置"
+        fi
+        
+        # 添加 queries 配置（Android 11+）
+        if ! grep -q "<queries>" "$manifest_file"; then
+          sed -i '/<manifest/a\    <queries>\n        <intent>\n            <action android:name="android.intent.action.VIEW" />\n            <data android:mimeType="application/vnd.android.package-archive" />\n        </intent>\n    </queries>' "$manifest_file"
+          echo "✓ 添加 queries 配置（Android 11+）"
+        fi
+        
+        echo ""
+        echo "=== 验证 AndroidManifest.xml ==="
+        echo "检查权限配置..."
+        grep -E "REQUEST_INSTALL_PACKAGES|WRITE_EXTERNAL_STORAGE|FileProvider|queries" "$manifest_file" || echo "警告：部分配置可能未添加"
+        
+        echo ""
+        echo "=== 验证应用配置 ==="
+        # 确保应用名称正确
+        if grep -q "android:label=" "$manifest_file"; then
+          sed -i 's/android:label="[^"]*"/android:label="书报"/' "$manifest_file"
+          echo "✓ 应用名称已设置为 书报"
+        fi
+        
+        # 显示 AndroidManifest.xml 的关键部分
+        echo ""
+        echo "AndroidManifest.xml 关键配置:"
+        grep -A 3 "<application" "$manifest_file" | head -5
+        
+        echo ""
+        echo "✓ AndroidManifest 配置完成"
+      
+    - name: 创建签名密钥
+      run: |
+        echo "=== 创建签名密钥 ==="
+        # 使用 base64 编码的 keystore（CI 环境中从 base64 解码还原）
+        # 本地生成 keystore 的命令：
+        # keytool -genkeypair -v -keystore books-release.keystore \
+        #   -alias books -keyalg RSA -keysize 2048 -validity 10000 \
+        #   -storepass books2024 -keypass books2024 \
+        #   -dname "CN=Books App, OU=Development, O=Books, L=Beijing, ST=Beijing, C=CN"
+        # base64 -w0 books-release.keystore > books-release.keystore.b64
+        cat > books-release.keystore.b64 << 'EOF'
+        PLACEHOLDER_REPLACE_WITH_ACTUAL_BASE64_KEYSTORE
+        EOF
+        
+        base64 -d books-release.keystore.b64 > books-release.keystore
+        cp books-release.keystore android/
+        echo "✓ 签名密钥已创建"
+      
+    - name: 配置签名
+      run: |
+        echo "=== 配置 APK 签名 ==="
+        
+        cat > insert_signing.py << 'PYTHON_EOF'
+        import re
+        import sys
+        
+        gradle_file = sys.argv[1]
+        keystore_file = sys.argv[2]
+        
+        with open(gradle_file, 'r') as f:
+            content = f.read()
+        
+        signing_config = f'''
+            signingConfigs {{
+                release {{
+                    storeFile file("../{keystore_file}")
+                    storePassword "books2024"
+                    keyAlias "books"
+                    keyPassword "books2024"
+                }}
+            }}
+        '''
+        content = re.sub(r'(android\s*\{)', r'\1' + signing_config, content, count=1)
+        content = re.sub(r'(buildTypes\s*\{[^}]*release\s*\{)', r'\1\n            signingConfig signingConfigs.release', content, count=1)
+        
+        with open(gradle_file, 'w') as f:
+            f.write(content)
+        
+        print(f"✓ {gradle_file} 签名配置已插入")
+        PYTHON_EOF
+        
+        python3 insert_signing.py android/app/build.gradle books-release.keystore
+        echo "✓ 签名配置完成"
+        
+    - name: 启用资源压缩和代码优化
+      run: |
+        echo "=== 启用资源压缩和代码优化 ==="
+        
+        cat > enable_shrink.py << 'PYTHON_EOF'
+        import re
+        
+        gradle_file = 'android/app/build.gradle'
+        
+        with open(gradle_file, 'r') as f:
+            content = f.read()
+        
+        # 在 release buildType 中启用 minifyEnabled 和 shrinkResources
+        # 查找 release { 块并添加配置
+        release_pattern = r'(buildTypes\s*\{[^}]*release\s*\{)'
+        
+        if re.search(release_pattern, content):
+            # 检查是否已有 minifyEnabled
+            if 'minifyEnabled' not in content:
+                content = re.sub(
+                    release_pattern,
+                    r'\1\n            minifyEnabled true\n            shrinkResources true',
+                    content,
+                    count=1
+                )
+                print('✓ 已启用 minifyEnabled 和 shrinkResources')
+            else:
+                print('⚠️ minifyEnabled 已存在，跳过')
+        else:
+            print('⚠️ 未找到 release buildType')
+        
+        # 确保有 proguard 配置
+        if 'proguardFiles' not in content:
+            content = re.sub(
+                r'(minifyEnabled true)',
+                r'\1\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"',
+                content,
+                count=1
+            )
+            print('✓ 已添加 proguard 配置')
+        
+        with open(gradle_file, 'w') as f:
+            f.write(content)
+        
+        print('✓ 资源压缩配置完成')
+        PYTHON_EOF
+        
+        python3 enable_shrink.py
+        
+        # 创建 proguard-rules.pro（保留 Capacitor 相关类）
+        cat > android/app/proguard-rules.pro << 'PROGUARD_EOF'
+        # Capacitor
+        -keep class com.getcapacitor.** { *; }
+        -keep class com.books.app.** { *; }
+        -keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+        -keep @com.getcapacitor.PluginMethod public class * { *; }
+        
+        # WebView
+        -keepclassmembers class * {
+            @android.webkit.JavascriptInterface <methods>;
+        }
+        
+        # Keep native methods
+        -keepclasseswithmember names class * {
+            native <methods>;
+        }
+        
+        # FileProvider
+        -keep class androidx.core.content.FileProvider { *; }
+        
+        # 保留 R 文件
+        -keepclassmembers class **.R$* {
+            public static <fields>;
+        }
+        PROGUARD_EOF
+        
+        echo "✓ proguard-rules.pro 已创建"
+        
+        # 验证配置
+        echo ""
+        echo "=== 验证 build.gradle 压缩配置 ==="
+        grep -E "minifyEnabled|shrinkResources|proguardFiles" android/app/build.gradle || echo "警告：压缩配置可能未添加"
+      
+    - name: 授予 Gradle 执行权限
+      run: chmod +x android/gradlew
+        
+    - name: 构建 APK
+      run: |
+        echo "=== 构建 APK ==="
+        cd android
+        
+        mkdir -p ~/.gradle
+        cat > ~/.gradle/gradle.properties << 'EOF'
+        org.gradle.daemon=false
+        org.gradle.parallel=true
+        org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m
+        systemProp.http.connectionTimeout=60000
+        systemProp.http.socketTimeout=60000
+        EOF
+        
+        if ./gradlew clean assembleRelease --stacktrace --no-daemon; then
+          echo "✓ APK 构建成功"
+          cd ..
+        else
+          echo "✗ APK 构建失败"
+          cd ..
+          exit 1
+        fi
+        
+    - name: 验证和重命名 APK
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        if [ -z "$VERSION" ]; then
+          VERSION=$(date +%Y%m%d-%H%M%S)
+        fi
+        
+        echo "=== 处理 APK ==="
+        cd android/app/build/outputs/apk/release/
+        for apk in *.apk; do
+          if [ -f "$apk" ]; then
+            APK_NAME="Books-v${VERSION}.apk"
+            cp "$apk" "../../../../../../$APK_NAME"
+            echo "✓ APK: $APK_NAME"
+            echo "  大小: $(du -h "$apk" | cut -f1)"
+            echo "  MD5: $(md5sum "$apk" | cut -d' ' -f1)"
+            break
+          fi
+        done
+        cd ../../../../../../
+        
+        echo ""
+        echo "=== 最终生成的 APK ==="
+        ls -lh Books-*.apk
+        
+    - name: 上传 APK 到 Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: Books-*.apk
+    
+    - name: 准备 Cloudflare Pages 部署
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        APK_NAME="Books-v${VERSION}.apk"
+        
+        echo "=== 准备 Cloudflare Pages 部署 ==="
+        
+        # 检查 APK 文件是否存在
+        if [ ! -f "$APK_NAME" ]; then
+          echo "✗ 错误: APK 文件不存在: $APK_NAME"
+          ls -la *.apk || echo "没有找到任何 APK 文件"
+          exit 1
+        fi
+        
+        echo "APK 文件信息:"
+        ls -lh "$APK_NAME"
+        
+        # 复制 APK 到 output 目录
+        cp "$APK_NAME" output/
+        echo "✓ APK 已复制到 output 目录"
+        
+        # 验证复制成功
+        if [ ! -f "output/$APK_NAME" ]; then
+          echo "✗ 错误: APK 复制失败"
+          exit 1
+        fi
+        
+        echo "output 目录中的 APK:"
+        ls -lh "output/$APK_NAME"
+        
+        # 更新 version.json 添加 APK 信息
+        python3 << PYTHON_EOF
+        import json
+        import os
+        
+        version_file = 'output/version.json'
+        version = '$VERSION'
+        apk_name = '$APK_NAME'
+        
+        # 读取现有的 version.json
+        if os.path.exists(version_file):
+            with open(version_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {}
+        
+        # 添加 APK 信息
+        data['apk_version'] = version
+        data['apk_file'] = apk_name
+        data['apk_size'] = os.path.getsize('output/' + apk_name)
+        
+        # 保存
+        with open(version_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        print(f'✓ version.json 已更新')
+        print(f'  APK 版本: {version}')
+        print(f'  APK 文件: {apk_name}')
+        print(f'  APK 大小: {data["apk_size"]} bytes')
+        PYTHON_EOF
+        
+        # 显示 version.json 内容
+        echo ""
+        echo "=== version.json 内容 ==="
+        cat output/version.json
+        
+        # 显示 output 目录内容
+        echo ""
+        echo "=== output 目录 ==="
+        ls -lh output/*.apk output/version.json
+        
+    - name: 创建 Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          Books-*.apk
+        body: |
+          ## 📱 书报信息 ${{ github.ref_name }}
+          
+          ### 📦 下载说明
+          
+          **离线版 APK** - 约 50-100 MB
+          - 文件名：`Books-${{ github.ref_name }}.apk`
+          - 特点：包含所有内容，完全离线使用
+          - 优势：
+            - 无需网络即可使用
+            - 所有内容预装，打开即用
+            - 适合网络不稳定或无网络环境
+          - 注意：内容更新需要重新下载安装新版本 APK
+          
+          ### 💡 在线版替代方案
+          
+          如果您想要轻量级的在线版本，推荐使用 **PWA（渐进式 Web 应用）**：
+          
+          1. 使用浏览器访问项目 GitHub Pages 或 Cloudflare Pages 地址
+          2. 点击浏览器菜单中的"添加到主屏幕"或"安装"
+          3. PWA 会像 APP 一样显示在主屏幕上
+          4. 优势：
+             - 轻量级（几 MB）
+             - 内容自动更新
+             - 支持离线浏览（Service Worker 缓存）
+             - 无需下载 APK
+          
+          ### ⚠️ 安装提示
+          
+          如果安装时提示"解析包出现问题"：
+          1. 确认下载完整（检查文件大小）
+          2. 清除旧版本后重新安装
+          3. 确保安卓版本 ≥ 5.1（API 22）
+          4. 尝试在设置中清除下载管理器的缓存
+          5. 检查是否启用了"未知来源"安装权限
+          
+          ### 📝 版本信息
+          - 版本号: ${{ github.ref_name }}
+          - 包名: com.books.app
+          - 签名状态: ✅ 已签名（可覆盖安装）
+          - 构建时间: ${{ github.event.head_commit.timestamp }}
+          - 要求：安卓 5.1 或更高版本（API 22+）
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: 等待 Release APK 上传完成
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        echo "⏳ 等待 Release APK 上传完成..."
+        VERSION=${GITHUB_REF#refs/tags/v}
+        APK_NAME="Books-v${VERSION}.apk"
+        
+        # 最多等待 120 秒
+        for i in {1..12}; do
+          echo "检查 Release APK... (第 $i 次)"
+          
+          # 获取 Release 信息
+          RELEASE_INFO=$(curl -sf "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" || echo "{}")
+          
+          # 检查 APK 是否存在
+          APK_URL=$(echo "$RELEASE_INFO" | jq -r "(.assets // [])[] | select(.name == \"$APK_NAME\") | .browser_download_url // empty")
+          
+          if [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
+            echo "✓ APK 已上传: $APK_URL"
+            break
+          fi
+          
+          if [ $i -eq 12 ]; then
+            echo "⚠️ 等待超时，继续触发部署"
+            break
+          fi
+          
+          echo "APK 尚未就绪，等待 10 秒..."
+          sleep 10
+        done
+    
+    - name: 触发网站重新部署（包含 APK）
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        echo "🔄 触发 deploy.yml 重新部署..."
+        
+        # 触发 workflow_dispatch
+        curl -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy.yml/dispatches" \
+          -d '{"ref":"main"}'
+        
+        echo "✓ 已触发网站重新部署"

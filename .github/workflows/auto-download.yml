@@ -1,0 +1,95 @@
+name: Auto Download Resources
+
+on:
+  schedule:
+    # 每天北京时间早上 9 点运行 (UTC 1:00)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 允许手动触发
+
+concurrency:
+  group: auto-download-resources
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # 允许推送代码
+
+jobs:
+  download-resources:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          # TODO: 根据实际资源来源安装所需依赖
+          # 例如: playwright install chromium && playwright install-deps chromium
+
+      # ============================================================
+      # TODO: 自定义资源下载逻辑
+      # ============================================================
+      # 书报项目需要根据实际的电子书资源来源自定义下载脚本。
+      # 以下为通用框架，请替换为实际的下载/转换脚本：
+      #
+      # 常见场景：
+      # 1. 从指定网站抓取电子书（PDF/EPUB/TXT）
+      # 2. 从 RSS/Atom feed 获取更新内容
+      # 3. 从 API 接口同步资源
+      # 4. 从 Git 仓库拉取资源文件
+      #
+      # 示例：
+      # - name: Download resources
+      #   run: python download_books.py
+      # ============================================================
+
+      - name: Download resources
+        run: |
+          echo "📥 执行资源下载..."
+          # TODO: 替换为实际的下载脚本
+          # python download_books.py
+          echo "ℹ️ 请根据项目实际资源来源自定义此步骤"
+        continue-on-error: false
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          git add resource/ 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ 没有新资源需要下载"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✅ 发现新资源"
+            git diff --staged --stat
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add resource/ 2>/dev/null || true
+          git commit -m "🤖 自动下载: 新增电子书资源"
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.check_changes.outputs.has_changes }}" == "true" ]; then
+            echo "✅ 成功下载并提交新资源"
+            echo "ℹ️ 新资源已提交，部署将由 deploy.yml 自动触发"
+            echo "📱 APK 打包需手动打版本 tag 触发"
+          else
+            echo "ℹ️ 没有新资源需要更新"
+          fi

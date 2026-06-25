@@ -1,0 +1,237 @@
+name: 构建并部署到 Cloudflare Pages 和 GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'resource/**'
+      - 'src/**'
+      - 'main.py'
+      - 'config.yaml'
+      - 'app_config.json'
+      - 'generate_version.py'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 允许推送到 gh-pages 分支
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+      
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装混淆工具
+        run: |
+          npm install -g javascript-obfuscator
+          echo "✓ javascript-obfuscator 已安装"
+
+      - name: 安装 LibreOffice
+        run: |
+          echo "📦 安装 LibreOffice..."
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libreoffice-writer libreoffice-core --no-install-recommends
+          echo "✓ LibreOffice 已安装"
+      
+      - name: 安装 Python 依赖
+        run: |
+          echo "📦 安装 Python 依赖..."
+          pip install -r requirements.txt
+      
+      - name: 生成静态文件
+        run: |
+          echo "🔨 生成静态文件..."
+          python main.py
+          
+          echo "📋 检查生成的文件..."
+          ls -la output/js/
+          
+          echo "📄 检查 version.json 是否存在..."
+          if [ -f output/version.json ]; then
+            echo "✓ version.json 文件存在"
+            echo "内容预览:"
+            cat output/version.json | head -20
+          else
+            echo "⚠️ version.json 文件不存在"
+          fi
+          
+          echo "📄 检查 sw.js 是否存在..."
+          if [ -f output/sw.js ]; then
+            echo "✓ sw.js 文件存在"
+            echo "文件大小: $(wc -c < output/sw.js) bytes"
+            echo "前 5 行内容:"
+            head -5 output/sw.js
+          else
+            echo "❌ sw.js 文件不存在！"
+            exit 1
+          fi
+      
+      - name: 从 GitHub Release 下载 APK
+        run: |
+          echo "🔍 从 GitHub Release 获取最新 APK..."
+          
+          # 获取最新 Release 信息
+          RELEASE_INFO=$(curl -sf "https://api.github.com/repos/zhao-zg/books/releases/latest" || echo "{}")
+          
+          if [ "$RELEASE_INFO" = "{}" ]; then
+            echo "ℹ️ 没有找到 Release"
+            exit 0
+          fi
+          
+          # 提取 APK 信息
+          APK_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url // empty')
+          APK_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".apk")) | .name // empty')
+          APK_SIZE=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".apk")) | .size // empty')
+          APK_VERSION=$(echo "$RELEASE_INFO" | jq -r '.tag_name // empty' | sed 's/^v//')
+          
+          if [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
+            echo "📥 下载 APK: $APK_NAME"
+            echo "   版本: $APK_VERSION"
+            echo "   大小: $APK_SIZE bytes"
+            echo "   URL: $APK_URL"
+            
+            if curl -sfL -o "output/$APK_NAME" "$APK_URL"; then
+              DOWNLOADED_SIZE=$(stat -c%s "output/$APK_NAME" 2>/dev/null || echo "0")
+              echo "✓ APK 下载成功: $APK_NAME ($DOWNLOADED_SIZE bytes)"
+              
+              # 更新 version.json 添加 APK 信息
+              if [ -f output/version.json ]; then
+                python3 << PYTHON_EOF
+          import json
+          
+          with open('output/version.json', 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          
+          data['apk_file'] = '$APK_NAME'
+          data['apk_version'] = '$APK_VERSION'
+          data['apk_size'] = $DOWNLOADED_SIZE
+          
+          with open('output/version.json', 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+          
+          print('✓ version.json 已更新')
+          print(f'  APK: $APK_NAME')
+          print(f'  版本: $APK_VERSION')
+          print(f'  大小: $DOWNLOADED_SIZE bytes')
+          PYTHON_EOF
+              fi
+            else
+              echo "⚠️ APK 下载失败"
+            fi
+          else
+            echo "ℹ️ Release 中没有 APK 文件"
+          fi
+      
+      - name: 检查并创建 Cloudflare Pages 项目
+        run: |
+          echo "🔍 检查项目是否存在..."
+          
+          # 检查项目是否存在
+          response=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+          
+          success=$(echo "$response" | jq -r '.success')
+          
+          if [ "$success" = "true" ]; then
+            echo "✓ 项目 books 已存在"
+          else
+            echo "📦 项目不存在，正在创建..."
+            
+            create_response=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "name": "books",
+                "production_branch": "main"
+              }')
+            
+            create_success=$(echo "$create_response" | jq -r '.success')
+            
+            if [ "$create_success" = "true" ]; then
+              echo "✓ 项目 books 创建成功"
+            else
+              echo "❌ 项目创建失败"
+              echo "$create_response" | jq '.'
+              exit 1
+            fi
+          fi
+      
+      - name: 部署到 Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🚀 部署到 Cloudflare Pages..."
+          
+          # 安装最新版 wrangler
+          npm install -g wrangler
+          
+          # 获取 commit 信息（转换为 ASCII，避免 UTF-8 问题）
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_MSG="Deploy $COMMIT_HASH"
+          
+          # 部署（带重试机制）
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            if [ $RETRY_COUNT -gt 0 ]; then
+              echo "⏳ 等待 30 秒后重试..."
+              sleep 30
+              echo "🔄 重试第 $RETRY_COUNT 次..."
+            fi
+            
+            if wrangler pages deploy output \
+              --project-name=books \
+              --branch=main \
+              --commit-hash="$COMMIT_HASH" \
+              --commit-message="$COMMIT_MSG"; then
+              SUCCESS=true
+              echo "✓ Cloudflare Pages 部署成功"
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ 部署失败，准备重试 ($RETRY_COUNT/$MAX_RETRIES)"
+              else
+                echo "❌ 部署失败，已达到最大重试次数"
+                exit 1
+              fi
+            fi
+          done
+      
+      - name: 部署到 GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: '部署到 GitHub Pages'
+          # cname: books.example.com  # TODO: 替换为实际域名
+      
+      - name: 上传全量资源包到 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-package
+          path: output/*.zip
+          retention-days: 90
+          if-no-files-found: warn

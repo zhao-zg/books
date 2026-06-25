@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="书报 - 电子书阅读应用">
+    <meta name="theme-color" content="#fafbff">
+    <meta name="app-version" content="">
+    <!-- 防止主题跳色：在渲染前设置主题 -->
+    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}else{try{t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'cool'}catch(e){t='cool'}}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#F7F2E8':(t==='dark'?'#181b21':'#fafbff'));}})();</script>
+    <!-- 伪装检测 -->
+    <script>(function(){var ok=false;try{if(sessionStorage.getItem('bk_access')==='ok')ok=true;}catch(e){}if(!ok&&window.location.search.indexOf('zzg')!==-1){try{sessionStorage.setItem('bk_access','ok');}catch(e){}ok=true;}if(!ok&&window.location.hash&&window.location.hash.length>2){ok=true;}if(!ok){var isCap=window.Capacitor!==undefined||window.location.protocol==='capacitor:'||window.location.hostname==='localhost';var isPwa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!isCap&&!isPwa)document.documentElement.classList.add('bk-disguise');}})();</script>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+    <title>书报</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));padding-top:env(safe-area-inset-top, 0px)}
+        .container{padding:0;overflow:hidden}
+        .header{color:var(--header-text);margin-bottom:20px}
+        .content{padding:0}
+        @media(min-width:768px){.header{margin-bottom:30px}}
+        .books-grid{display:flex;flex-direction:column;gap:1px;margin:0;background:var(--group-divider-bg);overflow:hidden;border-radius:12px}
+        .book-card{background:var(--surface);overflow:hidden;transition:background-color .2s}
+        .book-card:hover{background:var(--nav-hover)}
+        .book-card-wrapper{display:flex;align-items:stretch;gap:0}
+        .book-link{display:block;padding:14px 16px;text-decoration:none;color:inherit;flex:1;min-width:0;transition:background-color .2s;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+        .book-link:active{background:var(--nav-hover)}
+        .book-info{position:relative}
+        .book-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px}
+        .skeleton-item{padding:16px;border-bottom:1px solid var(--border)}
+        .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--muted) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px}
+        .skeleton-line.short{width:30%;height:14px}
+        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        .book-card .book-author{font-size:14px;color:var(--brand);font-weight:600;flex-shrink:0;line-height:1.3}
+        .book-card .info{color:var(--text-muted);font-size:14px;white-space:nowrap;flex-shrink:0}
+        .book-title-row{display:flex;align-items:center;gap:6px;margin-bottom:0}
+        .book-card .title{font-size:1.05em;color:var(--text);line-height:1.6;font-weight:500;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;border-radius:4px;min-height:32px;flex:1}
+        .book-title-row .arrow{margin-left:auto;color:var(--text-muted);font-weight:600;flex-shrink:0}
+        .logo-trigger{cursor:pointer;user-select:none}
+        .footer-meta{margin-top:10px;font-size:.9em}
+        .home-status{padding:40px 20px;text-align:center;background:var(--surface);color:var(--text-muted)}
+        .home-status.error{color:var(--danger-text)}
+        .home-status-icon{font-size:24px;margin-bottom:10px}
+        .home-retry-btn{margin-top:20px;padding:10px 20px;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:1px solid var(--btn-primary-border);border-radius:6px;cursor:pointer;font:inherit;font-weight:600;box-shadow:var(--shadow-sm)}
+        .home-retry-btn:active{transform:scale(.98)}
+        .footer{text-align:center;padding:16px;color:var(--text-muted);background:var(--surface-alt);border-top:1px solid var(--border)}
+        .cache-status{margin-top:6px;font-size:12px;color:var(--text-muted);text-align:center;min-height:14px;padding:0}
+        .cache-status.success{color:var(--success-text)}
+        .cache-status.error{color:var(--danger-text)}
+        .cache-status.warning{color:var(--warning-text)}
+        /* 伪装页 */
+        html.bk-disguise .container,html.bk-disguise .footer,html.bk-disguise #app{display:none!important}
+        #bkMaintenance{display:none;position:fixed;inset:0;z-index:9999;background:var(--surface,#fff);flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;box-sizing:border-box}
+        html.bk-disguise #bkMaintenance{display:flex}
+        .bk-maint-icon{font-size:64px;margin-bottom:24px;cursor:default;-webkit-tap-highlight-color:transparent;user-select:none}
+        .bk-maint-title{font-size:20px;font-weight:600;color:var(--text,#333);margin-bottom:12px}
+        .bk-maint-sub{font-size:14px;color:var(--text-muted,#999);text-align:center;line-height:1.7;max-width:280px}
+        /* PWA 强制安装遮罩 */
+        .bk-install-mask{display:flex;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+        .bk-install-box{background:var(--surface,#fff);border-radius:16px;width:min(320px,calc(100vw - 40px));box-shadow:0 8px 40px rgba(0,0,0,.35);overflow:hidden;text-align:center;padding:28px 24px 22px}
+        .bk-install-icon{font-size:44px;margin-bottom:10px}
+        .bk-install-title{font-size:17px;font-weight:700;color:var(--heading,#111);margin-bottom:6px}
+        .bk-install-sub{font-size:12px;color:var(--text-muted,#888);margin-bottom:18px;line-height:1.65}
+        .bk-install-progress{height:4px;background:var(--border,#e0e0e0);border-radius:2px;margin-bottom:14px;overflow:hidden}
+        .bk-install-progress-bar{height:100%;background:var(--brand,#007aff);border-radius:2px;width:0%;transition:width .3s ease}
+        .bk-install-status{font-size:12px;color:var(--text-muted,#666);min-height:16px;margin-bottom:14px;line-height:1.5}
+        .bk-install-retry{display:none;padding:9px 22px;background:var(--brand,#007aff);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+        /* 离线横幅 */
+        #bkOfflineBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:8000;background:#e65100;color:#fff;padding:11px 16px;font-size:13px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);line-height:1.5}
+        #bkOfflineBanner.show{display:block}
+        #bkOfflineBanner .bk-banner-dismiss{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 10px;border-radius:4px;margin-left:8px;font-size:12px;cursor:pointer;vertical-align:middle;-webkit-tap-highlight-color:transparent}
+        /* SPA 视图容器 */
+        #app{min-height:100vh}
+        /* 启动加载页 */
+        #bkSplash{position:fixed;inset:0;z-index:9800;background:var(--surface,#fafbff);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;box-sizing:border-box;transition:opacity .45s ease;pointer-events:none}
+        #bkSplash.bk-splash-out{opacity:0}
+        .bk-splash-icon{font-size:48px;margin-bottom:16px}
+        .bk-splash-title{font-size:20px;color:var(--brand,#667eea);font-weight:600;letter-spacing:.08em;margin-bottom:10px;text-align:center}
+        .bk-splash-sub{font-size:15px;color:var(--text,#1a1a1a);text-align:center;line-height:2;font-weight:400}
+    </style>
+</head>
+<body>
+    <!-- 启动加载页 -->
+    <div id="bkSplash">
+        <div class="bk-splash-icon">📖</div>
+        <div class="bk-splash-title">书报</div>
+        <div class="bk-splash-sub">电子书阅读应用</div>
+    </div>
+    <script>(function(){
+        var _splashDone=false;
+        function _dismissSplash(){
+            if(_splashDone)return;_splashDone=true;
+            var el=document.getElementById('bkSplash');
+            if(!el)return;
+            el.classList.add('bk-splash-out');
+            setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},480);
+        }
+        if(document.readyState==='complete')_dismissSplash();
+        else window.addEventListener('load',_dismissSplash);
+        setTimeout(_dismissSplash,4000);
+    })();</script>
+    <!-- 阅读进度条 -->
+    <div id="bkReadingProgress" class="bk-reading-progress"></div>
+    <!-- 伪装维护页 -->
+    <div id="bkMaintenance">
+        <div class="bk-maint-icon" id="bkMaintTrigger">📱</div>
+        <div class="bk-maint-title" id="bkMaintTitle"></div>
+        <div class="bk-maint-sub" id="bkMaintSub"></div>
+    </div>
+    <script>(function(){
+        var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+        var icon=document.getElementById('bkMaintTrigger');
+        var title=document.getElementById('bkMaintTitle');
+        var sub=document.getElementById('bkMaintSub');
+        if(isIOS){if(icon)icon.textContent='📲';if(title)title.textContent='添加到主屏幕';if(sub)sub.textContent='请发送到桌面缓存使用，在线版已不支持，请谅解';}
+        else{if(icon)icon.textContent='📦';if(title)title.textContent='请下载 APK 离线使用';if(sub)sub.textContent='请下载APK离线使用，在线版已不支持，请谅解';}
+        var cnt=0,t=0;
+        if(icon)icon.addEventListener('click',function(){clearTimeout(t);cnt++;if(cnt>=20){try{sessionStorage.setItem('bk_access','ok');}catch(e){}location.reload();}else{t=setTimeout(function(){cnt=0;},999);}});
+    })();</script>
+
+    <!-- PWA 离线提示横幅 -->
+    <div id="bkOfflineBanner">
+        📶 需要网络连接才能首次安装缓存
+        <button class="bk-banner-dismiss">知道了</button>
+    </div>
+
+    <!-- ── 首页视图（静态，默认显示）──────────────────────────────── -->
+    <div id="homeView">
+        <div class="container">
+            <div class="header">
+                <h1 id="mainLogo" class="logo-trigger">📖 书报</h1>
+                <p class="subtitle">电子书阅读应用</p>
+                <button type="button" id="bk-search-btn" style="margin-top:10px;padding:7px 18px;background:var(--surface-alt);color:var(--brand);border:1.5px solid var(--border);border-radius:20px;font:inherit;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍 搜索内容</button>
+            </div>
+            <div class="content">
+                <div class="books-grid" id="booksGrid">
+                    <div class="skeleton-item"><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line short"></div></div>
+                    <div class="skeleton-item"><div class="skeleton-line" style="width:70%"></div><div class="skeleton-line short"></div></div>
+                    <div class="skeleton-item"><div class="skeleton-line" style="width:55%"></div><div class="skeleton-line short"></div></div>
+                </div>
+            </div>
+            <div class="footer">
+                <p>本站内容仅供主内圣徒交通使用</p>
+                <p class="footer-meta" id="footerMeta"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SPA 视图容器（默认隐藏）──────────────────────── -->
+    <div id="app" style="display:none"></div>
+
+    <!-- 脚本 -->
+    <script src="vendor/localforage.min.js"></script>
+    <script src="js/dev-console.js"></script>
+    <script src="js/theme-toggle.js"></script>
+    <script src="js/search.js"></script>
+    <script src="vendor/jszip.min.js"></script>
+    <script src="js/resource-pack.js"></script>
+
+    <!-- SPA 核心 -->
+    <script src="js/ref-detector.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/speech.js"></script>
+    <script src="js/scripture-popup.js"></script>
+    <script src="js/bible-dict.js"></script>
+    <script src="js/highlight.js"></script>
+    <script src="js/bookmark.js"></script>
+    <script src="js/nav-stack.js"></script>
+
+    <!-- APK 更新（仅在 APP / PWA 中加载） -->
+    <script>(function(){
+        var isCapacitor=window.Capacitor!==undefined;
+        var isCapacitorScheme=window.location.protocol==='capacitor:'||window.location.hostname==='localhost';
+        var isPwaStandalone=!!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||!!navigator.standalone;
+        if(isCapacitor||isCapacitorScheme||isPwaStandalone){
+            var s=document.createElement('script');s.src='js/app-update.js';document.head.appendChild(s);
+        }
+    })();</script>
+
+    <script>
+    // ── 全局根路径 ────────────────────────────────────────────────────────
+    window.BK_ROOT = './';
+    window.BK = window.BK || {};
+
+    // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
+    window.__bkCoreUrls = [
+        './','./manifest.json','./sw.js',
+        './version.json','./books.json',
+        './css/style.css',
+        './js/ref-detector.js','./js/router.js','./js/renderer.js',
+        './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
+        './js/scripture-popup.js',
+        './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
+        './js/resource-pack.js',
+        './vendor/localforage.min.js','./vendor/jszip.min.js',
+        './icons/icon-192.png','./icons/icon-512.png'
+    ];
+
+    // ── 环境检测 ──────────────────────────────────────────────────────────
+    var BK_ENV = (function(){
+        return {
+            isAndroid:/Android/i.test(navigator.userAgent),
+            isIOS:/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream,
+            isCapacitor:window.Capacitor!==undefined,
+            isCapacitorScheme:window.location.protocol==='capacitor:'||window.location.hostname==='localhost',
+            isStandalone:window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches),
+            get isInApp(){return this.isStandalone;},
+            get isCapacitorApp(){return this.isCapacitor||this.isCapacitorScheme;}
+        };
+    })();
+
+    // ── SPA 视图切换辅助 ──────────────────────────────────────────────────
+    window._bkShowHome = function() {
+        document.getElementById('homeView').style.display = '';
+        document.getElementById('app').style.display = 'none';
+        document.title = '书报';
+        window.scrollTo(0, 0);
+    };
+    window._bkShowApp = function() {
+        document.getElementById('homeView').style.display = 'none';
+        document.getElementById('app').style.display = '';
+    };
+
+    // ── Capacitor 版本获取 ────────────────────────────────────────────────
+    (function(){
+        var isCapacitor=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
+        if(isCapacitor){
+            window.Capacitor.Plugins.App.getInfo().then(function(info){
+                if(info.version)localStorage.setItem('bk_apk_version',info.version);
+            }).catch(function(){});
+        }
+    })();
+
+    // ── 动态加载书籍列表 ──────────────────────────────────────────────────
+    (function(){
+        fetch('books.json?t='+Date.now())
+            .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+            .then(function(data){
+                window.__bkBooks=data.books||[];
+                renderBooks(data);
+                var fm=document.getElementById('footerMeta');
+                if(fm&&data.generation_time)fm.textContent='生成时间: '+data.generation_time;
+            })
+            .catch(function(err){
+                console.error('[书籍列表]',err);
+                showLoadError();
+            });
+
+        function renderBooks(data){
+            var grid=document.getElementById('booksGrid');
+            if(!grid)return;
+            var allBooks=data.books||[];
+
+            function buildCard(b){
+                var chapterCount=b.chapter_count||0;
+                var addedDate=b.added_date||'';
+                return '<div class="book-card">'
+                    +'<div class="book-card-wrapper">'
+                    +'<div class="book-link" onclick="window.BKRouter&&BKRouter.navigate(\''+b.id+'\')" role="button" tabindex="0">'
+                    +'<div class="book-info">'
+                    +'<div class="book-header">'
+                    +'<div class="book-author">'+esc(b.author||'')+'</div>'
+                    +'<div class="info">共 '+chapterCount+' 章</div>'
+                    +'</div>'
+                    +'<div class="book-title-row">'
+                    +'<div class="title">'+esc(b.title||b.id)+'</div>'
+                    +'<span class="arrow">→</span>'
+                    +'</div>'
+                    +'</div>'
+                    +'</div>'
+                    +'</div>'
+                    +'</div>';
+            }
+
+            function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+            function buildGridHtml(list){
+                if(!list.length)return'<div class="home-status">暂无书籍内容</div>';
+                var html='';
+                list.forEach(function(b){html+=buildCard(b);});
+                return html;
+            }
+
+            // 构建 PWA 缓存页面列表
+            var pages=[];
+            allBooks.forEach(function(b){
+                pages.push('./'+b.id+'/book.json');
+            });
+            window.__bkBookPages=pages;
+
+            // PWA 显示缓存按钮
+            if(BK_ENV.isStandalone){
+                var cBtn=document.getElementById('cacheAllBtn');
+                if(cBtn)cBtn.style.display='inline-flex';
+            }
+
+            // ── refreshHomeGrid：刷新主页 grid（每次导航回主页时调用）──
+            window.refreshHomeGrid=function(){
+                var g=document.getElementById('booksGrid');
+                if(!g)return;
+                g.innerHTML=buildGridHtml(allBooks.length?allBooks:[]);
+            };
+
+            window.refreshHomeGrid();
+        }
+
+        function showLoadError(){
+            var grid=document.getElementById('booksGrid');
+            if(grid)grid.innerHTML='<div class="home-status error"><div class="home-status-icon">❌</div><div>加载书籍列表失败</div><button onclick="location.reload()" class="home-retry-btn">重试</button></div>';
+        }
+    })();
+
+    // ── 隐藏管理面板（Logo 连点 5 次 + 密码）────────────────────────────
+    (function(){
+        var logo=document.getElementById('mainLogo');
+        if(!logo)return;
+        var cnt=0,tmr=null;
+        logo.addEventListener('click',function(){
+            cnt++;
+            if(tmr)clearTimeout(tmr);
+            tmr=setTimeout(function(){cnt=0;},3000);
+            if(cnt>=5){
+                cnt=0;if(tmr)clearTimeout(tmr);
+                var pw=prompt('请输入管理密码：');
+                if(pw===null)return;
+                if(pw!=='1189'){alert('密码错误');return;}
+                showAdminPanel();
+            }
+        });
+
+        function showAdminPanel(){
+            if(document.getElementById('bkAdminMask'))return;
+
+            var isCapacitorApp=BK_ENV.isCapacitorApp;
+            var isPwaStandalone=BK_ENV.isStandalone&&!isCapacitorApp&&('caches' in window);
+            var canUpdate=isCapacitorApp||isPwaStandalone;
+            var devOn=false;
+            try{devOn=localStorage.getItem('bk_dev_mode')==='1';}catch(e){}
+
+            var _ver='';try{_ver=localStorage.getItem('bk_pwa_version')||'';}catch(e){}
+            var mask=document.createElement('div');
+            mask.id='bkAdminMask';
+            mask.className='bk-dialog-mask';
+            mask.innerHTML=[
+                '<div class="bk-dialog" style="padding:0 0 4px">',
+                '  <div style="padding:14px 16px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px">',
+                '    <span style="font-size:15px;font-weight:600;color:var(--text-primary)">🔧 管理面板</span>',
+                _ver?'<span style="font-size:11px;color:var(--text-secondary);background:var(--surface-alt);border:1px solid var(--border);border-radius:4px;padding:2px 7px;white-space:nowrap">v'+_ver+'</span>':'',
+                '  </div>',
+                '  <div style="padding:4px 16px 12px">',
+                canUpdate?[
+                    '  <div class="pref-row" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:2px">',
+                    '    <div class="pref-label-wrap">',
+                    '      <span class="pref-title">检查更新</span>',
+                    '      <span class="pref-desc">'+(isCapacitorApp?'检查并安装最新 APK':'检查 PWA 缓存是否最新')+'</span>',
+                    '    </div>',
+                    '    <button id="bkAdminUpdateBtn" class="action-btn feedback icon">检查</button>',
+                    '  </div>',
+                ].join(''):'',
+                '  <div class="pref-row" style="padding-top:8px">',
+                '    <div class="pref-label-wrap">',
+                '      <span class="pref-title">开发者模式</span>',
+                '      <span class="pref-desc">在页面底部显示调试日志</span>',
+                '    </div>',
+                '    <label class="pref-toggle">',
+                '      <input type="checkbox" id="bkAdminDevToggle"'+(devOn?' checked':'')+'>',
+                '      <span class="pref-toggle-slider"></span>',
+                '    </label>',
+                '  </div>',
+                '  </div>',
+                '  <div style="padding:4px 16px 14px">',
+                '    <button id="bkAdminClose" class="action-btn">关闭</button>',
+                '  </div>',
+                '</div>'
+            ].join('');
+            document.body.appendChild(mask);
+            if(window.BK&&window.BK.lockOverlayScroll)window.BK.lockOverlayScroll(mask,close);
+
+            function close(){if(mask.parentNode)mask.parentNode.removeChild(mask);if(window.BK&&window.BK.backStack)window.BK.backStack.pop();}
+            if(window.BK&&window.BK.backStack)window.BK.backStack.push(function(){if(mask.parentNode)mask.parentNode.removeChild(mask);});
+            document.getElementById('bkAdminClose').addEventListener('click',close);
+            mask.addEventListener('click',function(e){if(e.target===mask){e.stopPropagation();close();}});
+
+            if(canUpdate){
+                document.getElementById('bkAdminUpdateBtn').addEventListener('click',function(){
+                    close();
+                    if(isCapacitorApp){
+                        if(window.AppUpdate&&window.AppUpdate.showGitHubUpdateDialog)window.AppUpdate.showGitHubUpdateDialog();
+                    } else {
+                        var root=window.BK_ROOT||'./';
+                        if(window.AppUpdate&&window.AppUpdate.showPwaUpdateDialog)
+                            window.AppUpdate.showPwaUpdateDialog({root:root});
+                    }
+                });
+            }
+
+            document.getElementById('bkAdminDevToggle').addEventListener('change',function(){
+                var on=this.checked;
+                try{localStorage.setItem('bk_dev_mode',on?'1':'0');}catch(e){}
+                if(on&&window.BKDevConsole)window.BKDevConsole.init();
+                else if(!on&&window.BKDevConsole)window.BKDevConsole.destroy();
+            });
+        }
+    })();
+
+    // ── 页面记忆：保存 ────────────────────────────────────────────────────
+    (function(){
+        function savePage(){
+            try{var href=window.location.href;localStorage.setItem('bk_last_page',href);localStorage.setItem('bk_last_page_time',Date.now());}catch(e){}
+        }
+        window.addEventListener('beforeunload',savePage);
+        document.addEventListener('visibilitychange',function(){if(document.hidden)savePage();});
+    })();
+
+    // ── 页面记忆：恢复（APP / PWA 内） ──────────────────────────────────
+    (function(){
+        try{
+            var isApp=BK_ENV.isInApp||BK_ENV.isCapacitorApp;
+            if(!isApp){ console.log('[页面记忆] 非 App/PWA，跳过恢复'); return; }
+            var hasRestored=sessionStorage.getItem('bk_has_restored');
+            var curHash=window.location.hash;
+            var curHashIsMain=!curHash||curHash==='#'||curHash==='#/';
+            console.log('[页面记忆] isApp=true hasRestored=' + hasRestored + ' curHash="' + curHash + '" curHashIsMain=' + curHashIsMain);
+            if(hasRestored||!curHashIsMain){
+                sessionStorage.setItem('bk_has_restored','true');
+                console.log('[页面记忆] 已恢复或当前非主页，直接 initHomePage');
+                if(window.BKNavStack)window.BKNavStack.initHomePage();
+                return;
+            }
+            var lastPage=localStorage.getItem('bk_last_page');
+            var lastPageTime=localStorage.getItem('bk_last_page_time');
+            console.log('[页面记忆] lastPage=' + lastPage);
+            if(lastPage&&lastPageTime){
+                var timeDiff=Date.now()-parseInt(lastPageTime);
+                if(timeDiff<7*24*60*60*1000){
+                    var lastHash='';
+                    try{lastHash=new URL(lastPage).hash;}catch(e){}
+                    var lastPageIsMain=!lastHash||lastHash==='#'||lastHash==='#/';
+                    console.log('[页面记忆] lastHash="' + lastHash + '" lastPageIsMain=' + lastPageIsMain + ' timeDiff=' + timeDiff);
+                    if(!lastPageIsMain){
+                        sessionStorage.setItem('bk_has_restored','true');
+                        sessionStorage.setItem('bk_restore_scroll','true');
+                        if(window.BK&&window.BK.backStack&&window.BK.backStack.skipNext)window.BK.backStack.skipNext();
+                        console.log('[页面记忆] 恢复至 lastHash="' + lastHash + '"');
+                        window.location.hash=lastHash;
+                        if(window.BKNavStack)window.BKNavStack.initHomePage();
+                        return;
+                    }
+                }
+            }
+            sessionStorage.setItem('bk_has_restored','true');
+            console.log('[页面记忆] 无历史页或已在主页，initHomePage');
+            if(window.BKNavStack)window.BKNavStack.initHomePage();
+        }catch(e){console.error('[页面记忆]',e);}
+    })();
+
+    // ── 搜索按钮（首页）──────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded',function(){
+        var btn=document.getElementById('bk-search-btn');
+        if(btn){
+            btn.addEventListener('click',function(){
+                if(window.BKSearch&&window.BKSearch.open)window.BKSearch.open();
+            });
+        }
+        var banner=document.getElementById('bkOfflineBanner');
+        if(banner){
+            var dismiss=banner.querySelector('.bk-banner-dismiss');
+            if(dismiss)dismiss.addEventListener('click',function(){banner.classList.remove('show');});
+        }
+        // 长按 Logo 清理数据
+        var logo=document.getElementById('mainLogo');
+        if(logo){
+            var lpt=null,isLp=false;
+            function startLp(){isLp=false;lpt=setTimeout(function(){isLp=true;if(window.BK&&window.BK.clearData)window.BK.clearData();},2000);}
+            function endLp(e){if(lpt)clearTimeout(lpt);if(isLp){e.preventDefault();e.stopPropagation();}}
+            function cancelLp(){if(lpt)clearTimeout(lpt);isLp=false;}
+            logo.addEventListener('touchstart',startLp);logo.addEventListener('touchend',endLp);logo.addEventListener('touchmove',cancelLp);
+            logo.addEventListener('mousedown',startLp);logo.addEventListener('mouseup',endLp);logo.addEventListener('mouseleave',cancelLp);
+        }
+    });
+
+    // ── PWA 工具函数 ──────────────────────────────────────────────────────
+
+    function getBookResources(path){
+        return ['./' + path + '/book.json'];
+    }
+
+    function waitForBooks(timeout){
+        return new Promise(function(resolve,reject){
+            if(window.__bkBooks&&window.__bkBooks.length){resolve(window.__bkBooks);return;}
+            var e=0,iv=setInterval(function(){
+                if(window.__bkBooks&&window.__bkBooks.length){clearInterval(iv);resolve(window.__bkBooks);}
+                else{e+=100;if(e>=timeout){clearInterval(iv);reject(new Error('超时'));}}
+            },100);
+        });
+    }
+
+    function verifyCacheIntegrity(books){
+        if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingBooks:[]});
+        var coreUrls=window.__bkCoreUrls||[];
+        return caches.keys().then(function(keys){
+            var hasCoreCache=keys.some(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
+            if(!hasCoreCache)return{ok:false,coverage:0,missingCore:coreUrls.length,missingBooks:(books||[]).map(function(b){return b.id;})};
+            var checkUrls=coreUrls.filter(function(u){return u!=='./';});
+            return caches.open('bk-main').then(function(cache){
+                return Promise.all(checkUrls.map(function(u){return cache.match(u).then(function(r){return r?null:u;});}));
+            }).then(function(results){
+                var missingUrls=results.filter(Boolean);
+                var hits=checkUrls.length-missingUrls.length;
+                var cov=checkUrls.length>0?hits/checkUrls.length:1;
+                if(cov<1)return{ok:false,coverage:cov,missingCore:missingUrls.length,missingCoreUrls:missingUrls,missingBooks:[]};
+                if(!books||!books.length)return{ok:true,coverage:1,missingCore:0,missingBooks:[]};
+                var missingB=books.filter(function(b){return!keys.some(function(k){return k==='bk-'+b.id;});});
+                var bCov=(books.length-missingB.length)/books.length;
+                return{ok:bCov>=1,coverage:bCov,missingCore:0,missingBooks:missingB.map(function(b){return b.id;})};
+            });
+        }).catch(function(){return{ok:false,coverage:0,missingCore:0,missingBooks:[]};});
+    }
+
+    function cacheAllBooks(statusEl,onProgress){
+        if(!('caches' in window)){if(statusEl)statusEl.textContent='当前环境不支持缓存';return Promise.resolve();}
+        var books=window.__bkBooks||[];
+        if(!books.length){if(statusEl)statusEl.textContent='书籍列表尚未加载';return Promise.resolve();}
+        var coreUrls=window.__bkCoreUrls||[];
+        var totalResources=coreUrls.length;var cachedResources=0;
+        books.forEach(function(b){totalResources+=getBookResources(b.id).length;});
+        function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
+        var cacheShared=caches.open('bk-main').then(function(cache){
+            return Promise.allSettled(coreUrls.map(function(url){
+                return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());}).catch(function(){cachedResources++;rep();});
+            }));
+        }).catch(function(){});
+        return cacheShared.then(function(){
+            return books.reduce(function(p,b){return p.then(function(){
+                var resources=getBookResources(b.id);
+                if(statusEl)statusEl.textContent='缓存：'+b.title;
+                return caches.open('bk-'+b.id).then(function(cache){
+                    return Promise.all(resources.map(function(url){
+                        return fetch(url,{redirect:'follow',cache:'no-cache'}).then(function(r){
+                            if(r.ok){cachedResources++;rep();return cache.put(r.url,r.clone());}
+                        }).catch(function(){cachedResources++;rep();});
+                    }));
+                });
+            });},Promise.resolve());
+        }).then(function(){if(statusEl){statusEl.textContent='✓ 全部缓存完成';statusEl.className='cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
+    }
+
+    function showMandatoryInstallDialog(mode,targetVersion){
+        if(document.getElementById('bkInstallMask'))return;
+        var icons={install:'📦',update:'🔄'};
+        var titles={install:'首次安装缓存',update:'缓存更新中'};
+        var subs={install:'首次使用会缓存所有书籍资源，请保持网络连接...',update:'正在重新缓存最新资源，用户数据不受影响...'};
+        var mask=document.createElement('div');mask.id='bkInstallMask';mask.className='bk-install-mask';
+        mask.innerHTML='<div class="bk-install-box"><div class="bk-install-icon">'+icons[mode]+'</div><div class="bk-install-title">'+titles[mode]+'</div><div class="bk-install-sub">'+subs[mode]+'</div><div class="bk-install-progress"><div class="bk-install-progress-bar" id="bkInstallProgressBar"></div></div><div class="bk-install-status" id="bkInstallStatus">正在准备...</div><button class="bk-install-retry" id="bkInstallRetry">重试</button></div>';
+        mask.addEventListener('click',function(e){e.stopPropagation();});
+        document.body.appendChild(mask);
+        var statusEl=document.getElementById('bkInstallStatus');
+        var progressBar=document.getElementById('bkInstallProgressBar');
+        var retryBtn=document.getElementById('bkInstallRetry');
+        function doInstall(){
+            if(retryBtn)retryBtn.style.display='none';
+            if(progressBar)progressBar.style.width='0%';
+            if(statusEl)statusEl.textContent='正在等待书籍列表...';
+            waitForBooks(15000).then(function(books){
+                var toCache=books;
+                var refreshKeys=toCache.map(function(b){return'bk-'+b.id;});
+                if(statusEl)statusEl.textContent='正在清理旧缓存...';
+                var clearStep=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return refreshKeys.indexOf(k)!==-1;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
+                return clearStep.then(function(){
+                    if(statusEl)statusEl.textContent='开始缓存资源...';
+                    return cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';}).then(function(){
+                        if(progressBar)progressBar.style.width='100%';
+                        if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
+                        return verifyCacheIntegrity(toCache);
+                    }).then(function(result){
+                        if(result.ok){try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
+                            if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
+                            if(progressBar)progressBar.style.width='100%';
+                            setTimeout(function(){window.location.reload();},1200);
+                        }else{
+                            var msg='⚠ 部分资源未完整（'+Math.round((result.coverage||0)*100)+'%）';
+                            if(result.missingCore&&result.missingCore>0){
+                                msg+='\n缺少核心资源 '+result.missingCore+' 个';
+                                if(result.missingCoreUrls&&result.missingCoreUrls.length)msg+='：'+result.missingCoreUrls.slice(0,3).map(function(u){return u.split('/').pop();}).join('、')+(result.missingCoreUrls.length>3?'...':'');
+                            }
+                            if(result.missingBooks&&result.missingBooks.length)msg+='\n缺少书籍：'+result.missingBooks.join('、');
+                            msg+='\n请重试';
+                            if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
+                            if(retryBtn)retryBtn.style.display='block';
+                        }
+                    });
+                });
+            }).catch(function(err){if(statusEl)statusEl.textContent='⚠ 出错：'+(err&&err.message||'未知')+'，请重试';if(retryBtn)retryBtn.style.display='block';});
+        }
+        if(retryBtn)retryBtn.addEventListener('click',doInstall);
+        doInstall();
+    }
+
+    function checkPwaStartupCache(){
+        if(!BK_ENV.isStandalone||BK_ENV.isCapacitorApp||!('caches' in window))return;
+        var storedVersion=null;try{storedVersion=localStorage.getItem('bk_pwa_version');}catch(e){}
+        fetch('./version.json?t='+Date.now(),{cache:'no-store'})
+            .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+            .then(function(v){
+                var remoteVersion=v.version||v.apk_version;
+                var targetVersion=remoteVersion||storedVersion;
+                var versionChanged=remoteVersion&&storedVersion!==remoteVersion;
+                if(versionChanged){
+                    if(storedVersion){_showPwaUpdateReady();}
+                    else{showMandatoryInstallDialog('install',targetVersion);}
+                    return;
+                }
+                waitForBooks(5000).then(function(books){return verifyCacheIntegrity(books);})
+                    .then(function(result){if(!result.ok){var m=storedVersion?'update':'install';showMandatoryInstallDialog(m,targetVersion);}})
+                    .catch(function(){});
+            })
+            .catch(function(err){
+                if(!storedVersion){var b=document.getElementById('bkOfflineBanner');if(b){b.classList.add('show');var d=b.querySelector('.bk-banner-dismiss');if(d)d.addEventListener('click',function(){b.classList.remove('show');});}}
+            });
+    }
+
+    function _showPwaUpdateReady(){
+        try{sessionStorage.removeItem('bk_update_toast_shown');}catch(e){}
+        if(window.AppUpdate&&window.AppUpdate.silentCheckUpdate){
+            window.AppUpdate.silentCheckUpdate();
+        } else {
+            window.__bkPwaUpdateReady=true;
+        }
+    }
+
+    // 注册 Service Worker（非 Capacitor 原生环境）
+    if('serviceWorker' in navigator){
+        var _isNativeApp=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+        if(_isNativeApp){
+            if('caches' in window){
+                var _capVer=null;try{_capVer=localStorage.getItem('bk_pwa_version');}catch(e){}
+                fetch('./version.json?t='+Date.now(),{cache:'no-store'})
+                    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+                    .then(function(v){
+                        var _ver=v.version||v.apk_version||'';
+                        if(_capVer&&_capVer===_ver)return;
+                        waitForBooks(15000).then(function(){
+                            return cacheAllBooks(null,null);
+                        }).then(function(){
+                            if(_ver)try{localStorage.setItem('bk_pwa_version',_ver);}catch(e){}
+                        }).catch(function(){});
+                    })
+                    .catch(function(){/* 离线时跳过 */});
+            }
+        } else {
+        navigator.serviceWorker.register('./sw.js').then(function(reg){
+            reg.update().catch(function(){});
+            reg.addEventListener('updatefound',function(){
+                var nw=reg.installing;
+                if(nw)nw.addEventListener('statechange',function(){
+                    if(nw.state==='installed'&&navigator.serviceWorker.controller)nw.postMessage({type:'SKIP_WAITING'});
+                });
+            });
+            return navigator.serviceWorker.ready;
+        }).then(function(){checkPwaStartupCache();}).catch(function(e){console.error('[SW]',e);});
+        var refreshing=false;
+        navigator.serviceWorker.addEventListener('controllerchange',function(){
+            if(refreshing)return;
+            var isNative=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+            if(isNative)return;
+            refreshing=true;window.location.reload();
+        });
+        } // end else (non-native)
+    }
+
+    // 主页 PWA/清理功能委托（供 theme-toggle.js 调用）
+    window.BK.clearData=function(){
+        if(window.BK&&window.BK.showClearDialog){window.BK.showClearDialog(function(sel){clearAllCachesAndMemory({clearNotesOnly:sel==='notes'});});}
+    };
+
+    function clearAllCachesAndMemory(opts){
+        opts=opts||{};
+        var goHome=function(){
+            try{window.history.replaceState(null,'',window.location.pathname);}catch(e){}
+            window.location.reload();
+        };
+        if(opts.clearNotesOnly){
+            try{localStorage.removeItem('bk_highlights');}catch(e){}
+            try{localStorage.removeItem('bk_highlights_bak');}catch(e){}
+            var lf=(typeof localforage!=='undefined')?localforage.createInstance({name:'books',storeName:'highlights'}):null;
+            (lf?lf.clear():Promise.resolve()).then(goHome).catch(goHome);
+            return;
+        }
+        var steps=[];
+        steps.push(new Promise(function(resolve){try{var keys=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('bk_')&&k!=='bk_first_use')keys.push(k);else if(k&&k.startsWith('bk-'))keys.push(k);if(k==='fontSize'||k==='globalFontSize'||k==='readingTheme'||k==='speechRate')keys.push(k);}keys.forEach(function(k){localStorage.removeItem(k);});resolve();}catch(e){resolve();}}));
+        steps.push(new Promise(function(resolve){try{sessionStorage.clear();resolve();}catch(e){resolve();}}));
+        if('serviceWorker' in navigator)steps.push(navigator.serviceWorker.getRegistrations().then(function(regs){return Promise.all(regs.map(function(r){return r.unregister();}));}).catch(function(){}));
+        if('caches' in window)steps.push(caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));}).catch(function(){}));
+        if('indexedDB' in window)steps.push(new Promise(function(resolve){try{var dbs=['books','bk-cache','workbook-expiration','localforage'];Promise.all(dbs.map(function(n){return new Promise(function(r){var req=indexedDB.deleteDatabase(n);req.onsuccess=req.onerror=req.onblocked=r;});})).then(resolve);}catch(e){resolve();}}));
+        if(typeof localforage!=='undefined')steps.push(localforage.clear().catch(function(){}));
+        Promise.all(steps).then(goHome);
+    }
+
+    // 主页 PWA 安装功能委托（供 theme-toggle.js 调用）
+    document.addEventListener('DOMContentLoaded',function(){
+        window.BK.installPWA=function(){
+            var p=window._pwaInstallPrompt;if(!p)return;
+            window._pwaInstallPrompt=null;p.prompt();
+        };
+    });
+    </script>
+
+    <!-- ── 启动 SPA 路由器 ────────────────────────────────────────────── -->
+    <script>
+    (function waitRenderer(){
+        if(window.BKRenderer){
+            var origRenderHome=window.BKRenderer.renderHome;
+            window.BKRenderer.renderHome=function(){
+                origRenderHome.call(window.BKRenderer);
+                if(window.refreshHomeGrid)window.refreshHomeGrid();
+            };
+            ['renderChapterList','renderReadingView'].forEach(function(fn){
+                var orig=window.BKRenderer[fn];
+                window.BKRenderer[fn]=function(){
+                    window._bkShowApp();
+                    return orig.apply(window.BKRenderer,arguments);
+                };
+            });
+        }
+        if(window.BKRouter){
+            window.BKRouter.start();
+        } else {
+            document.addEventListener('DOMContentLoaded',function(){
+                if(window.BKRouter)window.BKRouter.start();
+            });
+        }
+    })();
+    </script>
+    <!-- 阅读进度条 JS -->
+    <script>
+    (function(){
+        var prog=document.getElementById('bkReadingProgress');
+        if(prog){
+            function updProg(){var s=window.scrollY||0;var d=document.documentElement.scrollHeight-window.innerHeight;prog.style.width=(d>0?Math.min(100,s/d*100):0)+'%';}
+            window.addEventListener('scroll',updProg,{passive:true});
+            window.addEventListener('hashchange',function(){prog.style.width='0%';});
+        }
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Minimal runtime dependencies for generating the static site
+# Python: 3.10+
+
+python-docx>=0.8.11
+PyYAML>=6.0
+Jinja2>=3.1
+Pillow>=10.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+cryptography>=41.0.0
+
+# EPUB / Markdown / TXT parsing
+ebooklib>=0.18
+markdown>=3.5
+python-frontmatter>=1.0
+chardet>=5.0
+
+# Optional (only needed if you want to read .doc directly via MS Word COM)
+# pywin32>=306; sys_platform == "win32"

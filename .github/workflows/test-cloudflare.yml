@@ -1,0 +1,96 @@
+name: 测试 Cloudflare 配置
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  test-config:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检查 Secrets 是否配置
+        run: |
+          echo "检查 GitHub Secrets..."
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "❌ CLOUDFLARE_API_TOKEN 未配置"
+            exit 1
+          else
+            echo "✓ CLOUDFLARE_API_TOKEN 已配置"
+          fi
+          
+          if [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
+            echo "❌ CLOUDFLARE_ACCOUNT_ID 未配置"
+            exit 1
+          else
+            echo "✓ CLOUDFLARE_ACCOUNT_ID 已配置"
+            echo "Account ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+          fi
+      
+      - name: 测试 Cloudflare API
+        run: |
+          echo "测试 Cloudflare API 连接..."
+          echo "Account ID (前8位): ${ACCOUNT_ID:0:8}..."
+          echo ""
+          
+          # 列出所有 Pages 项目
+          response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+          
+          # 分离响应体和状态码
+          http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
+          body=$(echo "$response" | sed '/HTTP_CODE:/d')
+          
+          echo "HTTP 状态码: $http_code"
+          echo ""
+          echo "API 响应:"
+          echo "$body" | jq '.' || echo "$body"
+          echo ""
+          
+          # 检查是否成功
+          success=$(echo "$body" | jq -r '.success' 2>/dev/null || echo "false")
+          if [ "$success" = "true" ]; then
+            echo "✅ API 连接成功"
+            
+            # 列出所有项目名称
+            echo ""
+            echo "📋 你的 Cloudflare Pages 项目列表:"
+            projects=$(echo "$body" | jq -r '.result[].name' 2>/dev/null)
+            if [ -z "$projects" ]; then
+              echo "  (没有找到任何项目)"
+            else
+              echo "$projects" | while read -r project; do
+                echo "  - $project"
+              done
+            fi
+            
+            # 检查 books 项目是否存在
+            echo ""
+            project_exists=$(echo "$body" | jq -r '.result[] | select(.name=="books") | .name' 2>/dev/null)
+            if [ -n "$project_exists" ]; then
+              echo "✅ 找到项目: books"
+              echo ""
+              echo "项目详情:"
+              echo "$body" | jq '.result[] | select(.name=="books")' 2>/dev/null
+            else
+              echo "❌ 未找到项目: books"
+              echo ""
+              echo "可能的原因:"
+              echo "1. 项目名称不匹配（区分大小写）"
+              echo "2. 项目在不同的 Account 下"
+              echo "3. API Token 权限不足"
+            fi
+          else
+            echo "❌ API 连接失败"
+            echo ""
+            echo "错误信息:"
+            echo "$body" | jq -r '.errors[]' 2>/dev/null || echo "$body"
+            echo ""
+            echo "可能的原因:"
+            echo "1. Account ID 不正确"
+            echo "2. API Token 无效或已过期"
+            echo "3. API Token 权限不足（需要 'Cloudflare Pages - Edit'）"
+          fi
+        env:
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

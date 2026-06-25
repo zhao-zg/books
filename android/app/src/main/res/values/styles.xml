@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 覆盖 Capacitor 默认主题，统一窗口背景色与 HTML 启动页一致，避免 WebView 加载前白色闪烁 -->
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+
+    <!-- MainActivity 使用：无 ActionBar + 启动背景色与 HTML 启动页一致 -->
+    <style name="AppTheme.NoActionBarLaunch">
+        <item name="android:windowBackground">@color/splash_bg</item>
+    </style>
+</resources>

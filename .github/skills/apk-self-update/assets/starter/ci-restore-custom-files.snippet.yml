@@ -1,0 +1,6 @@
+# Restore tracked custom Android files after npx cap add android / npx cap sync android
+- name: Restore ApkInstaller native files
+  run: |
+    git checkout __MAIN_ACTIVITY_PATH__
+    git checkout __PLUGIN_PATH__
+    git checkout android/app/src/main/res/xml/file_paths.xml

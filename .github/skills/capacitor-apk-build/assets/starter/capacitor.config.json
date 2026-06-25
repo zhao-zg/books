@@ -1,0 +1,10 @@
+{
+  "appId": "__APP_ID__",
+  "appName": "__APP_NAME__",
+  "webDir": "__WEB_DIR__",
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

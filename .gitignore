@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Capacitor — ignore generated Android/iOS project, but keep all custom plugin sources
+# IMPORTANT: use 'android/*' (NOT 'android/') so git still descends into android/.
+# Trailing-slash 'android/' makes git skip the directory entirely, defeating all '!' rules.
+# Cascading wildcard pattern: each level ignores its contents, then un-ignores the one
+# subdirectory we care about, so new .java files can be 'git add'ed without -f.
+android/*
+!android/app
+android/app/*
+!android/app/src
+android/app/src/*
+!android/app/src/main
+android/app/src/main/*
+!android/app/src/main/AndroidManifest.xml
+!android/app/src/main/java
+!android/app/src/main/res
+android/app/src/main/res/*
+!android/app/src/main/res/values
+!android/app/src/main/res/values/**
+android/app/src/main/java/*
+!android/app/src/main/java/com
+android/app/src/main/java/com/*
+!android/app/src/main/java/com/books
+android/app/src/main/java/com/books/*
+!android/app/src/main/java/com/books/app
+!android/app/src/main/java/com/books/app/**
+ios/
+.capacitor/
+
+# Output
+output/
+
+# Temporary downloads
+tmp_downloads/
+
+# Security build artifacts
+*.dev.backup
+output/js_original/
+*.original
+*.temp.obf
+*.temp.js
+app-update.js.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Keys
+*.keystore
+*.jks

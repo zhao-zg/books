@@ -1,0 +1,32 @@
+# Cloudflare Pages 部署时忽略的文件
+# 只部署 output 文件夹的内容
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 源代码
+src/
+resource/
+
+# 配置文件
+config.yaml
+requirements.txt
+main.py
+
+# 文档
+*.md
+!output/**/*.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# 日志
+*.log

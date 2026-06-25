@@ -1,0 +1,9 @@
+{
+  "appId": "com.books.app",
+  "appName": "书报",
+  "webDir": "output",
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

@@ -1,0 +1,85 @@
+name: Build and Deployname: Deploy Static Site
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        force_orphan: true        publish_branch: gh-pages        publish_dir: ./output        github_token: ${{ secrets.GITHUB_TOKEN }}      with:      uses: peaceiris/actions-gh-pages@v3    - name: Deploy to GitHub Pages fallback        wrangler pages deploy output --project-name=__CF_PROJECT_NAME__ --branch=main        npm install -g wrangler      run: |        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}      env:    - name: Deploy to Cloudflare Pages        test -d output || mkdir -p output        # python main.py        # Replace with your actual build command      run: |    - name: Build static output        python-version: '3.10'      with:      uses: actions/setup-python@v5    - name: Setup Python      uses: actions/checkout@v4    - name: Checkout code    steps:      contents: write    permissions:    runs-on: ubuntu-latest  deploy:jobs:  workflow_dispatch:    branches: [main]  push:on:
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build static site
+      run: |
+        echo "Replace with your build command"
+        # Example: npm run build or python main.py
+
+    - name: Deploy to Cloudflare Pages
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      run: |
+        npm install -g wrangler
+        wrangler pages deploy __WEB_DIR__ --project-name=__CF_PROJECT_NAME__ --branch=main
+
+    - name: Deploy to GitHub Pages (fallback)
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./__WEB_DIR__
+        publish_branch: gh-pages
+        force_orphan: true

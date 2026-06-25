@@ -1,0 +1,66 @@
+name: Build Android APK
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build static site
+      run: npm run build
+
+    - name: Add Android platform
+      run: |
+        rm -rf android
+        npx cap add android
+
+    - name: Sync Capacitor
+      run: npx cap sync android
+
+    - name: Build APK
+      run: |
+        chmod +x android/gradlew
+        cd android
+        ./gradlew clean assembleRelease --no-daemon
+
+    - name: Collect APK
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        cd android/app/build/outputs/apk/release/
+        for apk in *.apk; do
+          if [ -f "$apk" ]; then
+            cp "$apk" "../../../../../../__APP_NAME__-v${VERSION}.apk"
+            break
+          fi
+        done
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: __APP_NAME__-*.apk
