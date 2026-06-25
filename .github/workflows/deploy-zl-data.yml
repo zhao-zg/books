@@ -1,11 +1,12 @@
 name: Deploy ZL-HTML Data
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'resource/zl-html/**'
   workflow_dispatch:
+    inputs:
+      reason:
+        description: '触发原因（可选）'
+        required: false
+        default: ''
 
 jobs:
   deploy-data:
@@ -13,13 +14,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      
       - name: Install wrangler
         run: npm install -g wrangler
+      
+      - name: Generate zl-html data
+        run: |
+          echo "🔨 从 resource/html/ 生成 zl-html 数据..."
+          python process_html_books.py
+          echo "✓ zl-html 数据生成完成"
+          echo "📋 生成结果:"
+          ls -la resource/zl-html/ || echo "⚠️ resource/zl-html/ 目录不存在"
       
       - name: Deploy zl-html data
         env:
