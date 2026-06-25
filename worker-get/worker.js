@@ -1,6 +1,6 @@
 const BASES = [
-  'https://books.1189.dpdns.org/',
-  'https://books.zhaozg.dpdns.org/',
+  'https://books.07170501.xyz',
+  'https://books.1189.dpdns.org'
 ];
 
 export default {

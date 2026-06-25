@@ -18,6 +18,9 @@ compatibility_flags = ["nodejs_compat_v2"]
 id = "__ACCOUNT_ID__"
 
 [[routes]]
-pattern = "books-get.kis5n.kunyun.info"
-custom_domain = true
-zone_id = "__ZONE_ID__"
+pattern = "books.07170501.xyz/*"
+zone_name = "07170501.xyz"
+
+[[routes]]
+pattern = "books.1189.dpdns.org/*"
+zone_name = "1189.dpdns.org"

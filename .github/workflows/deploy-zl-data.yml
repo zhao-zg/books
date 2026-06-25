@@ -1,0 +1,65 @@
+name: Deploy ZL-HTML Data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'resource/zl-html/**'
+  workflow_dispatch:
+
+jobs:
+  deploy-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install wrangler
+        run: npm install -g wrangler
+      
+      - name: Deploy zl-html data
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🚀 部署 zl-html 数据到 Cloudflare Pages..."
+          
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            if [ $RETRY_COUNT -gt 0 ]; then
+              echo "⏳ 等待 30 秒后重试..."
+              sleep 30
+              echo "🔄 重试第 $RETRY_COUNT 次..."
+            fi
+            
+            if wrangler pages deploy resource/zl-html \
+              --project-name=books-data \
+              --commit-dirty=true; then
+              SUCCESS=true
+              echo "✓ zl-html 数据部署成功"
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ 部署失败，准备重试 ($RETRY_COUNT/$MAX_RETRIES)"
+              else
+                echo "⚠️ 部署失败，尝试创建项目..."
+                wrangler pages project create books-data --production-branch=main || true
+                if wrangler pages deploy resource/zl-html \
+                  --project-name=books-data \
+                  --commit-dirty=true; then
+                  SUCCESS=true
+                  echo "✓ zl-html 数据部署成功（项目创建后）"
+                else
+                  echo "❌ zl-html 数据部署失败"
+                  exit 1
+                fi
+              fi
+            fi
+          done

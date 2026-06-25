@@ -25,6 +25,16 @@
   // 缓存 books.json
   var _booksIndex = null;
 
+  // ── zl-html 数据状态 ────────────────────────────────────────────────────
+  var _zlIndex = null;          // DataManager 加载的 books-index.json
+  var _zlSeries = [];           // 系列数组
+  var _zlBooks = [];            // 书籍数组
+  var _zlCurrentSeries = 'all'; // 当前选中的系列过滤
+  var _zlDownloadedIds = [];    // 已下载的书籍 ID 列表
+  var _zlDmReady = false;       // DataManager 是否就绪
+  var _dlPanelOpen = false;     // 下载面板是否展开
+  var _dlProgressTimer = null;  // 下载进度轮询定时器
+
   // 滚动位置记忆
   var _scrollSaveTimer = null;
   var _scrollSaveHandler = null;
@@ -50,6 +60,26 @@
   }
 
   function loadBook(bookId) {
+    if (_bookCache[bookId]) return Promise.resolve(_bookCache[bookId]);
+
+    // 优先通过 DataManager 加载 zl-html 书籍
+    if (_zlDmReady && win.DataManager) {
+      return win.DataManager.getBook(bookId)
+        .then(function (data) {
+          _bookCache[bookId] = data;
+          return data;
+        })
+        .catch(function (dmErr) {
+          console.warn('[Renderer] DataManager 加载失败，回退到旧路径: ' + bookId, dmErr.message);
+          return _loadBookLegacy(bookId);
+        });
+    }
+
+    return _loadBookLegacy(bookId);
+  }
+
+  // 旧路径加载 book.json（EPUB/MD/TXT 书籍）
+  function _loadBookLegacy(bookId) {
     if (_bookCache[bookId]) return Promise.resolve(_bookCache[bookId]);
     var root = win.BK_ROOT || './';
     var isNative = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
@@ -249,6 +279,19 @@
   function renderChapterContent(chapter) {
     var contentArr = chapter.content || [];
     var html = '';
+
+    // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
+    if (typeof contentArr === 'string') {
+      var lines = contentArr.split('\n');
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li].trim();
+        if (line) {
+          html += '<p class="bk-paragraph">' + wrapRefs(line) + '</p>';
+        }
+      }
+      return html;
+    }
+
     for (var i = 0; i < contentArr.length; i++) {
       html += renderContentItem(contentArr[i]);
     }
@@ -309,11 +352,519 @@
     return html;
   }
 
+  // ── zl-html 首页渲染辅助函数 ────────────────────────────────────────
+
+  /**
+   * 检查书籍是否已下载（同步，基于缓存的 ID 列表）
+   */
+  function _isBookDownloaded(bookId) {
+    return _zlDownloadedIds.indexOf(bookId) !== -1;
+  }
+
+  /**
+   * 根据 series ID 获取系列标题
+   */
+  function _getSeriesTitle(seriesId) {
+    for (var i = 0; i < _zlSeries.length; i++) {
+      if (_zlSeries[i].id === seriesId) return _zlSeries[i].title;
+    }
+    return seriesId || '';
+  }
+
+  /**
+   * 渲染 zl-html 首页完整内容
+   */
+  function _renderZlHome(homeView) {
+    var books = _zlBooks;
+
+    if (!books.length) {
+      homeView.innerHTML = '<div class="container">' +
+        '<div class="header"><h1 class="logo-trigger">📖 书报</h1>' +
+        '<p class="subtitle">电子书阅读应用</p></div>' +
+        '<div class="content"><div class="home-status">' +
+        '<div class="home-status-icon">📚</div>' +
+        '<div>暂无书籍数据</div></div></div></div>';
+      return;
+    }
+
+    var html = '<div class="container">';
+
+    // 头部
+    html += '<div class="header">';
+    html += '<h1 class="logo-trigger">📖 书报</h1>';
+    html += '<p class="subtitle">电子书阅读应用</p>';
+    html += '<div class="home-header-actions">';
+    html += '<button type="button" id="bk-search-btn" class="home-action-btn">🔍 搜索</button>';
+    if (_zlDmReady) {
+      html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    // 系列标签栏
+    html += _buildSeriesTabs();
+
+    // 书籍网格
+    html += _buildBookGrid(_zlCurrentSeries);
+
+    // 底部
+    html += '<div class="footer">';
+    html += '<p>本站内容仅供主内圣徒交通使用</p>';
+    html += '<p class="footer-meta" id="footerMeta"></p>';
+    html += '</div>';
+    html += '</div>';
+
+    // 下载面板
+    if (_zlDmReady) {
+      html += _buildDownloadPanel();
+    }
+
+    homeView.innerHTML = html;
+
+    // 绑定事件
+    _bindZlEvents(homeView);
+
+    startScrollTracking('home');
+    restoreScrollPosition('home');
+  }
+
+  /**
+   * 构建系列标签栏 HTML
+   */
+  function _buildSeriesTabs() {
+    var html = '<div class="series-tabs" id="seriesTabs">';
+    html += '<button class="series-tab' + (_zlCurrentSeries === 'all' ? ' active' : '') + '" data-series="all">全部</button>';
+    for (var i = 0; i < _zlSeries.length; i++) {
+      var s = _zlSeries[i];
+      var active = _zlCurrentSeries === s.id ? ' active' : '';
+      html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(s.title) + '</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * 根据当前系列过滤构建书籍网格 HTML
+   */
+  function _buildBookGrid(seriesFilter) {
+    var filtered = _zlBooks;
+    if (seriesFilter && seriesFilter !== 'all') {
+      filtered = [];
+      for (var i = 0; i < _zlBooks.length; i++) {
+        if (_zlBooks[i].series === seriesFilter) filtered.push(_zlBooks[i]);
+      }
+    }
+
+    if (!filtered.length) {
+      return '<div class="book-grid" id="bookGrid"><div class="home-status">该系列暂无书籍</div></div>';
+    }
+
+    var html = '<div class="book-grid" id="bookGrid">';
+    for (var i = 0; i < filtered.length; i++) {
+      var book = filtered[i];
+      var downloaded = _isBookDownloaded(book.id);
+      var seriesTitle = _getSeriesTitle(book.series);
+      var chapterCount = book.chapter_count || 0;
+      var progress = getReadingProgress(book.id);
+
+      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '">';
+      html += '<div class="book-card-wrapper">';
+      html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+      html += '<div class="book-info">';
+      html += '<div class="book-header">';
+      html += '<div class="book-title-row">';
+      html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+      html += '<span class="download-icon">' + (downloaded ? '✅' : '☁️') + '</span>';
+      html += '</div>';
+      html += '</div>';
+      if (seriesTitle) {
+        html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+      }
+      html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+      if (progress > 0) {
+        html += ' · 读到第' + progress + '章';
+      }
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * 构建批量下载面板 HTML
+   */
+  function _buildDownloadPanel() {
+    var html = '<div class="download-panel' + (_dlPanelOpen ? ' open' : '') + '" id="downloadPanel">';
+    html += '<div class="download-panel-header">';
+    html += '<span class="download-panel-title">📥 下载管理</span>';
+    html += '<button class="download-panel-close" id="dlPanelClose">✕</button>';
+    html += '</div>';
+
+    // 存储统计
+    html += '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>';
+
+    // 下载进度条
+    html += '<div class="download-progress" id="dlProgressWrap" style="display:none">';
+    html += '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>';
+    html += '</div>';
+    html += '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>';
+
+    // 下载控制按钮
+    html += '<div class="download-controls" id="dlControls" style="display:none">';
+    html += '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>';
+    html += '<button class="dl-ctrl-btn" id="dlCancelBtn">取消</button>';
+    html += '</div>';
+
+    // 系列下载列表
+    html += '<div class="download-series-list">';
+    for (var i = 0; i < _zlSeries.length; i++) {
+      var s = _zlSeries[i];
+      html += '<div class="download-series-row">';
+      html += '<span class="download-series-name">' + escText(s.title) + ' (' + (s.count || 0) + '本)</span>';
+      html += '<button class="download-series-btn" data-series="' + escAttr(s.id) + '">下载</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // 全部下载
+    html += '<button class="download-all-btn" id="dlAllBtn">全部下载</button>';
+    html += '</div>';
+
+    // 遮罩
+    html += '<div class="download-panel-overlay' + (_dlPanelOpen ? ' open' : '') + '" id="dlOverlay"></div>';
+    return html;
+  }
+
+  /**
+   * 绑定首页事件
+   */
+  function _bindZlEvents(homeView) {
+    // 系列标签点击
+    var tabs = homeView.querySelectorAll('.series-tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].addEventListener('click', function () {
+        var seriesId = this.getAttribute('data-series');
+        _zlCurrentSeries = seriesId;
+        // 更新标签状态
+        var allTabs = homeView.querySelectorAll('.series-tab');
+        for (var j = 0; j < allTabs.length; j++) {
+          allTabs[j].className = 'series-tab' + (allTabs[j].getAttribute('data-series') === seriesId ? ' active' : '');
+        }
+        // 重新渲染书籍网格
+        var gridContainer = document.getElementById('bookGrid');
+        if (gridContainer && gridContainer.parentNode) {
+          var newGrid = _buildBookGrid(seriesId);
+          var tmp = document.createElement('div');
+          tmp.innerHTML = newGrid;
+          gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+          // 重新绑定书籍点击事件
+          _bindBookClickEvents(homeView);
+        }
+      });
+    }
+
+    // 书籍卡片点击
+    _bindBookClickEvents(homeView);
+
+    // 下载管理按钮
+    var dlMgrBtn = document.getElementById('bk-dl-mgr-btn');
+    if (dlMgrBtn) {
+      dlMgrBtn.addEventListener('click', function () {
+        _toggleDownloadPanel(true);
+        _refreshStorageStats();
+      });
+    }
+
+    // 下载面板关闭按钮
+    var dlClose = document.getElementById('dlPanelClose');
+    if (dlClose) {
+      dlClose.addEventListener('click', function () { _toggleDownloadPanel(false); });
+    }
+
+    // 下载面板遮罩
+    var dlOverlay = document.getElementById('dlOverlay');
+    if (dlOverlay) {
+      dlOverlay.addEventListener('click', function () { _toggleDownloadPanel(false); });
+    }
+
+    // 系列下载按钮
+    var seriesDlBtns = homeView.querySelectorAll('.download-series-btn');
+    for (var k = 0; k < seriesDlBtns.length; k++) {
+      seriesDlBtns[k].addEventListener('click', function () {
+        var seriesId = this.getAttribute('data-series');
+        _startSeriesDownload(seriesId);
+      });
+    }
+
+    // 全部下载按钮
+    var dlAllBtn = document.getElementById('dlAllBtn');
+    if (dlAllBtn) {
+      dlAllBtn.addEventListener('click', function () {
+        _startAllDownload();
+      });
+    }
+
+    // 暂停/取消按钮
+    var dlPause = document.getElementById('dlPauseBtn');
+    if (dlPause) {
+      dlPause.addEventListener('click', function () {
+        var status = win.DataManager.getDownloadStatus();
+        if (status.isPaused) {
+          win.DataManager.resumeDownload();
+          dlPause.textContent = '暂停';
+        } else {
+          win.DataManager.pauseDownload();
+          dlPause.textContent = '恢复';
+        }
+      });
+    }
+    var dlCancel = document.getElementById('dlCancelBtn');
+    if (dlCancel) {
+      dlCancel.addEventListener('click', function () {
+        win.DataManager.cancelDownload();
+        _stopProgressPolling();
+      });
+    }
+
+    // 搜索按钮
+    var searchBtn = document.getElementById('bk-search-btn');
+    if (searchBtn) {
+      searchBtn.addEventListener('click', function () {
+        if (win.BKSearch && win.BKSearch.open) win.BKSearch.open();
+      });
+    }
+  }
+
+  /**
+   * 绑定书籍卡片点击事件
+   */
+  function _bindBookClickEvents(homeView) {
+    var cards = homeView.querySelectorAll('.zl-book-card .book-link');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].addEventListener('click', function (e) {
+        e.preventDefault();
+        var bookId = this.getAttribute('data-book-id');
+        var series = this.getAttribute('data-series');
+        _handleBookClick(bookId, series, this);
+      });
+    }
+  }
+
+  /**
+   * 处理书籍卡片点击：已下载则导航，未下载则先下载
+   */
+  function _handleBookClick(bookId, series, cardEl) {
+    if (_isBookDownloaded(bookId)) {
+      // 已下载，直接导航到章节列表
+      if (win.BKRouter) win.BKRouter.navigate(bookId);
+      return;
+    }
+
+    // 未下载，尝试下载后打开
+    if (!_zlDmReady || !win.DataManager) {
+      // DataManager 不可用，直接导航（可能走旧的 books.json 路径）
+      if (win.BKRouter) win.BKRouter.navigate(bookId);
+      return;
+    }
+
+    // 显示下载中状态
+    var iconEl = cardEl ? cardEl.querySelector('.download-icon') : null;
+    if (iconEl) iconEl.textContent = '⏳';
+
+    win.DataManager.downloadBook(bookId, series)
+      .then(function () {
+        // 下载成功，更新状态
+        _zlDownloadedIds.push(bookId);
+        if (iconEl) iconEl.textContent = '✅';
+        // 导航到书籍
+        if (win.BKRouter) win.BKRouter.navigate(bookId);
+      })
+      .catch(function (err) {
+        console.error('[Renderer] 书籍下载失败:', err);
+        if (iconEl) iconEl.textContent = '❌';
+        setTimeout(function () { if (iconEl) iconEl.textContent = '☁️'; }, 2000);
+      });
+  }
+
+  /**
+   * 切换下载面板显示/隐藏
+   */
+  function _toggleDownloadPanel(open) {
+    _dlPanelOpen = open;
+    var panel = document.getElementById('downloadPanel');
+    var overlay = document.getElementById('dlOverlay');
+    if (panel) panel.className = 'download-panel' + (open ? ' open' : '');
+    if (overlay) overlay.className = 'download-panel-overlay' + (open ? ' open' : '');
+  }
+
+  /**
+   * 刷新存储统计信息
+   */
+  function _refreshStorageStats() {
+    if (!_zlDmReady || !win.DataManager) return;
+    var el = document.getElementById('dlStorageInfo');
+    if (!el) return;
+    win.DataManager.getStorageStats().then(function (stats) {
+      el.textContent = '已下载 ' + stats.downloadedCount + ' 本书，占用 ' + stats.totalSizeFormatted;
+    }).catch(function () {
+      el.textContent = '存储统计获取失败';
+    });
+  }
+
+  /**
+   * 开始下载某系列
+   */
+  function _startSeriesDownload(seriesId) {
+    if (!_zlDmReady || !win.DataManager) return;
+    _showDownloadProgress();
+    var seriesTitle = _getSeriesTitle(seriesId);
+
+    win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
+      _updateDownloadProgressUI(completed, total, currentTitle);
+    }).then(function (result) {
+      _onDownloadComplete(result, seriesTitle);
+    }).catch(function (err) {
+      _onDownloadError(err);
+    });
+  }
+
+  /**
+   * 开始下载全部
+   */
+  function _startAllDownload() {
+    if (!_zlDmReady || !win.DataManager) return;
+    _showDownloadProgress();
+
+    win.DataManager.downloadAll(function (completed, total, currentTitle) {
+      _updateDownloadProgressUI(completed, total, currentTitle);
+    }).then(function (result) {
+      _onDownloadComplete(result, '全部');
+    }).catch(function (err) {
+      _onDownloadError(err);
+    });
+  }
+
+  /**
+   * 显示下载进度区域
+   */
+  function _showDownloadProgress() {
+    var wrap = document.getElementById('dlProgressWrap');
+    var text = document.getElementById('dlProgressText');
+    var controls = document.getElementById('dlControls');
+    if (wrap) wrap.style.display = '';
+    if (text) { text.style.display = ''; text.textContent = '准备中...'; }
+    if (controls) controls.style.display = '';
+    // 重置暂停按钮
+    var pauseBtn = document.getElementById('dlPauseBtn');
+    if (pauseBtn) pauseBtn.textContent = '暂停';
+    // 启动进度轮询
+    _startProgressPolling();
+  }
+
+  /**
+   * 更新下载进度 UI
+   */
+  function _updateDownloadProgressUI(completed, total, currentTitle) {
+    var bar = document.getElementById('dlProgressBar');
+    var text = document.getElementById('dlProgressText');
+    if (total > 0 && bar) {
+      bar.style.width = Math.round(completed / total * 100) + '%';
+    }
+    if (text) {
+      text.textContent = completed + ' / ' + total + (currentTitle ? ' — ' + currentTitle : '');
+    }
+  }
+
+  /**
+   * 下载完成处理
+   */
+  function _onDownloadComplete(result, label) {
+    _stopProgressPolling();
+    var bar = document.getElementById('dlProgressBar');
+    var text = document.getElementById('dlProgressText');
+    var controls = document.getElementById('dlControls');
+    if (bar) bar.style.width = '100%';
+    if (text) {
+      text.textContent = label + ' 下载完成: 成功 ' + result.success + ' 本' +
+        (result.failed ? '，失败 ' + result.failed + ' 本' : '');
+    }
+    if (controls) controls.style.display = 'none';
+    // 刷新已下载列表和书籍网格
+    _refreshAfterDownload();
+  }
+
+  /**
+   * 下载错误处理
+   */
+  function _onDownloadError(err) {
+    _stopProgressPolling();
+    var text = document.getElementById('dlProgressText');
+    var controls = document.getElementById('dlControls');
+    if (text) text.textContent = '下载出错: ' + (err.message || err);
+    if (controls) controls.style.display = 'none';
+  }
+
+  /**
+   * 启动进度轮询（作为 onProgress 回调的补充）
+   */
+  function _startProgressPolling() {
+    _stopProgressPolling();
+    _dlProgressTimer = setInterval(function () {
+      if (!win.DataManager) return;
+      var status = win.DataManager.getDownloadStatus();
+      if (!status.isDownloading) {
+        _stopProgressPolling();
+        return;
+      }
+      _updateDownloadProgressUI(status.progress.completed, status.progress.total, status.progress.currentTitle);
+    }, 1000);
+  }
+
+  /**
+   * 停止进度轮询
+   */
+  function _stopProgressPolling() {
+    if (_dlProgressTimer) {
+      clearInterval(_dlProgressTimer);
+      _dlProgressTimer = null;
+    }
+  }
+
+  /**
+   * 下载完成后刷新书籍网格和统计
+   */
+  function _refreshAfterDownload() {
+    if (!_zlDmReady || !win.DataManager) return;
+    win.DataManager.getDownloadedBookIds().then(function (ids) {
+      _zlDownloadedIds = ids;
+      // 刷新书籍网格中的下载图标
+      var homeView = document.getElementById('homeView');
+      if (homeView) {
+        var cards = homeView.querySelectorAll('.zl-book-card');
+        for (var i = 0; i < cards.length; i++) {
+          var bookId = cards[i].getAttribute('data-book-id');
+          var iconEl = cards[i].querySelector('.download-icon');
+          if (iconEl) {
+            iconEl.textContent = _isBookDownloaded(bookId) ? '✅' : '☁️';
+          }
+        }
+      }
+      _refreshStorageStats();
+    });
+  }
+
   // ── 渲染器对象 ──────────────────────────────────────────────────────
 
   var BKRenderer = {
 
-    // ── 首页：书籍列表 ──────────────────────────────────────────────
+    // zl-html 渲染器激活标志
+    _zlActive: false,
+
+    // ── 首页：书籍列表（增强版：zl-html 系列分类 + 下载管理）──────────
 
     renderHome: function () {
       stopScrollTracking();
@@ -324,58 +875,64 @@
 
       homeView.innerHTML = '<div class="bk-loading"><div class="bk-spinner"></div><div>加载中...</div></div>';
 
-      loadBooksIndex().then(function (data) {
-        var books = data.books || data || [];
-        if (!Array.isArray(books)) books = [];
-
-        if (!books.length) {
-          homeView.innerHTML = '<div class="bk-empty">' +
-            '<div class="bk-empty-icon">📚</div>' +
-            '<div class="bk-empty-text">暂无书籍</div>' +
-            '</div>';
-          return;
+      // 尝试初始化 DataManager 并加载 zl-html 索引
+      var dmUrl = '';
+      try {
+        if (win.REMOTE_CONFIG && win.REMOTE_CONFIG.zl_html_data) {
+          dmUrl = win.REMOTE_CONFIG.zl_html_data;
         }
+      } catch (e) {}
 
-        var html = '<div class="book-list" id="booksGrid">';
-        for (var i = 0; i < books.length; i++) {
-          var book = books[i];
-          var coverHtml = book.cover
-            ? '<div class="book-card-cover"><img src="' + escAttr(book.cover) + '" alt="' + escAttr(book.title) + '" loading="lazy"></div>'
-            : '<div class="book-card-cover book-card-cover-placeholder"><span class="book-card-icon">📖</span></div>';
+      if (dmUrl && win.DataManager) {
+        win.DataManager.setBaseUrl(dmUrl);
+        _zlDmReady = true;
+      }
 
-          var meta = [];
-          if (book.author) meta.push(escText(book.author));
-          if (book.format) meta.push(escText(book.format.toUpperCase()));
-          if (book.language) meta.push(escText(book.language));
-          if (book.chapter_count) meta.push(book.chapter_count + '章');
+      var indexPromise = _zlDmReady
+        ? win.DataManager.loadIndex()
+        : Promise.resolve(null);
 
-          var progress = getReadingProgress(book.id);
-          var progressHtml = '';
-          if (progress > 0) {
-            progressHtml = '<div class="book-card-progress">读到第' + progress + '章</div>';
+      var downloadedPromise = _zlDmReady
+        ? win.DataManager.getDownloadedBookIds()
+        : Promise.resolve([]);
+
+      Promise.all([indexPromise, downloadedPromise])
+        .then(function (results) {
+          var indexData = results[0];
+          var downloadedIds = results[1] || [];
+
+          if (indexData && indexData.series && indexData.books) {
+            _zlIndex = indexData;
+            _zlSeries = indexData.series || [];
+            _zlBooks = indexData.books || [];
+            _zlDownloadedIds = downloadedIds;
+            BKRenderer._zlActive = true;
+            // 将 zl-html 书籍合并到 __bkBooks，供书签等功能查找书名
+            if (!win.__bkBooks) win.__bkBooks = [];
+            for (var zi = 0; zi < _zlBooks.length; zi++) {
+              var zlBook = _zlBooks[zi];
+              var found = false;
+              for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+                if (win.__bkBooks[bi].id === zlBook.id) { found = true; break; }
+              }
+              if (!found) win.__bkBooks.push(zlBook);
+            }
+          } else {
+            _zlSeries = [];
+            _zlBooks = [];
+            _zlDownloadedIds = [];
+            BKRenderer._zlActive = false;
           }
 
-          html += '<a class="book-card" href="#/' + escAttr(book.id) + '">' +
-            coverHtml +
-            '<div class="book-card-info">' +
-              '<div class="book-card-title">' + escText(book.title) + '</div>' +
-              (meta.length ? '<div class="book-card-meta">' + meta.join(' · ') + '</div>' : '') +
-              (book.description ? '<div class="book-card-desc">' + escText(book.description) + '</div>' : '') +
-              progressHtml +
-            '</div>' +
-            '</a>';
-        }
-        html += '</div>';
-
-        homeView.innerHTML = html;
-        startScrollTracking('home');
-        restoreScrollPosition('home');
-      }).catch(function (err) {
-        homeView.innerHTML = '<div class="bk-error">' +
-          '<div class="bk-error-icon">⚠️</div>' +
-          '<div class="bk-error-text">加载失败: ' + escText(err.message) + '</div>' +
-          '</div>';
-      });
+          _renderZlHome(homeView);
+        })
+        .catch(function (err) {
+          console.warn('[Renderer] DataManager 加载失败，回退:', err.message);
+          _zlSeries = [];
+          _zlBooks = [];
+          _zlDownloadedIds = [];
+          _renderZlHome(homeView);
+        });
     },
 
     // ── 目录页：章节列表 ────────────────────────────────────────────

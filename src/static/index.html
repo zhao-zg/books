@@ -160,6 +160,7 @@
 
     <!-- 脚本 -->
     <script src="vendor/localforage.min.js"></script>
+    <script src="js/data-manager.js"></script>
     <script src="js/dev-console.js"></script>
     <script src="js/theme-toggle.js"></script>
     <script src="js/search.js"></script>
@@ -201,7 +202,7 @@
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
-        './js/resource-pack.js',
+        './js/resource-pack.js','./js/data-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js',
         './icons/icon-192.png','./icons/icon-512.png'
     ];
@@ -305,7 +306,9 @@
             }
 
             // ── refreshHomeGrid：刷新主页 grid（每次导航回主页时调用）──
+            // 当 BKRenderer 使用 zl-html 数据时，此函数不覆盖网格
             window.refreshHomeGrid=function(){
+                if(window.BKRenderer&&window.BKRenderer._zlActive)return;
                 var g=document.getElementById('booksGrid');
                 if(!g)return;
                 g.innerHTML=buildGridHtml(allBooks.length?allBooks:[]);

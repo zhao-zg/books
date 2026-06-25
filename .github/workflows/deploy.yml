@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'resource/**'
+      - 'resource/zl-html/**'
       - 'src/**'
       - 'main.py'
       - 'config.yaml'
@@ -58,6 +59,21 @@ jobs:
           
           echo "📋 检查生成的文件..."
           ls -la output/js/
+          
+          echo "🔐 混淆 remote-config.js..."
+          if [ -f output/js/remote-config.js ]; then
+            npx javascript-obfuscator output/js/remote-config.js \
+              --output output/js/remote-config.js \
+              --compact true \
+              --control-flow-flattening true \
+              --dead-code-injection true \
+              --string-array true \
+              --string-array-encoding base64 \
+              --self-defending false
+            echo "✓ remote-config.js 已混淆"
+          else
+            echo "⚠️ remote-config.js 不存在，跳过混淆"
+          fi
           
           echo "📄 检查 version.json 是否存在..."
           if [ -f output/version.json ]; then
@@ -216,6 +232,87 @@ jobs:
             fi
           done
       
+      - name: 配置自定义域名
+        run: |
+          echo "🌐 配置自定义域名..."
+          
+          # 域名列表
+          DOMAINS=("books.07170501.xyz" "books.1189.dpdns.org")
+          
+          for DOMAIN in "${DOMAINS[@]}"; do
+            echo "检查域名: $DOMAIN"
+            
+            # 检查域名是否已绑定
+            existing=$(curl -s -X GET \
+              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books/domains" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json")
+            
+            already_bound=$(echo "$existing" | jq -r --arg d "$DOMAIN" '.result[]? | select(.name == $d) | .name' 2>/dev/null)
+            
+            if [ -n "$already_bound" ]; then
+              echo "✓ 域名 $DOMAIN 已绑定，跳过"
+            else
+              echo "绑定域名: $DOMAIN"
+              response=$(curl -s -X POST \
+                "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books/domains" \
+                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\": \"$DOMAIN\"}")
+              
+              success=$(echo "$response" | jq -r '.success' 2>/dev/null)
+              if [ "$success" = "true" ]; then
+                echo "✓ 域名 $DOMAIN 绑定成功"
+              else
+                echo "⚠️ 域名 $DOMAIN 绑定失败（可能需要在 Cloudflare DNS 中手动配置）"
+                echo "$response" | jq '.' 2>/dev/null || echo "$response"
+              fi
+            fi
+          done
+      
+      - name: Deploy zl-html data to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "🚀 部署 zl-html 数据到 Cloudflare Pages..."
+          
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            if [ $RETRY_COUNT -gt 0 ]; then
+              echo "⏳ 等待 30 秒后重试..."
+              sleep 30
+              echo "🔄 重试第 $RETRY_COUNT 次..."
+            fi
+            
+            if wrangler pages deploy resource/zl-html \
+              --project-name=books-data \
+              --commit-dirty=true; then
+              SUCCESS=true
+              echo "✓ zl-html 数据部署成功"
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️ zl-html 部署失败，准备重试 ($RETRY_COUNT/$MAX_RETRIES)"
+              else
+                echo "⚠️ zl-html 部署失败，尝试创建项目..."
+                wrangler pages project create books-data --production-branch=main || true
+                if wrangler pages deploy resource/zl-html \
+                  --project-name=books-data \
+                  --commit-dirty=true; then
+                  SUCCESS=true
+                  echo "✓ zl-html 数据部署成功（项目创建后）"
+                else
+                  echo "❌ zl-html 数据部署失败"
+                  exit 1
+                fi
+              fi
+            fi
+          done
+      
       - name: 部署到 GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -226,7 +323,7 @@ jobs:
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: '部署到 GitHub Pages'
-          # cname: books.example.com  # TODO: 替换为实际域名
+          cname: books.07170501.xyz
       
       - name: 上传全量资源包到 Artifacts
         uses: actions/upload-artifact@v4

@@ -44,6 +44,10 @@ android/app/src/main/java/com/books/*
 ios/
 .capacitor/
 
+# Resource data (large files, deployed separately via Cloudflare Pages)
+resource/html/
+resource/zl-html/
+
 # Output
 output/
 
@@ -74,4 +78,6 @@ Thumbs.db
 
 # Keys
 *.keystore
+*.keystore.b64
+*.b64
 *.jks

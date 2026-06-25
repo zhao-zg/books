@@ -505,51 +505,45 @@ jobs:
     - name: 创建签名密钥
       run: |
         echo "=== 创建签名密钥 ==="
-        # 使用 base64 编码的 keystore（CI 环境中从 base64 解码还原）
-        # 本地生成 keystore 的命令：
-        # keytool -genkeypair -v -keystore books-release.keystore \
-        #   -alias books -keyalg RSA -keysize 2048 -validity 10000 \
-        #   -storepass books2024 -keypass books2024 \
-        #   -dname "CN=Books App, OU=Development, O=Books, L=Beijing, ST=Beijing, C=CN"
-        # base64 -w0 books-release.keystore > books-release.keystore.b64
-        cat > books-release.keystore.b64 << 'EOF'
-        PLACEHOLDER_REPLACE_WITH_ACTUAL_BASE64_KEYSTORE
-        EOF
-        
-        base64 -d books-release.keystore.b64 > books-release.keystore
+        echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > books-release.keystore
         cp books-release.keystore android/
         echo "✓ 签名密钥已创建"
       
     - name: 配置签名
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
       run: |
         echo "=== 配置 APK 签名 ==="
         
         cat > insert_signing.py << 'PYTHON_EOF'
         import re
         import sys
-        
+        import os
+
         gradle_file = sys.argv[1]
         keystore_file = sys.argv[2]
-        
+        password = os.environ.get('KEYSTORE_PASSWORD', '')
+        alias = 'books'
+
         with open(gradle_file, 'r') as f:
             content = f.read()
-        
+
         signing_config = f'''
             signingConfigs {{
                 release {{
                     storeFile file("../{keystore_file}")
-                    storePassword "books2024"
-                    keyAlias "books"
-                    keyPassword "books2024"
+                    storePassword "{password}"
+                    keyAlias "{alias}"
+                    keyPassword "{password}"
                 }}
             }}
         '''
         content = re.sub(r'(android\s*\{)', r'\1' + signing_config, content, count=1)
         content = re.sub(r'(buildTypes\s*\{[^}]*release\s*\{)', r'\1\n            signingConfig signingConfigs.release', content, count=1)
-        
+
         with open(gradle_file, 'w') as f:
             f.write(content)
-        
+
         print(f"✓ {gradle_file} 签名配置已插入")
         PYTHON_EOF
         
