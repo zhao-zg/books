@@ -1,0 +1,584 @@
+[
+  {
+    "id": "qcxl-001",
+    "title": "使用说明",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-002",
+    "title": "抚育的赏赐",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-003",
+    "title": "追求进度",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-004",
+    "title": "1 家在神经纶中的重要性",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-005",
+    "title": "2 信的家庭—属灵健康家庭的指标",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-006",
+    "title": "3 过神人家庭的生活",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-007",
+    "title": "4 建造我们的家",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-008",
+    "title": "5 建立祷告的生活",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-009",
+    "title": "6 彼此饶恕与彼此认罪",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-010",
+    "title": "1 牧养儿女的异象与操练",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-011",
+    "title": "2 牧养儿女与神是一",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-012",
+    "title": "3 如何在主里教养儿女",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-013",
+    "title": "4 管教儿女与神是一",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-014",
+    "title": "5 同心合意为儿女求属灵的幸福",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-015",
+    "title": "6 如何帮助儿童养成并建立合乎主用的性格",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-016",
+    "title": "1 儿童排的进展与今日我们该有的托付",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-017",
+    "title": "2 儿童排的异象与蓝图",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-018",
+    "title": "3 儿童排具体的实行与内容",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-019",
+    "title": "3 牧养的实行－牧养操练",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-020",
+    "title": "4 牧养的奖赏",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-021",
+    "title": "1 耶和华神的榜样(1)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-022",
+    "title": "2 耶和华神的榜样(2)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-023",
+    "title": "3 主耶稣的榜样(1)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-024",
+    "title": "4 主耶稣的榜样(2)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-025",
+    "title": "5 主耶稣的榜样(3)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-026",
+    "title": "6 使徒牧养的榜样(1)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-027",
+    "title": "7 使徒牧养的榜样(2)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-028",
+    "title": "1 牧养的成全(1)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-029",
+    "title": "2 牧养的成全(2)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-030",
+    "title": "3 牧养的成全(3)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-031",
+    "title": "1 牧养的负担",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-032",
+    "title": "2 对牧养一事训练的需要",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-033",
+    "title": "3 有计划的牧养",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-034",
+    "title": "4 有计划的牧养",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-035",
+    "title": "1 向主要一个新的复兴",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-036",
+    "title": "2 正常的基督徒生活",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-037",
+    "title": "3 成全初信者建立排聚会",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-038",
+    "title": "4 寻找、挽回久不聚会与久失联络的弟兄姊妹",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-039",
+    "title": "5 成全家中聚会的关键",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-040",
+    "title": "01 主恢复里当前急切的需要",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-041",
+    "title": "02 成全人的负担、异象和实行",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-042",
+    "title": "03 成全人的基本原则(一)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-043",
+    "title": "04 成全人的基本原则(二)—区负责的实例",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-044",
+    "title": "05 借着事奉成全人—提醒人的范例",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-045",
+    "title": "06 成全学生作校园—团体生活的范例",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-046",
+    "title": "07 借着训练成全人(一)—地方训练的范例",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-047",
+    "title": "08 借着训练成全人(二)",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-048",
+    "title": "09 成为榜样，产生复制",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-049",
+    "title": "10 敢于交托给人",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-050",
+    "title": "11 保罗成全帖撒罗尼迦人的榜样",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-051",
+    "title": "12 成全人者的生命",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-052",
+    "title": "1 倪弟兄信息摘录",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-053",
+    "title": "2 李弟兄信息摘录",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-054",
+    "title": "3 余弟兄负担交通",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-055",
+    "title": "4 白信来弟兄交通",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-056",
+    "title": "5 快讯摘录：建造神的家一建立生机的关系",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-057",
+    "title": "6 家主训练参考材料之一：课程需要",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-058",
+    "title": "7 家主训练参考材料之二：课程简介",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-059",
+    "title": "8 家中团体生活训练与操练",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-060",
+    "title": "0 建立福音的生活",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-061",
+    "title": "1 操练的异象",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-062",
+    "title": "2 被圣灵充溢",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-063",
+    "title": "3 如何作见证",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-064",
+    "title": "4 如何叩访接触新人",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-065",
+    "title": "01 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-066",
+    "title": "02 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-067",
+    "title": "03 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-068",
+    "title": "04 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-069",
+    "title": "05 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-070",
+    "title": "06 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-071",
+    "title": "07 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-072",
+    "title": "08 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-073",
+    "title": "09 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-074",
+    "title": "10 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-075",
+    "title": "11 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-076",
+    "title": "12 操练指引",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-077",
+    "title": "01 属灵同伴的祷告",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-078",
+    "title": "02 为新人列名单祷告",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-079",
+    "title": "03 为福音结交朋友",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-080",
+    "title": "04 为主作见证",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-081",
+    "title": "05 使用《人生的奥秘》传福音",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-082",
+    "title": "06 奉献为福音",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-083",
+    "title": "07 被圣灵充溢",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-084",
+    "title": "08 叩门访人成功的秘诀",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-085",
+    "title": "09 后续的回访和牧养",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-086",
+    "title": "10 坚定持续、养成习惯、建立福音生活",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-087",
+    "title": "11 喂养在基督里的婴孩",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-088",
+    "title": "12 结常存的果子",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-089",
+    "title": "1 本次训练成功的关键",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-090",
+    "title": "2 每周一次的初信成全聚会",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-091",
+    "title": "3 持续地提醒照顾者跟进",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-092",
+    "title": "4 找寻照顾者和新人",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-093",
+    "title": "1 主牧放的群羊，为着羊群的满足和安息",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-094",
+    "title": "2 父爱和赦免的心，以及救主牧养和寻找的灵",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-095",
+    "title": "3 把你的山羊羔牧放在牧人帐棚的旁边",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-096",
+    "title": "1 建立活力的关系",
+    "chapter_count": 1,
+    "series": "qcxl"
+  },
+  {
+    "id": "qcxl-097",
+    "title": "2 产生属灵的后裔",
+    "chapter_count": 1,
+    "series": "qcxl"
+  }
+]

@@ -1,0 +1,4718 @@
+[
+  {
+    "id": "sy_auto-001",
+    "title": "七十三殉道史",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-002",
+    "title": "主恢复圣徒信仰问答须知",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-003",
+    "title": "主恢复圣徒信仰问答须知",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-004",
+    "title": "壹 引言（1篇）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-005",
+    "title": "第一篇 创造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-006",
+    "title": "第一篇 创造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-007",
+    "title": "第二篇 亚当",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-008",
+    "title": "第二篇 亚当(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-009",
+    "title": "第三篇 亚伯，以挪士，以诺",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-010",
+    "title": "第三篇 亚伯，以挪士，以诺(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-011",
+    "title": "第四篇 挪亚",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-012",
+    "title": "第四篇 挪亚(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-013",
+    "title": "第一篇 亚伯拉罕（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-014",
+    "title": "第一篇 亚伯拉罕（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-015",
+    "title": "第二篇 亚伯拉罕（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-016",
+    "title": "第二篇 亚伯拉罕（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-017",
+    "title": "第三篇 以撒",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-018",
+    "title": "第三篇 以撒(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-019",
+    "title": "第四篇 雅各/以色列",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-020",
+    "title": "第四篇 雅各/以色列(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-021",
+    "title": "第五篇 约瑟",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-022",
+    "title": "第五篇 约瑟(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-023",
+    "title": "第一篇 出埃及（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-024",
+    "title": "第一篇 出埃及（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-025",
+    "title": "第二篇 出埃及（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-026",
+    "title": "第二篇 出埃及（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-027",
+    "title": "第三篇 利未记（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-028",
+    "title": "第三篇 利未记（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-029",
+    "title": "第四篇 利未记（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-030",
+    "title": "第四篇 利未记（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-031",
+    "title": "第五篇 民数记（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-032",
+    "title": "第五篇 民数记（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-033",
+    "title": "第六篇 民数记（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-034",
+    "title": "第六篇 民数记（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-035",
+    "title": "第七篇 申命记（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-036",
+    "title": "第七篇 申命记（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-037",
+    "title": "第八篇 申命记（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-038",
+    "title": "第八篇 申命记（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-039",
+    "title": "第九篇 约书亚（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-040",
+    "title": "第九篇 约书亚（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-041",
+    "title": "第十篇 约书亚（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-042",
+    "title": "第十篇 约书亚（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-043",
+    "title": "第十一篇 士师记",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-044",
+    "title": "第十一篇 士师记(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-045",
+    "title": "第十二篇 撒母耳",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-046",
+    "title": "第十二篇 撒母耳(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-047",
+    "title": "第一篇 波阿斯",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-048",
+    "title": "第一篇 波阿斯(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-049",
+    "title": "第二篇 大卫（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-050",
+    "title": "第二篇 大卫（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-051",
+    "title": "第三篇 大卫（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-052",
+    "title": "第三篇 大卫（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-053",
+    "title": "第四篇 所罗门",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-054",
+    "title": "第四篇 所罗门(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-055",
+    "title": "第五篇 以色列犹大诸王",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-056",
+    "title": "第五篇 以色列犹大诸王(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-057",
+    "title": "第一篇 以斯帖",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-058",
+    "title": "第一篇 以斯帖(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-059",
+    "title": "第二篇 以赛亚（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-060",
+    "title": "第二篇 以赛亚（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-061",
+    "title": "第三篇 以赛亚（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-062",
+    "title": "第三篇 以赛亚（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-063",
+    "title": "第四篇 耶利米/哀歌",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-064",
+    "title": "第四篇 耶利米/哀歌(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-065",
+    "title": "第五篇 以西结",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-066",
+    "title": "第五篇 以西结(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-067",
+    "title": "第六篇 但以理（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-068",
+    "title": "第六篇 但以理（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-069",
+    "title": "第七篇 但以理（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-070",
+    "title": "第七篇 但以理（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-071",
+    "title": "第八篇 以斯拉",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-072",
+    "title": "第八篇 以斯拉(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-073",
+    "title": "第九篇 尼希米",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-074",
+    "title": "第九篇 尼希米(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-075",
+    "title": "第十篇 小申言者（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-076",
+    "title": "第十篇 小申言者（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-077",
+    "title": "第十一篇 小申言者（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-078",
+    "title": "第十一篇 小申言者（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-079",
+    "title": "第十二篇 小申言者（三）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-080",
+    "title": "第十二篇 小申言者（三）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-081",
+    "title": "第十三篇 小申言者（四）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-082",
+    "title": "第十三篇 小申言者（四）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-083",
+    "title": "第一篇 约伯记",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-084",
+    "title": "第一篇 约伯记(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-085",
+    "title": "第二篇 诗篇（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-086",
+    "title": "第二篇 诗篇（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-087",
+    "title": "第三篇 诗篇（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-088",
+    "title": "第三篇 诗篇（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-089",
+    "title": "第四篇 诗篇（三）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-090",
+    "title": "第四篇 诗篇（三）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-091",
+    "title": "第五篇 诗篇（四）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-092",
+    "title": "第五篇 诗篇（四）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-093",
+    "title": "第六篇 诗篇（五）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-094",
+    "title": "第六篇 诗篇（五）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-095",
+    "title": "第七篇 箴言",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-096",
+    "title": "第七篇 箴言(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-097",
+    "title": "第八篇 传道书",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-098",
+    "title": "第八篇 传道书(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-099",
+    "title": "第九篇 雅歌（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-100",
+    "title": "第九篇 雅歌（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-101",
+    "title": "第十篇 雅歌（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-102",
+    "title": "第十篇 雅歌（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-103",
+    "title": "壹 引言—新约各卷主题（1篇）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-104",
+    "title": "第一篇 基督丰满职事的三个时期",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-105",
+    "title": "第一篇 基督丰满职事的三个时期(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-106",
+    "title": "第二篇 在祂的人性里彰显神丰富的属性",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-107",
+    "title": "第二篇 在祂的人性里彰显神丰富的属性(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-108",
+    "title": "第三篇 完成祂法理的救赎",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-109",
+    "title": "第三篇 完成祂法理的救赎(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-110",
+    "title": "第一篇 基督是全本圣经的奇妙中心",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-111",
+    "title": "第一篇 基督是全本圣经的奇妙中心(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-112",
+    "title": "第二篇 国度的真理",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-113",
+    "title": "第二篇 国度的真理(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-114",
+    "title": "第三篇 诸天之国的实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-115",
+    "title": "第三篇 诸天之国的实际(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-116",
+    "title": "第四篇 儆醒预备等候主来",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-117",
+    "title": "第四篇 儆醒预备等候主来(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-118",
+    "title": "第五篇 将国度的福音传遍整个居人之地",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-119",
+    "title": "第五篇 将国度的福音传遍整个居人之地(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-120",
+    "title": "第一篇 奴仆救主的服事",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-121",
+    "title": "第一篇 奴仆救主的服事(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-122",
+    "title": "第二篇 一种完全照着并为着神经纶的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-123",
+    "title": "第二篇 一种完全照着并为着神经纶的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-124",
+    "title": "第三篇 国度种子的撒播长大并发展",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-125",
+    "title": "第三篇 国度种子的撒播长大并发展(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-126",
+    "title": "第四篇 基督同祂的死与复活，顶替了一切人事物",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-127",
+    "title": "第四篇 基督同祂的死与复活，顶替了一切人事物(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-128",
+    "title": "第五篇 主的晚餐—神新约经纶的象征",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-129",
+    "title": "第五篇 主的晚餐—神新约经纶的象征(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-130",
+    "title": "第一篇 人救主最高标准的道德",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-131",
+    "title": "第一篇 人救主最高标准的道德(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-132",
+    "title": "第二篇 人救主的神人生活与职事",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-133",
+    "title": "第二篇 人救主的神人生活与职事(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-134",
+    "title": "第三篇 禧年",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-135",
+    "title": "第三篇 禧年(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-136",
+    "title": "第四篇 人救主教导祷告",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-137",
+    "title": "第四篇 人救主教导祷告(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-138",
+    "title": "第五篇 得胜者的被提",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-139",
+    "title": "第五篇 得胜者的被提(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-140",
+    "title": "第一篇 重生",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-141",
+    "title": "第一篇 重生(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-142",
+    "title": "第二篇 终极完成的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-143",
+    "title": "第二篇 终极完成的灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-144",
+    "title": "第三篇 三一神的生机体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-145",
+    "title": "第三篇 三一神的生机体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-146",
+    "title": "第四篇 基督身体真正的一",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-147",
+    "title": "第四篇 基督身体真正的一(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-148",
+    "title": "第五篇 基督的死与复活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-149",
+    "title": "第五篇 基督的死与复活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-150",
+    "title": "第一篇 生为神的长子",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-151",
+    "title": "第一篇 生为神的长子(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-152",
+    "title": "第二篇 成为赐生命的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-153",
+    "title": "第二篇 成为赐生命的灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-154",
+    "title": "第三篇 为着祂的身体重生信徒",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-155",
+    "title": "第三篇 为着祂的身体重生信徒(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-156",
+    "title": "第一篇 使徒行传内在的意义",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-157",
+    "title": "第一篇 使徒行传内在的意义(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-158",
+    "title": "第二篇 同心合意",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-159",
+    "title": "第二篇 同心合意(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-160",
+    "title": "第三篇 使徒的教训与交通",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-161",
+    "title": "第三篇 使徒的教训与交通(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-162",
+    "title": "第四篇 祷告那灵与话",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-163",
+    "title": "第四篇 祷告那灵与话(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-164",
+    "title": "第五篇 从天上来的异象",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-165",
+    "title": "第五篇 从天上来的异象(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-166",
+    "title": "第一篇 保罗的完成职事",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-167",
+    "title": "第一篇 保罗的完成职事(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-168",
+    "title": "第二篇 保罗完成职事的中心异象",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-169",
+    "title": "第二篇 保罗完成职事的中心异象(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-170",
+    "title": "第一篇 罗马书中基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-171",
+    "title": "第一篇 罗马书中基督的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-172",
+    "title": "第二篇 在生命里得救并在生命里作王",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-173",
+    "title": "第二篇 在生命里得救并在生命里作王(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-174",
+    "title": "第三篇 生命之灵的律",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-175",
+    "title": "第三篇 生命之灵的律(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-176",
+    "title": "第四篇 活在调和的灵里",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-177",
+    "title": "第四篇 活在调和的灵里(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-178",
+    "title": "第五篇 神福音勤奋的祭司",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-179",
+    "title": "第五篇 神福音勤奋的祭司(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-180",
+    "title": "第一篇 钉十字架的基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-181",
+    "title": "第一篇 钉十字架的基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-182",
+    "title": "第二篇 神的耕地神的建筑",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-183",
+    "title": "第二篇 神的耕地神的建筑(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-184",
+    "title": "第三篇 与主成为一灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-185",
+    "title": "第三篇 与主成为一灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-186",
+    "title": "第四篇 爱是建造召会极超越的路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-187",
+    "title": "第四篇 爱是建造召会极超越的路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-188",
+    "title": "第五篇 建造召会超越的恩赐—申言",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-189",
+    "title": "第五篇 建造召会超越的恩赐—申言(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-190",
+    "title": "第一篇 新约职事的构成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-191",
+    "title": "第一篇 新约职事的构成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-192",
+    "title": "第二篇 新约众执事的构成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-193",
+    "title": "第二篇 新约众执事的构成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-194",
+    "title": "第三篇 瓦器里宝贝超越的能力",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-195",
+    "title": "第三篇 瓦器里宝贝超越的能力(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-196",
+    "title": "第四篇 适应一切的生命",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-197",
+    "title": "第四篇 适应一切的生命(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-198",
+    "title": "第五篇 在我们里面神圣三一的流",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-199",
+    "title": "第五篇 在我们里面神圣三一的流(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-200",
+    "title": "第一篇 基督与宗教相对",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-201",
+    "title": "第一篇 基督与宗教相对(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-202",
+    "title": "第二篇 不再是我乃是基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-203",
+    "title": "第二篇 不再是我乃是基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-204",
+    "title": "第三篇 听信仰",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-205",
+    "title": "第三篇 听信仰(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-206",
+    "title": "第四篇 儿子的名分",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-207",
+    "title": "第四篇 儿子的名分(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-208",
+    "title": "第五篇 两种凭着灵而行",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-209",
+    "title": "第五篇 两种凭着灵而行(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-210",
+    "title": "第一篇 神圣三一的神圣分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-211",
+    "title": "第一篇 神圣三一的神圣分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-212",
+    "title": "第二篇 万有在基督里归一于一个元首之下",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-213",
+    "title": "第二篇 万有在基督里归一于一个元首之下(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-214",
+    "title": "第三篇 基督安家在我们心里",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-215",
+    "title": "第三篇 基督安家在我们心里(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-216",
+    "title": "第四篇 基督生机身体内在的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-217",
+    "title": "第四篇 基督生机身体内在的建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-218",
+    "title": "第五篇 极大的奥秘—基督与召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-219",
+    "title": "第五篇 极大的奥秘—基督与召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-220",
+    "title": "第一篇 显大基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-221",
+    "title": "第一篇 显大基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-222",
+    "title": "第二篇 以基督为榜样",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-223",
+    "title": "第二篇 以基督为榜样(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-224",
+    "title": "第三篇 认识基督为至宝",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-225",
+    "title": "第三篇 认识基督为至宝(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-226",
+    "title": "第四篇 认识基督并祂复活大能",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-227",
+    "title": "第四篇 认识基督并祂复活大能(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-228",
+    "title": "第五篇 以基督为秘诀",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-229",
+    "title": "第五篇 以基督为秘诀(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-230",
+    "title": "第一篇 享受基督作美地",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-231",
+    "title": "第一篇 享受基督作美地(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-232",
+    "title": "第二篇 基督的十字架",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-233",
+    "title": "第二篇 基督的十字架(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-234",
+    "title": "第三篇 基督是我们的生命",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-235",
+    "title": "第三篇 基督是我们的生命(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-236",
+    "title": "第四篇 基督的平安作仲裁",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-237",
+    "title": "第四篇 基督的平安作仲裁(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-238",
+    "title": "第五篇 一个新人",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-239",
+    "title": "第五篇 一个新人(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-240",
+    "title": "第一篇 信心爱心与盼望",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-241",
+    "title": "第一篇 信心爱心与盼望(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-242",
+    "title": "第二篇 使你们的心得坚固",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-243",
+    "title": "第二篇 使你们的心得坚固(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-244",
+    "title": "第三篇 灵与魂与身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-245",
+    "title": "第三篇 灵与魂与身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-246",
+    "title": "第四篇 我们主耶稣基督的来临",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-247",
+    "title": "第四篇 我们主耶稣基督的来临(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-248",
+    "title": "第一篇 神在信仰里的经纶",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-249",
+    "title": "第一篇 神在信仰里的经纶(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-250",
+    "title": "第二篇 召会是活神的家",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-251",
+    "title": "第二篇 召会是活神的家(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-252",
+    "title": "第三篇 圣经是神的呼出",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-253",
+    "title": "第三篇 圣经是神的呼出(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-254",
+    "title": "第四篇 圣灵的更新",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-255",
+    "title": "第四篇 圣灵的更新(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-256",
+    "title": "第一篇 神在子里说话",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-257",
+    "title": "第一篇 神在子里说话(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-258",
+    "title": "第二篇 魂与灵的分开",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-259",
+    "title": "第二篇 魂与灵的分开(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-260",
+    "title": "第三篇 更美之约",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-261",
+    "title": "第三篇 更美之约(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-262",
+    "title": "第四篇 信是独一的路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-263",
+    "title": "第四篇 信是独一的路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-264",
+    "title": "第五篇 进入幔内与出到营外",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-265",
+    "title": "第五篇 进入幔内与出到营外(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-266",
+    "title": "第一篇 永远生命的交通",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-267",
+    "title": "第一篇 永远生命的交通(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-268",
+    "title": "第二篇 光，真理和实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-269",
+    "title": "第二篇 光，真理和实际(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-270",
+    "title": "第三篇 膏油的涂抹",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-271",
+    "title": "第三篇 膏油的涂抹(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-272",
+    "title": "第四篇 实行神圣的义",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-273",
+    "title": "第四篇 实行神圣的义(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-274",
+    "title": "第五篇 实行神圣的爱",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-275",
+    "title": "第五篇 实行神圣的爱(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-276",
+    "title": "第一篇 彼得书信中神的经纶",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-277",
+    "title": "第一篇 彼得书信中神的经纶(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-278",
+    "title": "第二篇 基督徒的生活及其苦难",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-279",
+    "title": "第二篇 基督徒的生活及其苦难(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-280",
+    "title": "第三篇 有分于神的性情",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-281",
+    "title": "第三篇 有分于神的性情(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-282",
+    "title": "第四篇 现有的真理，真理的路与至圣的信仰",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-283",
+    "title": "第四篇 现有的真理，真理的路与至圣的信仰(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-284",
+    "title": "第五篇 基督徒实行的完全",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-285",
+    "title": "第五篇 基督徒实行的完全(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-286",
+    "title": "第一篇 加强祂生机的救恩",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-287",
+    "title": "第一篇 加强祂生机的救恩(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-288",
+    "title": "第二篇 产生得胜者",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-289",
+    "title": "第二篇 产生得胜者(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-290",
+    "title": "第三篇 终极完成新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-291",
+    "title": "第三篇 终极完成新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-292",
+    "title": "第一篇 行走在金灯台中间的人子",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-293",
+    "title": "第一篇 行走在金灯台中间的人子(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-294",
+    "title": "第二篇 主需要得胜者",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-295",
+    "title": "第二篇 主需要得胜者(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-296",
+    "title": "第三篇 初熟的果子庄稼和晚期的得胜者",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-297",
+    "title": "第三篇 初熟的果子庄稼和晚期的得胜者(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-298",
+    "title": "第四篇 羔羊的婚娶和婚宴",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-299",
+    "title": "第四篇 羔羊的婚娶和婚宴(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-300",
+    "title": "第五篇 新耶路撒冷—终极的完成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-301",
+    "title": "第五篇 新耶路撒冷—终极的完成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-302",
+    "title": "第一篇 神圣的真理，神圣的实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-303",
+    "title": "第一篇 神圣的真理，神圣的实际(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-304",
+    "title": "第二篇 真理是光的照耀",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-305",
+    "title": "第二篇 真理是光的照耀(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-306",
+    "title": "第三篇 传输并揭示真理的圣经",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-307",
+    "title": "第三篇 传输并揭示真理的圣经(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-308",
+    "title": "第四篇 圣经的中心线",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-309",
+    "title": "第四篇 圣经的中心线(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-310",
+    "title": "第五篇 圣经中基本神圣启示的摘要",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-311",
+    "title": "第五篇 圣经中基本神圣启示的摘要(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-312",
+    "title": "第六篇 现有的真理",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-313",
+    "title": "第六篇 现有的真理(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-314",
+    "title": "第七篇 最高的真理",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-315",
+    "title": "第七篇 最高的真理(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-316",
+    "title": "第八篇 圣经中的主观真理",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-317",
+    "title": "第八篇 圣经中的主观真理(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-318",
+    "title": "第九篇 使人自由并圣别人的真理",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-319",
+    "title": "第九篇 使人自由并圣别人的真理(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-320",
+    "title": "第十篇 被神圣的真理构成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-321",
+    "title": "第十篇 被神圣的真理构成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-322",
+    "title": "第一篇 神经纶的总纲",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-323",
+    "title": "第一篇 神经纶的总纲(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-324",
+    "title": "第二篇 神经纶的完整异象",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-325",
+    "title": "第二篇 神经纶的完整异象(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-326",
+    "title": "第三篇 神经纶中的四个时代与八个约",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-327",
+    "title": "第三篇 神经纶中的四个时代与八个约(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-328",
+    "title": "第四篇 神经纶中的七个奥秘",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-329",
+    "title": "第四篇 神经纶中的七个奥秘(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-330",
+    "title": "第五篇 神永远经纶的目标—基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-331",
+    "title": "第五篇 神永远经纶的目标—基督的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-332",
+    "title": "第六篇 成为得胜者以完成神永远的经纶",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-333",
+    "title": "第六篇 成为得胜者以完成神永远的经纶(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-334",
+    "title": "第七篇 神永远经纶的终极总结—新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-335",
+    "title": "第七篇 神永远经纶的终极总结—新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-336",
+    "title": "第一篇 完成神永远经纶的三一神",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-337",
+    "title": "第一篇 完成神永远经纶的三一神(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-338",
+    "title": "第二篇 经过过程之三一神的成就",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-339",
+    "title": "第二篇 经过过程之三一神的成就(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-340",
+    "title": "第三篇 经历那灵作三一神的终极完成，而成为新造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-341",
+    "title": "第三篇 经历那灵作三一神的终极完成，而成为新造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-342",
+    "title": "第四篇 同神圣的三一过调和的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-343",
+    "title": "第四篇 同神圣的三一过调和的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-344",
+    "title": "第五篇 三一神作我们的构成、存在、享受、生活和彰显",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-345",
+    "title": "第五篇 三一神作我们的构成、存在、享受、生活和彰显(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-346",
+    "title": "第一篇 神圣分赐的中心观点",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-347",
+    "title": "第一篇 神圣分赐的中心观点(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-348",
+    "title": "第二篇 列祖的经历中所启示神的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-349",
+    "title": "第二篇 列祖的经历中所启示神的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-350",
+    "title": "第三篇 以色列子民经历中所启示神的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-351",
+    "title": "第三篇 以色列子民经历中所启示神的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-352",
+    "title": "第四篇 父的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-353",
+    "title": "第四篇 父的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-354",
+    "title": "第五篇 子的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-355",
+    "title": "第五篇 子的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-356",
+    "title": "第六篇 灵的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-357",
+    "title": "第六篇 灵的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-358",
+    "title": "第七篇 保罗职事里神的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-359",
+    "title": "第七篇 保罗职事里神的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-360",
+    "title": "第八篇 彼得、犹大、雅各职事里神的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-361",
+    "title": "第八篇 彼得、犹大、雅各职事里神的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-362",
+    "title": "第九篇 约翰职事里神的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-363",
+    "title": "第九篇 约翰职事里神的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-364",
+    "title": "第十篇 神圣分赐的终极完成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-365",
+    "title": "第十篇 神圣分赐的终极完成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-366",
+    "title": "第一篇 神性与人性的调和",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-367",
+    "title": "第一篇 神性与人性的调和(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-368",
+    "title": "第二篇 那灵的工作终结于神性与人性的调和",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-369",
+    "title": "第二篇 那灵的工作终结于神性与人性的调和(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-370",
+    "title": "第三篇 召会乃是神性与人性的调和",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-371",
+    "title": "第三篇 召会乃是神性与人性的调和(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-372",
+    "title": "第四篇 整个基督徒生活的关键，乃是神灵与人灵的调和",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-373",
+    "title": "第四篇 整个基督徒生活的关键，乃是神灵与人灵的调和(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-374",
+    "title": "第五篇 经历神人调和，好活出并作出新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-375",
+    "title": "第五篇 经历神人调和，好活出并作出新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-376",
+    "title": "第一篇 基督的十方面",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-377",
+    "title": "第一篇 基督的十方面(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-378",
+    "title": "第二篇 基督的中心与普及",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-379",
+    "title": "第二篇 基督的中心与普及(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-380",
+    "title": "第三篇 包罗万有的基督—神新约经纶的中心与普及",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-381",
+    "title": "第三篇 包罗万有的基督—神新约经纶的中心与普及(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-382",
+    "title": "第四篇 旧约中所预表的基督（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-383",
+    "title": "第四篇 旧约中所预表的基督（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-384",
+    "title": "第五篇 旧约中所预表的基督（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-385",
+    "title": "第五篇 旧约中所预表的基督（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-386",
+    "title": "第六篇 旧约中所预言的基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-387",
+    "title": "第六篇 旧约中所预言的基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-388",
+    "title": "第七篇 新约中关于基督的概览",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-389",
+    "title": "第七篇 新约中关于基督的概览(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-390",
+    "title": "第八篇 借着基督在成肉体时期里的职事而有的救赎",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-391",
+    "title": "第八篇 借着基督在成肉体时期里的职事而有的救赎(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-392",
+    "title": "第九篇 经历享受并供应在总括时期里的基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-393",
+    "title": "第九篇 经历享受并供应在总括时期里的基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-394",
+    "title": "第十篇 经历享受并供应在加强时期里的基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-395",
+    "title": "第十篇 经历享受并供应在加强时期里的基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-396",
+    "title": "第一篇 贯穿整本圣经的生命线",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-397",
+    "title": "第一篇 贯穿整本圣经的生命线(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-398",
+    "title": "第二篇 生命—完成神定旨的路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-399",
+    "title": "第二篇 生命—完成神定旨的路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-400",
+    "title": "第三篇 在生命上认识主的恢复",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-401",
+    "title": "第三篇 在生命上认识主的恢复(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-402",
+    "title": "第四篇 三一神作三部分人的生命",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-403",
+    "title": "第四篇 三一神作三部分人的生命(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-404",
+    "title": "第五篇 生命的长大发展成熟与果子",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-405",
+    "title": "第五篇 生命的长大发展成熟与果子(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-406",
+    "title": "第六篇 生命长大的阶段",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-407",
+    "title": "第六篇 生命长大的阶段(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-408",
+    "title": "第七篇 生命的经历—灵命四层的十九项",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-409",
+    "title": "第七篇 生命的经历—灵命四层的十九项(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-410",
+    "title": "第八篇 活在神圣生命的交通里",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-411",
+    "title": "第八篇 活在神圣生命的交通里(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-412",
+    "title": "第九篇 为着召会生活，接受基督作人位",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-413",
+    "title": "第九篇 为着召会生活，接受基督作人位(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-414",
+    "title": "第十篇 生命长大以致成熟，好成为新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-415",
+    "title": "第十篇 生命长大以致成熟，好成为新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-416",
+    "title": "第一篇 基督的十字架—神经纶中惟一的路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-417",
+    "title": "第一篇 基督的十字架—神经纶中惟一的路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-418",
+    "title": "第二篇 永远的十字架",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-419",
+    "title": "第二篇 永远的十字架(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-420",
+    "title": "第三篇 基督包罗万有的死",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-421",
+    "title": "第三篇 基督包罗万有的死(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-422",
+    "title": "第四篇 基督在十字架上的成就",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-423",
+    "title": "第四篇 基督在十字架上的成就(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-424",
+    "title": "第五篇 否认己，背起十字架，丧失魂生命为着召会的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-425",
+    "title": "第五篇 否认己，背起十字架，丧失魂生命为着召会的建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-426",
+    "title": "第一篇 在福音书及行传中的经历并享受基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-427",
+    "title": "第一篇 在福音书及行传中的经历并享受基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-428",
+    "title": "第二篇 在罗马书至腓立比书中的经历并享受基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-429",
+    "title": "第二篇 在罗马书至腓立比书中的经历并享受基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-430",
+    "title": "第三篇 在歌罗西书至启示录中的经历并享受基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-431",
+    "title": "第三篇 在歌罗西书至启示录中的经历并享受基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-432",
+    "title": "第一篇 整本圣经中那灵的鸟瞰",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-433",
+    "title": "第一篇 整本圣经中那灵的鸟瞰(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-434",
+    "title": "第二篇 终极完成包罗万有复合的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-435",
+    "title": "第二篇 终极完成包罗万有复合的灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-436",
+    "title": "第三篇 复活生命之素质的灵与升天能力之经纶的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-437",
+    "title": "第三篇 复活生命之素质的灵与升天能力之经纶的灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-438",
+    "title": "第四篇 神经纶的中心点—调和的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-439",
+    "title": "第四篇 神经纶的中心点—调和的灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-440",
+    "title": "第五篇 为着那灵撒种，收永远的生命",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-441",
+    "title": "第五篇 为着那灵撒种，收永远的生命(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-442",
+    "title": "第一篇 人的堕落与恢复的路线",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-443",
+    "title": "第一篇 人的堕落与恢复的路线(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-444",
+    "title": "第二篇 旧约中救赎与救恩的各面预表",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-445",
+    "title": "第二篇 旧约中救赎与救恩的各面预表(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-446",
+    "title": "第三篇 神完整的救恩—法理的救赎加上生机的拯救",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-447",
+    "title": "第三篇 神完整的救恩—法理的救赎加上生机的拯救(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-448",
+    "title": "第四篇 三一神完全救恩的三阶段",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-449",
+    "title": "第四篇 三一神完全救恩的三阶段(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-450",
+    "title": "第五篇 神完整的救恩达到我们在生命中作王",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-451",
+    "title": "第五篇 神完整的救恩达到我们在生命中作王(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-452",
+    "title": "第一篇 信仰之家里的信徒",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-453",
+    "title": "第一篇 信仰之家里的信徒(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-454",
+    "title": "第二篇 永远三一神的历史就是信徒的历史",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-455",
+    "title": "第二篇 永远三一神的历史就是信徒的历史(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-456",
+    "title": "第三篇 信徒现在享受神圣三一的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-457",
+    "title": "第三篇 信徒现在享受神圣三一的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-458",
+    "title": "第四篇 信徒现在团体的经历神圣三一的分赐",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-459",
+    "title": "第四篇 信徒现在团体的经历神圣三一的分赐(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-460",
+    "title": "第五篇 信徒将来要得荣耀，从荣耀到荣耀",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-461",
+    "title": "第五篇 信徒将来要得荣耀，从荣耀到荣耀(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-462",
+    "title": "第一篇 神人，众神人，团体的神人与神人的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-463",
+    "title": "第一篇 神人，众神人，团体的神人与神人的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-464",
+    "title": "第二篇 神人生活的榜样",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-465",
+    "title": "第二篇 神人生活的榜样(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-466",
+    "title": "第三篇 神人生活—一个祷告的人",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-467",
+    "title": "第三篇 神人生活—一个祷告的人(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-468",
+    "title": "第四篇 为着神人生活的五套传家之宝",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-469",
+    "title": "第四篇 为着神人生活的五套传家之宝(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-470",
+    "title": "第五篇 神人的生活，基督身体的实际， 带进新的复兴",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-471",
+    "title": "第五篇 神人的生活，基督身体的实际， 带进新的复兴(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-472",
+    "title": "第一篇 基督的身体—神圣经纶的目标",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-473",
+    "title": "第一篇 基督的身体—神圣经纶的目标(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-474",
+    "title": "第二篇 基督身体的结晶意义",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-475",
+    "title": "第二篇 基督身体的结晶意义(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-476",
+    "title": "第三篇 基督身体的元素素质与实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-477",
+    "title": "第三篇 基督身体的元素素质与实际(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-478",
+    "title": "第四篇 恢复基督身体包罗万有的一",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-479",
+    "title": "第四篇 恢复基督身体包罗万有的一(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-480",
+    "title": "第五篇 进入时代的职事，同心合意建造基督独一的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-481",
+    "title": "第五篇 进入时代的职事，同心合意建造基督独一的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-482",
+    "title": "第六篇 基督身体的感觉",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-483",
+    "title": "第六篇 基督身体的感觉(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-484",
+    "title": "第七篇 基督身体的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-485",
+    "title": "第七篇 基督身体的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-486",
+    "title": "第八篇 基督的身体在实行上显为许多地方召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-487",
+    "title": "第八篇 基督的身体在实行上显为许多地方召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-488",
+    "title": "第九篇 实行合乎圣经的聚会与事奉之路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-489",
+    "title": "第九篇 实行合乎圣经的聚会与事奉之路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-490",
+    "title": "第十篇 活在基督身体独一的交通中",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-491",
+    "title": "第十篇 活在基督身体独一的交通中(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-492",
+    "title": "第一篇 圣经的中心异象—建造神的家",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-493",
+    "title": "第一篇 圣经的中心异象—建造神的家(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-494",
+    "title": "第二篇 圣经中神建造的鸟瞰",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-495",
+    "title": "第二篇 圣经中神建造的鸟瞰(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-496",
+    "title": "第三篇 旧约中神建造的重要预表",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-497",
+    "title": "第三篇 旧约中神建造的重要预表(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-498",
+    "title": "第四篇 基督在复活里建造召会作神的殿",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-499",
+    "title": "第四篇 基督在复活里建造召会作神的殿(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-500",
+    "title": "第五篇 认识并经历神建造的内在构成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-501",
+    "title": "第五篇 认识并经历神建造的内在构成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-502",
+    "title": "第六篇 享受基督作我们生命的奖赏，好被充满成为神的丰满",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-503",
+    "title": "第六篇 享受基督作我们生命的奖赏，好被充满成为神的丰满(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-504",
+    "title": "第七篇 经历作石头的基督把我们作成宝石，好彰显耶稣的见证",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-505",
+    "title": "第七篇 经历作石头的基督把我们作成宝石，好彰显耶稣的见证(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-506",
+    "title": "第八篇 我们工作的内在元素—供应建造的神以及被建造的神",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-507",
+    "title": "第八篇 我们工作的内在元素—供应建造的神以及被建造的神(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-508",
+    "title": "第九篇 在神的历史里完成神的经纶，为着神的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-509",
+    "title": "第九篇 在神的历史里完成神的经纶，为着神的建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-510",
+    "title": "第十篇 新耶路撒冷—神建造的终极完成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-511",
+    "title": "第十篇 新耶路撒冷—神建造的终极完成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-512",
+    "title": "第一篇 神对召会的永远定旨",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-513",
+    "title": "第一篇 神对召会的永远定旨(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-514",
+    "title": "第二篇 旧约中七个女人所预表的召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-515",
+    "title": "第二篇 旧约中七个女人所预表的召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-516",
+    "title": "第三篇 整本圣经中所预言的召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-517",
+    "title": "第三篇 整本圣经中所预言的召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-518",
+    "title": "第四篇 地方召会的性质、光景与立场",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-519",
+    "title": "第四篇 地方召会的性质、光景与立场(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-520",
+    "title": "第五篇 栽种召会树为着耶稣见证的宇宙扩展",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-521",
+    "title": "第五篇 栽种召会树为着耶稣见证的宇宙扩展(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-522",
+    "title": "第一篇 神终极的心意—基督与召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-523",
+    "title": "第一篇 神终极的心意—基督与召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-524",
+    "title": "第二篇 旧约中四对配偶所表征的基督与召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-525",
+    "title": "第二篇 旧约中四对配偶所表征的基督与召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-526",
+    "title": "第三篇 诗篇中所启示并预表的基督与召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-527",
+    "title": "第三篇 诗篇中所启示并预表的基督与召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-528",
+    "title": "第四篇 保罗完成职事的异象与使命—基督与召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-529",
+    "title": "第四篇 保罗完成职事的异象与使命—基督与召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-530",
+    "title": "第五篇 享受基督作生命为着召会的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-531",
+    "title": "第五篇 享受基督作生命为着召会的建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-532",
+    "title": "第一篇 圣经的四要素—基督那灵生命召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-533",
+    "title": "第一篇 圣经的四要素—基督那灵生命召会(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-534",
+    "title": "第二篇 由旧约中人物、植物、动物、矿物、祭物和食物所预表的基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-535",
+    "title": "第二篇 由旧约中人物、植物、动物、矿物、祭物和食物所预表的基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-536",
+    "title": "第三篇 新约的素质与范围—那灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-537",
+    "title": "第三篇 新约的素质与范围—那灵(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-538",
+    "title": "第四篇 生命乃是新约的要素",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-539",
+    "title": "第四篇 生命乃是新约的要素(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-540",
+    "title": "第五篇 召会—圣经启示之精髓的终结",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-541",
+    "title": "第五篇 召会—圣经启示之精髓的终结(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-542",
+    "title": "第一篇 生命与建造是圣经的中心思想",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-543",
+    "title": "第一篇 生命与建造是圣经的中心思想(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-544",
+    "title": "第二篇 生命的长大为着基督身体的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-545",
+    "title": "第二篇 生命的长大为着基督身体的建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-546",
+    "title": "第三篇 约翰福音里的生命与建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-547",
+    "title": "第三篇 约翰福音里的生命与建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-548",
+    "title": "第四篇 保罗书信中的生命与建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-549",
+    "title": "第四篇 保罗书信中的生命与建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-550",
+    "title": "第五篇 彼得书信中的生命与建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-551",
+    "title": "第五篇 彼得书信中的生命与建造(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-552",
+    "title": "第一篇 神借着得胜者成就祂永远的经纶",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-553",
+    "title": "第一篇 神借着得胜者成就祂永远的经纶(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-554",
+    "title": "第二篇 旧约中所预表的得胜者",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-555",
+    "title": "第二篇 旧约中所预表的得胜者(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-556",
+    "title": "第三篇 得胜者的产生（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-557",
+    "title": "第三篇 得胜者的产生（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-558",
+    "title": "第四篇 得胜者的产生（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-559",
+    "title": "第四篇 得胜者的产生（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-560",
+    "title": "第五篇 得胜者的成功",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-561",
+    "title": "第五篇 得胜者的成功(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-562",
+    "title": "第一篇 圣经中国度的纲领",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-563",
+    "title": "第一篇 圣经中国度的纲领(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-564",
+    "title": "第二篇 诸天之国的三方面",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-565",
+    "title": "第二篇 诸天之国的三方面(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-566",
+    "title": "第三篇 国度种子的长大、繁殖、并发展",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-567",
+    "title": "第三篇 国度种子的长大、繁殖、并发展(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-568",
+    "title": "第四篇 千年国",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-569",
+    "title": "第四篇 千年国(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-570",
+    "title": "第五篇 新天新地",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-571",
+    "title": "第五篇 新天新地(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-572",
+    "title": "第一篇 神的心意，撒旦的计谋与属灵的争战",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-573",
+    "title": "第一篇 神的心意，撒旦的计谋与属灵的争战(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-574",
+    "title": "第二篇 需要属灵的争战，以脱离撒但的混乱",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-575",
+    "title": "第二篇 需要属灵的争战，以脱离撒但的混乱(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-576",
+    "title": "第三篇 需要属灵的争战，以带进神的国",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-577",
+    "title": "第三篇 需要属灵的争战，以带进神的国(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-578",
+    "title": "第四篇 神的全副军装为着属灵的争战",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-579",
+    "title": "第四篇 神的全副军装为着属灵的争战(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-580",
+    "title": "第五篇 最终的争战—哈米吉顿的争战",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-581",
+    "title": "第五篇 最终的争战—哈米吉顿的争战(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-582",
+    "title": "第一篇 形象与管制权—创世纪的心脏",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-583",
+    "title": "第一篇 形象与管制权—创世纪的心脏(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-584",
+    "title": "第二篇 神在这地上的行政",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-585",
+    "title": "第二篇 神在这地上的行政(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-586",
+    "title": "第三篇 在神行政下过基督徒的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-587",
+    "title": "第三篇 在神行政下过基督徒的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-588",
+    "title": "第四篇 神行政的审判",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-589",
+    "title": "第四篇 神行政的审判(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-590",
+    "title": "第五篇 启示录中神宇宙行政的宝座",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-591",
+    "title": "第五篇 启示录中神宇宙行政的宝座(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-592",
+    "title": "第一篇 新耶路撒冷—终极完成的书拉密女",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-593",
+    "title": "第一篇 新耶路撒冷—终极完成的书拉密女(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-594",
+    "title": "第二篇 新耶路撒冷—永远的伯特利",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-595",
+    "title": "第二篇 新耶路撒冷—永远的伯特利(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-596",
+    "title": "第三篇 新耶路撒冷—神在复活里新造的终极完成",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-597",
+    "title": "第三篇 新耶路撒冷—神在复活里新造的终极完成(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-598",
+    "title": "第四篇 新耶路撒冷—神永远经纶终极的完结",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-599",
+    "title": "第四篇 新耶路撒冷—神永远经纶终极的完结(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-600",
+    "title": "第五篇 我们的定命— 成为新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-601",
+    "title": "第五篇 我们的定命— 成为新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-602",
+    "title": "第一篇 团体神人生活的模型带进新的复兴",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-603",
+    "title": "第一篇 团体神人生活的模型带进新的复兴(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-604",
+    "title": "第二篇 过团体的神人生活并产生神人生活的复制",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-605",
+    "title": "第二篇 过团体的神人生活并产生神人生活的复制(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-606",
+    "title": "第三篇 建造锡安—召会中的得胜者，基督身体的实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-607",
+    "title": "第三篇 建造锡安—召会中的得胜者，基督身体的实际(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-608",
+    "title": "第四篇 建立团体神人生活的模型",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-609",
+    "title": "第四篇 建立团体神人生活的模型(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-610",
+    "title": "第五篇 被主生命的火烧着，作耶稣疯狂的爱人",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-611",
+    "title": "第五篇 被主生命的火烧着，作耶稣疯狂的爱人(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-612",
+    "title": "第六篇 生命火的焚烧与生命水的滋润，带进活力复兴的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-613",
+    "title": "第六篇 生命火的焚烧与生命水的滋润，带进活力复兴的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-614",
+    "title": "第七篇 过奉献晨兴与牧养的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-615",
+    "title": "第七篇 过奉献晨兴与牧养的生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-616",
+    "title": "第八篇 在正确配搭中的焚烧，产生召会的能力和冲击力",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-617",
+    "title": "第八篇 在正确配搭中的焚烧，产生召会的能力和冲击力(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-618",
+    "title": "第九篇 建立神命定之路的模型",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-619",
+    "title": "第九篇 建立神命定之路的模型(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-620",
+    "title": "第十篇 照主恢复中的神圣启示实行活力排",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-621",
+    "title": "第十篇 照主恢复中的神圣启示实行活力排(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-622",
+    "title": "第十一篇 在活力排中凭生命的路传扬福音",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-623",
+    "title": "第十一篇 在活力排中凭生命的路传扬福音(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-624",
+    "title": "第十二篇 在活力排中实行福音的祭司职任",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-625",
+    "title": "第十二篇 在活力排中实行福音的祭司职任(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-626",
+    "title": "第十三篇 加强我们的活力排，使活力排又美又高",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-627",
+    "title": "第十三篇 加强我们的活力排，使活力排又美又高(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-628",
+    "title": "第十四篇 在活力排中照着神生机的牧养",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-629",
+    "title": "第十四篇 在活力排中照着神生机的牧养(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-630",
+    "title": "第十五篇 小排是当前召会生活的命脉",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-631",
+    "title": "第十五篇 小排是当前召会生活的命脉(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-632",
+    "title": "第十六篇 经营小排生活的八个要项（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-633",
+    "title": "第十六篇 经营小排生活的八个要项（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-634",
+    "title": "第十七篇 经营小排生活的八个要项（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-635",
+    "title": "第十七篇 经营小排生活的八个要项（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-636",
+    "title": "第十八篇 恢复申言这超越的恩赐，以建造召会作基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-637",
+    "title": "第十八篇 恢复申言这超越的恩赐，以建造召会作基督的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-638",
+    "title": "第十九篇 过申言的生活，以建造召会作基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-639",
+    "title": "第十九篇 过申言的生活，以建造召会作基督的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-640",
+    "title": "第二十篇 走神为召会所定规的非拉铁非之路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-641",
+    "title": "第二十篇 走神为召会所定规的非拉铁非之路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-642",
+    "title": "第一篇 神圣经纶中的召会行政",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-643",
+    "title": "第一篇 神圣经纶中的召会行政(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-644",
+    "title": "第二篇 全面平衡的实行主恢复的三方面",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-645",
+    "title": "第二篇 全面平衡的实行主恢复的三方面(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-646",
+    "title": "第三篇 基督的身体是生机的",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-647",
+    "title": "第三篇 基督的身体是生机的(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-648",
+    "title": "第四篇 持守身体的原则",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-649",
+    "title": "第四篇 持守身体的原则(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-650",
+    "title": "第五篇 召会的带领需要综合性",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-651",
+    "title": "第五篇 召会的带领需要综合性(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-652",
+    "title": "第六篇 召会的治理与话语职事",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-653",
+    "title": "第六篇 召会的治理与话语职事(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-654",
+    "title": "第七篇 召会蒙恩的秘诀：人、灵、路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-655",
+    "title": "第七篇 召会蒙恩的秘诀：人、灵、路(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-656",
+    "title": "第八篇 召会中的服事者",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-657",
+    "title": "第八篇 召会中的服事者(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-658",
+    "title": "第九篇 祭司体系事奉的建立",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-659",
+    "title": "第九篇 祭司体系事奉的建立(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-660",
+    "title": "第十篇 长老聚会议事原则",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-661",
+    "title": "第十篇 长老聚会议事原则(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-662",
+    "title": "第十一篇 坚定持续祷告并在此儆醒",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-663",
+    "title": "第十一篇 坚定持续祷告并在此儆醒(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-664",
+    "title": "第十二篇 照神命定之路架构实行召会生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-665",
+    "title": "第十二篇 照神命定之路架构实行召会生活(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-666",
+    "title": "第十三篇 召会扩增的关键—活力排",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-667",
+    "title": "第十三篇 召会扩增的关键—活力排(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-668",
+    "title": "第十四篇 召会治理中的配搭事奉（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-669",
+    "title": "第十四篇 召会治理中的配搭事奉（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-670",
+    "title": "第十五篇 召会治理中的配搭事奉（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-671",
+    "title": "第十五篇 召会治理中的配搭事奉（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-672",
+    "title": "第一篇 神经纶里独一的工作",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-673",
+    "title": "第一篇 神经纶里独一的工作(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-674",
+    "title": "第二篇 认识主恢复的三个主要项目",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-675",
+    "title": "第二篇 认识主恢复的三个主要项目(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-676",
+    "title": "第三篇 持定元首基督",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-677",
+    "title": "第三篇 持定元首基督(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-678",
+    "title": "第四篇 保守基督身体的一",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-679",
+    "title": "第四篇 保守基督身体的一(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-680",
+    "title": "第五篇 紧紧跟随时代的职事为着建造独一无二的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-681",
+    "title": "第五篇 紧紧跟随时代的职事为着建造独一无二的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-682",
+    "title": "第六篇 身体–召会、职事与工作的管治原则",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-683",
+    "title": "第六篇 身体–召会、职事与工作的管治原则(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-684",
+    "title": "第七篇 作得胜者，持守基督身体的每一个原则",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-685",
+    "title": "第七篇 作得胜者，持守基督身体的每一个原则(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-686",
+    "title": "第八篇 基督的身体是召会的内在意义",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-687",
+    "title": "第八篇 基督的身体是召会的内在意义(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-688",
+    "title": "第九篇 实行召会生活，为着建造基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-689",
+    "title": "第九篇 实行召会生活，为着建造基督的身体(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-690",
+    "title": "第十篇 工作的区域与工作的中心",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-691",
+    "title": "第十篇 工作的区域与工作的中心(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-692",
+    "title": "第十一篇 同心合意是开启新约中一切福分的万能钥匙",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-693",
+    "title": "第十一篇 同心合意是开启新约中一切福分的万能钥匙(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-694",
+    "title": "第十二篇 基督身体的交通与相调",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-695",
+    "title": "第十二篇 基督身体的交通与相调(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-696",
+    "title": "第十三篇 活出并作出新耶路撒冷",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-697",
+    "title": "第十三篇 活出并作出新耶路撒冷(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-698",
+    "title": "第十四篇 在主恢复的一个工作里作神的同工",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-699",
+    "title": "第十四篇 在主恢复的一个工作里作神的同工(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-700",
+    "title": "第十五篇 在召会、职事与工作里作正确的人",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-701",
+    "title": "第十五篇 在召会、职事与工作里作正确的人(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-702",
+    "title": "第一篇 在人类历史里神圣的历史",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-703",
+    "title": "第一篇 在人类历史里神圣的历史(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-704",
+    "title": "第二篇 从第一世纪到路得改教时期",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-705",
+    "title": "第二篇 从第一世纪到路得改教时期(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-706",
+    "title": "第三篇 从改教后到十九世纪末",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-707",
+    "title": "第三篇 从改教后到十九世纪末(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-708",
+    "title": "第四篇 主的恢复在中国的开始",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-709",
+    "title": "第四篇 主的恢复在中国的开始(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-710",
+    "title": "第五篇 我们中间四次主要的复兴",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-711",
+    "title": "第五篇 我们中间四次主要的复兴(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-712",
+    "title": "第六篇 倪弟兄借苦难所学属灵的功课",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-713",
+    "title": "第六篇 倪弟兄借苦难所学属灵的功课(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-714",
+    "title": "第七篇 台湾工作的兴起",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-715",
+    "title": "第七篇 台湾工作的兴起(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-716",
+    "title": "第八篇 主在美国恢复的往前",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-717",
+    "title": "第八篇 主在美国恢复的往前(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-718",
+    "title": "第九篇 倪弟兄职事所恢复的真理（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-719",
+    "title": "第九篇 倪弟兄职事所恢复的真理（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-720",
+    "title": "第十篇 倪弟兄职事所恢复的真理（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-721",
+    "title": "第十篇 倪弟兄职事所恢复的真理（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-722",
+    "title": "第十一篇 倪弟兄职事所恢复的真理（三）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-723",
+    "title": "第十一篇 倪弟兄职事所恢复的真理（三）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-724",
+    "title": "第十二篇 李弟兄职事所恢复的真理（一）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-725",
+    "title": "第十二篇 李弟兄职事所恢复的真理（一）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-726",
+    "title": "第十三篇 李弟兄职事所恢复的真理（二）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-727",
+    "title": "第十三篇 李弟兄职事所恢复的真理（二）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-728",
+    "title": "第十四篇 李弟兄职事所恢复的真理（三）",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-729",
+    "title": "第十四篇 李弟兄职事所恢复的真理（三）(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-730",
+    "title": "第十五篇 主终极的恢复带进新的复兴",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-731",
+    "title": "第十五篇 主终极的恢复带进新的复兴(出处)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-732",
+    "title": "1 灵、话与恩赐，将基督传输给召会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-733",
+    "title": "2 神的经纶与神经纶的目标",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-734",
+    "title": "3 人的各部分是主的器皿",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-735",
+    "title": "4 心、灵、魂",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-736",
+    "title": "5 生命与行为的分别",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-737",
+    "title": "6 生命与敬虔的外形、热心的事奉、知识、恩赐和能力之间的分别",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-738",
+    "title": "7 重生的内在意义",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-739",
+    "title": "8 我们灵的光景与重生的关系",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-740",
+    "title": "9 分辨灵与魂",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-741",
+    "title": "1 关于如何带领少年人之实行的点",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-742",
+    "title": "2 关于如何带领少年人之实行的点(二)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-743",
+    "title": "1 神对家庭的旨意",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-744",
+    "title": "2 建立属灵的家庭",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-745",
+    "title": "3 培育儿女",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-746",
+    "title": "4 父母的见证",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-747",
+    "title": "1 基督身体的建造",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-748",
+    "title": "2 在基督身体的建造里",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-749",
+    "title": "3 有恩赐的人与被成全之圣徒建造基督的身体",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-750",
+    "title": "1 提摩太前后书和提多书中要紧的事，以及众地方召会中恢复的历史",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-751",
+    "title": "2 书信中新约的核仁---神圣的灵同我们人的灵",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-752",
+    "title": "3 启示录中新约的核仁",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-753",
+    "title": "01 异象与启示",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-754",
+    "title": "02 事奉的基本功课(一)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-755",
+    "title": "03 进入真实配搭的路",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-756",
+    "title": "04 事奉的基本功课(二)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-757",
+    "title": "05 与主接触的秘诀",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-758",
+    "title": "06 主工人的性格(第一章)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-759",
+    "title": "07 经历基督是生命",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-760",
+    "title": "08 如何成全人",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-761",
+    "title": "09 在灵与配搭里事奉",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-762",
+    "title": "10 扎根的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-763",
+    "title": "11 主恢复里之下一代的异象和重要",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-764",
+    "title": "12 过照着神启示之高峰的生活",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-765",
+    "title": "1 揭开遮蔽我们的帕子，在启示里看见神今天的需要",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-766",
+    "title": "2 我们的生活和工作应该与神所需要的见证是一",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-767",
+    "title": "3 走正确的路为着召会的建造--方向",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-768",
+    "title": "4 召会能往前，心是首要的事--基础",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-769",
+    "title": "5 召会属灵往前的路--榜样",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-770",
+    "title": "6 被压成驼背。--路十三10-17",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-771",
+    "title": "1 主日分别",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-772",
+    "title": "2 认识擘饼聚会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-773",
+    "title": "1 在主恢复的异象中服事",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-774",
+    "title": "2 在健全的架构下实行生养教建",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-775",
+    "title": "3 加强并丰富擘饼聚会与申言聚会",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-776",
+    "title": "4 区负责对别人属灵幸福的兴趣(关心)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-777",
+    "title": "5 建立召会祷告的职事，以推动神经纶的行动",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-778",
+    "title": "6 实行活力排,以释放主大能救恩的大能冲击力",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-779",
+    "title": "7 得着并成全青年人，为着主恢复全地的行动",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-780",
+    "title": "8 实行相调进入基督身体的实际",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-781",
+    "title": "1 彼此互相的排聚集乃是正当召会生活的实行",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-782",
+    "title": "2 圣徒与三一神生命交通中的彼此互相",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-783",
+    "title": "3 圣徒家庭生活中的彼此互相",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-784",
+    "title": "4 圣徒在日常生活中的彼此互相",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-785",
+    "title": "5 圣徒在排聚集中的彼此互相(一)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-786",
+    "title": "6 圣徒在排聚集中的彼此互相(二)",
+    "chapter_count": 1,
+    "series": "sy_auto"
+  }
+]

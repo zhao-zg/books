@@ -1,0 +1,374 @@
+[
+  {
+    "id": "nee-001",
+    "title": "第一辑 第01册 灵修指微",
+    "chapter_count": 20,
+    "series": "nee"
+  },
+  {
+    "id": "nee-002",
+    "title": "第一辑 第02册 十字架的道",
+    "chapter_count": 35,
+    "series": "nee"
+  },
+  {
+    "id": "nee-003",
+    "title": "第一辑 第03册 基督徒报（卷一）",
+    "chapter_count": 32,
+    "series": "nee"
+  },
+  {
+    "id": "nee-004",
+    "title": "第一辑 第04册 基督徒报（卷二）",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-005",
+    "title": "第一辑 第05册 基督徒报（卷三）",
+    "chapter_count": 4,
+    "series": "nee"
+  },
+  {
+    "id": "nee-006",
+    "title": "第一辑 第06册 基督徒报（卷四）",
+    "chapter_count": 25,
+    "series": "nee"
+  },
+  {
+    "id": "nee-007",
+    "title": "第一辑 第07册 基督徒报（卷五）",
+    "chapter_count": 66,
+    "series": "nee"
+  },
+  {
+    "id": "nee-008",
+    "title": "第一辑 第08册 复兴报（卷一）",
+    "chapter_count": 38,
+    "series": "nee"
+  },
+  {
+    "id": "nee-009",
+    "title": "第一辑 第09册 复兴报（卷二）",
+    "chapter_count": 17,
+    "series": "nee"
+  },
+  {
+    "id": "nee-010",
+    "title": "第一辑 第10册 复兴报（卷三）",
+    "chapter_count": 22,
+    "series": "nee"
+  },
+  {
+    "id": "nee-011",
+    "title": "第一辑 第11册 复兴报（卷四）",
+    "chapter_count": 17,
+    "series": "nee"
+  },
+  {
+    "id": "nee-012",
+    "title": "第一辑 第12册 属灵人（上册）",
+    "chapter_count": 14,
+    "series": "nee"
+  },
+  {
+    "id": "nee-013",
+    "title": "第一辑 第13册 属灵人（中册）",
+    "chapter_count": 16,
+    "series": "nee"
+  },
+  {
+    "id": "nee-014",
+    "title": "第一辑 第14册 属灵人（下册）",
+    "chapter_count": 12,
+    "series": "nee"
+  },
+  {
+    "id": "nee-015",
+    "title": "第一辑 第15册 马太福音查经记录",
+    "chapter_count": 25,
+    "series": "nee"
+  },
+  {
+    "id": "nee-016",
+    "title": "第一辑 第16册 启示录的研究",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-017",
+    "title": "第一辑 第17册 讲经记录（卷一）",
+    "chapter_count": 24,
+    "series": "nee"
+  },
+  {
+    "id": "nee-018",
+    "title": "第一辑 第18册 讲经记录（卷二）",
+    "chapter_count": 17,
+    "series": "nee"
+  },
+  {
+    "id": "nee-019",
+    "title": "第一辑 第19册 讲经记录（卷三）",
+    "chapter_count": 13,
+    "series": "nee"
+  },
+  {
+    "id": "nee-020",
+    "title": "第一辑 第20册 福音问题",
+    "chapter_count": 50,
+    "series": "nee"
+  },
+  {
+    "id": "nee-021",
+    "title": "第二辑 第01册 复刊基督徒报",
+    "chapter_count": 13,
+    "series": "nee"
+  },
+  {
+    "id": "nee-022",
+    "title": "第二辑 第02册 聚会的生活 教会祷告的职事",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-023",
+    "title": "第二辑 第03册 歌中的歌 诗歌",
+    "chapter_count": 25,
+    "series": "nee"
+  },
+  {
+    "id": "nee-024",
+    "title": "第二辑 第04册 得胜的生命",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-025",
+    "title": "第二辑 第05册 通问汇刊（卷一）",
+    "chapter_count": 9,
+    "series": "nee"
+  },
+  {
+    "id": "nee-026",
+    "title": "第二辑 第06册 通问汇刊（卷二）",
+    "chapter_count": 8,
+    "series": "nee"
+  },
+  {
+    "id": "nee-027",
+    "title": "第二辑 第07册 正常的基督徒信仰",
+    "chapter_count": 15,
+    "series": "nee"
+  },
+  {
+    "id": "nee-028",
+    "title": "第二辑 第08册 神的福音（卷一）",
+    "chapter_count": 14,
+    "series": "nee"
+  },
+  {
+    "id": "nee-029",
+    "title": "第二辑 第09册 神的福音（卷二）",
+    "chapter_count": 12,
+    "series": "nee"
+  },
+  {
+    "id": "nee-030",
+    "title": "第二辑 第10册 工作的再思",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-031",
+    "title": "第二辑 第11册 敞开的门（卷一）",
+    "chapter_count": 7,
+    "series": "nee"
+  },
+  {
+    "id": "nee-032",
+    "title": "第二辑 第12册 敞开的门（卷二）",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-033",
+    "title": "第二辑 第13册 正常的基督徒生活",
+    "chapter_count": 14,
+    "series": "nee"
+  },
+  {
+    "id": "nee-034",
+    "title": "第二辑 第14册 荣耀的教会",
+    "chapter_count": 7,
+    "series": "nee"
+  },
+  {
+    "id": "nee-035",
+    "title": "第二辑 第15册 亚伯拉罕以撒雅各的神",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-036",
+    "title": "第二辑 第16册 中心的信息",
+    "chapter_count": 15,
+    "series": "nee"
+  },
+  {
+    "id": "nee-037",
+    "title": "第二辑 第17册 一般的信息（卷一）",
+    "chapter_count": 37,
+    "series": "nee"
+  },
+  {
+    "id": "nee-038",
+    "title": "第二辑 第18册 一般的信息（卷二）",
+    "chapter_count": 31,
+    "series": "nee"
+  },
+  {
+    "id": "nee-039",
+    "title": "第二辑 第19册 不要爱世界、坐行站",
+    "chapter_count": 16,
+    "series": "nee"
+  },
+  {
+    "id": "nee-040",
+    "title": "第二辑 第20册 这人将来如何",
+    "chapter_count": 11,
+    "series": "nee"
+  },
+  {
+    "id": "nee-041",
+    "title": "第二辑 第21册 特会、信息、及谈话记录（卷一）",
+    "chapter_count": 30,
+    "series": "nee"
+  },
+  {
+    "id": "nee-042",
+    "title": "第二辑 第22册 特会、信息、及谈话记录（卷二）",
+    "chapter_count": 32,
+    "series": "nee"
+  },
+  {
+    "id": "nee-043",
+    "title": "第二辑 第23册 特会、信息、及谈话记录（卷三）",
+    "chapter_count": 22,
+    "series": "nee"
+  },
+  {
+    "id": "nee-044",
+    "title": "第二辑 第24册 特会、信息、及谈话记录（卷四）",
+    "chapter_count": 37,
+    "series": "nee"
+  },
+  {
+    "id": "nee-045",
+    "title": "第二辑 第25册 特会、信息、及谈话记录（卷五）",
+    "chapter_count": 36,
+    "series": "nee"
+  },
+  {
+    "id": "nee-046",
+    "title": "第二辑 第26册 特会、信息、及谈话记录（卷六）",
+    "chapter_count": 46,
+    "series": "nee"
+  },
+  {
+    "id": "nee-047",
+    "title": "第三辑 第01册 教会的正统、权柄与顺服",
+    "chapter_count": 29,
+    "series": "nee"
+  },
+  {
+    "id": "nee-048",
+    "title": "第三辑 第02册 关于初信造就聚会、初信造就（上册）",
+    "chapter_count": 18,
+    "series": "nee"
+  },
+  {
+    "id": "nee-049",
+    "title": "第三辑 第03册 初信造就（中册）",
+    "chapter_count": 17,
+    "series": "nee"
+  },
+  {
+    "id": "nee-050",
+    "title": "第三辑 第04册 初信造就（下册）",
+    "chapter_count": 17,
+    "series": "nee"
+  },
+  {
+    "id": "nee-051",
+    "title": "第三辑 第05册 教会的事务",
+    "chapter_count": 13,
+    "series": "nee"
+  },
+  {
+    "id": "nee-052",
+    "title": "第三辑 第06册 主工人的性格",
+    "chapter_count": 10,
+    "series": "nee"
+  },
+  {
+    "id": "nee-053",
+    "title": "第三辑 第07册 神话语的职事",
+    "chapter_count": 18,
+    "series": "nee"
+  },
+  {
+    "id": "nee-054",
+    "title": "第三辑 第08册 读经之路、人的破碎与灵的出来",
+    "chapter_count": 16,
+    "series": "nee"
+  },
+  {
+    "id": "nee-055",
+    "title": "第三辑 第09册 执事报、复刊敞开的门（卷一）",
+    "chapter_count": 7,
+    "series": "nee"
+  },
+  {
+    "id": "nee-056",
+    "title": "第三辑 第10册 复刊敞开的门（卷二）、复刊复兴报",
+    "chapter_count": 9,
+    "series": "nee"
+  },
+  {
+    "id": "nee-057",
+    "title": "第三辑 第11册 倪柝声恢复职事过程中信息记录",
+    "chapter_count": 30,
+    "series": "nee"
+  },
+  {
+    "id": "nee-058",
+    "title": "第三辑 第12册 属灵的判定与判定的实例",
+    "chapter_count": 68,
+    "series": "nee"
+  },
+  {
+    "id": "nee-059",
+    "title": "第三辑 第13册 鼓岭训练记录（卷一）",
+    "chapter_count": 23,
+    "series": "nee"
+  },
+  {
+    "id": "nee-060",
+    "title": "第三辑 第14册 鼓岭训练记录（卷二）",
+    "chapter_count": 38,
+    "series": "nee"
+  },
+  {
+    "id": "nee-061",
+    "title": "第三辑 第15册 主恢复中成熟的带领（卷一）",
+    "chapter_count": 21,
+    "series": "nee"
+  },
+  {
+    "id": "nee-062",
+    "title": "第三辑 第16册 主恢复中成熟的带领（卷二）",
+    "chapter_count": 23,
+    "series": "nee"
+  }
+]
