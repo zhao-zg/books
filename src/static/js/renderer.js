@@ -16,6 +16,24 @@
   function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function escText(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+  // 系列颜色调色板（用于书籍卡片左侧指示条）
+  var _seriesColors = [
+    '#667eea', '#f56565', '#48bb78', '#ed8936', '#9f7aea',
+    '#38b2ac', '#e53e3e', '#3182ce', '#d69e2e', '#805ad5',
+    '#dd6b20', '#319795', '#e53e3e', '#2b6cb0', '#b7791f'
+  ];
+  var _seriesColorMap = {};
+  var _seriesColorIdx = 0;
+
+  function _getSeriesColor(seriesId) {
+    if (!seriesId) return '#667eea';
+    if (!_seriesColorMap[seriesId]) {
+      _seriesColorMap[seriesId] = _seriesColors[_seriesColorIdx % _seriesColors.length];
+      _seriesColorIdx++;
+    }
+    return _seriesColorMap[seriesId];
+  }
+
   function wrapRefs(text, ctxScripture) {
     return win.BKRef ? win.BKRef.wrapRefs(text, ctxScripture || '') : escText(text);
   }
@@ -728,7 +746,7 @@
           var seriesTitle = _getSeriesTitle(book.series);
           var chapterCount = book.chapter_count || 0;
           var progress = getReadingProgress(book.id);
-          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '">';
+          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
           html += '<div class="book-card-wrapper">';
           html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
           html += '<div class="book-info">';
@@ -768,7 +786,7 @@
       var chapterCount = book.chapter_count || 0;
       var progress = getReadingProgress(book.id);
 
-      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '">';
+      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
       html += '<div class="book-card-wrapper">';
       html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
       html += '<div class="book-info">';
