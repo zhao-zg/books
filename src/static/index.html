@@ -158,6 +158,19 @@
     <!-- ── SPA 视图容器（默认隐藏）──────────────────────── -->
     <div id="app" style="display:none"></div>
 
+    <!-- ── 目录侧边栏 Drawer ────────────────────────────────────── -->
+    <div id="bkTocOverlay" class="bk-toc-overlay"></div>
+    <nav id="bkTocDrawer" class="bk-toc-drawer" aria-label="章节目录">
+        <div class="bk-toc-drawer-header">
+            <div class="bk-toc-drawer-titles" id="bkTocDrawerTitles"></div>
+            <button type="button" class="bk-toc-drawer-close" id="bkTocDrawerClose" title="关闭" aria-label="关闭目录">✕</button>
+        </div>
+        <div class="bk-toc-search" id="bkTocSearch">
+            <input type="text" placeholder="搜索章节…" class="bk-toc-search-input" id="bkTocSearchInput" autocomplete="off">
+        </div>
+        <div class="bk-toc-drawer-body" id="bkTocDrawerBody"></div>
+    </nav>
+
     <!-- 脚本 -->
     <script src="vendor/localforage.min.js"></script>
     <script src="js/remote-config.js"></script>
@@ -169,6 +182,7 @@
     <script src="js/resource-pack.js"></script>
 
     <!-- SPA 核心 -->
+    <script src="js/back-stack.js"></script>
     <script src="js/ref-detector.js"></script>
     <script src="js/router.js"></script>
     <script src="js/renderer.js"></script>
@@ -201,7 +215,7 @@
         './','./manifest.json','./sw.js',
         './version.json','./books.json',
         './css/style.css',
-        './js/ref-detector.js','./js/router.js','./js/renderer.js',
+        './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',

@@ -182,8 +182,25 @@ def main():
 
     # 清理并创建输出目录
     if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
+        import time as _time
+        for _retry in range(3):
+            try:
+                shutil.rmtree(output_dir)
+                break
+            except PermissionError:
+                if _retry < 2:
+                    _time.sleep(0.5)
+                else:
+                    # 最后一次尝试：仅清空内容而不删除目录本身
+                    for item in os.listdir(output_dir):
+                        p = os.path.join(output_dir, item)
+                        if os.path.isdir(p):
+                            shutil.rmtree(p, ignore_errors=True)
+                        else:
+                            try: os.remove(p)
+                            except: pass
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     # 扫描并解析书籍
     book_files = scan_books(resource_dir)

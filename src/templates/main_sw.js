@@ -8,10 +8,10 @@
  *  - 版本检测文件（version.json）始终走网络
  */
 
-const CACHE_NAME = 'bk-main';
+const CACHE_NAME = 'bk-main-__BUILD_VERSION__';
 
 // 旧版缓存名称（首次升级时清理），激活时清理
-const OLD_CACHES = ['books-main'];
+const OLD_CACHES = ['books-main', 'bk-main'];
 
 const CONFIG = {
   TIMEOUT: 5000,
@@ -25,11 +25,13 @@ const PRECACHE_URLS = [
   // JS
   './js/app-update.js',
   './js/bible-dict.js',
+  './js/back-stack.js',
   './js/bookmark.js',
   './js/data-manager.js',
   './js/dev-console.js',
   './js/font-control.js',
   './js/highlight.js',
+  './js/import-manager.js',
   './js/nav-stack.js',
   './js/ref-detector.js',
   './js/renderer.js',

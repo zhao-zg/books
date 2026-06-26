@@ -25,6 +25,10 @@
   function dispatch(path) {
     var parts = path.split('/').filter(Boolean);
     win.__bkCurrentPath = path;
+    // 路由切换时关闭搜索面板
+    if (win.BKSearch && win.BKSearch.close) {
+      try { win.BKSearch.close(); } catch (e) {}
+    }
     var R = win.BKRenderer;
     console.log('[Router] dispatch path="' + path + '" parts=' + JSON.stringify(parts) + ' BKRenderer=' + (R ? 'ok' : 'NULL'));
     if (!R) { console.warn('[Router] BKRenderer 未就绪，dispatch 中止'); return; }
