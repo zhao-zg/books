@@ -82,7 +82,7 @@
             seriesTitle: seriesMap[book.series] || book.series || '',
             chapterTitle: '',
             context: '',
-            url: 'book/' + book.id
+            url: book.id
           });
         }
       }
@@ -157,6 +157,9 @@
               for (var c = 0; c < chapters.length; c++) {
                 var ch = chapters[c];
                 var content = ch.content || '';
+                if (Array.isArray(content)) {
+                  content = content.map(function (c) { return c.text || ''; }).join('');
+                }
                 if (!content) continue;
 
                 var contentLower = content.toLowerCase();
@@ -188,7 +191,7 @@
                     chapterTitle: chTitle,
                     chapterNumber: ch.number || 0,
                     context: context,
-                    url: 'book/' + bookId + '/chapter/' + (ch.number || c + 1)
+                    url: bookId + '/' + (ch.number || c + 1)
                   });
                 }
               }

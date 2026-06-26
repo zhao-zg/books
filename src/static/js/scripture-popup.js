@@ -835,12 +835,41 @@
   function annotateInlineRefs() {
     var paras = document.querySelectorAll('.content-text, .bk-paragraph');
     paras.forEach(function (p) {
-      if (p.querySelector('span')) return;
-      var html = p.innerHTML;
-      var newer = html.replace(INLINE_REF_RE, function (ref) {
-        return '<span class="scripture-ref scripture-ref--inline" data-refs="' + esc(ref) + '">' + esc(ref) + '</span>';
+      // 获取所有文本节点（跳过已有 span 内部的文本）
+      var walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null);
+      var textNodes = [];
+      var node;
+      while (node = walker.nextNode()) {
+        // 跳过已在 scripture-ref / verse-ref / fn-ref / xref-ref span 内的文本
+        var parent = node.parentElement;
+        if (parent && parent.closest && parent.closest('.scripture-ref, .verse-ref, .fn-ref, .xref-ref, .bk-highlight')) continue;
+        if (node.textContent.length > 0) textNodes.push(node);
+      }
+
+      textNodes.forEach(function (tn) {
+        var text = tn.textContent;
+        INLINE_REF_RE.lastIndex = 0;
+        if (!INLINE_REF_RE.test(text)) return;
+        INLINE_REF_RE.lastIndex = 0;
+        var frag = document.createDocumentFragment();
+        var lastIdx = 0;
+        var m;
+        while ((m = INLINE_REF_RE.exec(text)) !== null) {
+          if (m.index > lastIdx) {
+            frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
+          }
+          var span = document.createElement('span');
+          span.className = 'scripture-ref scripture-ref--inline';
+          span.setAttribute('data-refs', m[1] || m[0]);
+          span.textContent = m[0];
+          frag.appendChild(span);
+          lastIdx = INLINE_REF_RE.lastIndex;
+        }
+        if (lastIdx < text.length) {
+          frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+        }
+        tn.parentNode.replaceChild(frag, tn);
       });
-      if (newer !== html) p.innerHTML = newer;
     });
   }
 

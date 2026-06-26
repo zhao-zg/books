@@ -16,8 +16,8 @@
   function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function escText(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  function wrapRefs(text) {
-    return win.BKRef ? win.BKRef.wrapRefs(text, '') : escText(text);
+  function wrapRefs(text, ctxScripture) {
+    return win.BKRef ? win.BKRef.wrapRefs(text, ctxScripture || '') : escText(text);
   }
 
   // 缓存已加载的 book.json（LRU 淘汰，最多 15 本）
@@ -174,8 +174,28 @@
       if (_zlDmReady) return Promise.resolve();
       var dmUrl = '';
       try {
-        if (win.REMOTE_CONFIG && win.REMOTE_CONFIG.zl_html_data) {
-          dmUrl = win.REMOTE_CONFIG.zl_html_data;
+        // 检测是否为本地开发环境
+        var hostname = win.location.hostname;
+        var protocol = win.location.protocol;
+        var isLocal = hostname === 'localhost'
+          || hostname === '127.0.0.1'
+          || hostname === ''
+          || protocol === 'file:'
+          || /^192\.168\.\d+\.\d+$/.test(hostname)
+          || /^10\.\d+\.\d+\.\d+$/.test(hostname)
+          || hostname === '[::1]';
+
+        if (isLocal) {
+          // 本地开发：使用本地 zl-data 路径
+          var origin = win.location.origin;
+          if (!origin || origin === 'null') origin = 'http://localhost:8080';
+          dmUrl = origin + '/zl-data';
+          console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
+        } else {
+          // 生产环境：使用远程 URL
+          if (win.REMOTE_CONFIG && win.REMOTE_CONFIG.zl_html_data) {
+            dmUrl = win.REMOTE_CONFIG.zl_html_data;
+          }
         }
       } catch (e) {}
       if (!dmUrl || !win.DataManager) return Promise.resolve();
@@ -326,7 +346,7 @@
 
   // ── Content → HTML 渲染 ──────────────────────────────────────────────
 
-  function renderContentItem(item) {
+  function renderContentItem(item, ctx) {
     if (!item) return '';
     var type = item.type || 'paragraph';
     var text = item.text || '';
@@ -336,12 +356,12 @@
       case 'heading':
         var level = item.level || 2;
         level = Math.max(1, Math.min(6, level));
-        html = '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(text) + '</h' + level + '>';
+        html = '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(text, ctx) + '</h' + level + '>';
         break;
 
       case 'quote':
         html = '<blockquote class="bk-quote">' +
-          '<div class="bk-quote-content">' + wrapRefs(text) + '</div>' +
+          '<div class="bk-quote-content">' + wrapRefs(text, ctx) + '</div>' +
           '</blockquote>';
         break;
 
@@ -360,7 +380,7 @@
         var tag = ordered ? 'ol' : 'ul';
         html = '<' + tag + ' class="bk-list">';
         for (var i = 0; i < items.length; i++) {
-          html += '<li>' + wrapRefs(items[i]) + '</li>';
+          html += '<li>' + wrapRefs(items[i], ctx) + '</li>';
         }
         html += '</' + tag + '>';
         break;
@@ -374,7 +394,7 @@
         var fnId = (item.attrs && item.attrs.id) || '';
         html = '<div class="bk-footnote" id="fn-' + escAttr(fnId) + '">' +
           '<span class="bk-fn-number">' + escText(fnId) + '</span>' +
-          '<span class="bk-fn-text">' + wrapRefs(text) + '</span>' +
+          '<span class="bk-fn-text">' + wrapRefs(text, ctx) + '</span>' +
           '</div>';
         break;
 
@@ -385,7 +405,7 @@
       case 'paragraph':
       default:
         if (text) {
-          html = '<p class="bk-paragraph">' + wrapRefs(text) + '</p>';
+          html = '<p class="bk-paragraph">' + wrapRefs(text, ctx) + '</p>';
         }
         break;
     }
@@ -395,6 +415,7 @@
   function renderChapterContent(chapter) {
     var contentArr = chapter.content || [];
     var html = '';
+    var ctx = '';  // 当前经文上下文
 
     // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
     if (typeof contentArr === 'string') {
@@ -402,14 +423,23 @@
       for (var li = 0; li < lines.length; li++) {
         var line = lines[li].trim();
         if (line) {
-          html += '<p class="bk-paragraph">' + wrapRefs(line) + '</p>';
+          html += '<p class="bk-paragraph">' + wrapRefs(line, ctx) + '</p>';
+          // 更新上下文
+          if (win.BKRef && win.BKRef.scanCtx) {
+            ctx = win.BKRef.scanCtx(line, ctx);
+          }
         }
       }
       return html;
     }
 
     for (var i = 0; i < contentArr.length; i++) {
-      html += renderContentItem(contentArr[i]);
+      var item = contentArr[i];
+      html += renderContentItem(item, ctx);
+      // 对有文本内容的项更新经文上下文
+      if (item && item.text && win.BKRef && win.BKRef.scanCtx) {
+        ctx = win.BKRef.scanCtx(item.text, ctx);
+      }
     }
     // 脚注区域
     var footnotes = chapter.footnotes || [];
@@ -420,7 +450,7 @@
         var fn = footnotes[fi];
         html += '<div class="bk-footnote" id="fn-' + escAttr(fn.id || fi + 1) + '">';
         html += '<span class="bk-fn-number">' + escText(fn.id || (fi + 1)) + '</span>';
-        html += '<span class="bk-fn-text">' + wrapRefs(fn.text || '') + '</span>';
+        html += '<span class="bk-fn-text">' + wrapRefs(fn.text || '', ctx) + '</span>';
         html += '</div>';
       }
       html += '</div>';
