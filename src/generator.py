@@ -285,6 +285,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .series-tabs { display: flex; flex-wrap: nowrap; gap: 8px; padding: 12px 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .series-tabs::-webkit-scrollbar { display: none; }
 .series-tab { padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 14px; cursor: pointer; transition: all 0.2s; -webkit-tap-highlight-color: transparent; white-space: nowrap; flex-shrink: 0; }
+[data-theme="dark"] .series-tab:not(.active) { color: rgba(255,255,255,0.82); }
 .series-tab:active { transform: scale(0.96); }
 .series-tab.active { background: var(--accent-color, #4a90d9); color: white; border-color: var(--accent-color, #4a90d9); box-shadow: 0 2px 8px rgba(var(--brand-rgb, 102,126,234), 0.3); font-weight: 500; }
 
@@ -292,9 +293,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .book-grid { display: grid; gap: 1px; padding: 0 16px 16px; background: transparent; }
 @media (min-width: 768px) { .book-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
 @media (min-width: 1024px) { .book-grid { grid-template-columns: repeat(3, 1fr); } }
-.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 8px; overflow: hidden; transition: background-color .2s, transform 0.15s ease, box-shadow 0.15s ease; border: 1px solid var(--border); border-left: 3px solid var(--series-color, var(--accent-color, #667eea)); }
-.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-[data-theme="dark"] .zl-book-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 8px; overflow: hidden; transition: background-color .2s, transform 0.15s ease, box-shadow 0.15s ease; border: 1px solid var(--border); border-left: 3px solid var(--series-color, var(--accent-color, #667eea)); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+[data-theme="dark"] .zl-book-card { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+[data-theme="dark"] .zl-book-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
 .zl-book-card .book-card-wrapper { display: flex; align-items: stretch; }
 .zl-book-card .book-link { display: block; padding: 12px 14px; text-decoration: none; color: inherit; flex: 1; min-width: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; }
 .zl-book-card .book-link:active { background: var(--nav-hover); }
@@ -1232,9 +1234,13 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 /* ── 经文引用可点击样式 ──────────────────────────────────────── */
 .scripture-ref { color: var(--text-soft, #4b5563); font-size: 0.93em; margin-left: 2px; }
 .scripture-ref[data-refs] {
-  cursor: pointer; color: var(--text-soft, #4b5563);
+  cursor: pointer; color: var(--accent-color, #4a90d9);
   text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
+  transition: color .15s, text-decoration-color .15s;
 }
+.scripture-ref[data-refs]:hover { color: var(--brand, #667eea); text-decoration-style: solid; }
+[data-theme="dark"] .scripture-ref[data-refs] { color: var(--brand, #8ea4f0); }
+[data-theme="dark"] .scripture-ref[data-refs]:hover { color: #a8bcff; }
 .verse-ref {
   color: var(--brand, #667eea); text-decoration: underline; text-decoration-style: dotted;
   text-underline-offset: 2px; cursor: pointer; -webkit-tap-highlight-color: transparent;
