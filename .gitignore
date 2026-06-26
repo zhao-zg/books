@@ -78,6 +78,15 @@ Thumbs.db
 __review_*.tmp
 run*_*.png
 
+# Test screenshots
+test_*.png
+verify_*.png
+audit_*.png
+
+# Temp review/search files
+review_diff.txt
+_search.*
+
 # Logs
 *.log
 

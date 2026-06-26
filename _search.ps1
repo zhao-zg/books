@@ -1,2 +1,0 @@
-Write-Host '=== zl-html/books/ - LCZWJ ==='
-Get-ChildItem 'g:\project\github\books\resource\zl-html\books\*.json' | Select-String ([char]0x674E + [char]0x5E38 + [char]0x53D7 + [char]0x6587 + [char]0x96C6) | Group-Object Filename | ForEach-Object { Write-Host (.Name + ': ' + .Count) }
