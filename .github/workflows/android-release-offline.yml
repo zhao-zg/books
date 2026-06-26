@@ -95,7 +95,27 @@ jobs:
         find output/ -type f | wc -l
         echo "文件总数"
     
-    - name: 🔐 验证混淆结果（由 main.py 完成）
+    - name: 🔐 执行 JS 混淆
+      run: |
+        echo "=== 混淆 JS 文件 ==="
+        for f in remote-config.js app-update.js theme-toggle.js; do
+          if [ -f "output/js/$f" ]; then
+            echo "混淆 $f ..."
+            npx javascript-obfuscator "output/js/$f" \
+              --output "output/js/$f" \
+              --compact true \
+              --control-flow-flattening true \
+              --dead-code-injection true \
+              --string-array true \
+              --string-array-encoding base64 \
+              --self-defending false
+            echo "✓ $f 已混淆"
+          else
+            echo "⚠️ $f 不存在，跳过"
+          fi
+        done
+    
+    - name: 🔐 验证混淆结果
       run: |
         echo "=== 验证混淆结果 ==="
         for f in remote-config.js app-update.js theme-toggle.js; do
