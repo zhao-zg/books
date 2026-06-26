@@ -433,22 +433,60 @@
   function renderChapterContent(chapter) {
     var contentArr = chapter.content || [];
     var html = '';
-    var ctx = '';  // 当前经文上下文
+
+    // 从章节标题提取初始经文上下文
+    // 例如标题 "约翰福音" → scanCtx 可识别出 "约" 书卷
+    // 例如标题 "第十三章" → 在已有书卷基础上识别章号
+    var ctx = '';
+    if (win.BKRef && win.BKRef.scanCtx) {
+      // 先尝试从 chapter 元数据获取 scripture 字段（cx 兼容）
+      if (chapter.scripture) {
+        ctx = chapter.scripture;
+      } else if (chapter.title) {
+        // 从标题中提取：如果标题含书卷名（如"约翰福音"、"创世记"）
+        ctx = win.BKRef.scanCtx(chapter.title, '');
+      }
+    }
 
     // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
     if (typeof contentArr === 'string') {
       var lines = contentArr.split('\n');
       for (var li = 0; li < lines.length; li++) {
         var line = lines[li].trim();
-        if (line) {
+        if (!line) continue;
+
+        // 检测 heading 标记（## 开头）
+        var headingMatch = /^(#{1,6})\s+(.*)$/.exec(line);
+        if (headingMatch) {
+          var level = Math.min(headingMatch[1].length, 6);
+          var hText = headingMatch[2].trim();
+          html += '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(hText, ctx) + '</h' + level + '>';
+          // heading 通常包含书卷名或章节信息，优先更新上下文
+          if (win.BKRef && win.BKRef.scanCtx) {
+            ctx = win.BKRef.scanCtx(hText, ctx);
+          }
+        } else {
           html += '<p class="bk-paragraph">' + wrapRefs(line, ctx) + '</p>';
-          // 更新上下文
+          // 段落也更新上下文
           if (win.BKRef && win.BKRef.scanCtx) {
             ctx = win.BKRef.scanCtx(line, ctx);
           }
         }
       }
       return html;
+    }
+
+    // 预扫描：如果初始 ctx 为空，从第一个 heading 项提取上下文
+    if (!ctx && win.BKRef && win.BKRef.scanCtx) {
+      for (var pi = 0; pi < contentArr.length; pi++) {
+        var pItem = contentArr[pi];
+        if (pItem && pItem.type === 'heading' && pItem.text) {
+          ctx = win.BKRef.scanCtx(pItem.text, '');
+          if (ctx) break;
+        }
+        // 如果已经遇到非 heading 的内容，停止预扫描
+        if (pItem && pItem.type !== 'heading' && pItem.text) break;
+      }
     }
 
     for (var i = 0; i < contentArr.length; i++) {
