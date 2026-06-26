@@ -35,14 +35,20 @@ SERIES_MAP = {
     'books': 'books',
 }
 
+# 敏感词替换规则
+SENSITIVE_REPLACEMENTS = [
+    ("李常受文集", "CWWL"),
+    ("生命读经", "LS"),
+]
+
 # 系列标题映射
 SERIES_TITLE_MAP = {
     '1n1ba': '读经一年一遍（A计划）',
     '1n1bb': '读经一年一遍（B计划）',
     'cxxl': '初信喂养',
-    'lee8': '李常受文集',
+    'lee8': 'CWWL',
     'nee': '倪柝声文集',
-    'smdj8': '生命读经',
+    'smdj8': 'LS',
     'zsrm365': '圣经真理365',
     'books': '职事书报',
 }
@@ -59,6 +65,13 @@ log = logging.getLogger(__name__)
 # 工具函数
 # ---------------------------------------------------------------------------
 
+def sanitize_text(text: str) -> str:
+    """替换敏感词汇"""
+    for old, new in SENSITIVE_REPLACEMENTS:
+        text = text.replace(old, new)
+    return text
+
+
 def natural_sort_key(s: str):
     """自然排序 key，使 '2' 排在 '10' 前面"""
     return [int(c) if c.isdigit() else c.lower()
@@ -70,7 +83,8 @@ def extract_text(element) -> str:
     if element is None:
         return ''
     text = element.get_text(separator=' ', strip=True)
-    return re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'\s+', ' ', text).strip()
+    return sanitize_text(text)
 
 
 def read_html(file_path: str) -> Optional[str]:

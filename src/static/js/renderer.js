@@ -34,6 +34,7 @@
   var _zlDmReady = false;       // DataManager 是否就绪
   var _dlPanelOpen = false;     // 下载面板是否展开
   var _dlProgressTimer = null;  // 下载进度轮询定时器
+  var _manageMode = false;      // 书籍管理模式（显示删除按钮）
 
   // 滚动位置记忆
   var _scrollSaveTimer = null;
@@ -61,6 +62,22 @@
 
   function loadBook(bookId) {
     if (_bookCache[bookId]) return Promise.resolve(_bookCache[bookId]);
+
+    // ★ 本地导入书籍（必须在 DataManager 之前，避免 imported-xxx 触发远程下载）
+    if (win.ImportManager && win.ImportManager.getImportedBook) {
+      return Promise.resolve().then(function () {
+        return win.ImportManager.getImportedBook(bookId);
+      }).then(function (data) {
+        if (data) { _bookCache[bookId] = data; return data; }
+        // 未命中导入，继续走 DataManager / Legacy
+        if (_zlDmReady && win.DataManager) {
+          return win.DataManager.getBook(bookId)
+            .then(function (d) { _bookCache[bookId] = d; return d; })
+            .catch(function () { return _loadBookLegacy(bookId); });
+        }
+        return _loadBookLegacy(bookId);
+      });
+    }
 
     // 优先通过 DataManager 加载 zl-html 书籍
     if (_zlDmReady && win.DataManager) {
@@ -378,12 +395,20 @@
     var books = _zlBooks;
 
     if (!books.length) {
-      homeView.innerHTML = '<div class="container">' +
-        '<div class="header"><h1 class="logo-trigger">📖 书报</h1>' +
-        '<p class="subtitle">电子书阅读应用</p></div>' +
-        '<div class="content"><div class="home-status">' +
-        '<div class="home-status-icon">📚</div>' +
-        '<div>暂无书籍数据</div></div></div></div>';
+      var emptyHtml = '<div class="container">';
+      emptyHtml += '<div class="header"><h1 class="logo-trigger">📖 书报</h1>';
+      emptyHtml += '<p class="subtitle">电子书阅读应用</p>';
+      emptyHtml += '<div class="home-header-actions">';
+      emptyHtml += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
+      emptyHtml += '</div>';
+      emptyHtml += '</div>';
+      emptyHtml += '<div class="content"><div class="home-status">';
+      emptyHtml += '<div class="home-status-icon">📚</div>';
+      emptyHtml += '<div>暂无书籍，请点击导入按钮添加书籍</div>';
+      emptyHtml += '</div></div></div>';
+      homeView.innerHTML = emptyHtml;
+      // 绑定导入按钮事件
+      _bindImportBtnEvent();
       return;
     }
 
@@ -398,6 +423,8 @@
     if (_zlDmReady) {
       html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
     }
+    html += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
+    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">🗑️ 管理</button>';
     html += '</div>';
     html += '</div>';
 
@@ -488,6 +515,10 @@
       html += '</div>';
       html += '</div>';
       html += '</div>';
+      // ★ 管理模式下所有书籍显示删除按钮，导入书籍始终显示
+      if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+        html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
+      }
       html += '</div>';
     }
     html += '</div>';
@@ -537,6 +568,103 @@
     // 遮罩
     html += '<div class="download-panel-overlay' + (_dlPanelOpen ? ' open' : '') + '" id="dlOverlay"></div>';
     return html;
+  }
+
+  /**
+   * 绑定导入按钮事件（抽取为独立函数，供空书籍状态和正常状态共用）
+   */
+  function _bindImportBtnEvent() {
+    var importBtn = document.getElementById('bk-import-btn');
+    if (importBtn) {
+      importBtn.addEventListener('click', function () {
+        if (!win.ImportManager || !win.ImportManager.pickAndImport) return;
+        importBtn.disabled = true;
+        importBtn.textContent = '导入中...';
+        win.ImportManager.pickAndImport().then(function (bookData) {
+          importBtn.disabled = false;
+          importBtn.textContent = '📂 导入';
+          if (!bookData) return;
+          // 合并到首页列表
+          bookData.series = 'imported';
+          // 防重复
+          var dupBook = false;
+          for (var di = 0; di < _zlBooks.length; di++) {
+            if (_zlBooks[di].id === bookData.id) { dupBook = true; break; }
+          }
+          if (!dupBook) _zlBooks.push(bookData);
+          if (_zlDownloadedIds.indexOf(bookData.id) === -1) _zlDownloadedIds.push(bookData.id);
+          if (!win.__bkBooks) win.__bkBooks = [];
+          win.__bkBooks.push(bookData);
+          // 导航到导入的书
+          if (win.BKRouter) win.BKRouter.navigate(bookData.id);
+        }).catch(function (err) {
+          importBtn.disabled = false;
+          importBtn.textContent = '📂 导入';
+          if (err && err.message) console.error('[导入]', err.message);
+        });
+      });
+    }
+  }
+
+  /**
+   * 绑定导入书籍删除按钮事件（独立函数，与 _bindImportBtnEvent 并列）
+   */
+  function _bindDeleteBtnEvents(homeView) {
+    var delBtns = homeView.querySelectorAll('.imported-delete-btn');
+    for (var di = 0; di < delBtns.length; di++) {
+      delBtns[di].addEventListener('click', function (e) {
+        e.stopPropagation();
+        var bookId = this.getAttribute('data-book-id');
+        if (!bookId) return;
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = '...';
+        var doDelete = function () {
+          // 从 _zlBooks 中移除
+          for (var i = _zlBooks.length - 1; i >= 0; i--) {
+            if (_zlBooks[i].id === bookId) { _zlBooks.splice(i, 1); break; }
+          }
+          // 从 _zlDownloadedIds 中移除
+          var dlIdx = _zlDownloadedIds.indexOf(bookId);
+          if (dlIdx !== -1) _zlDownloadedIds.splice(dlIdx, 1);
+          // 从 __bkBooks 中移除
+          if (win.__bkBooks) {
+            for (var j = win.__bkBooks.length - 1; j >= 0; j--) {
+              if (win.__bkBooks[j].id === bookId) { win.__bkBooks.splice(j, 1); break; }
+            }
+          }
+          // 重新渲染首页
+          var hv = document.getElementById('homeView');
+          if (hv) _renderZlHome(hv);
+        };
+        if (bookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
+          win.ImportManager.deleteImportedBook(bookId).then(doDelete).catch(function () {
+            doDelete();
+          });
+        } else if (bookId.indexOf('imported-') !== 0 && win.DataManager && win.DataManager.deleteBook) {
+          win.DataManager.deleteBook(bookId).then(doDelete).catch(function () {
+            doDelete();
+          });
+        } else {
+          doDelete();
+        }
+      });
+    }
+  }
+
+  /**
+   * 绑定管理按钮事件（独立函数，切换管理模式并重新渲染）
+   */
+  function _bindManageBtnEvent() {
+    var manageBtn = document.getElementById('bk-manage-btn');
+    if (manageBtn) {
+      manageBtn.addEventListener('click', function () {
+        _manageMode = !_manageMode;
+        manageBtn.textContent = _manageMode ? '✅ 完成' : '🗑️ 管理';
+        var hv = document.getElementById('homeView');
+        if (hv) _renderZlHome(hv);
+      });
+    }
   }
 
   /**
@@ -637,6 +765,15 @@
         if (win.BKSearch && win.BKSearch.open) win.BKSearch.open();
       });
     }
+
+    // ★ 导入按钮
+    _bindImportBtnEvent();
+
+    // ★ 管理按钮
+    _bindManageBtnEvent();
+
+    // ★ 导入书籍删除按钮
+    _bindDeleteBtnEvents(homeView);
   }
 
   /**
@@ -857,6 +994,31 @@
     });
   }
 
+  /**
+   * 合并导入书籍到首页列表（抽取为公共辅助，供 renderHome 的 then/catch 共用）
+   */
+  function _mergeImportedBooks() {
+    if (!win.ImportManager || !win.ImportManager.getImportedBooks) {
+      return Promise.resolve();
+    }
+    return Promise.resolve().then(function () {
+      return win.ImportManager.getImportedBooks();
+    }).then(function (imported) {
+      for (var ii = 0; ii < imported.length; ii++) {
+        var ib = imported[ii];
+        ib.series = 'imported';
+        _zlBooks.push(ib);
+        _zlDownloadedIds.push(ib.id);
+        if (!win.__bkBooks) win.__bkBooks = [];
+        var exists = false;
+        for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+          if (win.__bkBooks[bi].id === ib.id) { exists = true; break; }
+        }
+        if (!exists) win.__bkBooks.push(ib);
+      }
+    });
+  }
+
   // ── 渲染器对象 ──────────────────────────────────────────────────────
 
   var BKRenderer = {
@@ -924,14 +1086,22 @@
             BKRenderer._zlActive = false;
           }
 
-          _renderZlHome(homeView);
+          // ★ 合并导入书籍
+          return _mergeImportedBooks().then(function () {
+            _renderZlHome(homeView);
+          });
         })
         .catch(function (err) {
           console.warn('[Renderer] DataManager 加载失败，回退:', err.message);
           _zlSeries = [];
           _zlBooks = [];
           _zlDownloadedIds = [];
-          _renderZlHome(homeView);
+          // ★ 即使 DataManager 失败，也要合并导入书籍
+          _mergeImportedBooks().then(function () {
+            _renderZlHome(homeView);
+          }).catch(function () {
+            _renderZlHome(homeView);
+          });
         });
     },
 
