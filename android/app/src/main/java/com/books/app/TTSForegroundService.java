@@ -1,4 +1,4 @@
-﻿package com.books.app;
+package com.books.app;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
