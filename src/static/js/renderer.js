@@ -20,8 +20,33 @@
     return win.BKRef ? win.BKRef.wrapRefs(text, '') : escText(text);
   }
 
-  // 缓存已加载的 book.json
+  // 缓存已加载的 book.json（LRU 淘汰，最多 15 本）
   var _bookCache = {};
+  var _bookCacheKeys = [];  // 按访问顺序排列的键
+  var _BOOK_CACHE_MAX = 15;
+
+  function _bookCacheGet(bookId) {
+    if (!_bookCache[bookId]) return null;
+    // 移至末尾（最近访问）
+    var idx = _bookCacheKeys.indexOf(bookId);
+    if (idx > -1) _bookCacheKeys.splice(idx, 1);
+    _bookCacheKeys.push(bookId);
+    return _bookCache[bookId];
+  }
+
+  function _bookCacheSet(bookId, data) {
+    // 如果已存在，先移除旧位置
+    var idx = _bookCacheKeys.indexOf(bookId);
+    if (idx > -1) _bookCacheKeys.splice(idx, 1);
+    // 添加新条目
+    _bookCache[bookId] = data;
+    _bookCacheKeys.push(bookId);
+    // 超出限制时淘汰最旧的
+    while (_bookCacheKeys.length > _BOOK_CACHE_MAX) {
+      var oldest = _bookCacheKeys.shift();
+      delete _bookCache[oldest];
+    }
+  }
   // 缓存 books.json
   var _booksIndex = null;
 
@@ -30,12 +55,16 @@
   var _zlSeries = [];           // 系列数组
   var _zlBooks = [];            // 书籍数组
   var _zlCurrentSeries = 'all'; // 当前选中的系列过滤
+  var _zlCurrentCategory = null;  // 当前选中的类型（null 表示显示类型目录页）
+  var _zlCurrentCategoryPrefix = null; // 当前选中类型的 category_prefix
   var _zlDownloadedIds = [];    // 已下载的书籍 ID 列表
   var _zlDmReady = false;       // DataManager 是否就绪
   var _dmInitPromise = null;    // DataManager 初始化 Promise（单例）
   var _dlPanelOpen = false;     // 下载面板是否展开
   var _dlProgressTimer = null;  // 下载进度轮询定时器
   var _manageMode = false;      // 书籍管理模式（显示删除按钮）
+  var _showAppGen = 0;          // showApp 过渡动画生成计数器
+  var _bkHomeClickHandler = null; // 首页事件委托处理器（用于 removeEventListener）
 
   // 滚动位置记忆
   var _scrollSaveTimer = null;
@@ -62,7 +91,8 @@
   }
 
   function loadBook(bookId) {
-    if (_bookCache[bookId]) return Promise.resolve(_bookCache[bookId]);
+    var _cached = _bookCacheGet(bookId);
+    if (_cached) return Promise.resolve(_cached);
 
     // ★ 确保 DataManager 已初始化（直接 URL 导航时可能尚未初始化）
     return _ensureDmInit().then(function () {
@@ -71,11 +101,11 @@
         return Promise.resolve().then(function () {
           return win.ImportManager.getImportedBook(bookId);
         }).then(function (data) {
-          if (data) { _bookCache[bookId] = data; return data; }
+          if (data) { _bookCacheSet(bookId, data); return data; }
           // 未命中导入，继续走 DataManager / Legacy
           if (_zlDmReady && win.DataManager) {
             return win.DataManager.getBook(bookId)
-              .then(function (d) { _bookCache[bookId] = d; return d; })
+              .then(function (d) { _bookCacheSet(bookId, d); return d; })
               .catch(function () { return _loadBookLegacy(bookId); });
           }
           return _loadBookLegacy(bookId);
@@ -86,7 +116,7 @@
       if (_zlDmReady && win.DataManager) {
         return win.DataManager.getBook(bookId)
           .then(function (data) {
-            _bookCache[bookId] = data;
+            _bookCacheSet(bookId, data);
             return data;
           })
           .catch(function (dmErr) {
@@ -101,7 +131,8 @@
 
   // 旧路径加载 book.json（EPUB/MD/TXT 书籍）
   function _loadBookLegacy(bookId) {
-    if (_bookCache[bookId]) return Promise.resolve(_bookCache[bookId]);
+    var _cachedLegacy = _bookCacheGet(bookId);
+    if (_cachedLegacy) return Promise.resolve(_cachedLegacy);
     var root = win.BK_ROOT || './';
     var isNative = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
     var jsonUrl = isNative
@@ -128,7 +159,7 @@
         throw fetchErr;
       })
       .then(function(data) {
-        _bookCache[bookId] = data;
+        _bookCacheSet(bookId, data);
         return data;
       });
   }
@@ -186,10 +217,26 @@
   function getApp() { return document.getElementById('app') || document.body; }
 
   function showApp() {
-    if (win._bkShowApp) { win._bkShowApp(); return; }
-    var h = document.getElementById('homeView'), a = document.getElementById('app');
-    if (h) h.style.display = 'none';
-    if (a) a.style.display = '';
+    if (win._bkShowApp) { win._bkShowApp(); } else {
+      var h = document.getElementById('homeView'), a = document.getElementById('app');
+      if (h) h.style.display = 'none';
+      if (a) a.style.display = '';
+    }
+    // 触发 fade-in 过渡
+    var appEl = document.getElementById('app');
+    if (appEl) {
+      var gen = ++_showAppGen;
+      appEl.classList.remove('bk-view-enter', 'bk-view-enter-active');
+      appEl.classList.add('bk-view-enter');
+      requestAnimationFrame(function() {
+        if (gen !== _showAppGen) return;
+        requestAnimationFrame(function() {
+          if (gen !== _showAppGen) return;
+          appEl.classList.remove('bk-view-enter');
+          appEl.classList.add('bk-view-enter-active');
+        });
+      });
+    }
   }
   function showHome() {
     if (win._bkShowHome) { win._bkShowHome(); return; }
@@ -528,8 +575,8 @@
       emptyHtml += '<div>暂无书籍，请点击导入按钮添加书籍</div>';
       emptyHtml += '</div></div></div>';
       homeView.innerHTML = emptyHtml;
-      // 绑定导入按钮事件
-      _bindImportBtnEvent();
+      // 使用事件委托绑定导入按钮事件
+      _bindZlEvents(homeView);
       return;
     }
 
@@ -545,7 +592,7 @@
       html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
     }
     html += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
-    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">🗑️ 管理</button>';
+    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
     html += '</div>';
     html += '</div>';
 
@@ -571,9 +618,6 @@
 
     // 绑定事件
     _bindZlEvents(homeView);
-
-    startScrollTracking('home');
-    restoreScrollPosition('home');
   }
 
   /**
@@ -607,6 +651,85 @@
       return '<div class="book-grid" id="bookGrid"><div class="home-status">该系列暂无书籍</div></div>';
     }
 
+    // 职事书报系列：二级类型目录导航
+    if (seriesFilter === 'books') {
+      // 一级：类型目录页
+      if (_zlCurrentCategory === null) {
+        // 从书籍数据中聚合类型信息（保持出现顺序）
+        var catMap = {};
+        var catOrder = [];
+        for (var i = 0; i < filtered.length; i++) {
+          var book = filtered[i];
+          var cat = book.category || '';
+          var prefix = book.category_prefix || '';
+          if (!cat) continue;
+          var key = prefix + '-' + cat;
+          if (!catMap[key]) {
+            catMap[key] = { prefix: prefix, name: cat, count: 0 };
+            catOrder.push(key);
+          }
+          catMap[key].count++;
+        }
+        if (catOrder.length > 0) {
+          var html = '<div class="category-grid" id="bookGrid">';
+          for (var ci = 0; ci < catOrder.length; ci++) {
+            var c = catMap[catOrder[ci]];
+            html += '<div class="category-card" data-category="' + escAttr(c.name) + '" data-category-prefix="' + escAttr(c.prefix) + '">';
+            html += '<div class="category-card-title">' + escText(c.prefix) + '-' + escText(c.name) + '</div>';
+            html += '<div class="category-card-count">' + c.count + ' 本</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+          return html;
+        }
+        // 如果没有类型信息（旧数据），回退到平铺显示
+      } else {
+        // 二级：显示该类型下的书籍
+        var catFiltered = [];
+        for (var i = 0; i < filtered.length; i++) {
+          if (filtered[i].category === _zlCurrentCategory && filtered[i].category_prefix === _zlCurrentCategoryPrefix) catFiltered.push(filtered[i]);
+        }
+        var html = '<div id="bookGrid">';
+        html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">\u2190 返回类型目录</button></div>';
+        html += '<div class="book-grid">';
+        for (var i = 0; i < catFiltered.length; i++) {
+          var book = catFiltered[i];
+          var downloaded = _isBookDownloaded(book.id);
+          var seriesTitle = _getSeriesTitle(book.series);
+          var chapterCount = book.chapter_count || 0;
+          var progress = getReadingProgress(book.id);
+          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '">';
+          html += '<div class="book-card-wrapper">';
+          html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+          html += '<div class="book-info">';
+          html += '<div class="book-header">';
+          html += '<div class="book-title-row">';
+          html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+          html += '<span class="download-icon">' + (downloaded ? '✅' : '☁️') + '</span>';
+          html += '</div>';
+          html += '</div>';
+          if (seriesTitle) {
+            html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+          }
+          html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+          if (progress > 0) {
+            html += ' · 读到第' + progress + '章';
+          }
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+          if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+            html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
+          }
+          html += '</div>';
+        }
+        html += '</div></div>';
+        return html;
+      }
+    }
+
+    // 非 books 系列：保持现有平铺渲染逻辑（完全不变）
     var html = '<div class="book-grid" id="bookGrid">';
     for (var i = 0; i < filtered.length; i++) {
       var book = filtered[i];
@@ -692,112 +815,24 @@
   }
 
   /**
-   * 绑定导入按钮事件（抽取为独立函数，供空书籍状态和正常状态共用）
-   */
-  function _bindImportBtnEvent() {
-    var importBtn = document.getElementById('bk-import-btn');
-    if (importBtn) {
-      importBtn.addEventListener('click', function () {
-        if (!win.ImportManager || !win.ImportManager.pickAndImport) return;
-        importBtn.disabled = true;
-        importBtn.textContent = '导入中...';
-        win.ImportManager.pickAndImport().then(function (bookData) {
-          importBtn.disabled = false;
-          importBtn.textContent = '📂 导入';
-          if (!bookData) return;
-          // 合并到首页列表
-          bookData.series = 'imported';
-          // 防重复
-          var dupBook = false;
-          for (var di = 0; di < _zlBooks.length; di++) {
-            if (_zlBooks[di].id === bookData.id) { dupBook = true; break; }
-          }
-          if (!dupBook) _zlBooks.push(bookData);
-          if (_zlDownloadedIds.indexOf(bookData.id) === -1) _zlDownloadedIds.push(bookData.id);
-          if (!win.__bkBooks) win.__bkBooks = [];
-          win.__bkBooks.push(bookData);
-          // 导航到导入的书
-          if (win.BKRouter) win.BKRouter.navigate(bookData.id);
-        }).catch(function (err) {
-          importBtn.disabled = false;
-          importBtn.textContent = '📂 导入';
-          if (err && err.message) console.error('[导入]', err.message);
-        });
-      });
-    }
-  }
-
-  /**
-   * 绑定导入书籍删除按钮事件（独立函数，与 _bindImportBtnEvent 并列）
-   */
-  function _bindDeleteBtnEvents(homeView) {
-    var delBtns = homeView.querySelectorAll('.imported-delete-btn');
-    for (var di = 0; di < delBtns.length; di++) {
-      delBtns[di].addEventListener('click', function (e) {
-        e.stopPropagation();
-        var bookId = this.getAttribute('data-book-id');
-        if (!bookId) return;
-        var btn = this;
-        btn.disabled = true;
-        btn.textContent = '...';
-        var doDelete = function () {
-          // 从 _zlBooks 中移除
-          for (var i = _zlBooks.length - 1; i >= 0; i--) {
-            if (_zlBooks[i].id === bookId) { _zlBooks.splice(i, 1); break; }
-          }
-          // 从 _zlDownloadedIds 中移除
-          var dlIdx = _zlDownloadedIds.indexOf(bookId);
-          if (dlIdx !== -1) _zlDownloadedIds.splice(dlIdx, 1);
-          // 从 __bkBooks 中移除
-          if (win.__bkBooks) {
-            for (var j = win.__bkBooks.length - 1; j >= 0; j--) {
-              if (win.__bkBooks[j].id === bookId) { win.__bkBooks.splice(j, 1); break; }
-            }
-          }
-          // 重新渲染首页
-          var hv = document.getElementById('homeView');
-          if (hv) _renderZlHome(hv);
-        };
-        if (bookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
-          win.ImportManager.deleteImportedBook(bookId).then(doDelete).catch(function () {
-            doDelete();
-          });
-        } else if (bookId.indexOf('imported-') !== 0 && win.DataManager && win.DataManager.deleteBook) {
-          win.DataManager.deleteBook(bookId).then(doDelete).catch(function () {
-            doDelete();
-          });
-        } else {
-          doDelete();
-        }
-      });
-    }
-  }
-
-  /**
-   * 绑定管理按钮事件（独立函数，切换管理模式并重新渲染）
-   */
-  function _bindManageBtnEvent() {
-    var manageBtn = document.getElementById('bk-manage-btn');
-    if (manageBtn) {
-      manageBtn.addEventListener('click', function () {
-        _manageMode = !_manageMode;
-        manageBtn.textContent = _manageMode ? '✅ 完成' : '🗑️ 管理';
-        var hv = document.getElementById('homeView');
-        if (hv) _renderZlHome(hv);
-      });
-    }
-  }
-
-  /**
-   * 绑定首页事件
+   * 绑定首页事件（事件委托：在容器上绑定一次，覆盖所有交互元素）
    */
   function _bindZlEvents(homeView) {
-    // 系列标签点击
-    var tabs = homeView.querySelectorAll('.series-tab');
-    for (var i = 0; i < tabs.length; i++) {
-      tabs[i].addEventListener('click', function () {
-        var seriesId = this.getAttribute('data-series');
+    // 先移除旧的委托处理器（防止重复绑定）
+    if (_bkHomeClickHandler) {
+      homeView.removeEventListener('click', _bkHomeClickHandler);
+      _bkHomeClickHandler = null;
+    }
+
+    var clickHandler = function(e) {
+      // 1. 系列标签点击
+      var tab = e.target.closest ? e.target.closest('.series-tab') : null;
+      if (tab) {
+        e.preventDefault();
+        var seriesId = tab.getAttribute('data-series');
         _zlCurrentSeries = seriesId;
+        _zlCurrentCategory = null;  // 切换系列时重置类型选择
+        _zlCurrentCategoryPrefix = null;
         // 更新标签状态
         var allTabs = homeView.querySelectorAll('.series-tab');
         for (var j = 0; j < allTabs.length; j++) {
@@ -810,106 +845,182 @@
           var tmp = document.createElement('div');
           tmp.innerHTML = newGrid;
           gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
-          // 重新绑定书籍点击事件
-          _bindBookClickEvents(homeView);
         }
-      });
-    }
+        return;
+      }
 
-    // 书籍卡片点击
-    _bindBookClickEvents(homeView);
+      // 1.5a 类型卡片点击（进入二级目录）
+      var catCard = e.target.closest ? e.target.closest('.category-card') : null;
+      if (catCard) {
+        _zlCurrentCategory = catCard.getAttribute('data-category');
+        _zlCurrentCategoryPrefix = catCard.getAttribute('data-category-prefix');
+        var gridContainer = document.getElementById('bookGrid');
+        if (gridContainer && gridContainer.parentNode) {
+          var newGrid = _buildBookGrid(_zlCurrentSeries);
+          var tmp = document.createElement('div');
+          tmp.innerHTML = newGrid;
+          gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+        }
+        return;
+      }
 
-    // 下载管理按钮
-    var dlMgrBtn = document.getElementById('bk-dl-mgr-btn');
-    if (dlMgrBtn) {
-      dlMgrBtn.addEventListener('click', function () {
+      // 1.5b 返回类型目录
+      if (e.target.closest && e.target.closest('#categoryBackBtn')) {
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        var gridContainer = document.getElementById('bookGrid');
+        if (gridContainer && gridContainer.parentNode) {
+          var newGrid = _buildBookGrid(_zlCurrentSeries);
+          var tmp = document.createElement('div');
+          tmp.innerHTML = newGrid;
+          gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+        }
+        return;
+      }
+
+      // 2. 书籍卡片点击（.book-link）
+      var bookLink = e.target.closest ? e.target.closest('.book-link[data-book-id]') : null;
+      if (bookLink) {
+        e.preventDefault();
+        var bookId = bookLink.getAttribute('data-book-id');
+        var series = bookLink.getAttribute('data-series');
+        _handleBookClick(bookId, series, bookLink);
+        return;
+      }
+
+      // 3. 删除按钮点击
+      var delBtn = e.target.closest ? e.target.closest('.imported-delete-btn') : null;
+      if (delBtn) {
+        e.stopPropagation();
+        var delBookId = delBtn.getAttribute('data-book-id');
+        if (!delBookId) return;
+        delBtn.disabled = true;
+        delBtn.textContent = '...';
+        var doDelete = function() {
+          for (var i = _zlBooks.length - 1; i >= 0; i--) {
+            if (_zlBooks[i].id === delBookId) { _zlBooks.splice(i, 1); break; }
+          }
+          var dlIdx = _zlDownloadedIds.indexOf(delBookId);
+          if (dlIdx !== -1) _zlDownloadedIds.splice(dlIdx, 1);
+          if (win.__bkBooks) {
+            for (var j = win.__bkBooks.length - 1; j >= 0; j--) {
+              if (win.__bkBooks[j].id === delBookId) { win.__bkBooks.splice(j, 1); break; }
+            }
+          }
+          var hv = document.getElementById('homeView');
+          if (hv) _renderZlHome(hv);
+        };
+        if (delBookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
+          win.ImportManager.deleteImportedBook(delBookId).then(doDelete).catch(function() { doDelete(); });
+        } else if (delBookId.indexOf('imported-') !== 0 && win.DataManager && win.DataManager.deleteBook) {
+          win.DataManager.deleteBook(delBookId).then(doDelete).catch(function() { doDelete(); });
+        } else {
+          doDelete();
+        }
+        return;
+      }
+
+      // 4. 下载管理按钮
+      if (e.target.closest && e.target.closest('#bk-dl-mgr-btn')) {
         _toggleDownloadPanel(true);
         _refreshStorageStats();
-      });
-    }
+        return;
+      }
 
-    // 下载面板关闭按钮
-    var dlClose = document.getElementById('dlPanelClose');
-    if (dlClose) {
-      dlClose.addEventListener('click', function () { _toggleDownloadPanel(false); });
-    }
+      // 5. 下载面板关闭
+      if (e.target.closest && e.target.closest('#dlPanelClose')) {
+        _toggleDownloadPanel(false);
+        return;
+      }
 
-    // 下载面板遮罩
-    var dlOverlay = document.getElementById('dlOverlay');
-    if (dlOverlay) {
-      dlOverlay.addEventListener('click', function () { _toggleDownloadPanel(false); });
-    }
+      // 6. 下载面板遮罩
+      if (e.target.closest && e.target.closest('#dlOverlay')) {
+        _toggleDownloadPanel(false);
+        return;
+      }
 
-    // 系列下载按钮
-    var seriesDlBtns = homeView.querySelectorAll('.download-series-btn');
-    for (var k = 0; k < seriesDlBtns.length; k++) {
-      seriesDlBtns[k].addEventListener('click', function () {
-        var seriesId = this.getAttribute('data-series');
-        _startSeriesDownload(seriesId);
-      });
-    }
+      // 7. 系列下载按钮
+      var seriesDlBtn = e.target.closest ? e.target.closest('.download-series-btn') : null;
+      if (seriesDlBtn) {
+        var dlSeriesId = seriesDlBtn.getAttribute('data-series');
+        _startSeriesDownload(dlSeriesId);
+        return;
+      }
 
-    // 全部下载按钮
-    var dlAllBtn = document.getElementById('dlAllBtn');
-    if (dlAllBtn) {
-      dlAllBtn.addEventListener('click', function () {
+      // 8. 全部下载
+      if (e.target.closest && e.target.closest('#dlAllBtn')) {
         _startAllDownload();
-      });
-    }
+        return;
+      }
 
-    // 暂停/取消按钮
-    var dlPause = document.getElementById('dlPauseBtn');
-    if (dlPause) {
-      dlPause.addEventListener('click', function () {
+      // 9. 暂停按钮
+      if (e.target.closest && e.target.closest('#dlPauseBtn')) {
         var status = win.DataManager.getDownloadStatus();
         if (status.isPaused) {
           win.DataManager.resumeDownload();
-          dlPause.textContent = '暂停';
+          e.target.closest('#dlPauseBtn').textContent = '暂停';
         } else {
           win.DataManager.pauseDownload();
-          dlPause.textContent = '恢复';
+          e.target.closest('#dlPauseBtn').textContent = '恢复';
         }
-      });
-    }
-    var dlCancel = document.getElementById('dlCancelBtn');
-    if (dlCancel) {
-      dlCancel.addEventListener('click', function () {
+        return;
+      }
+
+      // 10. 取消按钮
+      if (e.target.closest && e.target.closest('#dlCancelBtn')) {
         win.DataManager.cancelDownload();
         _stopProgressPolling();
-      });
-    }
+        return;
+      }
 
-    // 搜索按钮
-    var searchBtn = document.getElementById('bk-search-btn');
-    if (searchBtn) {
-      searchBtn.addEventListener('click', function () {
+      // 11. 搜索按钮
+      if (e.target.closest && e.target.closest('#bk-search-btn')) {
         if (win.BKSearch && win.BKSearch.open) win.BKSearch.open();
-      });
-    }
+        return;
+      }
 
-    // ★ 导入按钮
-    _bindImportBtnEvent();
+      // 12. 导入按钮
+      if (e.target.closest && e.target.closest('#bk-import-btn')) {
+        var importBtn = e.target.closest('#bk-import-btn');
+        if (!win.ImportManager || !win.ImportManager.pickAndImport) return;
+        importBtn.disabled = true;
+        importBtn.textContent = '导入中...';
+        win.ImportManager.pickAndImport().then(function(bookData) {
+          var btn = document.getElementById('bk-import-btn');
+          if (btn) { btn.disabled = false; btn.textContent = '📂 导入'; }
+          if (!bookData) return;
+          bookData.series = 'imported';
+          var dupBook = false;
+          for (var di = 0; di < _zlBooks.length; di++) {
+            if (_zlBooks[di].id === bookData.id) { dupBook = true; break; }
+          }
+          if (!dupBook) _zlBooks.push(bookData);
+          if (_zlDownloadedIds.indexOf(bookData.id) === -1) _zlDownloadedIds.push(bookData.id);
+          if (!win.__bkBooks) win.__bkBooks = [];
+          win.__bkBooks.push(bookData);
+          if (win.BKRouter) win.BKRouter.navigate(bookData.id);
+        }).catch(function(err) {
+          var btn = document.getElementById('bk-import-btn');
+          if (btn) { btn.disabled = false; btn.textContent = '📂 导入'; }
+          if (err && err.message) console.error('[导入]', err.message);
+        });
+        return;
+      }
 
-    // ★ 管理按钮
-    _bindManageBtnEvent();
+      // 13. 管理按钮
+      if (e.target.closest && e.target.closest('#bk-manage-btn')) {
+        _manageMode = !_manageMode;
+        var hv = document.getElementById('homeView');
+        if (hv) _renderZlHome(hv);
+        return;
+      }
+    };
 
-    // ★ 导入书籍删除按钮
-    _bindDeleteBtnEvents(homeView);
-  }
+    homeView.addEventListener('click', clickHandler);
+    _bkHomeClickHandler = clickHandler;
 
-  /**
-   * 绑定书籍卡片点击事件
-   */
-  function _bindBookClickEvents(homeView) {
-    var cards = homeView.querySelectorAll('.zl-book-card .book-link');
-    for (var i = 0; i < cards.length; i++) {
-      cards[i].addEventListener('click', function (e) {
-        e.preventDefault();
-        var bookId = this.getAttribute('data-book-id');
-        var series = this.getAttribute('data-series');
-        _handleBookClick(bookId, series, this);
-      });
-    }
+    startScrollTracking('home');
+    restoreScrollPosition('home');
   }
 
   /**
@@ -1287,11 +1398,16 @@
       closeBtn.addEventListener('click', function() { _toggleTocDrawer(false); });
     }
 
-    // 搜索框输入事件
+    // 搜索框输入事件（防抖 200ms）
     var searchInput = document.getElementById('bkTocSearchInput');
     if (searchInput) {
+      var _tocSearchTimer = null;
       searchInput.addEventListener('input', function() {
-        _filterTocItems(this.value);
+        var val = this.value;
+        clearTimeout(_tocSearchTimer);
+        _tocSearchTimer = setTimeout(function() {
+          _filterTocItems(val);
+        }, 200);
       });
     }
 

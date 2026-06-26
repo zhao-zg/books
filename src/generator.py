@@ -289,6 +289,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .zl-book-card .chapter-count { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .zl-book-card .download-icon { margin-left: auto; font-size: 16px; opacity: 0.7; flex-shrink: 0; }
 
+/* ── 类型目录导航 ───────────────────────────────────────── */
+.category-grid { display: grid; gap: 12px; padding: 0 16px 16px; }
+@media (min-width: 768px) { .category-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .category-grid { grid-template-columns: repeat(3, 1fr); } }
+.category-card { background: var(--card-bg, var(--surface)); border-radius: 8px; padding: 16px; border: 1px solid var(--border); cursor: pointer; transition: background-color .2s; -webkit-tap-highlight-color: transparent; user-select: none; }
+.category-card:hover { background: var(--nav-hover); }
+.category-card:active { background: var(--nav-hover); transform: scale(0.98); }
+.category-card-title { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.category-card-count { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.category-back-bar { padding: 8px 16px; }
+.category-back-btn { background: none; border: none; color: var(--brand, var(--accent-color, #4a90d9)); font-size: 14px; cursor: pointer; padding: 6px 0; -webkit-tap-highlight-color: transparent; }
+.category-back-btn:active { opacity: 0.7; }
+
 /* ── 批量下载面板 ───────────────────────────────────────── */
 .download-panel { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg, var(--surface)); border-top: 1px solid var(--border); padding: 16px; transform: translateY(100%); transition: transform 0.3s ease; z-index: 200; max-height: 70vh; overflow-y: auto; border-radius: 16px 16px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.15); }
 .download-panel.open { transform: translateY(0); }
@@ -296,7 +309,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .download-panel-overlay.open { display: block; }
 .download-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .download-panel-title { font-size: 16px; font-weight: 600; color: var(--text); }
-.download-panel-close { background: none; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 4px 8px; }
+.download-panel-close { background: none; border: none; font-size: 18px; color: var(--text-muted); cursor: pointer; padding: 4px 8px; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
 .download-storage-info { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
 .download-progress { height: 4px; background: var(--border); border-radius: 2px; margin: 8px 0; overflow: hidden; }
 .download-progress-bar { height: 100%; background: var(--accent-color, #4a90d9); border-radius: 2px; transition: width 0.3s; }
@@ -334,7 +347,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 
 /* ── 页面导航栏 ──────────────────────────────────────────── */
 .page-navigation { display: flex; align-items: center; justify-content: center; gap: 0; padding: 16px 8px 32px; border-top: 1px solid var(--border); margin-top: 24px; }
-.nav-link { display: flex; align-items: center; gap: 4px; padding: 10px 14px; text-decoration: none; color: var(--brand); font-size: 14px; border-radius: 8px; transition: background .15s; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+.nav-link { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 14px; text-decoration: none; color: var(--brand); font-size: 14px; border-radius: 8px; transition: background .15s; -webkit-tap-highlight-color: transparent; cursor: pointer; min-width: 44px; min-height: 44px; }
 .nav-link:active { background: var(--nav-hover); }
 .nav-link.nav-disabled { color: var(--text-muted); opacity: .4; pointer-events: none; }
 .nav-arrow { font-size: 20px; font-weight: 600; line-height: 1; }
@@ -425,8 +438,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
   margin-top: 2px;
 }
 .bk-toc-drawer-close {
-  width: 32px;
-  height: 32px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   background: var(--surface-alt, #f0f2f8);
@@ -1001,6 +1014,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 }
 .imported-delete-btn:active { background: rgba(198, 40, 40, 0.18); }
 .zl-book-card { position: relative; }
+
+/* ── 触摸优化 ──────────────────────────────────────────────── */
+/* 消除 300ms 点击延迟 */
+a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .nav-link, .bk-toc-chapter-item {
+  touch-action: manipulation;
+}
+
+/* 优化触摸高亮反馈 */
+.book-link, .series-tab, .nav-link, .bk-toc-chapter-item, .action-btn, .control-btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 阅读视图过渡动画 ──────────────────────────────────────── */
+#app.bk-view-enter {
+  opacity: 0;
+}
+#app.bk-view-enter-active {
+  opacity: 1;
+  transition: opacity 150ms ease-out;
+  will-change: opacity;
+}
 """
         css_dir = os.path.join(self.output_dir, 'css')
         os.makedirs(css_dir, exist_ok=True)

@@ -121,18 +121,45 @@ def generate_series_index(output_dir: Path, series: str, books: List[dict]):
     index_path = series_dir / 'index.json'
     entries = []
     for book in books:
-        entries.append({
+        entry = {
             'id': book['id'],
             'title': book['title'],
             'chapter_count': len(book.get('chapters', [])),
             'series': series,
-        })
+        }
+        if series == 'books':
+            entry['category'] = book.get('category', '')
+            entry['category_prefix'] = book.get('category_prefix', '')
+        entries.append(entry)
     try:
         with open(index_path, 'w', encoding='utf-8') as f:
             json.dump(entries, f, ensure_ascii=False, indent=2)
         log.info(f"  => 已生成 {series}/index.json ({len(entries)} 本书)")
     except Exception as e:
         log.error(f"  生成 {index_path} 失败: {e}")
+
+    # 为 books 系列额外生成 categories.json
+    if series == 'books' and books:
+        categories = []
+        seen = set()
+        for book in books:
+            cat = book.get('category', '')
+            prefix = book.get('category_prefix', '')
+            key = f"{prefix}-{cat}"
+            if key not in seen and cat:
+                seen.add(key)
+                categories.append({
+                    'prefix': prefix,
+                    'name': cat,
+                    'count': sum(1 for b in books if b.get('category') == cat and b.get('category_prefix') == prefix),
+                })
+        cat_path = series_dir / 'categories.json'
+        try:
+            with open(cat_path, 'w', encoding='utf-8') as f:
+                json.dump(categories, f, ensure_ascii=False, indent=2)
+            log.info(f"  => 已生成 {series}/categories.json ({len(categories)} 个分类)")
+        except Exception as e:
+            log.error(f"  生成 {cat_path} 失败: {e}")
 
 
 def generate_global_index(output_dir: Path, all_books_by_series: Dict[str, List[dict]]):
@@ -143,18 +170,40 @@ def generate_global_index(output_dir: Path, all_books_by_series: Dict[str, List[
     # 按 SERIES_MAP 的顺序输出
     for series_id in ['1n1ba', '1n1bb', 'cxxl', 'lee8', 'nee', 'smdj8', 'zsrm365', 'books']:
         books = all_books_by_series.get(series_id, [])
-        series_list.append({
+        series_entry = {
             'id': series_id,
             'title': SERIES_TITLE_MAP.get(series_id, series_id),
             'count': len(books),
-        })
+        }
+        # 为 books 系列添加分类摘要
+        if series_id == 'books' and books:
+            cats = []
+            seen = set()
+            for book in books:
+                cat = book.get('category', '')
+                prefix = book.get('category_prefix', '')
+                key = f"{prefix}-{cat}"
+                if key not in seen and cat:
+                    seen.add(key)
+                    cats.append({
+                        'prefix': prefix,
+                        'name': cat,
+                        'count': sum(1 for b in books if b.get('category') == cat and b.get('category_prefix') == prefix),
+                    })
+            series_entry['categories'] = cats
+        series_list.append(series_entry)
         for book in books:
-            books_list.append({
+            entry = {
                 'id': book['id'],
                 'title': book['title'],
                 'series': series_id,
                 'chapter_count': len(book.get('chapters', [])),
-            })
+            }
+            # 为 books 系列添加分类信息
+            if series_id == 'books':
+                entry['category'] = book.get('category', '')
+                entry['category_prefix'] = book.get('category_prefix', '')
+            books_list.append(entry)
     data = {
         'series': series_list,
         'books': books_list,
@@ -1046,13 +1095,19 @@ def parse_books(dir_path: Path) -> List[dict]:
         )
 
         # 从分类目录提取书号列表
-        book_ids_in_cat = []  # [(book_num, title, author)]
+        book_ids_in_cat = []  # [(book_num, title, author, category_name)]
         for cat_file in category_files:
             try:
                 html = read_html(str(cat_file))
                 if not html:
                     continue
                 csoup = parse_soup(html)
+                # 提取分类名称（从 <div id="chap1">，如 "1福音类" → "福音类"）
+                category_name = ''
+                chap1 = csoup.find('div', id='chap1')
+                if chap1:
+                    cat_text = extract_text(chap1)
+                    category_name = re.sub(r'^\d+', '', cat_text).strip()
                 table = csoup.find('table', id='list')
                 if table:
                     for tr in table.find_all('tr'):
@@ -1067,12 +1122,13 @@ def parse_books(dir_path: Path) -> List[dict]:
                                     num_text,
                                     title_text,
                                     author_text,
+                                    category_name,
                                 ))
             except Exception as e:
                 log.warning(f"  解析分类目录 {cat_file.name} 失败: {e}")
 
         # 处理每本书
-        for book_num, book_title, author in book_ids_in_cat:
+        for book_num, book_title, author, category_name in book_ids_in_cat:
             book_id = f"books-{subdir_name}-{book_num}"
             book_dir_file = subdir / f"{book_num}.html"
 
@@ -1085,15 +1141,6 @@ def parse_books(dir_path: Path) -> List[dict]:
                 if not bhtml:
                     continue
                 bsoup = parse_soup(bhtml)
-
-                # 从 <title> 提取更精确的书名
-                title_tag = bsoup.find('title')
-                if title_tag:
-                    tt = extract_text(title_tag)
-                    # 格式: "福音类丨1001到底有没有神"
-                    parts = tt.split('丨')
-                    if len(parts) >= 2:
-                        book_title = parts[-1].strip()
 
                 # 收集章节链接
                 chapter_files = []
@@ -1177,13 +1224,29 @@ def parse_books(dir_path: Path) -> List[dict]:
                                 t = extract_text(cn)
                                 if t:
                                     content_parts.append(t)
+                            # 检查 div.main 内的 div#c（可能与 .cont 共存或替代）
+                            c_texts = []
+                            for c_div in main_div.find_all('div', id='c'):
+                                t = extract_text(c_div)
+                                if t and len(t) > 5:
+                                    c_texts.append(t)
+                            # 如果 div#c 的文本比 .cont/.cn 更丰富，优先使用 div#c
+                            c_total = sum(len(t) for t in c_texts)
+                            parts_total = sum(len(t) for t in content_parts)
+                            if c_total > parts_total:
+                                content_parts = c_texts
                         else:
-                            # fallback: div#c > div.cont
+                            # fallback: div#c
                             c_div = csoup.find('div', id='c')
                             if c_div:
                                 for cont in c_div.find_all('div', class_='cont'):
                                     t = extract_text(cont)
                                     if t:
+                                        content_parts.append(t)
+                                # div#c 本身也可能直接包含文本
+                                if not content_parts:
+                                    t = extract_text(c_div)
+                                    if t and len(t) > 5:
                                         content_parts.append(t)
 
                         # 如果还是没内容，取 feature 后的所有文本
@@ -1219,9 +1282,13 @@ def parse_books(dir_path: Path) -> List[dict]:
                             })
 
                 if chapters:
+                    display_title = f"{book_num}-{book_title}"
+                    category_prefix = book_num[0] if book_num else ''
                     books.append({
                         'id': book_id,
-                        'title': book_title,
+                        'title': display_title,
+                        'category': category_name,
+                        'category_prefix': category_prefix,
                         'format': 'html',
                         'chapters': chapters,
                     })

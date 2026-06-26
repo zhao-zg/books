@@ -29,7 +29,6 @@ const PRECACHE_URLS = [
   './js/bookmark.js',
   './js/data-manager.js',
   './js/dev-console.js',
-  './js/font-control.js',
   './js/highlight.js',
   './js/import-manager.js',
   './js/nav-stack.js',

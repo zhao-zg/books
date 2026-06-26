@@ -172,14 +172,15 @@
     </nav>
 
     <!-- 脚本 -->
+    <!-- ⚠ defer 脚本在 DOM 解析后执行，内联脚本中仅可在事件回调/路由处理器中引用其 API -->
     <script src="vendor/localforage.min.js"></script>
     <script src="js/remote-config.js"></script>
     <script src="js/data-manager.js"></script>
-    <script src="js/dev-console.js"></script>
+    <script src="js/dev-console.js" defer></script>
     <script src="js/theme-toggle.js"></script>
-    <script src="js/search.js"></script>
-    <script src="vendor/jszip.min.js"></script>
-    <script src="js/resource-pack.js"></script>
+    <script src="js/search.js" defer></script>
+    <script src="vendor/jszip.min.js" defer></script>
+    <script src="js/resource-pack.js" defer></script>
 
     <!-- SPA 核心 -->
     <script src="js/back-stack.js"></script>
@@ -187,13 +188,13 @@
     <script src="js/router.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/speech.js"></script>
-    <script src="js/scripture-popup.js"></script>
-    <script src="js/bible-dict.js"></script>
-    <script src="js/highlight.js"></script>
-    <script src="js/bookmark.js"></script>
+    <script src="js/scripture-popup.js" defer></script>
+    <script src="js/bible-dict.js" defer></script>
+    <script src="js/highlight.js" defer></script>
+    <script src="js/bookmark.js" defer></script>
     <script src="js/nav-stack.js"></script>
-    <script src="vendor/marked.min.js"></script>
-    <script src="js/import-manager.js"></script>
+    <script src="vendor/marked.min.js" defer></script>
+    <script src="js/import-manager.js" defer></script>
 
     <!-- APK 更新（仅在 APP / PWA 中加载） -->
     <script>(function(){
@@ -261,7 +262,9 @@
 
     // ── 动态加载书籍列表 ──────────────────────────────────────────────────
     (function(){
-        fetch('books.json?t='+Date.now())
+        var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        var booksUrl = isNative ? 'books.json?t=' + Date.now() : 'books.json';
+        fetch(booksUrl, { cache: 'no-cache' })
             .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
             .then(function(data){
                 window.__bkBooks=data.books||[];
@@ -486,12 +489,6 @@
 
     // ── 搜索按钮（首页）──────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded',function(){
-        var btn=document.getElementById('bk-search-btn');
-        if(btn){
-            btn.addEventListener('click',function(){
-                if(window.BKSearch&&window.BKSearch.open)window.BKSearch.open();
-            });
-        }
         var banner=document.getElementById('bkOfflineBanner');
         if(banner){
             var dismiss=banner.querySelector('.bk-banner-dismiss');

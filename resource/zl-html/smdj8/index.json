@@ -1,0 +1,398 @@
+[
+  {
+    "id": "smdj8-01",
+    "title": "创-创世记",
+    "chapter_count": 120,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-02",
+    "title": "出-出埃及记",
+    "chapter_count": 185,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-03",
+    "title": "利-利未记",
+    "chapter_count": 64,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-04",
+    "title": "民-民数记",
+    "chapter_count": 53,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-05",
+    "title": "申-申命记",
+    "chapter_count": 30,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-06",
+    "title": "书-约书亚记",
+    "chapter_count": 15,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-07",
+    "title": "士-士师记",
+    "chapter_count": 10,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-08",
+    "title": "得-路得记",
+    "chapter_count": 8,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-09",
+    "title": "撒-撒母耳记",
+    "chapter_count": 38,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-10",
+    "title": "撒-撒母耳记下",
+    "chapter_count": 100,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-11",
+    "title": "王-列王纪",
+    "chapter_count": 23,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-12",
+    "title": "王-列王纪下",
+    "chapter_count": 100,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-13",
+    "title": "代-历代志",
+    "chapter_count": 13,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-14",
+    "title": "代-历代志下",
+    "chapter_count": 100,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-15",
+    "title": "拉-以斯拉记",
+    "chapter_count": 5,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-16",
+    "title": "尼-尼希米记",
+    "chapter_count": 5,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-17",
+    "title": "斯-以斯帖记",
+    "chapter_count": 3,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-18",
+    "title": "伯-约伯记",
+    "chapter_count": 38,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-19",
+    "title": "诗-诗篇",
+    "chapter_count": 45,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-20",
+    "title": "箴-箴言",
+    "chapter_count": 8,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-21",
+    "title": "传-传道书",
+    "chapter_count": 2,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-22",
+    "title": "歌-雅歌",
+    "chapter_count": 10,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-23",
+    "title": "赛-以赛亚书",
+    "chapter_count": 54,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-24",
+    "title": "耶-耶利米书",
+    "chapter_count": 40,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-25",
+    "title": "哀-耶利米哀歌",
+    "chapter_count": 4,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-26",
+    "title": "结-以西结书",
+    "chapter_count": 27,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-27",
+    "title": "但-但以理书",
+    "chapter_count": 17,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-28",
+    "title": "何-何西阿书",
+    "chapter_count": 9,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-29",
+    "title": "珥-约珥书",
+    "chapter_count": 7,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-30",
+    "title": "摩-阿摩司书",
+    "chapter_count": 3,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-31",
+    "title": "俄-俄巴底亚书",
+    "chapter_count": 1,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-32",
+    "title": "拿-约拿书",
+    "chapter_count": 1,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-33",
+    "title": "弥-弥迦书",
+    "chapter_count": 4,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-34",
+    "title": "鸿-那鸿书",
+    "chapter_count": 1,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-35",
+    "title": "哈-哈巴谷书",
+    "chapter_count": 3,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-36",
+    "title": "西番雅书",
+    "chapter_count": 1,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-37",
+    "title": "该-哈该书",
+    "chapter_count": 1,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-38",
+    "title": "亚-撒迦利亚书",
+    "chapter_count": 15,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-39",
+    "title": "玛-玛拉基书",
+    "chapter_count": 4,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-40",
+    "title": "太-马太福音",
+    "chapter_count": 72,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-41",
+    "title": "可-马可福音",
+    "chapter_count": 70,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-42",
+    "title": "路-路加福音",
+    "chapter_count": 79,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-43",
+    "title": "约-约翰福音",
+    "chapter_count": 51,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-44",
+    "title": "徒-使徒行传",
+    "chapter_count": 72,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-45",
+    "title": "罗-罗马书",
+    "chapter_count": 69,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-46",
+    "title": "林前-哥林多前书",
+    "chapter_count": 69,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-47",
+    "title": "林后-哥林多后书",
+    "chapter_count": 59,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-48",
+    "title": "加-加拉太书",
+    "chapter_count": 46,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-49",
+    "title": "弗-以弗所书",
+    "chapter_count": 97,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-50",
+    "title": "腓-腓立比书",
+    "chapter_count": 62,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-51",
+    "title": "西-歌罗西书",
+    "chapter_count": 65,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-52",
+    "title": "帖前-帖撒罗尼迦前书",
+    "chapter_count": 24,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-53",
+    "title": "帖后-帖撒罗尼迦后书",
+    "chapter_count": 7,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-54",
+    "title": "提前-提摩太前书",
+    "chapter_count": 12,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-55",
+    "title": "提后-提摩太后书",
+    "chapter_count": 8,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-56",
+    "title": "多-提多书",
+    "chapter_count": 6,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-57",
+    "title": "腓-腓立门书",
+    "chapter_count": 2,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-58",
+    "title": "来-希伯来书",
+    "chapter_count": 69,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-59",
+    "title": "雅-雅各书",
+    "chapter_count": 14,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-60",
+    "title": "彼前-彼得前书",
+    "chapter_count": 34,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-61",
+    "title": "彼后-彼得后书",
+    "chapter_count": 13,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-62",
+    "title": "约一-约翰一书",
+    "chapter_count": 40,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-63",
+    "title": "约贰-约翰二书",
+    "chapter_count": 2,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-64",
+    "title": "约叁-约翰三书",
+    "chapter_count": 2,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-65",
+    "title": "犹-犹大书",
+    "chapter_count": 5,
+    "series": "smdj8"
+  },
+  {
+    "id": "smdj8-66",
+    "title": "启-启示录",
+    "chapter_count": 68,
+    "series": "smdj8"
+  }
+]
