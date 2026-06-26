@@ -84,7 +84,7 @@ self.addEventListener('activate', event => {
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter(k => OLD_CACHES.includes(k) || (k.startsWith('books-') && k !== CACHE_NAME))
+            .filter(k => OLD_CACHES.includes(k) || ((k.startsWith('books-') || k.startsWith('bk-main-')) && k !== CACHE_NAME))
             .map(k => caches.delete(k))
         );
       } catch (e) {
