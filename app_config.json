@@ -1,6 +1,6 @@
 {
   "app_name": "书报",
   "app_id": "com.books.app",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "zl_html_data_url": "https://books-data.pages.dev"
 }

@@ -1,6 +1,6 @@
 {
   "name": "books",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "书报 - 电子书阅读应用",
   "scripts": {
     "build": "python main.py",
