@@ -290,56 +290,6 @@ jobs:
         
         echo ""
       
-    - name: 裁剪历史内容（APK 仅保留最新 N 本书）
-      run: |
-        echo "=== 裁剪内容，仅保留最新 N 本书 ==="
-        python3 << 'PY'
-        import yaml, json, shutil, os
-
-        with open('config.yaml', encoding='utf-8') as f:
-            cfg = yaml.safe_load(f)
-        max_n = cfg.get('batch_processing', {}).get('max_latest_books', 5)
-
-        books_file = 'output/books.json'
-        if not os.path.exists(books_file):
-            print('⚠️ books.json 不存在，跳过裁剪')
-        else:
-            with open(books_file, encoding='utf-8') as f:
-                data = json.load(f)
-
-            books = data.get('books', [])
-            # 保留最新 N 本书的 id
-            keep_ids = {b['id'] for b in books[:max_n]}
-            print(f'保留的书籍 ({max_n}): {sorted(keep_ids)}')
-
-            output_dir = 'output'
-            removed = 0
-            # 保留的静态资源目录
-            keep_dirs = {'data', 'js', 'css', 'icons', 'image', 'static', 'vendor'}
-
-            for entry in os.listdir(output_dir):
-                entry_path = os.path.join(output_dir, entry)
-                if not os.path.isdir(entry_path):
-                    continue
-                if entry in keep_ids or entry in keep_dirs:
-                    continue
-                shutil.rmtree(entry_path)
-                removed += 1
-                print(f'  已删除: {entry}')
-
-            # 资源包不打入 APK，按需下载
-            rp_dir = os.path.join(output_dir, 'resource-packs')
-            if os.path.isdir(rp_dir):
-                shutil.rmtree(rp_dir)
-                print('已移除 resource-packs/（APK 不打包）')
-
-            print(f'已删除 {removed} 个旧书籍目录')
-        PY
-        echo ""
-        echo "=== 裁剪后 output/ 目录 ==="
-        ls output/
-        du -sh output/
-
     - name: 同步 Capacitor
       run: |
         echo "=== 同步 Capacitor ==="
