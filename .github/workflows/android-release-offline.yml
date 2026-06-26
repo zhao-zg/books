@@ -292,8 +292,11 @@ jobs:
             content = re.sub(r'(defaultConfig\s*\{)', rf'\1\n        versionName "{version_name}"', content)
             print(f'✓ 插入 versionName: {version_name}')
         
-        # 确保有 namespace
-        if not re.search(r'namespace\s+["\']', content):
+        # 确保 namespace 正确（Capacitor 模板默认是 com.getcapacitor.myapp，需要改为 com.books.app）
+        if re.search(r'namespace\s+["\']', content):
+            content = re.sub(r'namespace\s+["\'][^"\']*["\']', 'namespace "com.books.app"', content)
+            print('✓ namespace 已更新为: com.books.app')
+        else:
             content = re.sub(r'(android\s*\{)', r'\1\n    namespace "com.books.app"', content)
             print('✓ 插入 namespace: com.books.app')
         
@@ -634,6 +637,13 @@ jobs:
         echo "=== 验证 build.gradle 压缩配置 ==="
         grep -E "minifyEnabled|shrinkResources|proguardFiles" android/app/build.gradle || echo "警告：压缩配置可能未添加"
       
+    - name: 配置 Android SDK 路径
+      run: |
+        echo "=== 配置 Android SDK 路径 ==="
+        echo "sdk.dir=${ANDROID_HOME}" > android/local.properties
+        echo "✓ local.properties 已创建"
+        cat android/local.properties
+
     - name: 授予 Gradle 执行权限
       run: chmod +x android/gradlew
         
@@ -642,6 +652,19 @@ jobs:
         echo "=== 构建 APK ==="
         cd android
         
+        echo "=== 构建前诊断 ==="
+        echo "ANDROID_HOME: ${ANDROID_HOME}"
+        echo "JAVA_HOME: ${JAVA_HOME}"
+        echo "local.properties:"
+        cat local.properties
+        echo ""
+        echo "build.gradle namespace:"
+        grep "namespace" app/build.gradle
+        echo ""
+        echo "build.gradle signingConfigs:"
+        grep -A 2 "signingConfigs" app/build.gradle | head -10 || echo "无 signingConfigs"
+        echo ""
+
         mkdir -p ~/.gradle
         cat > ~/.gradle/gradle.properties << 'EOF'
         org.gradle.daemon=false
