@@ -76,6 +76,39 @@ def parse_book(file_path, output_dir='output'):
         return None
 
 
+def copy_zl_merged_data(resource_dir: str, output_dir: str):
+    """将 resource/zl-merged/ 合并数据复制到 output/zl-data/，供本地 HTTP 服务器使用。
+
+    仅在 resource/zl-merged/ 目录存在时执行。
+    不影响生产环境（生产环境通过远程 URL 加载数据）。
+    """
+    merged_dir = os.path.join(resource_dir, 'zl-merged')
+    if not os.path.isdir(merged_dir):
+        print("⚠ resource/zl-merged/ 不存在，跳过合并数据复制")
+        return
+
+    dst_dir = os.path.join(output_dir, 'zl-data')
+    if os.path.exists(dst_dir):
+        shutil.rmtree(dst_dir, ignore_errors=True)
+
+    shutil.copytree(merged_dir, dst_dir)
+
+    # 统计
+    index_path = os.path.join(dst_dir, 'books-index.json')
+    book_count = 0
+    series_count = 0
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            book_count = len(data.get('books', []))
+            series_count = len(data.get('series', []))
+        except Exception:
+            pass
+
+    print(f"✓ zl-merged 数据已复制到 output/zl-data/（{series_count} 个系列，{book_count} 本书）")
+
+
 def generate_remote_config(config: dict, output_dir: str = 'output'):
     """根据 config.yaml 中的 remote_servers 生成 remote-config.js。
 
@@ -223,6 +256,9 @@ def main():
 
     # 生成 remote-config.js（base64 编码 URL）
     generate_remote_config(config, output_dir)
+
+    # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
+    copy_zl_merged_data(resource_dir, output_dir)
 
     print(f"\n{'=' * 60}")
     print(f" 构建完成! 共 {len(books)} 本书")

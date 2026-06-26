@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-部署 resource/zl-html/ 目录到 Cloudflare Pages（books-data 项目）
+部署 resource/zl-merged/ 目录到 Cloudflare Pages（books-data 项目）
 
 使用 wrangler pages deploy 命令将数据目录部署为独立的 Cloudflare Pages 站点，
 提供稳定的在线数据访问 URL。
@@ -114,7 +114,7 @@ def deploy(deploy_dir, project_name, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='将 resource/zl-html/ 目录部署到 Cloudflare Pages（books-data 项目）'
+        description='将 resource/zl-merged/ 目录部署到 Cloudflare Pages（books-data 项目）'
     )
     parser.add_argument(
         '--project', default='books-data',
@@ -126,7 +126,7 @@ def main():
     )
     parser.add_argument(
         '--dir', default=None,
-        help='指定部署目录（默认：resource/zl-html）'
+        help='指定部署目录（默认：resource/zl-merged）'
     )
     args = parser.parse_args()
 
@@ -135,10 +135,11 @@ def main():
     if args.dir:
         deploy_dir = Path(args.dir).resolve()
     else:
-        deploy_dir = script_dir / 'resource' / 'zl-html'
+        deploy_dir = script_dir / 'resource' / 'zl-merged'
 
     if not deploy_dir.exists():
         print(f"错误：部署目录不存在：{deploy_dir}")
+        print("请先运行 python merge_zl_data.py 生成合并数据")
         return 1
 
     # 检查 _headers 文件
