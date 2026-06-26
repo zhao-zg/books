@@ -679,11 +679,20 @@ jobs:
         systemProp.http.socketTimeout=60000
         EOF
         
-        if ./gradlew clean assembleRelease --stacktrace --no-daemon; then
+        ./gradlew clean assembleRelease --stacktrace --no-daemon 2>&1 | tee /tmp/gradle-build.log
+        GRADLE_EXIT=${PIPESTATUS[0]}
+        
+        if [ $GRADLE_EXIT -eq 0 ]; then
           echo "✓ APK 构建成功"
           cd ..
         else
-          echo "✗ APK 构建失败"
+          echo "✗ APK 构建失败 (exit code: $GRADLE_EXIT)"
+          echo ""
+          echo "=== Gradle 错误摘要 ==="
+          grep -A 5 -i "FAILURE\|ERROR\|Exception\|Could not" /tmp/gradle-build.log | tail -50 || true
+          echo ""
+          echo "=== build.gradle 最终内容 ==="
+          cat app/build.gradle
           cd ..
           exit 1
         fi
