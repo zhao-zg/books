@@ -91,52 +91,9 @@
     //  2. 通用对话框  BK.openDialog
     // ═══════════════════════════════════════════════════════════════════════
 
-    // 注入对话框基础样式（仅一次）
-    var _dialogStyleInjected = false;
-
-    function _injectDialogStyles() {
-        if (_dialogStyleInjected) return;
-        _dialogStyleInjected = true;
-        var style = document.createElement('style');
-        style.id = 'bk-dialog-base-style';
-        style.textContent = [
-            /* 遮罩 */
-            '.bk-dialog-mask{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.45);',
-            'display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;',
-            'opacity:0;transition:opacity .2s ease;-webkit-tap-highlight-color:transparent}',
-            '.bk-dialog-mask.show{opacity:1}',
-            /* 对话框 */
-            '.bk-dialog{background:var(--surface,#fff);border-radius:14px;width:min(340px,calc(100vw - 40px));',
-            'max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.22);',
-            'transform:scale(.92);transition:transform .2s ease;display:flex;flex-direction:column}',
-            '.bk-dialog-mask.show .bk-dialog{transform:scale(1)}',
-            '.bk-dialog-title{font-size:16px;font-weight:600;color:var(--heading,#111);',
-            'padding:16px 16px 10px;text-align:center}',
-            '.bk-dialog-desc{font-size:13px;color:var(--text-muted,#888);padding:0 16px 8px;text-align:center}',
-            /* 操作栏 */
-            '.bk-dialog-actions{display:flex;border-top:1px solid var(--border,#e0e0e0);flex-shrink:0}',
-            '.bk-dialog-cancel,.bk-dialog-confirm{flex:1;padding:13px 8px;border:none;background:transparent;',
-            'font:inherit;font-size:15px;cursor:pointer;text-align:center;',
-            '-webkit-tap-highlight-color:transparent}',
-            '.bk-dialog-cancel{color:var(--text-muted,#888);border-right:1px solid var(--border,#e0e0e0)}',
-            '.bk-dialog-confirm{color:var(--brand,#667eea);font-weight:600}',
-            '.bk-dialog-cancel:active,.bk-dialog-confirm:active{background:var(--nav-hover,rgba(0,0,0,.04))}',
-            /* 选项 */
-            '.bk-dialog-opts{padding:4px 16px 8px}',
-            '.bk-dialog-opt{display:flex;gap:12px;padding:12px;border-radius:10px;border:1.5px solid var(--border,#e0e0e0);',
-            'margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s}',
-            '.bk-dialog-opt.selected{border-color:var(--brand,#667eea);background:rgba(102,126,234,.06)}',
-            '.bk-dialog-opt-icon{font-size:24px;flex-shrink:0;line-height:1.4}',
-            '.bk-dialog-opt-body{flex:1;min-width:0}',
-            '.bk-dialog-opt-title{font-size:14px;font-weight:600;color:var(--text,#333)}',
-            '.bk-dialog-opt-sub{font-size:12px;color:var(--text-muted,#888);margin-top:2px;line-height:1.4}'
-        ].join('\n');
-        document.head.appendChild(style);
-    }
-
     /**
      * 打开一个对话框
-     * @param {Object} opts - { id: string, html: string }
+     * @param {Object} opts - { id: string, html: string, className: string, onClose: Function }
      * @returns {{ mask: HTMLElement, close: Function } | null}
      *   如果 id 对应的对话框已存在，返回 null
      */
@@ -145,8 +102,6 @@
         var id = opts.id || '';
         var html = opts.html || '';
 
-        _injectDialogStyles();
-
         // 防重复：如果同 id 的遮罩已存在，返回 null
         if (id && document.getElementById(id)) {
             return null;
@@ -154,7 +109,7 @@
 
         // 创建遮罩
         var mask = document.createElement('div');
-        mask.className = 'bk-dialog-mask';
+        mask.className = opts.className || 'bk-dialog-mask';
         if (id) mask.id = id;
         mask.innerHTML = html;
         document.body.appendChild(mask);
@@ -163,18 +118,32 @@
         void mask.offsetWidth;
         mask.classList.add('show');
 
-        var closed = false;
+        var _closed = false;
 
-        function close() {
-            if (closed) return;
-            closed = true;
+        function _destroy() {
+            if (_closed) return;
+            _closed = true;
+            if (_cleanupScroll) _cleanupScroll();
             mask.classList.remove('show');
             setTimeout(function () {
                 if (mask.parentNode) mask.parentNode.removeChild(mask);
             }, 220);
+            if (opts.onClose) opts.onClose();
         }
 
-        // 点击遮罩（对话框外部）关闭
+        // 注册到 backStack（系统返回键关闭弹框）
+        BKBackStack.push(function() { _destroy(); });
+
+        // 主动关闭：销毁 DOM + 消耗 history 记录
+        function close() {
+            _destroy();
+            BKBackStack.discard();  // 仅出栈，不调 history.back()
+        }
+
+        // lockOverlayScroll 统一处理防滚动穿透
+        var _cleanupScroll = lockOverlayScroll(mask, function() { close(); });
+
+        // 桌面/鼠标端：click 处理
         mask.addEventListener('click', function (e) {
             if (e.target === mask) {
                 e.stopPropagation();

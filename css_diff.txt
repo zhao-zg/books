@@ -1,0 +1,80 @@
+diff --git a/src/static/css/style.css b/src/static/css/style.css
+index 6c46046f..37dd2e53 100644
+--- a/src/static/css/style.css
++++ b/src/static/css/style.css
+@@ -1038,20 +1038,62 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
+ .bk-bm-confirm-ok { color: var(--danger-text, #c62828); font-weight: 600; }
+ .bk-bm-confirm-cancel:active, .bk-bm-confirm-ok:active { background: var(--surface-alt, #f0f2f8); }
+ 
+-/* ── 清除对话框选项 ──────────────────────────────────────────── */
+-.bk-dialog-desc { font-size: 12px; color: var(--text-muted, #8888a0); padding: 4px 16px 12px; text-align: center; line-height: 1.6; }
+-.bk-dialog-opts { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px; }
++/* ── 通用对话框基础样式 ───────────────────────────────────── */
++.bk-dialog-mask {
++    position: fixed; inset: 0; z-index: 5000;
++    background: var(--overlay-strong, rgba(0,0,0,.45));
++    display: flex; align-items: center; justify-content: center;
++    padding: 20px; box-sizing: border-box;
++    opacity: 0; transition: opacity .2s ease;
++    -webkit-tap-highlight-color: transparent;
++    touch-action: none; overscroll-behavior: none;
++}
++.bk-dialog-mask.show { opacity: 1; }
++.bk-dialog {
++    background: var(--surface, #fff); border-radius: 14px;
++    width: min(340px, calc(100vw - 40px));
++    max-height: 80vh; overflow: hidden;
++    box-shadow: var(--dialog-shadow, 0 8px 32px rgba(0,0,0,.22));
++    transform: scale(.92); transition: transform .2s ease;
++    display: flex; flex-direction: column;
++    touch-action: auto;
++}
++.bk-dialog-mask.show .bk-dialog { transform: scale(1); }
++.bk-dialog-title {
++    font-size: 16px; font-weight: 600;
++    color: var(--heading, #111);
++    padding: 16px 16px 10px; text-align: center;
++}
++.bk-dialog-desc {
++    font-size: 13px; color: var(--text-muted, #888);
++    padding: 0 16px 8px; text-align: center;
++}
++.bk-dialog-actions {
++    display: flex; border-top: 1px solid var(--border, #e0e0e0); flex-shrink: 0;
++}
++.bk-dialog-cancel, .bk-dialog-confirm {
++    flex: 1; padding: 13px 8px; border: none; background: transparent;
++    font: inherit; font-size: 15px; cursor: pointer; text-align: center;
++    -webkit-tap-highlight-color: transparent;
++}
++.bk-dialog-cancel { color: var(--text-muted, #888); border-right: 1px solid var(--border, #e0e0e0); }
++.bk-dialog-confirm { color: var(--brand, #667eea); font-weight: 600; }
++.bk-dialog-cancel:active, .bk-dialog-confirm:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
++.bk-dialog-opts { padding: 4px 16px 8px; }
+ .bk-dialog-opt {
+-  display: flex; align-items: flex-start; gap: 11px; padding: 11px 12px;
+-  border: 1.5px solid var(--border, #e0e3ef); border-radius: 10px; cursor: pointer;
+-  background: var(--surface-alt, #f0f2f8); -webkit-tap-highlight-color: transparent;
+-  transition: border-color .15s, background .15s;
+-}
+-.bk-dialog-opt.selected { border-color: var(--brand, #667eea); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
+-.bk-dialog-opt-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+-.bk-dialog-opt-body { flex: 1; }
+-.bk-dialog-opt-title { font-size: 13px; font-weight: 600; color: var(--heading, #111128); margin-bottom: 2px; }
+-.bk-dialog-opt-sub { font-size: 11px; color: var(--text-muted, #8888a0); line-height: 1.5; }
++    display: flex; gap: 12px; padding: 12px; border-radius: 10px;
++    border: 1.5px solid var(--border, #e0e0e0);
++    margin-bottom: 8px; cursor: pointer;
++    transition: border-color .15s, background .15s;
++    align-items: flex-start;
++    background: var(--surface-alt, #f0f2f8);
++    -webkit-tap-highlight-color: transparent;
++}
++.bk-dialog-opt.selected { border-color: var(--brand, #667eea); background: rgba(102,126,234,.06); }
++.bk-dialog-opt-icon { font-size: 24px; flex-shrink: 0; line-height: 1.4; }
++.bk-dialog-opt-body { flex: 1; min-width: 0; }
++.bk-dialog-opt-title { font-size: 14px; font-weight: 600; color: var(--text, #333); }
++.bk-dialog-opt-sub { font-size: 12px; color: var(--text-muted, #888); margin-top: 2px; line-height: 1.4; }
+ 
+ /* ── 经文引用可点击样式 ──────────────────────────────────────── */
+ .scripture-ref { color: var(--text-soft, #4b5563); font-size: 0.93em; margin-left: 2px; }

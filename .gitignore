@@ -46,7 +46,7 @@ ios/
 
 # Resource data (large files, deployed separately via Cloudflare Pages)
 resource/html/
-resource/ysz/
+resource/zl-merged/
 resource/zl-ysz/
 
 # Output

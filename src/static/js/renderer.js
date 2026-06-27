@@ -124,7 +124,16 @@
           if (_zlDmReady && win.DataManager) {
             return win.DataManager.getBook(bookId)
               .then(function (d) { _bookCacheSet(bookId, d); return d; })
-              .catch(function () { return _loadBookLegacy(bookId); });
+              .catch(function (dmErr) {
+                console.warn('[Renderer] DataManager 加载失败: ' + bookId, dmErr.message);
+                return _loadBookLegacy(bookId).catch(function (legacyErr) {
+                  // DataManager 和 Legacy 都失败，检查是否为离线 + 未缓存
+                  if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
+                    throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
+                  }
+                  throw legacyErr || dmErr;
+                });
+              });
           }
           return _loadBookLegacy(bookId);
         });
@@ -138,8 +147,14 @@
             return data;
           })
           .catch(function (dmErr) {
-            console.warn('[Renderer] DataManager 加载失败，回退到旧路径: ' + bookId, dmErr.message);
-            return _loadBookLegacy(bookId);
+            console.warn('[Renderer] DataManager 加载失败: ' + bookId, dmErr.message);
+            return _loadBookLegacy(bookId).catch(function (legacyErr) {
+              // DataManager 和 Legacy 都失败，检查是否为离线 + 未缓存
+              if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
+                throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
+              }
+              throw legacyErr || dmErr;
+            });
           });
       }
 
@@ -203,15 +218,24 @@
           || /^10\.\d+\.\d+\.\d+$/.test(hostname)
           || hostname === '[::1]';
 
-        if (isLocal) {
-          // 本地开发：使用本地 zl-data 路径
+        // ★ 优先检测 APK/PWA（Capacitor WebView 的 hostname 也是 localhost）
+        var isNativeApp = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
+        var isPwaStandalone = (win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || win.navigator.standalone;
+
+        if (isNativeApp) {
+          dmUrl = 'https://books-data.pages.dev';
+          console.log('[Renderer] APK模式：DataManager 使用 ' + dmUrl);
+        } else if (isPwaStandalone) {
+          dmUrl = 'https://books-data.pages.dev';
+          console.log('[Renderer] PWA模式：DataManager 使用 ' + dmUrl);
+        } else if (isLocal) {
           var origin = win.location.origin;
           if (!origin || origin === 'null') origin = 'http://localhost:8080';
           dmUrl = origin + '/zl-data';
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
-          // 生产环境：数据与应用同域部署，直接使用当前域名
           dmUrl = win.location.origin + '/zl-data';
+          console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl);
         }
       } catch (e) {}
       if (!dmUrl || !win.DataManager) return Promise.resolve();
@@ -789,7 +813,7 @@
           html += '<div class="book-header">';
           html += '<div class="book-title-row">';
           html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-          html += '<span class="download-icon">' + (downloaded ? '✅' : '☁️') + '</span>';
+          html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
           html += '</div>';
           html += '</div>';
           if (seriesTitle) {
@@ -829,7 +853,7 @@
       html += '<div class="book-header">';
       html += '<div class="book-title-row">';
       html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-      html += '<span class="download-icon">' + (downloaded ? '✅' : '☁️') + '</span>';
+      html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
       html += '</div>';
       html += '</div>';
       if (seriesTitle) {
@@ -863,6 +887,9 @@
     html += '<button class="download-panel-close" id="dlPanelClose">✕</button>';
     html += '</div>';
 
+    // 资源检查摘要
+    html += '<div class="bk-resource-summary" id="dlResourceSummary" style="padding:8px 12px;margin-bottom:8px;font-size:13px;color:#666;background:#f5f5f5;border-radius:6px;">资源统计加载中...</div>';
+
     // 存储统计
     html += '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>';
 
@@ -884,6 +911,7 @@
       var s = _zlSeries[i];
       html += '<div class="download-series-row">';
       html += '<span class="download-series-name">' + escText(s.title) + ' (' + (s.count || 0) + '本)</span>';
+      html += '<span class="series-cache-info" data-series="' + escAttr(s.id) + '"></span>';
       html += '<button class="download-series-btn" data-series="' + escAttr(s.id) + '">下载</button>';
       html += '</div>';
     }
@@ -891,6 +919,9 @@
 
     // 全部下载
     html += '<button class="download-all-btn" id="dlAllBtn">全部下载</button>';
+
+    // 清除全部缓存
+    html += '<button class="bk-btn" id="dlClearAllBtn" style="background:#f44336;color:#fff;">清除全部缓存</button>';
     html += '</div>';
 
     // 遮罩
@@ -1037,6 +1068,21 @@
         return;
       }
 
+      // 8.5 清除全部缓存
+      if (e.target.closest && e.target.closest('#dlClearAllBtn')) {
+        if (confirm('确定清除所有已缓存的书籍数据吗？')) {
+          if (win.DataManager && win.DataManager.clearAllBooks) {
+            win.DataManager.clearAllBooks().then(function () {
+              location.reload();
+            }).catch(function (err) {
+              console.error('[Renderer] 清除缓存失败:', err);
+              alert('清除缓存失败: ' + (err.message || err));
+            });
+          }
+        }
+        return;
+      }
+
       // 9. 暂停按钮
       if (e.target.closest && e.target.closest('#dlPauseBtn')) {
         var status = win.DataManager.getDownloadStatus();
@@ -1131,24 +1177,24 @@
 
     // 显示下载中状态
     var cardEl2 = cardEl ? cardEl.closest('.zl-book-card') : null;
-    var iconEl = cardEl ? cardEl.querySelector('.download-icon') : null;
-    if (iconEl) iconEl.textContent = '⏳';
+    var iconEl = cardEl ? cardEl.querySelector('.cache-status') : null;
+    if (iconEl) { iconEl.textContent = '⏳'; iconEl.style.color = '#ff9800'; }
     if (cardEl2) cardEl2.setAttribute('data-downloading', 'true');
 
     win.DataManager.downloadBook(bookId, series)
       .then(function () {
         // 下载成功，更新状态
         _zlDownloadedIds.push(bookId);
-        if (iconEl) iconEl.textContent = '✅';
+        if (iconEl) { iconEl.textContent = '✓'; iconEl.style.color = '#4caf50'; }
         if (cardEl2) cardEl2.removeAttribute('data-downloading');
         // 导航到书籍
         if (win.BKRouter) win.BKRouter.navigate(bookId);
       })
       .catch(function (err) {
         console.error('[Renderer] 书籍下载失败:', err);
-        if (iconEl) iconEl.textContent = '❌';
+        if (iconEl) { iconEl.textContent = '✗'; iconEl.style.color = '#f44336'; }
         if (cardEl2) cardEl2.removeAttribute('data-downloading');
-        setTimeout(function () { if (iconEl) iconEl.textContent = '☁️'; }, 2000);
+        setTimeout(function () { if (iconEl) { iconEl.textContent = '☁'; iconEl.style.color = '#999'; } }, 2000);
       });
   }
 
@@ -1168,13 +1214,49 @@
    */
   function _refreshStorageStats() {
     if (!_zlDmReady || !win.DataManager) return;
+    // 更新资源摘要（checkResources）
+    var resEl = document.getElementById('dlResourceSummary');
+    if (resEl && win.DataManager.checkResources) {
+      win.DataManager.checkResources().then(function (res) {
+        var cached = res.downloaded || 0;
+        var total = res.total || _zlBooks.length || 0;
+        var sizeMB = res.estimatedTotalSize
+          ? (res.estimatedTotalSize / 1024 / 1024).toFixed(1)
+          : '未知';
+        resEl.textContent = '已缓存 ' + cached + ' / 总共 ' + total + ' 本书（约 ' + sizeMB + ' MB）';
+      }).catch(function () {
+        resEl.textContent = '资源统计获取失败';
+      });
+    }
+    // 更新存储统计（getStorageStats）
     var el = document.getElementById('dlStorageInfo');
-    if (!el) return;
-    win.DataManager.getStorageStats().then(function (stats) {
-      el.textContent = '已下载 ' + stats.downloadedCount + ' 本书，占用 ' + stats.totalSizeFormatted;
-    }).catch(function () {
-      el.textContent = '存储统计获取失败';
-    });
+    if (el) {
+      win.DataManager.getStorageStats().then(function (stats) {
+        el.textContent = '已下载 ' + stats.downloadedCount + ' 本书，占用 ' + stats.totalSizeFormatted;
+      }).catch(function () {
+        el.textContent = '存储统计获取失败';
+      });
+    }
+    // 更新系列缓存进度
+    _refreshSeriesCacheStatus();
+  }
+
+  /**
+   * 刷新下载面板中各系列的缓存进度显示
+   */
+  function _refreshSeriesCacheStatus() {
+    if (!_zlDmReady || !win.DataManager || !win.DataManager.getBooksBySeriesStatus) return;
+    win.DataManager.getBooksBySeriesStatus().then(function (result) {
+      var seriesArr = (result && result.series) || [];
+      for (var i = 0; i < seriesArr.length; i++) {
+        var s = seriesArr[i];
+        var infoEls = document.querySelectorAll('.series-cache-info[data-series="' + s.id + '"]');
+        for (var j = 0; j < infoEls.length; j++) {
+          infoEls[j].textContent = s.cached + '/' + s.total + ' 已缓存';
+          infoEls[j].style.color = s.cached === s.total && s.total > 0 ? '#4caf50' : '#999';
+        }
+      }
+    }).catch(function () {});
   }
 
   /**
@@ -1309,9 +1391,11 @@
         var cards = homeView.querySelectorAll('.zl-book-card');
         for (var i = 0; i < cards.length; i++) {
           var bookId = cards[i].getAttribute('data-book-id');
-          var iconEl = cards[i].querySelector('.download-icon');
-          if (iconEl) {
-            iconEl.textContent = _isBookDownloaded(bookId) ? '✅' : '☁️';
+          var isDown = _isBookDownloaded(bookId);
+          var statusEl = cards[i].querySelector('.cache-status');
+          if (statusEl) {
+            statusEl.textContent = isDown ? '✓' : '☁';
+            statusEl.style.color = isDown ? '#4caf50' : '#999';
           }
         }
       }

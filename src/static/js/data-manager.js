@@ -13,6 +13,9 @@
  *   .getDownloadedBookIds()   获取已下载 ID 列表
  *   .deleteBook(id)           删除本地缓存
  *   .getStorageStats()        存储统计
+ *   .checkResources()         检查资源下载统计与估算大小
+ *   .clearAllBooks()           清除所有已下载书籍数据
+ *   .getBooksBySeriesStatus()  按系列分组返回缓存统计
  *   .pauseDownload()          暂停批量下载
  *   .resumeDownload()         恢复批量下载
  *   .cancelDownload()         取消批量下载
@@ -696,6 +699,128 @@
     };
   }
 
+  // ── 资源检查与管理 ────────────────────────────────────────────────────
+
+  /**
+   * 检查资源下载统计与估算大小
+   * 返回 { total, downloaded, missing, estimatedTotalSize, estimatedMissingSize }
+   */
+  function checkResources() {
+    var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
+    return indexPromise.then(function (indexData) {
+      var books = indexData.books || [];
+      var total = books.length;
+      var BYTES_PER_CHAPTER = 3072;
+
+      return getDownloadedIdsList().then(function (downloadedIds) {
+        var downloadedCount = 0;
+        var estimatedTotalSize = 0;
+        var estimatedMissingSize = 0;
+
+        for (var i = 0; i < books.length; i++) {
+          var chapters = books[i].chapter_count || 0;
+          var bookSize = chapters * BYTES_PER_CHAPTER;
+          estimatedTotalSize += bookSize;
+
+          if (downloadedIds.indexOf(books[i].id) !== -1) {
+            downloadedCount++;
+          } else {
+            estimatedMissingSize += bookSize;
+          }
+        }
+
+        return {
+          total: total,
+          downloaded: downloadedCount,
+          missing: total - downloadedCount,
+          estimatedTotalSize: estimatedTotalSize,
+          estimatedMissingSize: estimatedMissingSize
+        };
+      });
+    });
+  }
+
+  /**
+   * 清除所有已下载书籍数据，保留索引和清单
+   * 返回 { cleared: 删除的数量 }
+   */
+  function clearAllBooks() {
+    if (!store) {
+      return Promise.resolve({ cleared: 0 });
+    }
+    return store.keys().then(function (keys) {
+      var bookKeys = [];
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf(KEY_BOOK_PREFIX) === 0) {
+          bookKeys.push(keys[i]);
+        }
+      }
+      var removePromises = bookKeys.map(function (key) {
+        return storeRemove(key);
+      });
+      return Promise.all(removePromises).then(function () {
+        return saveDownloadedIdsList([]).then(function () {
+          console.log('[DataManager] 已清除全部书籍缓存: ' + bookKeys.length + ' 本');
+          return { cleared: bookKeys.length };
+        });
+      });
+    });
+  }
+
+  /**
+   * 按系列分组返回缓存统计
+   * 返回 { series: [{id, title, total, cached, estimatedSize}] }
+   */
+  function getBooksBySeriesStatus() {
+    var BYTES_PER_CHAPTER = 3072;
+    var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
+    return indexPromise.then(function (indexData) {
+      var books = indexData.books || [];
+      var seriesList = indexData.series || [];
+
+      return getDownloadedIdsList().then(function (downloadedIds) {
+        // 按系列分组统计
+        var seriesMap = {};
+        for (var i = 0; i < seriesList.length; i++) {
+          seriesMap[seriesList[i].id] = {
+            id: seriesList[i].id,
+            title: seriesList[i].title,
+            total: 0,
+            cached: 0,
+            estimatedSize: 0
+          };
+        }
+
+        for (var j = 0; j < books.length; j++) {
+          var book = books[j];
+          var sid = book.series;
+          if (!seriesMap[sid]) {
+            seriesMap[sid] = {
+              id: sid,
+              title: sid,
+              total: 0,
+              cached: 0,
+              estimatedSize: 0
+            };
+          }
+          seriesMap[sid].total++;
+          if (downloadedIds.indexOf(book.id) !== -1) {
+            seriesMap[sid].cached++;
+          } else {
+            seriesMap[sid].estimatedSize += (book.chapter_count || 0) * BYTES_PER_CHAPTER;
+          }
+        }
+
+        var result = [];
+        var ids = Object.keys(seriesMap);
+        for (var k = 0; k < ids.length; k++) {
+          result.push(seriesMap[ids[k]]);
+        }
+        return { series: result };
+      });
+    });
+  }
+
   // ── 公开 API ─────────────────────────────────────────────────────────
 
   win.DataManager = {
@@ -710,6 +835,9 @@
     getDownloadedBookIds: getDownloadedBookIds,
     deleteBook: deleteBook,
     getStorageStats: getStorageStats,
+    checkResources: checkResources,
+    clearAllBooks: clearAllBooks,
+    getBooksBySeriesStatus: getBooksBySeriesStatus,
     pauseDownload: pauseDownload,
     resumeDownload: resumeDownload,
     cancelDownload: cancelDownload,

@@ -1,0 +1,13 @@
+diff --git a/.github/workflows/android-release-offline.yml b/.github/workflows/android-release-offline.yml
+index eafc771a..d7e02c95 100644
+--- a/.github/workflows/android-release-offline.yml
++++ b/.github/workflows/android-release-offline.yml
+@@ -91,6 +91,8 @@ jobs:
+         # 删除赞助二维码（APK 走远程获取，不需要打包）
+         rm -rf output/images/zanzhu-wx.png output/images/zanzhu-zfb.jpg
+         echo "✓ 已移除赞助图片（APK 不打包）"
++        rm -rf output/zl-data/
++        echo "✓ 已移除 zl-data 数据（APK 不打包书籍资源）"
+         du -sh output/
+         find output/ -type f | wc -l
+         echo "文件总数"

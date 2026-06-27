@@ -1,0 +1,689 @@
+diff --git a/.github/workflows/android-release-offline.yml b/.github/workflows/android-release-offline.yml
+index eafc771a..d7e02c95 100644
+--- a/.github/workflows/android-release-offline.yml
++++ b/.github/workflows/android-release-offline.yml
+@@ -91,6 +91,8 @@ jobs:
+         # 鍒犻櫎璧炲姪浜岀淮鐮侊紙APK 璧拌繙绋嬭幏鍙栵紝涓嶉渶瑕佹墦鍖咃級
+         rm -rf output/images/zanzhu-wx.png output/images/zanzhu-zfb.jpg
+         echo "鉁?宸茬Щ闄よ禐鍔╁浘鐗囷紙APK 涓嶆墦鍖咃級"
++        rm -rf output/zl-data/
++        echo "鉁?宸茬Щ闄?zl-data 鏁版嵁锛圓PK 涓嶆墦鍖呬功绫嶈祫婧愶級"
+         du -sh output/
+         find output/ -type f | wc -l
+         echo "鏂囦欢鎬绘暟"
+diff --git a/.gitignore b/.gitignore
+index 1b7e7345..b5928683 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -46,7 +46,7 @@ ios/
+ 
+ # Resource data (large files, deployed separately via Cloudflare Pages)
+ resource/html/
+-resource/ysz/
++resource/zl-merged/
+ resource/zl-ysz/
+ 
+ # Output
+diff --git a/main.py b/main.py
+index 7bd1d626..d384610c 100644
+--- a/main.py
++++ b/main.py
+@@ -10,6 +10,7 @@ import sys
+ import json
+ import shutil
+ import base64
++import subprocess
+ import yaml
+ from pathlib import Path
+ 
+@@ -226,6 +227,47 @@ def main():
+     if not os.path.exists(output_dir):
+         os.makedirs(output_dir)
+ 
++    # 鈹€鈹€ 鏁版嵁鍑嗗锛歽sz 鈫?zl-ysz 鈫?zl-merged 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
++    print("鈹€鈹€ 鏁版嵁鍑嗗 鈹€鈹€")
++
++    # Step 0a: 鎵ц process_ysz_books.py锛坹sz 鈫?zl-ysz锛?+    try:
++        print("鈻?澶勭悊 YSZ 鏁版嵁 (ysz 鈫?zl-ysz) ...")
++        result = subprocess.run(
++            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'process_ysz_books.py')],
++            capture_output=True, text=True, timeout=600
++        )
++        if result.returncode == 0:
++            print("鉁?YSZ 鏁版嵁澶勭悊瀹屾垚")
++            if result.stdout:
++                lines = result.stdout.strip().splitlines()
++                for line in lines[-5:]:
++                    print(f"  {line}")
++        else:
++            print(f"鈿?YSZ 鏁版嵁澶勭悊璀﹀憡 (exit={result.returncode})")
++            if result.stderr:
++                print(f"  {result.stderr[:200]}")
++    except Exception as e:
++        print(f"鈿?YSZ 鏁版嵁澶勭悊寮傚父: {e}")
++
++    # Step 0b: 鎵ц merge_zl_data.py锛坺l-ysz 鈫?zl-merged锛?+    try:
++        print("鈻?鍚堝苟鏁版嵁 (zl-ysz 鈫?zl-merged) ...")
++        result = subprocess.run(
++            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_zl_data.py'), '--force'],
++            capture_output=True, text=True, timeout=300
++        )
++        if result.returncode == 0:
++            print("鉁?鏁版嵁鍚堝苟瀹屾垚")
++        else:
++            print(f"鈿?鏁版嵁鍚堝苟璀﹀憡 (exit={result.returncode})")
++            if result.stderr:
++                print(f"  {result.stderr[:200]}")
++    except Exception as e:
++        print(f"鈿?鏁版嵁鍚堝苟寮傚父: {e}")
++
++    print()
++
+     # 鎵弿骞惰В鏋愪功绫?     book_files = scan_books(resource_dir)
+     print(f"鉁?鍙戠幇 {len(book_files)} 鏈數瀛愪功")
+diff --git a/merge_zl_data.py b/merge_zl_data.py
+index d459b446..5bebcb37 100644
+--- a/merge_zl_data.py
++++ b/merge_zl_data.py
+@@ -4,6 +4,8 @@
+ 浠?zl-ysz 涓哄熀纭€锛岃拷鍔?zl-html 涓嫭鏈夌殑绯诲垪鏁版嵁锛? 閲嶆柊鐢熸垚 books-index.json銆乵anifest.json 鍜?_headers銆? 
++褰?zl-html 涓嶅瓨鍦ㄦ椂锛岀洿鎺ヤ娇鐢?zl-ysz 鏁版嵁鐢熸垚 zl-merged銆?+
+ 鐢ㄦ硶:
+     python merge_zl_data.py                # 姝ｅ父鍚堝苟
+     python merge_zl_data.py --dry-run      # 浠呯粺璁★紝涓嶅鍒舵枃浠?@@ -176,13 +178,14 @@ def generate_headers(merged_dir: Path) -> None:
+ # ---------------------------------------------------------------------------
+ def run(dry_run: bool = False, force: bool = False) -> None:
+     """鎵ц鍚堝苟娴佺▼銆?""
+-    # 1. 妫€鏌ユ簮鐩綍
++    # 1. 妫€鏌ユ簮鐩綍锛坺l-ysz 蹇呴』瀛樺湪锛?     if not YSZ_DIR.is_dir():
+         log.error('zl-ysz 鐩綍涓嶅瓨鍦? %s', YSZ_DIR)
+         return
+-    if not HTML_DIR.is_dir():
+-        log.error('zl-html 鐩綍涓嶅瓨鍦? %s', HTML_DIR)
+-        return
++
++    has_html = HTML_DIR.is_dir()
++    if not has_html:
++        log.warning('zl-html 鐩綍涓嶅瓨鍦? %s锛屽皢浣跨敤 zl-ysz 鐩存帴鐢熸垚 zl-merged', HTML_DIR)
+ 
+     # 2. 妫€鏌ョ洰鏍囩洰褰?     if MERGED_DIR.exists():
+@@ -200,17 +203,25 @@ def run(dry_run: bool = False, force: bool = False) -> None:
+     # 3. 鍔犺浇绱㈠紩
+     log.info('鍔犺浇 books-index.json ...')
+     ysz_index: Dict[str, Any] = load_json(YSZ_DIR / 'books-index.json')
+-    html_index: Dict[str, Any] = load_json(HTML_DIR / 'books-index.json')
+ 
+-    # 4. 璇嗗埆鐙湁绯诲垪
+-    exclusive = identify_exclusive_series(ysz_index, html_index)
+-    exclusive_ids = [s['id'] for s in exclusive]
+-    log.info('zl-ysz 绯诲垪鏁? %d', len(ysz_index['series']))
+-    log.info('zl-html 绯诲垪鏁? %d', len(html_index['series']))
+-    log.info('zl-html 鐙湁绯诲垪 (%d): %s', len(exclusive), ', '.join(exclusive_ids))
++    if has_html:
++        # --- 瀹屾暣鍚堝苟娴佺▼ ---
++        html_index: Dict[str, Any] = load_json(HTML_DIR / 'books-index.json')
++
++        # 4. 璇嗗埆鐙湁绯诲垪
++        exclusive = identify_exclusive_series(ysz_index, html_index)
++        exclusive_ids = [s['id'] for s in exclusive]
++        log.info('zl-ysz 绯诲垪鏁? %d', len(ysz_index['series']))
++        log.info('zl-html 绯诲垪鏁? %d', len(html_index['series']))
++        log.info('zl-html 鐙湁绯诲垪 (%d): %s', len(exclusive), ', '.join(exclusive_ids))
++
++        # 5. 鍚堝苟绱㈠紩
++        merged_index = merge_books_index(ysz_index, html_index, exclusive)
++    else:
++        # --- 浠?zl-ysz锛屾棤闇€鍚堝苟 ---
++        log.info('zl-ysz 绯诲垪鏁? %d', len(ysz_index['series']))
++        merged_index = ysz_index
+ 
+-    # 5. 鍚堝苟绱㈠紩
+-    merged_index = merge_books_index(ysz_index, html_index, exclusive)
+     total_books = len(merged_index['books'])
+     total_chapters = sum(b.get('chapter_count', 0) for b in merged_index['books'])
+     log.info('鍚堝苟鍚庣粺璁? %d 涓郴鍒? %d 鏈功, %d 绔?,
+@@ -223,8 +234,9 @@ def run(dry_run: bool = False, force: bool = False) -> None:
+     # 6. 澶嶅埗鍩虹鏁版嵁
+     copy_base_data(YSZ_DIR, MERGED_DIR)
+ 
+-    # 7. 澶嶅埗鐙湁绯诲垪
+-    copy_exclusive_series(HTML_DIR, MERGED_DIR, exclusive)
++    if has_html:
++        # 7. 澶嶅埗鐙湁绯诲垪
++        copy_exclusive_series(HTML_DIR, MERGED_DIR, exclusive)
+ 
+     # 8. 鍐欏叆 books-index.json
+     index_path = MERGED_DIR / 'books-index.json'
+diff --git a/src/static/css/style.css b/src/static/css/style.css
+index 6c46046f..37dd2e53 100644
+--- a/src/static/css/style.css
++++ b/src/static/css/style.css
+@@ -1038,20 +1038,62 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
+ .bk-bm-confirm-ok { color: var(--danger-text, #c62828); font-weight: 600; }
+ .bk-bm-confirm-cancel:active, .bk-bm-confirm-ok:active { background: var(--surface-alt, #f0f2f8); }
+ 
+-/* 鈹€鈹€ 娓呴櫎瀵硅瘽妗嗛€夐」 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+-.bk-dialog-desc { font-size: 12px; color: var(--text-muted, #8888a0); padding: 4px 16px 12px; text-align: center; line-height: 1.6; }
+-.bk-dialog-opts { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 14px; }
++/* 鈹€鈹€ 閫氱敤瀵硅瘽妗嗗熀纭€鏍峰紡 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
++.bk-dialog-mask {
++    position: fixed; inset: 0; z-index: 5000;
++    background: var(--overlay-strong, rgba(0,0,0,.45));
++    display: flex; align-items: center; justify-content: center;
++    padding: 20px; box-sizing: border-box;
++    opacity: 0; transition: opacity .2s ease;
++    -webkit-tap-highlight-color: transparent;
++    touch-action: none; overscroll-behavior: none;
++}
++.bk-dialog-mask.show { opacity: 1; }
++.bk-dialog {
++    background: var(--surface, #fff); border-radius: 14px;
++    width: min(340px, calc(100vw - 40px));
++    max-height: 80vh; overflow: hidden;
++    box-shadow: var(--dialog-shadow, 0 8px 32px rgba(0,0,0,.22));
++    transform: scale(.92); transition: transform .2s ease;
++    display: flex; flex-direction: column;
++    touch-action: auto;
++}
++.bk-dialog-mask.show .bk-dialog { transform: scale(1); }
++.bk-dialog-title {
++    font-size: 16px; font-weight: 600;
++    color: var(--heading, #111);
++    padding: 16px 16px 10px; text-align: center;
++}
++.bk-dialog-desc {
++    font-size: 13px; color: var(--text-muted, #888);
++    padding: 0 16px 8px; text-align: center;
++}
++.bk-dialog-actions {
++    display: flex; border-top: 1px solid var(--border, #e0e0e0); flex-shrink: 0;
++}
++.bk-dialog-cancel, .bk-dialog-confirm {
++    flex: 1; padding: 13px 8px; border: none; background: transparent;
++    font: inherit; font-size: 15px; cursor: pointer; text-align: center;
++    -webkit-tap-highlight-color: transparent;
++}
++.bk-dialog-cancel { color: var(--text-muted, #888); border-right: 1px solid var(--border, #e0e0e0); }
++.bk-dialog-confirm { color: var(--brand, #667eea); font-weight: 600; }
++.bk-dialog-cancel:active, .bk-dialog-confirm:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
++.bk-dialog-opts { padding: 4px 16px 8px; }
+ .bk-dialog-opt {
+-  display: flex; align-items: flex-start; gap: 11px; padding: 11px 12px;
+-  border: 1.5px solid var(--border, #e0e3ef); border-radius: 10px; cursor: pointer;
+-  background: var(--surface-alt, #f0f2f8); -webkit-tap-highlight-color: transparent;
+-  transition: border-color .15s, background .15s;
+-}
+-.bk-dialog-opt.selected { border-color: var(--brand, #667eea); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
+-.bk-dialog-opt-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+-.bk-dialog-opt-body { flex: 1; }
+-.bk-dialog-opt-title { font-size: 13px; font-weight: 600; color: var(--heading, #111128); margin-bottom: 2px; }
+-.bk-dialog-opt-sub { font-size: 11px; color: var(--text-muted, #8888a0); line-height: 1.5; }
++    display: flex; gap: 12px; padding: 12px; border-radius: 10px;
++    border: 1.5px solid var(--border, #e0e0e0);
++    margin-bottom: 8px; cursor: pointer;
++    transition: border-color .15s, background .15s;
++    align-items: flex-start;
++    background: var(--surface-alt, #f0f2f8);
++    -webkit-tap-highlight-color: transparent;
++}
++.bk-dialog-opt.selected { border-color: var(--brand, #667eea); background: rgba(102,126,234,.06); }
++.bk-dialog-opt-icon { font-size: 24px; flex-shrink: 0; line-height: 1.4; }
++.bk-dialog-opt-body { flex: 1; min-width: 0; }
++.bk-dialog-opt-title { font-size: 14px; font-weight: 600; color: var(--text, #333); }
++.bk-dialog-opt-sub { font-size: 12px; color: var(--text-muted, #888); margin-top: 2px; line-height: 1.4; }
+ 
+ /* 鈹€鈹€ 缁忔枃寮曠敤鍙偣鍑绘牱寮?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
+ .scripture-ref { color: var(--text-soft, #4b5563); font-size: 0.93em; margin-left: 2px; }
+diff --git a/src/static/js/back-stack.js b/src/static/js/back-stack.js
+index be0ce805..b0493c28 100644
+--- a/src/static/js/back-stack.js
++++ b/src/static/js/back-stack.js
+@@ -91,52 +91,9 @@
+     //  2. 閫氱敤瀵硅瘽妗? BK.openDialog
+     // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺? 
+-    // 娉ㄥ叆瀵硅瘽妗嗗熀纭€鏍峰紡锛堜粎涓€娆★級
+-    var _dialogStyleInjected = false;
+-
+-    function _injectDialogStyles() {
+-        if (_dialogStyleInjected) return;
+-        _dialogStyleInjected = true;
+-        var style = document.createElement('style');
+-        style.id = 'bk-dialog-base-style';
+-        style.textContent = [
+-            /* 閬僵 */
+-            '.bk-dialog-mask{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.45);',
+-            'display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;',
+-            'opacity:0;transition:opacity .2s ease;-webkit-tap-highlight-color:transparent}',
+-            '.bk-dialog-mask.show{opacity:1}',
+-            /* 瀵硅瘽妗?*/
+-            '.bk-dialog{background:var(--surface,#fff);border-radius:14px;width:min(340px,calc(100vw - 40px));',
+-            'max-height:80vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.22);',
+-            'transform:scale(.92);transition:transform .2s ease;display:flex;flex-direction:column}',
+-            '.bk-dialog-mask.show .bk-dialog{transform:scale(1)}',
+-            '.bk-dialog-title{font-size:16px;font-weight:600;color:var(--heading,#111);',
+-            'padding:16px 16px 10px;text-align:center}',
+-            '.bk-dialog-desc{font-size:13px;color:var(--text-muted,#888);padding:0 16px 8px;text-align:center}',
+-            /* 鎿嶄綔鏍?*/
+-            '.bk-dialog-actions{display:flex;border-top:1px solid var(--border,#e0e0e0);flex-shrink:0}',
+-            '.bk-dialog-cancel,.bk-dialog-confirm{flex:1;padding:13px 8px;border:none;background:transparent;',
+-            'font:inherit;font-size:15px;cursor:pointer;text-align:center;',
+-            '-webkit-tap-highlight-color:transparent}',
+-            '.bk-dialog-cancel{color:var(--text-muted,#888);border-right:1px solid var(--border,#e0e0e0)}',
+-            '.bk-dialog-confirm{color:var(--brand,#667eea);font-weight:600}',
+-            '.bk-dialog-cancel:active,.bk-dialog-confirm:active{background:var(--nav-hover,rgba(0,0,0,.04))}',
+-            /* 閫夐」 */
+-            '.bk-dialog-opts{padding:4px 16px 8px}',
+-            '.bk-dialog-opt{display:flex;gap:12px;padding:12px;border-radius:10px;border:1.5px solid var(--border,#e0e0e0);',
+-            'margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s}',
+-            '.bk-dialog-opt.selected{border-color:var(--brand,#667eea);background:rgba(102,126,234,.06)}',
+-            '.bk-dialog-opt-icon{font-size:24px;flex-shrink:0;line-height:1.4}',
+-            '.bk-dialog-opt-body{flex:1;min-width:0}',
+-            '.bk-dialog-opt-title{font-size:14px;font-weight:600;color:var(--text,#333)}',
+-            '.bk-dialog-opt-sub{font-size:12px;color:var(--text-muted,#888);margin-top:2px;line-height:1.4}'
+-        ].join('\n');
+-        document.head.appendChild(style);
+-    }
+-
+     /**
+      * 鎵撳紑涓€涓璇濇
+-     * @param {Object} opts - { id: string, html: string }
++     * @param {Object} opts - { id: string, html: string, className: string, onClose: Function }
+      * @returns {{ mask: HTMLElement, close: Function } | null}
+      *   濡傛灉 id 瀵瑰簲鐨勫璇濇宸插瓨鍦紝杩斿洖 null
+      */
+@@ -145,8 +102,6 @@
+         var id = opts.id || '';
+         var html = opts.html || '';
+ 
+-        _injectDialogStyles();
+-
+         // 闃查噸澶嶏細濡傛灉鍚?id 鐨勯伄缃╁凡瀛樺湪锛岃繑鍥?null
+         if (id && document.getElementById(id)) {
+             return null;
+@@ -154,7 +109,7 @@
+ 
+         // 鍒涘缓閬僵
+         var mask = document.createElement('div');
+-        mask.className = 'bk-dialog-mask';
++        mask.className = opts.className || 'bk-dialog-mask';
+         if (id) mask.id = id;
+         mask.innerHTML = html;
+         document.body.appendChild(mask);
+@@ -163,18 +118,32 @@
+         void mask.offsetWidth;
+         mask.classList.add('show');
+ 
+-        var closed = false;
++        var _closed = false;
+ 
+-        function close() {
+-            if (closed) return;
+-            closed = true;
++        function _destroy() {
++            if (_closed) return;
++            _closed = true;
++            if (_cleanupScroll) _cleanupScroll();
+             mask.classList.remove('show');
+             setTimeout(function () {
+                 if (mask.parentNode) mask.parentNode.removeChild(mask);
+             }, 220);
++            if (opts.onClose) opts.onClose();
+         }
+ 
+-        // 鐐瑰嚮閬僵锛堝璇濇澶栭儴锛夊叧闂?+        // 娉ㄥ唽鍒?backStack锛堢郴缁熻繑鍥為敭鍏抽棴寮规锛?+        BKBackStack.push(function() { _destroy(); });
++
++        // 涓诲姩鍏抽棴锛氶攢姣?DOM + 娑堣€?history 璁板綍
++        function close() {
++            _destroy();
++            BKBackStack.discard();  // 浠呭嚭鏍堬紝涓嶈皟 history.back()
++        }
++
++        // lockOverlayScroll 缁熶竴澶勭悊闃叉粴鍔ㄧ┛閫?+        var _cleanupScroll = lockOverlayScroll(mask, function() { close(); });
++
++        // 妗岄潰/榧犳爣绔細click 澶勭悊
+         mask.addEventListener('click', function (e) {
+             if (e.target === mask) {
+                 e.stopPropagation();
+diff --git a/src/static/js/data-manager.js b/src/static/js/data-manager.js
+index 91e087c6..d87f98bc 100644
+--- a/src/static/js/data-manager.js
++++ b/src/static/js/data-manager.js
+@@ -13,6 +13,9 @@
+  *   .getDownloadedBookIds()   鑾峰彇宸蹭笅杞?ID 鍒楄〃
+  *   .deleteBook(id)           鍒犻櫎鏈湴缂撳瓨
+  *   .getStorageStats()        瀛樺偍缁熻
++ *   .checkResources()         妫€鏌ヨ祫婧愪笅杞界粺璁′笌浼扮畻澶у皬
++ *   .clearAllBooks()           娓呴櫎鎵€鏈夊凡涓嬭浇涔︾睄鏁版嵁
++ *   .getBooksBySeriesStatus()  鎸夌郴鍒楀垎缁勮繑鍥炵紦瀛樼粺璁?  *   .pauseDownload()          鏆傚仠鎵归噺涓嬭浇
+  *   .resumeDownload()         鎭㈠鎵归噺涓嬭浇
+  *   .cancelDownload()         鍙栨秷鎵归噺涓嬭浇
+@@ -696,6 +699,128 @@
+     };
+   }
+ 
++  // 鈹€鈹€ 璧勬簮妫€鏌ヤ笌绠＄悊 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
++
++  /**
++   * 妫€鏌ヨ祫婧愪笅杞界粺璁′笌浼扮畻澶у皬
++   * 杩斿洖 { total, downloaded, missing, estimatedTotalSize, estimatedMissingSize }
++   */
++  function checkResources() {
++    var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
++    return indexPromise.then(function (indexData) {
++      var books = indexData.books || [];
++      var total = books.length;
++      var BYTES_PER_CHAPTER = 3072;
++
++      return getDownloadedIdsList().then(function (downloadedIds) {
++        var downloadedCount = 0;
++        var estimatedTotalSize = 0;
++        var estimatedMissingSize = 0;
++
++        for (var i = 0; i < books.length; i++) {
++          var chapters = books[i].chapter_count || 0;
++          var bookSize = chapters * BYTES_PER_CHAPTER;
++          estimatedTotalSize += bookSize;
++
++          if (downloadedIds.indexOf(books[i].id) !== -1) {
++            downloadedCount++;
++          } else {
++            estimatedMissingSize += bookSize;
++          }
++        }
++
++        return {
++          total: total,
++          downloaded: downloadedCount,
++          missing: total - downloadedCount,
++          estimatedTotalSize: estimatedTotalSize,
++          estimatedMissingSize: estimatedMissingSize
++        };
++      });
++    });
++  }
++
++  /**
++   * 娓呴櫎鎵€鏈夊凡涓嬭浇涔︾睄鏁版嵁锛屼繚鐣欑储寮曞拰娓呭崟
++   * 杩斿洖 { cleared: 鍒犻櫎鐨勬暟閲?}
++   */
++  function clearAllBooks() {
++    if (!store) {
++      return Promise.resolve({ cleared: 0 });
++    }
++    return store.keys().then(function (keys) {
++      var bookKeys = [];
++      for (var i = 0; i < keys.length; i++) {
++        if (keys[i].indexOf(KEY_BOOK_PREFIX) === 0) {
++          bookKeys.push(keys[i]);
++        }
++      }
++      var removePromises = bookKeys.map(function (key) {
++        return storeRemove(key);
++      });
++      return Promise.all(removePromises).then(function () {
++        return saveDownloadedIdsList([]).then(function () {
++          console.log('[DataManager] 宸叉竻闄ゅ叏閮ㄤ功绫嶇紦瀛? ' + bookKeys.length + ' 鏈?);
++          return { cleared: bookKeys.length };
++        });
++      });
++    });
++  }
++
++  /**
++   * 鎸夌郴鍒楀垎缁勮繑鍥炵紦瀛樼粺璁?+   * 杩斿洖 { series: [{id, title, total, cached, estimatedSize}] }
++   */
++  function getBooksBySeriesStatus() {
++    var BYTES_PER_CHAPTER = 3072;
++    var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
++    return indexPromise.then(function (indexData) {
++      var books = indexData.books || [];
++      var seriesList = indexData.series || [];
++
++      return getDownloadedIdsList().then(function (downloadedIds) {
++        // 鎸夌郴鍒楀垎缁勭粺璁?+        var seriesMap = {};
++        for (var i = 0; i < seriesList.length; i++) {
++          seriesMap[seriesList[i].id] = {
++            id: seriesList[i].id,
++            title: seriesList[i].title,
++            total: 0,
++            cached: 0,
++            estimatedSize: 0
++          };
++        }
++
++        for (var j = 0; j < books.length; j++) {
++          var book = books[j];
++          var sid = book.series;
++          if (!seriesMap[sid]) {
++            seriesMap[sid] = {
++              id: sid,
++              title: sid,
++              total: 0,
++              cached: 0,
++              estimatedSize: 0
++            };
++          }
++          seriesMap[sid].total++;
++          if (downloadedIds.indexOf(book.id) !== -1) {
++            seriesMap[sid].cached++;
++          } else {
++            seriesMap[sid].estimatedSize += (book.chapter_count || 0) * BYTES_PER_CHAPTER;
++          }
++        }
++
++        var result = [];
++        var ids = Object.keys(seriesMap);
++        for (var k = 0; k < ids.length; k++) {
++          result.push(seriesMap[ids[k]]);
++        }
++        return { series: result };
++      });
++    });
++  }
++
+   // 鈹€鈹€ 鍏紑 API 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+ 
+   win.DataManager = {
+@@ -710,6 +835,9 @@
+     getDownloadedBookIds: getDownloadedBookIds,
+     deleteBook: deleteBook,
+     getStorageStats: getStorageStats,
++    checkResources: checkResources,
++    clearAllBooks: clearAllBooks,
++    getBooksBySeriesStatus: getBooksBySeriesStatus,
+     pauseDownload: pauseDownload,
+     resumeDownload: resumeDownload,
+     cancelDownload: cancelDownload,
+diff --git a/src/static/js/renderer.js b/src/static/js/renderer.js
+index d2e6d7fc..30f0acf9 100644
+--- a/src/static/js/renderer.js
++++ b/src/static/js/renderer.js
+@@ -124,7 +124,16 @@
+           if (_zlDmReady && win.DataManager) {
+             return win.DataManager.getBook(bookId)
+               .then(function (d) { _bookCacheSet(bookId, d); return d; })
+-              .catch(function () { return _loadBookLegacy(bookId); });
++              .catch(function (dmErr) {
++                console.warn('[Renderer] DataManager 鍔犺浇澶辫触: ' + bookId, dmErr.message);
++                if (win.DataManager && !win.DataManager.isBookDownloaded(bookId)) {
++                  var isOffline = !navigator.onLine;
++                  if (isOffline) {
++                    throw new Error('姝や功灏氭湭缂撳瓨锛岃杩炴帴缃戠粶鍚庨噸璇曘€傚彲鍦ㄤ笅杞界鐞嗕腑棰勫厛缂撳瓨涔︾睄銆?);
++                  }
++                }
++                return _loadBookLegacy(bookId);
++              });
+           }
+           return _loadBookLegacy(bookId);
+         });
+@@ -138,7 +147,15 @@
+             return data;
+           })
+           .catch(function (dmErr) {
+-            console.warn('[Renderer] DataManager 鍔犺浇澶辫触锛屽洖閫€鍒版棫璺緞: ' + bookId, dmErr.message);
++            console.warn('[Renderer] DataManager 鍔犺浇澶辫触: ' + bookId, dmErr.message);
++            // 妫€鏌ユ槸鍚︿负绂荤嚎 + 鏈紦瀛樼殑鎯呭喌
++            if (win.DataManager && !win.DataManager.isBookDownloaded(bookId)) {
++              var isOffline = !navigator.onLine;
++              if (isOffline) {
++                throw new Error('姝や功灏氭湭缂撳瓨锛岃杩炴帴缃戠粶鍚庨噸璇曘€傚彲鍦ㄤ笅杞界鐞嗕腑棰勫厛缂撳瓨涔︾睄銆?);
++              }
++            }
++            // 鏈夌紦瀛樹絾鍔犺浇澶辫触锛屾垨鍦ㄧ嚎浣?DataManager 澶辫触锛屽洖閫€鍒版棫璺緞
+             return _loadBookLegacy(bookId);
+           });
+       }
+@@ -209,9 +226,18 @@
+           if (!origin || origin === 'null') origin = 'http://localhost:8080';
+           dmUrl = origin + '/zl-data';
+           console.log('[Renderer] 鏈湴妯″紡锛欴ataManager 浣跨敤 ' + dmUrl);
++        } else if (win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform()) {
++          // APK锛圕apacitor 鍘熺敓骞冲彴锛夛細浣跨敤杩滅▼ CDN
++          dmUrl = 'https://books-data.pages.dev';
++          console.log('[Renderer] APK妯″紡锛欴ataManager 浣跨敤 ' + dmUrl);
++        } else if ((win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || win.navigator.standalone) {
++          // PWA standalone锛氫娇鐢ㄨ繙绋?CDN
++          dmUrl = 'https://books-data.pages.dev';
++          console.log('[Renderer] PWA妯″紡锛欴ataManager 浣跨敤 ' + dmUrl);
+         } else {
+-          // 鐢熶骇鐜锛氭暟鎹笌搴旂敤鍚屽煙閮ㄧ讲锛岀洿鎺ヤ娇鐢ㄥ綋鍓嶅煙鍚?+          // 鏅€氭祻瑙堝櫒锛氭暟鎹笌搴旂敤鍚屽煙閮ㄧ讲
+           dmUrl = win.location.origin + '/zl-data';
++          console.log('[Renderer] 娴忚鍣ㄦā寮忥細DataManager 浣跨敤 ' + dmUrl);
+         }
+       } catch (e) {}
+       if (!dmUrl || !win.DataManager) return Promise.resolve();
+@@ -789,7 +815,7 @@
+           html += '<div class="book-header">';
+           html += '<div class="book-title-row">';
+           html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+-          html += '<span class="download-icon">' + (downloaded ? '鉁? : '鈽侊笍') + '</span>';
++          html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '鉁? : '鈽?) + '</span>';
+           html += '</div>';
+           html += '</div>';
+           if (seriesTitle) {
+@@ -829,7 +855,7 @@
+       html += '<div class="book-header">';
+       html += '<div class="book-title-row">';
+       html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+-      html += '<span class="download-icon">' + (downloaded ? '鉁? : '鈽侊笍') + '</span>';
++      html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '鉁? : '鈽?) + '</span>';
+       html += '</div>';
+       html += '</div>';
+       if (seriesTitle) {
+@@ -863,6 +889,9 @@
+     html += '<button class="download-panel-close" id="dlPanelClose">鉁?/button>';
+     html += '</div>';
+ 
++    // 璧勬簮妫€鏌ユ憳瑕?+    html += '<div class="bk-resource-summary" id="dlResourceSummary" style="padding:8px 12px;margin-bottom:8px;font-size:13px;color:#666;background:#f5f5f5;border-radius:6px;">璧勬簮缁熻鍔犺浇涓?..</div>';
++
+     // 瀛樺偍缁熻
+     html += '<div class="download-storage-info" id="dlStorageInfo">瀛樺偍缁熻鍔犺浇涓?..</div>';
+ 
+@@ -891,6 +920,9 @@
+ 
+     // 鍏ㄩ儴涓嬭浇
+     html += '<button class="download-all-btn" id="dlAllBtn">鍏ㄩ儴涓嬭浇</button>';
++
++    // 娓呴櫎鍏ㄩ儴缂撳瓨
++    html += '<button class="bk-btn" id="dlClearAllBtn" style="background:#f44336;color:#fff;">娓呴櫎鍏ㄩ儴缂撳瓨</button>';
+     html += '</div>';
+ 
+     // 閬僵
+@@ -1037,6 +1069,21 @@
+         return;
+       }
+ 
++      // 8.5 娓呴櫎鍏ㄩ儴缂撳瓨
++      if (e.target.closest && e.target.closest('#dlClearAllBtn')) {
++        if (confirm('纭畾娓呴櫎鎵€鏈夊凡缂撳瓨鐨勪功绫嶆暟鎹悧锛?)) {
++          if (win.DataManager && win.DataManager.clearAllBooks) {
++            win.DataManager.clearAllBooks().then(function () {
++              location.reload();
++            }).catch(function (err) {
++              console.error('[Renderer] 娓呴櫎缂撳瓨澶辫触:', err);
++              alert('娓呴櫎缂撳瓨澶辫触: ' + (err.message || err));
++            });
++          }
++        }
++        return;
++      }
++
+       // 9. 鏆傚仠鎸夐挳
+       if (e.target.closest && e.target.closest('#dlPauseBtn')) {
+         var status = win.DataManager.getDownloadStatus();
+@@ -1131,24 +1178,24 @@
+ 
+     // 鏄剧ず涓嬭浇涓姸鎬?     var cardEl2 = cardEl ? cardEl.closest('.zl-book-card') : null;
+-    var iconEl = cardEl ? cardEl.querySelector('.download-icon') : null;
+-    if (iconEl) iconEl.textContent = '鈴?;
++    var iconEl = cardEl ? cardEl.querySelector('.cache-status') : null;
++    if (iconEl) { iconEl.textContent = '鈴?; iconEl.style.color = '#ff9800'; }
+     if (cardEl2) cardEl2.setAttribute('data-downloading', 'true');
+ 
+     win.DataManager.downloadBook(bookId, series)
+       .then(function () {
+         // 涓嬭浇鎴愬姛锛屾洿鏂扮姸鎬?         _zlDownloadedIds.push(bookId);
+-        if (iconEl) iconEl.textContent = '鉁?;
++        if (iconEl) { iconEl.textContent = '鉁?; iconEl.style.color = '#4caf50'; }
+         if (cardEl2) cardEl2.removeAttribute('data-downloading');
+         // 瀵艰埅鍒颁功绫?         if (win.BKRouter) win.BKRouter.navigate(bookId);
+       })
+       .catch(function (err) {
+         console.error('[Renderer] 涔︾睄涓嬭浇澶辫触:', err);
+-        if (iconEl) iconEl.textContent = '鉂?;
++        if (iconEl) { iconEl.textContent = '鉁?; iconEl.style.color = '#f44336'; }
+         if (cardEl2) cardEl2.removeAttribute('data-downloading');
+-        setTimeout(function () { if (iconEl) iconEl.textContent = '鈽侊笍'; }, 2000);
++        setTimeout(function () { if (iconEl) { iconEl.textContent = '鈽?; iconEl.style.color = '#999'; } }, 2000);
+       });
+   }
+ 
+@@ -1168,13 +1215,29 @@
+    */
+   function _refreshStorageStats() {
+     if (!_zlDmReady || !win.DataManager) return;
++    // 鏇存柊璧勬簮鎽樿锛坈heckResources锛?+    var resEl = document.getElementById('dlResourceSummary');
++    if (resEl && win.DataManager.checkResources) {
++      win.DataManager.checkResources().then(function (res) {
++        var cached = res.downloadedCount || 0;
++        var total = res.totalBooks || _zlBooks.length || 0;
++        var sizeMB = res.totalSizeBytes
++          ? (res.totalSizeBytes / 1024 / 1024).toFixed(1)
++          : (res.totalSizeFormatted || '鏈煡');
++        resEl.textContent = '宸茬紦瀛?' + cached + ' / 鎬诲叡 ' + total + ' 鏈功锛堢害 ' + sizeMB + ' MB锛?;
++      }).catch(function () {
++        resEl.textContent = '璧勬簮缁熻鑾峰彇澶辫触';
++      });
++    }
++    // 鏇存柊瀛樺偍缁熻锛坓etStorageStats锛?     var el = document.getElementById('dlStorageInfo');
+-    if (!el) return;
+-    win.DataManager.getStorageStats().then(function (stats) {
+-      el.textContent = '宸蹭笅杞?' + stats.downloadedCount + ' 鏈功锛屽崰鐢?' + stats.totalSizeFormatted;
+-    }).catch(function () {
+-      el.textContent = '瀛樺偍缁熻鑾峰彇澶辫触';
+-    });
++    if (el) {
++      win.DataManager.getStorageStats().then(function (stats) {
++        el.textContent = '宸蹭笅杞?' + stats.downloadedCount + ' 鏈功锛屽崰鐢?' + stats.totalSizeFormatted;
++      }).catch(function () {
++        el.textContent = '瀛樺偍缁熻鑾峰彇澶辫触';
++      });
++    }
+   }
+ 
+   /**
+@@ -1309,9 +1372,11 @@
+         var cards = homeView.querySelectorAll('.zl-book-card');
+         for (var i = 0; i < cards.length; i++) {
+           var bookId = cards[i].getAttribute('data-book-id');
+-          var iconEl = cards[i].querySelector('.download-icon');
+-          if (iconEl) {
+-            iconEl.textContent = _isBookDownloaded(bookId) ? '鉁? : '鈽侊笍';
++          var isDown = _isBookDownloaded(bookId);
++          var statusEl = cards[i].querySelector('.cache-status');
++          if (statusEl) {
++            statusEl.textContent = isDown ? '鉁? : '鈽?;
++            statusEl.style.color = isDown ? '#4caf50' : '#999';
+           }
+         }
+       }

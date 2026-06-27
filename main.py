@@ -10,6 +10,7 @@ import sys
 import json
 import shutil
 import base64
+import subprocess
 import yaml
 from pathlib import Path
 
@@ -225,6 +226,70 @@ def main():
                             except: pass
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    # ── 数据准备：ysz → zl-ysz → zl-merged ──────────────────────
+    print("── 数据准备 ──")
+
+    # 增量检查：如果 zl-merged 已是最新则跳过数据准备
+    _merged_manifest = os.path.join(resource_dir, 'zl-merged', 'manifest.json')
+    _ysz_dir = os.path.join(resource_dir, 'ysz')
+    _need_data_prep = True
+    if os.path.exists(_merged_manifest):
+        try:
+            _manifest_mtime = os.path.getmtime(_merged_manifest)
+            # 检查 ysz 目录中是否有比 manifest 更新的文件
+            _ysz_latest = 0
+            if os.path.isdir(_ysz_dir):
+                for _f in os.listdir(_ysz_dir):
+                    _fp = os.path.join(_ysz_dir, _f)
+                    if os.path.isfile(_fp):
+                        _mt = os.path.getmtime(_fp)
+                        if _mt > _ysz_latest:
+                            _ysz_latest = _mt
+            if _ysz_latest <= _manifest_mtime:
+                _need_data_prep = False
+                print("✓ zl-merged 数据已是最新，跳过数据准备")
+        except Exception:
+            pass  # 检查失败则正常执行数据准备
+
+    if _need_data_prep:
+        # Step 0a: 执行 process_ysz_books.py（ysz → zl-ysz）
+        try:
+            print("▶ 处理 YSZ 数据 (ysz → zl-ysz) ...")
+            result = subprocess.run(
+                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'process_ysz_books.py')],
+                capture_output=True, text=True, timeout=600
+            )
+            if result.returncode == 0:
+                print("✓ YSZ 数据处理完成")
+                if result.stdout:
+                    lines = result.stdout.strip().splitlines()
+                    for line in lines[-5:]:
+                        print(f"  {line}")
+            else:
+                print(f"⚠ YSZ 数据处理警告 (exit={result.returncode})")
+                if result.stderr:
+                    print(f"  {result.stderr[:200]}")
+        except Exception as e:
+            print(f"⚠ YSZ 数据处理异常: {e}")
+
+        # Step 0b: 执行 merge_zl_data.py（zl-ysz → zl-merged）
+        try:
+            print("▶ 合并数据 (zl-ysz → zl-merged) ...")
+            result = subprocess.run(
+                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_zl_data.py'), '--force'],
+                capture_output=True, text=True, timeout=300
+            )
+            if result.returncode == 0:
+                print("✓ 数据合并完成")
+            else:
+                print(f"⚠ 数据合并警告 (exit={result.returncode})")
+                if result.stderr:
+                    print(f"  {result.stderr[:200]}")
+        except Exception as e:
+            print(f"⚠ 数据合并异常: {e}")
+
+    print()
 
     # 扫描并解析书籍
     book_files = scan_books(resource_dir)

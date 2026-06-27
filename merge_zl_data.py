@@ -4,6 +4,8 @@
 以 zl-ysz 为基础，追加 zl-html 中独有的系列数据，
 重新生成 books-index.json、manifest.json 和 _headers。
 
+当 zl-html 不存在时，直接使用 zl-ysz 数据生成 zl-merged。
+
 用法:
     python merge_zl_data.py                # 正常合并
     python merge_zl_data.py --dry-run      # 仅统计，不复制文件
@@ -176,13 +178,14 @@ def generate_headers(merged_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 def run(dry_run: bool = False, force: bool = False) -> None:
     """执行合并流程。"""
-    # 1. 检查源目录
+    # 1. 检查源目录（zl-ysz 必须存在）
     if not YSZ_DIR.is_dir():
         log.error('zl-ysz 目录不存在: %s', YSZ_DIR)
         return
-    if not HTML_DIR.is_dir():
-        log.error('zl-html 目录不存在: %s', HTML_DIR)
-        return
+
+    has_html = HTML_DIR.is_dir()
+    if not has_html:
+        log.warning('zl-html 目录不存在: %s，将使用 zl-ysz 直接生成 zl-merged', HTML_DIR)
 
     # 2. 检查目标目录
     if MERGED_DIR.exists():
@@ -200,17 +203,25 @@ def run(dry_run: bool = False, force: bool = False) -> None:
     # 3. 加载索引
     log.info('加载 books-index.json ...')
     ysz_index: Dict[str, Any] = load_json(YSZ_DIR / 'books-index.json')
-    html_index: Dict[str, Any] = load_json(HTML_DIR / 'books-index.json')
 
-    # 4. 识别独有系列
-    exclusive = identify_exclusive_series(ysz_index, html_index)
-    exclusive_ids = [s['id'] for s in exclusive]
-    log.info('zl-ysz 系列数: %d', len(ysz_index['series']))
-    log.info('zl-html 系列数: %d', len(html_index['series']))
-    log.info('zl-html 独有系列 (%d): %s', len(exclusive), ', '.join(exclusive_ids))
+    if has_html:
+        # --- 完整合并流程 ---
+        html_index: Dict[str, Any] = load_json(HTML_DIR / 'books-index.json')
 
-    # 5. 合并索引
-    merged_index = merge_books_index(ysz_index, html_index, exclusive)
+        # 4. 识别独有系列
+        exclusive = identify_exclusive_series(ysz_index, html_index)
+        exclusive_ids = [s['id'] for s in exclusive]
+        log.info('zl-ysz 系列数: %d', len(ysz_index['series']))
+        log.info('zl-html 系列数: %d', len(html_index['series']))
+        log.info('zl-html 独有系列 (%d): %s', len(exclusive), ', '.join(exclusive_ids))
+
+        # 5. 合并索引
+        merged_index = merge_books_index(ysz_index, html_index, exclusive)
+    else:
+        # --- 仅 zl-ysz，无需合并 ---
+        log.info('zl-ysz 系列数: %d', len(ysz_index['series']))
+        merged_index = ysz_index
+
     total_books = len(merged_index['books'])
     total_chapters = sum(b.get('chapter_count', 0) for b in merged_index['books'])
     log.info('合并后统计: %d 个系列, %d 本书, %d 章',
@@ -223,8 +234,9 @@ def run(dry_run: bool = False, force: bool = False) -> None:
     # 6. 复制基础数据
     copy_base_data(YSZ_DIR, MERGED_DIR)
 
-    # 7. 复制独有系列
-    copy_exclusive_series(HTML_DIR, MERGED_DIR, exclusive)
+    if has_html:
+        # 7. 复制独有系列
+        copy_exclusive_series(HTML_DIR, MERGED_DIR, exclusive)
 
     # 8. 写入 books-index.json
     index_path = MERGED_DIR / 'books-index.json'

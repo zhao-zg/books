@@ -642,7 +642,7 @@
         }
 
         function _close() {
-            if (_panel !== 'main') window.BK.backStack.pop();
+            if (_panel !== 'main') window.BK.backStack.discard();
             dlg.close();
         }
 
