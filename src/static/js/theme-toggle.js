@@ -578,14 +578,25 @@
                 // GitHub Issues 反馈
                 var content = text + '\n\n---\n环境: ' + (window.Capacitor ? 'APK' : (window.navigator.standalone ? 'PWA' : '浏览器'));
                 // 简单反馈：复制到剪贴板
-                if (navigator.clipboard) {
+                var done = function() {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '发送';
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(content).then(function() {
                         if (statusEl) { statusEl.textContent = '✓ 已复制到剪贴板，请粘贴到 GitHub Issues'; statusEl.className = 'bk-feedback-status success'; }
-                        setTimeout(dlg.close, 2000);
+                        setTimeout(function() { dlg.close(); }, 2000);
+                        done();
+                    }).catch(function() {
+                        if (statusEl) { statusEl.textContent = '复制失败，请手动复制'; statusEl.className = 'bk-feedback-status error'; }
+                        done();
                     });
+                } else {
+                    // 回退：选中 textarea 内容供手动复制
+                    if (textarea) { textarea.value = content; textarea.select(); }
+                    if (statusEl) { statusEl.textContent = '请手动复制选中内容到 GitHub Issues'; statusEl.className = 'bk-feedback-status success'; }
+                    done();
                 }
-                submitBtn.disabled = false;
-                submitBtn.textContent = '发送';
             });
         }
     }
