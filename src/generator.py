@@ -1381,6 +1381,26 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .bk-search-series-name { font-size: 13px; font-weight: 500; color: var(--text); }
 .bk-search-series-count { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
+/* ── 反馈对话框 ────────────────────────────────────────────────── */
+.bk-feedback-box { background: var(--surface, #fff); border-radius: 14px; width: min(360px, calc(100vw - 40px)); max-height: 80vh; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,.22); display: flex; flex-direction: column; }
+.bk-feedback-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.bk-feedback-title { font-size: 16px; font-weight: 600; color: var(--heading, #111); }
+.bk-feedback-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.bk-feedback-close:active { background: var(--nav-hover); }
+.bk-feedback-body { flex: 1; overflow-y: auto; padding: 12px 16px 8px; }
+.bk-feedback-textarea { width: 100%; min-height: 120px; max-height: 40vh; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-alt, #f5f5f5); color: var(--text); font: inherit; font-size: 14px; line-height: 1.6; resize: vertical; box-sizing: border-box; outline: none; transition: border-color .15s; }
+.bk-feedback-textarea:focus { border-color: var(--brand, #667eea); }
+.bk-feedback-count { text-align: right; font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.bk-feedback-status { font-size: 12px; min-height: 18px; margin-top: 6px; text-align: center; }
+.bk-feedback-status.success { color: #2e7d32; }
+.bk-feedback-status.error { color: #c62828; }
+.bk-feedback-actions { display: flex; border-top: 1px solid var(--border); flex-shrink: 0; }
+.bk-feedback-cancel, .bk-feedback-submit { flex: 1; padding: 13px 8px; border: none; background: transparent; font: inherit; font-size: 15px; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
+.bk-feedback-cancel { color: var(--text-muted); border-right: 1px solid var(--border); }
+.bk-feedback-submit { color: var(--brand, #667eea); font-weight: 600; }
+.bk-feedback-cancel:active, .bk-feedback-submit:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
+.bk-feedback-submit:disabled { opacity: .5; cursor: default; }
+
 /* ── 全局交互反馈增强 ──────────────────────────────────────────── */
 button:active { transition-duration: 0.05s; }
 
