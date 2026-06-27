@@ -1462,6 +1462,14 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(79,125,219,0.22); }
         if app_config:
             self.generate_version_json(app_config)
 
+        # 6.5 复制 app_config.json 到 output/（供前端 loadConfig 回退路径使用）
+        app_config_src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app_config.json')
+        if os.path.exists(app_config_src):
+            shutil.copy2(app_config_src, os.path.join(self.output_dir, 'app_config.json'))
+            print("✓ app_config.json 已复制到 output/")
+        else:
+            print("⚠ app_config.json 未找到，跳过复制")
+
         # 7. .nojekyll（GitHub Pages 兼容）
         nojekyll_path = os.path.join(self.output_dir, '.nojekyll')
         with open(nojekyll_path, 'w') as f:

@@ -210,10 +210,8 @@
           dmUrl = origin + '/zl-data';
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
-          // 生产环境：使用远程 URL
-          if (win.REMOTE_CONFIG && win.REMOTE_CONFIG.zl_html_data) {
-            dmUrl = win.REMOTE_CONFIG.zl_html_data;
-          }
+          // 生产环境：数据与应用同域部署，直接使用当前域名
+          dmUrl = win.location.origin + '/zl-data';
         }
       } catch (e) {}
       if (!dmUrl || !win.DataManager) return Promise.resolve();

@@ -128,16 +128,6 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
         elif isinstance(value, str):
             encoded[key] = base64.b64encode(value.encode('utf-8')).decode('utf-8')
 
-    # 从 app_config.json 注入 zl_html_data_url（覆盖 config.yaml 中的同名配置）
-    try:
-        app_cfg = load_app_config()
-        zl_url = app_cfg.get('zl_html_data_url')
-        if zl_url:
-            encoded['zl_html_data'] = base64.b64encode(
-                zl_url.encode('utf-8')
-            ).decode('utf-8')
-    except Exception:
-        pass  # app_config.json 加载失败时，沿用 config.yaml 中的值
 
     # 生成 JS 内容
     js_content = f"""\
@@ -163,6 +153,7 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
   }}
 
   window.REMOTE_CONFIG = config;
+  window.BK_SERVERS = window.REMOTE_CONFIG;
 }})();
 """
 
@@ -256,6 +247,14 @@ def main():
 
     # 生成 remote-config.js（base64 编码 URL）
     generate_remote_config(config, output_dir)
+
+    # 复制 changelog.json 到 output/（供前端 fetchChangelog 使用）
+    changelog_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'changelog.json')
+    if os.path.exists(changelog_src):
+        shutil.copy2(changelog_src, os.path.join(output_dir, 'changelog.json'))
+        print("✓ changelog.json 已复制到 output/")
+    else:
+        print("⚠ changelog.json 未找到，跳过复制")
 
     # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
     copy_zl_merged_data(resource_dir, output_dir)

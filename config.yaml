@@ -28,7 +28,9 @@ remote_servers:
     - https://ghproxy.net/
     - https://proxy.11891189.xyz/
     - https://proxy.07170501.xyz/
+  push:
+    - https://moepush.zhaozg.cloudns.org/api/push/Xd1q23D8VNuxB6wz
+    - https://moepush.zhaozg.dpdns.org/api/push/Xd1q23D8VNuxB6wz
   ip_apis:
     - https://myip.ipip.net
     - https://ipinfo.io/json
-  zl_html_data: https://books-data.pages.dev

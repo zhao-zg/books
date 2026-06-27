@@ -90,6 +90,9 @@ _search.*
 # Logs
 *.log
 
+# Android SDK (local build environment, CI uses GitHub Actions)
+android-sdk/
+
 # Keys
 *.keystore
 *.keystore.b64

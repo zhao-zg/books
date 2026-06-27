@@ -117,7 +117,7 @@
         
         for (var i = 0; i < bytes.length; i += chunkSize) {
             var chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-            binary += String.fromCharCode.apply(null, chunk);
+            binary += new TextDecoder('latin1').decode(chunk);
             if (onProgress && i % (chunkSize * 10) === 0) {
                 onProgress(Math.round((i / bytes.length) * 100));
             }
@@ -148,7 +148,7 @@
             versionUrl: null,
             currentVersion: null,
             get mirrors() {
-                return (window.BK_SERVERS && window.BK_SERVERS.githubMirrors) || [];
+                return (window.BK_SERVERS && window.BK_SERVERS.github_mirrors) || [];
             }
         },
         isCapacitor: false,
@@ -158,7 +158,7 @@
             if (!this.isCapacitor) return;
             console.log('[更新] 初始化更新模块');
             this.cleanupOldApks();
-            this.loadConfig();
+            this._configReady = this.loadConfig();
             try {
                 if (localStorage.getItem('bk_auto_check_update') === '1') {
                     setTimeout(function() { AppUpdate.silentCheckUpdate(); }, 2000);
@@ -256,7 +256,8 @@
                     
                     var downloadSources = [{ name: '线路 1', url: url }];
                     this.config.mirrors.forEach(function(mirror, index) {
-                        downloadSources.push({ name: '线路 ' + (index + 2), url: mirror + url });
+                        var mirrorUrl = mirror.replace(/\/+$/, '') + '/' + url;
+                        downloadSources.push({ name: '线路 ' + (index + 2), url: mirrorUrl });
                     });
                     
                     var testPromises = downloadSources.map(function(source) {
@@ -366,6 +367,22 @@
                 console.error('[APK下载] 失败:', error);
                 if (onError) onError(error);
             }
+        },
+
+        downloadApkWithUI: function(downloadUrl) {
+            showApkDownloadProgress('准备下载...', 0, 0, 0);
+            this.downloadApk(downloadUrl,
+                function(message, progress, speed, downloaded) {
+                    updateApkDownloadProgress(message, progress, speed, downloaded);
+                },
+                function() {
+                    closeApkDownloadProgress();
+                },
+                function(error) {
+                    closeApkDownloadProgress();
+                    alert('下载失败: ' + (error && error.message ? error.message : '未知错误'));
+                }
+            );
         }
     };
 
@@ -410,8 +427,6 @@
     function showApkDownloadProgress(message, progress, speed, downloaded) {
         var THEME = getTheme();
         var dialogId = 'apkDownloadProgressDialog';
-        var oldDialog = document.getElementById(dialogId);
-        if (oldDialog) oldDialog.remove();
         
         var html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10001; display: flex; align-items: center; justify-content: center; padding: 20px;" id="' + dialogId + '">';
         html += '<div style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 100%;">';
@@ -730,7 +745,7 @@
     
     // GitHub 更新检查
     AppUpdate.showGitHubUpdateDialog = function() {
-        var GITHUB_API_URL = (window.BK_SERVERS && window.BK_SERVERS.githubApi) ||
+        var GITHUB_API_URL = (window.BK_SERVERS && window.BK_SERVERS.github_api) ||
             'https://api.github.com/repos/zhao-zg/books/releases/latest';
         
         createUpdateDialog('githubUpdateDialog', '🔄 检查更新 (GitHub)', 'ghCheckStatus', 'ghUpdateBtn');
@@ -804,9 +819,9 @@
                 var remoteVersion = v.version || v.apk_version || '';
                 var comparison = currentVersion
                     ? AppUpdate.compareVersion(remoteVersion, currentVersion)
-                    : 1;
+                    : 0;
 
-                if (comparison <= 0 && currentVersion) {
+                if (comparison <= 0) {
                     statusEl.innerHTML = '✅ 已是最新版本<br>版本: v' + remoteVersion;
                     if (extStatusEl) { extStatusEl.textContent = '✓ 已是最新版本 v' + remoteVersion; extStatusEl.className = 'cache-status success'; }
                     btnEl.style.display = 'block';
@@ -871,7 +886,8 @@
     };
 
     // ── 静默后台检查更新 ────────────────────────────────────────────
-    AppUpdate.silentCheckUpdate = function() {
+    AppUpdate.silentCheckUpdate = async function() {
+        if (this._configReady) { await this._configReady; this._configReady = null; }
         try { if (sessionStorage.getItem('bk_update_toast_shown')) return; } catch(e) {}
 
         var isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -914,7 +930,7 @@
                     if (!latest) return;
                     var cmp = currentPwa
                         ? AppUpdate.compareVersion(latest, currentPwa)
-                        : 1;
+                        : 0;
                     if (cmp > 0) showUpdateToast(latest, 'pwa');
                 }).catch(function() {});
         }
