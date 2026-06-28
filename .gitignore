@@ -45,7 +45,6 @@ ios/
 .capacitor/
 
 # Resource data (large files, deployed separately via Cloudflare Pages)
-resource/html/
 resource/zl-merged/
 resource/zl-ysz/
 

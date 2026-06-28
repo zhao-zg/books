@@ -695,12 +695,18 @@
     html += '<h1 class="logo-trigger">📖 书报</h1>';
     html += '<p class="subtitle">电子书阅读应用</p>';
     html += '<div class="home-header-actions">';
-    html += '<button type="button" id="bk-search-btn" class="home-action-btn">🔍 搜索</button>';
+    html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
+    // 溢出菜单
+    html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
+    html += '<button type="button" class="home-action-btn home-overflow-trigger" id="bk-overflow-btn">⋯</button>';
+    html += '<div class="home-overflow-dropdown" id="homeOverflowDropdown" style="display:none">';
     if (_zlDmReady) {
-      html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
+      html += '<button type="button" id="bk-dl-mgr-btn" class="home-overflow-item">📥 下载管理</button>';
     }
-    html += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
-    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
+    html += '<button type="button" id="bk-import-btn" class="home-overflow-item">📂 导入</button>';
+    html += '<button type="button" id="bk-manage-btn" class="home-overflow-item">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
+    html += '</div>';
+    html += '</div>';
     html += '</div>';
     html += '</div>';
 
@@ -738,6 +744,49 @@
       var s = _zlSeries[i];
       var active = _zlCurrentSeries === s.id ? ' active' : '';
       html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(s.title) + '</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * 构建单个书籍卡片 HTML（纯函数，消除重复代码）
+   */
+  function _buildBookCard(book) {
+    var downloaded = _isBookDownloaded(book.id);
+    var seriesTitle = _getSeriesTitle(book.series);
+    var chapterCount = book.chapter_count || 0;
+    var progress = getReadingProgress(book.id);
+    var progressPct = (progress > 0 && chapterCount > 0) ? Math.round(progress / chapterCount * 100) : 0;
+
+    var html = '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
+    html += '<div class="book-card-wrapper">';
+    html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+    html += '<div class="book-info">';
+    html += '<div class="book-header">';
+    html += '<div class="book-title-row">';
+    html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+    html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
+    html += '</div>';
+    html += '</div>';
+    if (seriesTitle) {
+      html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+    }
+    html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+    if (progress > 0) {
+      html += ' · 读到第' + progress + '章';
+    }
+    html += '</div>';
+    // 阅读进度条
+    if (progressPct > 0) {
+      html += '<div class="reading-progress"><div class="reading-progress-fill" style="width:' + progressPct + '%"></div></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    // 删除按钮（管理模式或导入书籍）
+    if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+      html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
     }
     html += '</div>';
     return html;
@@ -798,39 +847,10 @@
           if (filtered[i].category === _zlCurrentCategory && filtered[i].category_prefix === _zlCurrentCategoryPrefix) catFiltered.push(filtered[i]);
         }
         var html = '<div id="bookGrid">';
-        html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">\u2190 返回类型目录</button></div>';
+        html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">返回类型目录</button></div>';
         html += '<div class="book-grid">';
         for (var i = 0; i < catFiltered.length; i++) {
-          var book = catFiltered[i];
-          var downloaded = _isBookDownloaded(book.id);
-          var seriesTitle = _getSeriesTitle(book.series);
-          var chapterCount = book.chapter_count || 0;
-          var progress = getReadingProgress(book.id);
-          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
-          html += '<div class="book-card-wrapper">';
-          html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
-          html += '<div class="book-info">';
-          html += '<div class="book-header">';
-          html += '<div class="book-title-row">';
-          html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-          html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
-          html += '</div>';
-          html += '</div>';
-          if (seriesTitle) {
-            html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
-          }
-          html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
-          if (progress > 0) {
-            html += ' · 读到第' + progress + '章';
-          }
-          html += '</div>';
-          html += '</div>';
-          html += '</div>';
-          html += '</div>';
-          if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
-            html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
-          }
-          html += '</div>';
+          html += _buildBookCard(catFiltered[i]);
         }
         html += '</div></div>';
         return html;
@@ -840,38 +860,7 @@
     // 非 books 系列：保持现有平铺渲染逻辑（完全不变）
     var html = '<div class="book-grid" id="bookGrid">';
     for (var i = 0; i < filtered.length; i++) {
-      var book = filtered[i];
-      var downloaded = _isBookDownloaded(book.id);
-      var seriesTitle = _getSeriesTitle(book.series);
-      var chapterCount = book.chapter_count || 0;
-      var progress = getReadingProgress(book.id);
-
-      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
-      html += '<div class="book-card-wrapper">';
-      html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
-      html += '<div class="book-info">';
-      html += '<div class="book-header">';
-      html += '<div class="book-title-row">';
-      html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-      html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
-      html += '</div>';
-      html += '</div>';
-      if (seriesTitle) {
-        html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
-      }
-      html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
-      if (progress > 0) {
-        html += ' · 读到第' + progress + '章';
-      }
-      html += '</div>';
-      html += '</div>';
-      html += '</div>';
-      html += '</div>';
-      // ★ 管理模式下所有书籍显示删除按钮，导入书籍始终显示
-      if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
-        html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
-      }
-      html += '</div>';
+      html += _buildBookCard(filtered[i]);
     }
     html += '</div>';
     return html;
@@ -1022,8 +1011,35 @@
               if (win.__bkBooks[j].id === delBookId) { win.__bkBooks.splice(j, 1); break; }
             }
           }
-          var hv = document.getElementById('homeView');
-          if (hv) _renderZlHome(hv);
+          // 局部 DOM 更新：移除对应卡片
+          var cardEl = null;
+          var allCards = homeView.querySelectorAll('.zl-book-card');
+          for (var ci = 0; ci < allCards.length; ci++) {
+            if (allCards[ci].getAttribute('data-book-id') === delBookId) { cardEl = allCards[ci]; break; }
+          }
+          if (cardEl) cardEl.parentNode.removeChild(cardEl);
+          // 如果当前系列下没有书籍了，显示空状态
+          var grid = homeView.querySelector('.book-grid');
+          if (grid && grid.querySelectorAll('.zl-book-card').length === 0) {
+            if (_zlCurrentSeries !== 'all') {
+              _zlCurrentSeries = 'all';
+              _zlCurrentCategory = null;
+              _zlCurrentCategoryPrefix = null;
+              var allTabs = homeView.querySelectorAll('.series-tab');
+              for (var ti = 0; ti < allTabs.length; ti++) {
+                allTabs[ti].className = 'series-tab' + (allTabs[ti].getAttribute('data-series') === 'all' ? ' active' : '');
+              }
+              var gridContainer = document.getElementById('bookGrid');
+              if (gridContainer && gridContainer.parentNode) {
+                var newGrid = _buildBookGrid('all');
+                var tmp = document.createElement('div');
+                tmp.innerHTML = newGrid;
+                gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+              }
+            } else {
+              grid.innerHTML = '<div class="home-status">该系列暂无书籍</div>';
+            }
+          }
         };
         if (delBookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
           win.ImportManager.deleteImportedBook(delBookId).then(doDelete).catch(function() { doDelete(); });
@@ -1138,11 +1154,55 @@
       }
 
       // 13. 管理按钮
-      if (e.target.closest && e.target.closest('#bk-manage-btn')) {
+      if (e.target.closest && (e.target.closest('#bk-manage-btn') || e.target.closest('.home-overflow-item#bk-manage-btn'))) {
         _manageMode = !_manageMode;
-        var hv = document.getElementById('homeView');
-        if (hv) _renderZlHome(hv);
+        // 更新按钮文字
+        var manageBtn = document.getElementById('bk-manage-btn');
+        if (manageBtn) manageBtn.textContent = _manageMode ? '✅ 完成' : '🗑️ 管理';
+        // 遍历所有书籍卡片，添加/移除删除按钮
+        var cards = homeView.querySelectorAll('.zl-book-card');
+        for (var ci = 0; ci < cards.length; ci++) {
+          var card = cards[ci];
+          var bookId = card.getAttribute('data-book-id');
+          var series = card.getAttribute('data-series');
+          var existingDelBtn = card.querySelector('.imported-delete-btn');
+          if (_manageMode) {
+            if (!existingDelBtn) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'imported-delete-btn';
+              btn.setAttribute('data-book-id', bookId);
+              btn.title = '删除';
+              btn.textContent = '✕';
+              card.appendChild(btn);
+            }
+          } else {
+            // 非管理模式：仅移除非导入书籍的删除按钮
+            if (existingDelBtn && series !== 'imported' && bookId.indexOf('imported-') !== 0) {
+              existingDelBtn.parentNode.removeChild(existingDelBtn);
+            }
+          }
+        }
         return;
+      }
+
+      // 14. 溢出菜单触发按钮
+      if (e.target.closest && e.target.closest('#bk-overflow-btn')) {
+        e.stopPropagation();
+        var dropdown = document.getElementById('homeOverflowDropdown');
+        if (dropdown) {
+          dropdown.style.display = (dropdown.style.display === 'none' || !dropdown.style.display) ? 'block' : 'none';
+        }
+        return;
+      }
+
+      // 15. 点击溢出菜单外区域关闭菜单
+      var overflowMenu = document.getElementById('homeOverflowMenu');
+      if (overflowMenu && !e.target.closest('#homeOverflowMenu')) {
+        var dropdown = document.getElementById('homeOverflowDropdown');
+        if (dropdown && dropdown.style.display !== 'none') {
+          dropdown.style.display = 'none';
+        }
       }
     };
 

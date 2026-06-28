@@ -1,0 +1,25 @@
+diff --git a/src/static/index.html b/src/static/index.html
+index 62daf200..0b2d22bd 100644
+--- a/src/static/index.html
++++ b/src/static/index.html
+@@ -28,16 +28,16 @@
+         .header{color:var(--header-text);margin-bottom:20px}
+         .content{padding:0}
+         @media(min-width:768px){.header{margin-bottom:30px}}
+-        .books-grid{display:flex;flex-direction:column;gap:1px;margin:0;background:var(--group-divider-bg);overflow:hidden;border-radius:12px}
+-        .book-card{background:var(--surface);overflow:hidden;transition:background-color .2s}
++        .books-grid{display:flex;flex-direction:column;gap:10px;margin:0;padding:4px 0;overflow:hidden}
++        .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s, box-shadow .2s;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+         .book-card:hover{background:var(--nav-hover)}
+         .book-card-wrapper{display:flex;align-items:stretch;gap:0}
+         .book-link{display:block;padding:14px 16px;text-decoration:none;color:inherit;flex:1;min-width:0;transition:background-color .2s;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+         .book-link:active{background:var(--nav-hover)}
+         .book-info{position:relative}
+         .book-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px}
+-        .skeleton-item{padding:16px;border-bottom:1px solid var(--border)}
+-        .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--muted) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px}
++        .skeleton-item{padding:18px 16px;background:var(--card-bg, var(--surface));border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
++        .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--border) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.8s ease-in-out infinite;border-radius:6px;margin-bottom:10px}
+         .skeleton-line.short{width:30%;height:14px}
+         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+         .book-card .book-author{font-size:14px;color:var(--brand);font-weight:600;flex-shrink:0;line-height:1.3}

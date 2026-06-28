@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-数据合并脚本：将 zl-ysz 和 zl-html 合并到 zl-merged
-以 zl-ysz 为基础，追加 zl-html 中独有的系列数据，
+数据合并脚本：将 zl-ysz 复制到 zl-merged
 重新生成 books-index.json、manifest.json 和 _headers。
-
-当 zl-html 不存在时，直接使用 zl-ysz 数据生成 zl-merged。
 
 用法:
     python merge_zl_data.py                # 正常合并
@@ -18,14 +15,13 @@ import logging
 import argparse
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict
 
 # ---------------------------------------------------------------------------
 # 常量
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).parent
 YSZ_DIR = BASE_DIR / 'resource' / 'zl-ysz'
-HTML_DIR = BASE_DIR / 'resource' / 'zl-html'
 MERGED_DIR = BASE_DIR / 'resource' / 'zl-merged'
 
 TZ_CN = timezone(timedelta(hours=8))
@@ -60,79 +56,10 @@ def save_json(path: Path, data: Any) -> None:
 # ---------------------------------------------------------------------------
 # 核心逻辑
 # ---------------------------------------------------------------------------
-def identify_exclusive_series(
-    ysz_index: Dict[str, Any],
-    html_index: Dict[str, Any],
-) -> List[Dict[str, Any]]:
-    """找出 zl-html 中存在但 zl-ysz 中不存在的系列。
-
-    返回这些系列的完整信息（来自 html_index['series']）。
-    """
-    ysz_ids: Set[str] = {s['id'] for s in ysz_index['series']}
-    exclusive: List[Dict[str, Any]] = []
-    for s in html_index['series']:
-        if s['id'] not in ysz_ids:
-            exclusive.append(s)
-    return exclusive
-
-
 def copy_base_data(src: Path, dst: Path) -> None:
     """将 zl-ysz 整体复制到 zl-merged。"""
     log.info('复制基础数据: %s → %s', src, dst)
     shutil.copytree(src, dst)
-
-
-def copy_exclusive_series(
-    html_dir: Path,
-    merged_dir: Path,
-    exclusive_series: List[Dict[str, Any]],
-) -> None:
-    """将独有系列的子目录从 zl-html 复制到 zl-merged。"""
-    for series in exclusive_series:
-        sid = series['id']
-        src_dir = html_dir / sid
-        dst_dir = merged_dir / sid
-        if src_dir.is_dir():
-            log.info('复制独有系列目录: %s', sid)
-            shutil.copytree(src_dir, dst_dir)
-        else:
-            log.warning('独有系列目录不存在，跳过: %s', src_dir)
-
-
-def merge_books_index(
-    ysz_index: Dict[str, Any],
-    html_index: Dict[str, Any],
-    exclusive_series: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-    """合并两个数据源的 books-index，返回新的索引字典。
-
-    - series: zl-ysz 优先，追加 zl-html 独有系列（count 保持原值）
-    - books:  zl-ysz 优先，追加 zl-html 独有系列对应的书籍
-    """
-    exclusive_ids: Set[str] = {s['id'] for s in exclusive_series}
-
-    # --- 合并 series ---
-    merged_series: List[Dict[str, Any]] = list(ysz_index['series'])
-    for s in exclusive_series:
-        merged_series.append(s)
-
-    # --- 合并 books ---
-    merged_books: List[Dict[str, Any]] = list(ysz_index['books'])
-    for book in html_index['books']:
-        if book.get('series') in exclusive_ids:
-            merged_books.append(book)
-
-    # --- 校验 count ---
-    for s in merged_series:
-        actual_count = sum(1 for b in merged_books if b.get('series') == s['id'])
-        if actual_count != s['count']:
-            log.warning(
-                '系列 %s count 不一致: index=%d, actual=%d → 已修正',
-                s['id'], s['count'], actual_count,
-            )
-            s['count'] = actual_count
-
-    return {'series': merged_series, 'books': merged_books}
 
 
 def count_chapters(merged_dir: Path, merged_index: Dict[str, Any]) -> int:
@@ -183,10 +110,6 @@ def run(dry_run: bool = False, force: bool = False) -> None:
         log.error('zl-ysz 目录不存在: %s', YSZ_DIR)
         return
 
-    has_html = HTML_DIR.is_dir()
-    if not has_html:
-        log.warning('zl-html 目录不存在: %s，将使用 zl-ysz 直接生成 zl-merged', HTML_DIR)
-
     # 2. 检查目标目录
     if MERGED_DIR.exists():
         if force:
@@ -202,54 +125,33 @@ def run(dry_run: bool = False, force: bool = False) -> None:
 
     # 3. 加载索引
     log.info('加载 books-index.json ...')
-    ysz_index: Dict[str, Any] = load_json(YSZ_DIR / 'books-index.json')
-
-    if has_html:
-        # --- 完整合并流程 ---
-        html_index: Dict[str, Any] = load_json(HTML_DIR / 'books-index.json')
-
-        # 4. 识别独有系列
-        exclusive = identify_exclusive_series(ysz_index, html_index)
-        exclusive_ids = [s['id'] for s in exclusive]
-        log.info('zl-ysz 系列数: %d', len(ysz_index['series']))
-        log.info('zl-html 系列数: %d', len(html_index['series']))
-        log.info('zl-html 独有系列 (%d): %s', len(exclusive), ', '.join(exclusive_ids))
-
-        # 5. 合并索引
-        merged_index = merge_books_index(ysz_index, html_index, exclusive)
-    else:
-        # --- 仅 zl-ysz，无需合并 ---
-        log.info('zl-ysz 系列数: %d', len(ysz_index['series']))
-        merged_index = ysz_index
+    merged_index: Dict[str, Any] = load_json(YSZ_DIR / 'books-index.json')
+    log.info('zl-ysz 系列数: %d', len(merged_index['series']))
 
     total_books = len(merged_index['books'])
     total_chapters = sum(b.get('chapter_count', 0) for b in merged_index['books'])
-    log.info('合并后统计: %d 个系列, %d 本书, %d 章',
+    log.info('统计: %d 个系列, %d 本书, %d 章',
              len(merged_index['series']), total_books, total_chapters)
 
     if dry_run:
-        log.info('[DRY RUN] 合并统计完成，未执行文件操作。')
+        log.info('[DRY RUN] 统计完成，未执行文件操作。')
         return
 
-    # 6. 复制基础数据
+    # 4. 复制数据
     copy_base_data(YSZ_DIR, MERGED_DIR)
 
-    if has_html:
-        # 7. 复制独有系列
-        copy_exclusive_series(HTML_DIR, MERGED_DIR, exclusive)
-
-    # 8. 写入 books-index.json
+    # 5. 写入 books-index.json
     index_path = MERGED_DIR / 'books-index.json'
     save_json(index_path, merged_index)
     log.info('写入 books-index.json (%d 行)', len(json.dumps(merged_index, ensure_ascii=False).splitlines()))
 
-    # 9. 写入 manifest.json
+    # 6. 写入 manifest.json
     manifest = generate_manifest(merged_index, total_chapters)
     manifest_path = MERGED_DIR / 'manifest.json'
     save_json(manifest_path, manifest)
     log.info('写入 manifest.json: %d books, %d chapters', manifest['total_books'], manifest['total_chapters'])
 
-    # 10. 生成 _headers
+    # 7. 生成 _headers
     generate_headers(MERGED_DIR)
 
     log.info('合并完成 → %s', MERGED_DIR)
@@ -257,7 +159,7 @@ def run(dry_run: bool = False, force: bool = False) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description='合并 zl-ysz 和 zl-html 数据到 zl-merged',
+        description='将 zl-ysz 数据复制到 zl-merged',
     )
     parser.add_argument(
         '--dry-run',
