@@ -231,12 +231,31 @@
   // ── 索引管理 ─────────────────────────────────────────────────────────
 
   /**
-   * 加载/更新全局索引 books-index.json
+   * 加载全局索引 books-index.json
+   * 策略：先读缓存立即返回，后台静默检查更新
    * 返回 { series: [...], books: [...] }
    */
   function loadIndex() {
+    // 1. 先尝试本地缓存，立即返回
+    return storeGet(KEY_INDEX).then(function (cached) {
+      if (cached) {
+        _cachedIndex = cached;
+        console.log('[DataManager] 使用缓存索引（' + ((cached.books || []).length) + ' 本书）');
+        // 后台静默检查更新（不阻塞返回）
+        _silentCheckUpdate();
+        return cached;
+      }
+      // 2. 无缓存，必须远程获取
+      return _fetchRemoteIndex();
+    });
+  }
+
+  /**
+   * 远程获取索引并存缓存
+   */
+  function _fetchRemoteIndex() {
     var url = buildUrl('books-index.json?t=' + Date.now());
-    console.log('[DataManager] 加载全局索引: ' + url);
+    console.log('[DataManager] 远程加载全局索引: ' + url);
     return fetchWithRetry(url)
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -250,7 +269,7 @@
       })
       .catch(function (err) {
         console.error('[DataManager] 加载全局索引失败:', err);
-        // 尝试读取缓存
+        // 再次尝试缓存
         return storeGet(KEY_INDEX).then(function (cached) {
           if (cached) {
             _cachedIndex = cached;
@@ -259,6 +278,31 @@
           }
           throw new Error('无法加载书籍索引，请检查网络连接');
         });
+      });
+  }
+
+  /**
+   * 后台静默检查索引更新，有新版本则自动拉取
+   */
+  function _silentCheckUpdate() {
+    var url = buildUrl('manifest.json?t=' + Date.now());
+    fetch(url, { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (remoteManifest) {
+        if (!remoteManifest) return;
+        return storeGet(KEY_MANIFEST).then(function (localManifest) {
+          var remoteVer = remoteManifest.version || 0;
+          var localVer = (localManifest && localManifest.version) || 0;
+          if (remoteVer > localVer) {
+            console.log('[DataManager] 发现新版本（' + localVer + ' → ' + remoteVer + '），后台更新索引...');
+            _cachedManifest = remoteManifest;
+            storeSet(KEY_MANIFEST, remoteManifest);
+            _fetchRemoteIndex();
+          }
+        });
+      })
+      .catch(function () {
+        // 后台检查失败无所谓，用缓存就好
       });
   }
 
