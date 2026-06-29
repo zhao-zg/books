@@ -21,10 +21,7 @@
 
     function getPreferredTheme() {
         const savedTheme = getStoredTheme();
-        if (savedTheme) return savedTheme;
-        try {
-            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'cool';
-        } catch (e) { return 'cool'; }
+        return savedTheme || 'cool';
     }
 
     function syncThemeColor(theme) {

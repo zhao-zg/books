@@ -116,8 +116,11 @@
         var chunkSize = 8192;
         
         for (var i = 0; i < bytes.length; i += chunkSize) {
-            var chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-            binary += new TextDecoder('latin1').decode(chunk);
+            var end = Math.min(i + chunkSize, bytes.length);
+            // 直接用字节值转二进制字符串，避免 TextDecoder('latin1') 兼容性问题
+            for (var j = i; j < end; j++) {
+                binary += String.fromCharCode(bytes[j]);
+            }
             if (onProgress && i % (chunkSize * 10) === 0) {
                 onProgress(Math.round((i / bytes.length) * 100));
             }

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f6f8fc">
     <meta name="app-version" content="">
     <!-- 防止主题跳色：在渲染前设置主题 -->
-    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}else{try{t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'cool'}catch(e){t='cool'}}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#F5EFE4':(t==='dark'?'#161920':'#f6f8fc'));}})();</script>
+    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#F5EFE4':(t==='dark'?'#161920':'#f6f8fc'));}})();</script>
     <!-- 伪装检测 -->
     <script>(function(){var ok=false;try{if(sessionStorage.getItem('bk_access')==='ok')ok=true;}catch(e){}if(!ok&&window.location.search.indexOf('zzg')!==-1){try{sessionStorage.setItem('bk_access','ok');}catch(e){}ok=true;}if(!ok&&window.location.hash&&window.location.hash.length>2){ok=true;}if(!ok){var isCap=window.Capacitor!==undefined||window.location.protocol==='capacitor:'||window.location.hostname==='localhost';var isPwa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!isCap&&!isPwa)document.documentElement.classList.add('bk-disguise');}})();</script>
     <meta name="mobile-web-app-capable" content="yes">
