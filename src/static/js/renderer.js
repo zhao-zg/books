@@ -263,6 +263,12 @@
             }
             if (!found) win.__bkBooks.push(zlBook);
           }
+          // DataManager 加载成功后，若首页可见则重新渲染为系列目录
+          var homeEl = document.getElementById('homeView');
+          if (homeEl && homeEl.style.display !== 'none' && _zlBooks.length > 0) {
+            _zlHomeView = 'catalog';
+            _renderZlHome(homeEl);
+          }
         }
         return _mergeImportedBooks();
       }).catch(function (err) {
