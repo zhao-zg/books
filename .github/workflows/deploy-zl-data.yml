@@ -4,24 +4,43 @@ on:
   push:
     branches: [main]
     paths:
-      - 'resource/zl-merged/**'
+      - 'resource/ysz/**'
+      - 'process_ysz_books.py'
+      - 'merge_zl_data.py'
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy zl-merged to Cloudflare Pages
+    name: Regenerate & deploy zl-merged to Cloudflare Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install wrangler
-        run: npm install -g wrangler
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          npm install -g wrangler
+
+      - name: Regenerate zl-merged from ysz
+        run: |
+          echo "=== Step 1: ysz -> zl-ysz ==="
+          python process_ysz_books.py
+          echo "=== Step 2: zl-ysz -> zl-merged ==="
+          python merge_zl_data.py --force
+          echo "=== Done ==="
+          ls -la resource/zl-merged/
+          cat resource/zl-merged/manifest.json
 
       - name: Deploy to Cloudflare Pages
         run: wrangler pages deploy resource/zl-merged --project-name=books-data

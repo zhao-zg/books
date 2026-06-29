@@ -2,16 +2,13 @@
 """
 静态站点生成器
 
-将解析后的 Book 对象序列化为 JSON，并生成全局索引、搜索索引和静态资源。
+生成全局索引、静态资源、PWA 文件等。
 """
 import json
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import List
-
-from .models import Book
 
 
 class BooksGenerator:
@@ -26,107 +23,6 @@ class BooksGenerator:
         self.output_dir = output_dir
         self.config = config
         os.makedirs(output_dir, exist_ok=True)
-
-    # ------------------------------------------------------------------
-    # JSON 生成
-    # ------------------------------------------------------------------
-
-    def generate_book_json(self, book: Book):
-        """生成单本书的 book.json。
-
-        保存到 output/{book.id}/book.json
-        """
-        book_dir = os.path.join(self.output_dir, book.id)
-        os.makedirs(book_dir, exist_ok=True)
-
-        data = book.to_dict()
-        data['version'] = datetime.now().strftime('%Y%m%d%H%M%S')
-
-        json_path = os.path.join(book_dir, 'book.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        print(f"  ✓ {book.id}/book.json 已生成 ({len(book.chapters)} 章)")
-
-    def generate_books_json(self, books: List[Book]):
-        """生成全局索引 books.json。
-
-        包含所有书的摘要信息，保存到 output/books.json
-        """
-        entries = [book.summary_dict() for book in books]
-        # 按 date_added 倒序（新加的在前）
-        entries.sort(key=lambda b: b.get('date_added', ''), reverse=True)
-
-        data = {
-            'version': datetime.now().strftime('%Y%m%d%H%M%S'),
-            'count': len(entries),
-            'books': entries,
-        }
-
-        json_path = os.path.join(self.output_dir, 'books.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        print(f"✓ books.json 已生成 ({len(entries)} 本书)")
-
-    def generate_search_index(self, books: List[Book]):
-        """生成搜索索引 search-index.json。
-
-        遍历所有书的章节内容，创建可搜索条目。
-        保存到 output/data/search-index.json
-        """
-        entries = []
-        for book in books:
-            for chapter in book.chapters:
-                pi = 0  # paragraph index
-                for content in chapter.content:
-                    if content.type == 'paragraph' and content.text and len(content.text) >= 6:
-                        entries.append({
-                            'url': f"{book.id}/{chapter.number}",
-                            'book_id': book.id,
-                            'book_title': book.title,
-                            'chapter': chapter.number,
-                            'chapter_title': chapter.title,
-                            'pi': pi,
-                            'text': content.text[:300],
-                        })
-                        pi += 1
-                    elif content.type == 'heading' and content.text:
-                        entries.append({
-                            'url': f"{book.id}/{chapter.number}",
-                            'book_id': book.id,
-                            'book_title': book.title,
-                            'chapter': chapter.number,
-                            'chapter_title': chapter.title,
-                            'pi': pi,
-                            'text': content.text[:200],
-                        })
-                        pi += 1
-                    elif content.type == 'quote' and content.text and len(content.text) >= 6:
-                        entries.append({
-                            'url': f"{book.id}/{chapter.number}",
-                            'book_id': book.id,
-                            'book_title': book.title,
-                            'chapter': chapter.number,
-                            'chapter_title': chapter.title,
-                            'pi': pi,
-                            'text': content.text[:300],
-                        })
-                        pi += 1
-
-        data = {
-            'version': datetime.now().strftime('%Y%m%d%H%M%S'),
-            'count': len(entries),
-            'entries': entries,
-        }
-
-        data_dir = os.path.join(self.output_dir, 'data')
-        os.makedirs(data_dir, exist_ok=True)
-        json_path = os.path.join(data_dir, 'search-index.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, separators=(',', ':'))
-
-        print(f"✓ search-index.json 已生成 ({len(entries)} 条索引)")
 
     # ------------------------------------------------------------------
     # 静态资源
@@ -229,33 +125,23 @@ class BooksGenerator:
     # 完整生成流程
     # ------------------------------------------------------------------
 
-    def generate_all(self, books: List[Book], app_config: dict = None):
-        """完整生成流程：逐本书生成 JSON → 全局索引 → 搜索索引 → 静态资源"""
+    def generate_all(self, app_config: dict = None):
+        """完整生成流程：静态资源 → PWA → version"""
 
-        # 1. 逐本书生成 book.json
-        for book in books:
-            self.generate_book_json(book)
-
-        # 2. 全局索引
-        self.generate_books_json(books)
-
-        # 3. 静态资源（先复制，避免后续生成的文件被覆盖）
+        # 1. 静态资源（先复制，避免后续生成的文件被覆盖）
         self.copy_static_assets()
 
-        # 3.5 生成完整 CSS
+        # 2. 生成完整 CSS
         self.generate_css()
 
-        # 4. 搜索索引
-        self.generate_search_index(books)
-
-        # 5. PWA manifest 和 Service Worker
+        # 3. PWA manifest 和 Service Worker
         self.generate_manifest_and_sw()
 
-        # 6. version.json
+        # 4. version.json
         if app_config:
             self.generate_version_json(app_config)
 
-        # 6.5 复制 app_config.json 到 output/（供前端 loadConfig 回退路径使用）
+        # 5. 复制 app_config.json 到 output/（供前端 loadConfig 回退路径使用）
         app_config_src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app_config.json')
         if os.path.exists(app_config_src):
             shutil.copy2(app_config_src, os.path.join(self.output_dir, 'app_config.json'))
@@ -263,7 +149,7 @@ class BooksGenerator:
         else:
             print("⚠ app_config.json 未找到，跳过复制")
 
-        # 7. .nojekyll（GitHub Pages 兼容）
+        # 6. .nojekyll（GitHub Pages 兼容）
         nojekyll_path = os.path.join(self.output_dir, '.nojekyll')
         with open(nojekyll_path, 'w') as f:
             f.write('')

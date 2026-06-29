@@ -2,8 +2,7 @@
 """
 书报 - 电子书阅读应用构建工具
 
-扫描 resource/books/ 目录，解析 EPUB/Markdown/TXT 格式电子书，
-生成 JSON 数据文件和静态站点。
+从 resource/ysz/ 转换书籍数据，生成静态站点和配置文件。
 """
 import os
 import sys
@@ -14,9 +13,6 @@ import subprocess
 import yaml
 from pathlib import Path
 
-from src.epub_parser import parse_epub
-from src.md_parser import parse_markdown
-from src.txt_parser import parse_txt
 from src.generator import BooksGenerator
 
 
@@ -35,46 +31,6 @@ def load_app_config(config_path='app_config.json'):
         }
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
-
-
-def scan_books(resource_dir: str) -> list:
-    """扫描书籍目录，返回文件列表。
-
-    支持的文件格式：.epub, .md, .txt
-    """
-    books_dir = Path(resource_dir) / 'books'
-    if not books_dir.exists():
-        # 也尝试直接扫描 resource_dir
-        books_dir = Path(resource_dir)
-        if not books_dir.exists():
-            return []
-
-    supported_extensions = {'.epub', '.md', '.txt'}
-    book_files = []
-    for f in sorted(books_dir.rglob('*')):
-        if f.suffix.lower() in supported_extensions and f.is_file():
-            book_files.append(f)
-    return book_files
-
-
-def parse_book(file_path, output_dir='output'):
-    """根据文件扩展名选择解析器"""
-    ext = file_path.suffix.lower()
-    try:
-        if ext == '.epub':
-            return parse_epub(file_path, output_dir)
-        elif ext == '.md':
-            return parse_markdown(file_path, output_dir)
-        elif ext == '.txt':
-            return parse_txt(file_path, output_dir)
-        else:
-            print(f"  ⚠ 不支持的格式: {ext}")
-            return None
-    except Exception as e:
-        print(f"  ✗ 解析失败: {file_path.name} — {e}")
-        import traceback
-        traceback.print_exc()
-        return None
 
 
 def copy_zl_merged_data(resource_dir: str, output_dir: str):
@@ -291,24 +247,9 @@ def main():
 
     print()
 
-    # 扫描并解析书籍
-    book_files = scan_books(resource_dir)
-    print(f"✓ 发现 {len(book_files)} 本电子书")
-    print()
-
-    books = []
-    for file_path in book_files:
-        print(f"解析: {file_path.name}")
-        book = parse_book(file_path, output_dir)
-        if book:
-            books.append(book)
-            print(f"  → {book.title} ({len(book.chapters)} 章)")
-
-    print()
-
     # 生成静态站点
     generator = BooksGenerator(output_dir, config)
-    generator.generate_all(books, app_config)
+    generator.generate_all(app_config)
 
     # 生成 remote-config.js（base64 编码 URL）
     generate_remote_config(config, output_dir)
@@ -325,7 +266,7 @@ def main():
     copy_zl_merged_data(resource_dir, output_dir)
 
     print(f"\n{'=' * 60}")
-    print(f" 构建完成! 共 {len(books)} 本书")
+    print(f" 构建完成!")
     print(f" 输出目录: {output_dir}/")
     print(f"{'=' * 60}")
 

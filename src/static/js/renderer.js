@@ -1,7 +1,7 @@
 /*!
  * renderer.js — 书报 SPA 电子书渲染器
  *
- * 从 books.json / book.json 渲染各视图：
+ * 从 DataManager (books-index.json) 渲染各视图：
  *   .renderHome()                        → 书籍列表
  *   .renderChapterList(bookId)           → 章节列表（目录）
  *   .renderReadingView(bookId, chapterN) → 阅读视图
@@ -65,8 +65,7 @@
       delete _bookCache[oldest];
     }
   }
-  // 缓存 books.json
-  var _booksIndex = null;
+
 
   // ── zl-html 数据状态 ────────────────────────────────────────────────────
   var _zlIndex = null;          // DataManager 加载的 books-index.json
@@ -92,22 +91,7 @@
 
   // ── 数据加载 ─────────────────────────────────────────────────────────────
 
-  function loadBooksIndex() {
-    if (_booksIndex) return Promise.resolve(_booksIndex);
-    var root = win.BK_ROOT || './';
-    var isNative = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
-    var jsonUrl = isNative ? root + 'books.json?_t=' + Date.now() : root + 'books.json';
-    return fetch(jsonUrl)
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function(data) {
-        _booksIndex = data;
-        win.__bkBooks = data.books || data;
-        return _booksIndex;
-      });
-  }
+
 
   function loadBook(bookId) {
     var _cached = _bookCacheGet(bookId);
@@ -121,82 +105,41 @@
           return win.ImportManager.getImportedBook(bookId);
         }).then(function (data) {
           if (data) { _bookCacheSet(bookId, data); return data; }
-          // 未命中导入，继续走 DataManager / Legacy
+          // 未命中导入，继续走 DataManager
           if (_zlDmReady && win.DataManager) {
             return win.DataManager.getBook(bookId)
               .then(function (d) { _bookCacheSet(bookId, d); return d; })
               .catch(function (dmErr) {
                 console.warn('[Renderer] DataManager 加载失败: ' + bookId, dmErr.message);
-                return _loadBookLegacy(bookId).catch(function (legacyErr) {
-                  // DataManager 和 Legacy 都失败，检查是否为离线 + 未缓存
-                  if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
-                    throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
-                  }
-                  throw legacyErr || dmErr;
-                });
+                if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
+                  throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
+                }
+                throw dmErr;
               });
           }
-          return _loadBookLegacy(bookId);
+          return Promise.reject(new Error('DataManager 未初始化'));
         });
       }
 
-      // 优先通过 DataManager 加载 zl-html 书籍
+      // 通过 DataManager 加载书籍
       if (_zlDmReady && win.DataManager) {
         return win.DataManager.getBook(bookId)
-          .then(function (data) {
-            _bookCacheSet(bookId, data);
-            return data;
-          })
+          .then(function (data) { _bookCacheSet(bookId, data); return data; })
           .catch(function (dmErr) {
             console.warn('[Renderer] DataManager 加载失败: ' + bookId, dmErr.message);
-            return _loadBookLegacy(bookId).catch(function (legacyErr) {
-              // DataManager 和 Legacy 都失败，检查是否为离线 + 未缓存
-              if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
-                throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
-              }
-              throw legacyErr || dmErr;
-            });
+            if (_isBookDownloaded(bookId) === false && !navigator.onLine) {
+              throw new Error('此书尚未缓存，请连接网络后重试。可在下载管理中预先缓存书籍。');
+            }
+            throw dmErr;
           });
       }
 
-      return _loadBookLegacy(bookId);
+      // DataManager 不可用，检查导入管理器
+      return Promise.reject(new Error('DataManager 未初始化'));
     });
   }
 
-  // 旧路径加载 book.json（EPUB/MD/TXT 书籍）
-  function _loadBookLegacy(bookId) {
-    var _cachedLegacy = _bookCacheGet(bookId);
-    if (_cachedLegacy) return Promise.resolve(_cachedLegacy);
-    var root = win.BK_ROOT || './';
-    var isNative = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
-    var jsonUrl = isNative
-      ? root + bookId + '/book.json?_t=' + Date.now()
-      : root + bookId + '/book.json';
-    return fetch(jsonUrl)
-      .then(function(r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .catch(function(fetchErr) {
-        if (isNative && ('caches' in win)) {
-          var cacheUrls = [
-            (win.location.origin || '') + '/' + bookId + '/book.json',
-            root + bookId + '/book.json'
-          ];
-          return caches.match(cacheUrls[0]).then(function(r1) {
-            return r1 || caches.match(cacheUrls[1]);
-          }).then(function(cachedResp) {
-            if (cachedResp && cachedResp.ok) return cachedResp.json();
-            throw fetchErr;
-          });
-        }
-        throw fetchErr;
-      })
-      .then(function(data) {
-        _bookCacheSet(bookId, data);
-        return data;
-      });
-  }
+  // 旧路径加载已移除（books.json / book.json 不再使用）
 
   /**
    * 确保 DataManager 已初始化（单例 Promise）
@@ -223,24 +166,35 @@
         var isNativeApp = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
         var isPwaStandalone = (win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || win.navigator.standalone;
 
-        if (isNativeApp) {
-          dmUrl = 'https://books-data.pages.dev';
-          console.log('[Renderer] APK模式：DataManager 使用 ' + dmUrl);
-        } else if (isPwaStandalone) {
-          dmUrl = 'https://books-data.pages.dev';
-          console.log('[Renderer] PWA模式：DataManager 使用 ' + dmUrl);
+        // 从配置的 cloudflare 地址列表构建数据源 URL（多个地址可容灾）
+        var cfServers = (win.BK_SERVERS && win.BK_SERVERS.cloudflare) || [];
+        var dmUrls = [];
+
+        if (isNativeApp || isPwaStandalone) {
+          // APK/PWA：使用 cloudflare 地址列表，每个加 /zl-data
+          if (cfServers.length > 0) {
+            for (var si = 0; si < cfServers.length; si++) {
+              dmUrls.push(cfServers[si].replace(/\/+$/, '') + '/zl-data');
+            }
+          } else {
+            dmUrls.push('https://books-data.pages.dev');
+          }
+          dmUrl = dmUrls[0];
+          console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：DataManager 使用 ' + dmUrls.length + ' 个地址');
         } else if (isLocal) {
           var origin = win.location.origin;
           if (!origin || origin === 'null') origin = 'http://localhost:8080';
-          dmUrl = origin + '/zl-data';
+          dmUrls.push(origin + '/zl-data');
+          dmUrl = dmUrls[0];
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
-          dmUrl = win.location.origin + '/zl-data';
+          dmUrls.push(win.location.origin + '/zl-data');
+          dmUrl = dmUrls[0];
           console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl);
         }
       } catch (e) {}
       if (!dmUrl || !win.DataManager) return Promise.resolve();
-      win.DataManager.setBaseUrl(dmUrl);
+      win.DataManager.setBaseUrl(dmUrls && dmUrls.length > 1 ? dmUrls : dmUrl);
       _zlDmReady = true;
       return Promise.all([
         win.DataManager.loadIndex(),
@@ -1306,7 +1260,7 @@
 
     // 未下载，尝试下载后打开
     if (!_zlDmReady || !win.DataManager) {
-      // DataManager 不可用，直接导航（可能走旧的 books.json 路径）
+      // DataManager 不可用，直接导航
       if (win.BKRouter) win.BKRouter.navigate(bookId);
       return;
     }

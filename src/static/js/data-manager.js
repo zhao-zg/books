@@ -20,13 +20,15 @@
  *   .resumeDownload()         恢复批量下载
  *   .cancelDownload()         取消批量下载
  *   .getDownloadStatus()      获取下载状态
- *   .setBaseUrl(url)          设置数据基础 URL
+ *   .setBaseUrl(urlOrArray)  设置数据基础 URL（支持数组，多地址容灾）
  */
 (function (win) {
   'use strict';
 
   // ── 配置 ──────────────────────────────────────────────────────────────
-  var DATA_BASE_URL = '';
+  var DATA_BASE_URLS = [];   // 多个基础 URL，容灾兜底
+  var DATA_BASE_URL = '';    // 当前生效的 URL
+  var _currentUrlIndex = 0;
 
   // ── localforage 实例 ─────────────────────────────────────────────────
   var store = (typeof localforage !== 'undefined')
@@ -66,9 +68,10 @@
   }
 
   /**
-   * 带重试的 fetch
+   * 带重试 + 多地址容灾的 fetch
+   * 当前地址重试耗尽后自动切换到下一个地址
    * @param {string} url
-   * @param {number} [retries] 剩余重试次数
+   * @param {number} [retries] 当前地址剩余重试次数
    * @returns {Promise<Response>}
    */
   function fetchWithRetry(url, retries) {
@@ -79,15 +82,27 @@
         return r;
       })
       .catch(function (err) {
-        if (retries <= 0) throw err;
-        // 指数退避：1s, 2s, 4s
-        var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
-        console.warn('[DataManager] 请求失败，' + delay + 'ms 后重试: ' + url);
-        return new Promise(function (resolve) {
-          setTimeout(resolve, delay);
-        }).then(function () {
-          return fetchWithRetry(url, retries - 1);
-        });
+        if (retries > 0) {
+          // 当前地址还有重试次数，指数退避后重试
+          var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
+          console.warn('[DataManager] 请求失败，' + delay + 'ms 后重试: ' + url);
+          return new Promise(function (resolve) {
+            setTimeout(resolve, delay);
+          }).then(function () {
+            return fetchWithRetry(url, retries - 1);
+          });
+        }
+        // 当前地址重试耗尽，尝试切换到下一个地址
+        if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1) {
+          _currentUrlIndex++;
+          DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
+          console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL);
+          // 用新地址重新构建 URL 并重试
+          var path = url.substring(url.lastIndexOf('/') + 1);
+          var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + path;
+          return fetchWithRetry(newUrl, MAX_RETRIES);
+        }
+        throw err;
       });
   }
 
@@ -842,7 +857,17 @@
     resumeDownload: resumeDownload,
     cancelDownload: cancelDownload,
     getDownloadStatus: getDownloadStatus,
-    setBaseUrl: function (url) { DATA_BASE_URL = url; }
+    setBaseUrl: function (urlOrArray) {
+      if (Array.isArray(urlOrArray)) {
+        DATA_BASE_URLS = urlOrArray.map(function(u) { return u.replace(/\/+$/, ''); });
+        _currentUrlIndex = 0;
+        DATA_BASE_URL = DATA_BASE_URLS[0] || '';
+      } else {
+        DATA_BASE_URLS = [(urlOrArray || '').replace(/\/+$/, '')];
+        _currentUrlIndex = 0;
+        DATA_BASE_URL = DATA_BASE_URLS[0] || '';
+      }
+    }
   };
 
 }(window));
