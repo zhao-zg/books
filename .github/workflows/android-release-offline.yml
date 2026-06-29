@@ -798,7 +798,7 @@ jobs:
         # 显示 output 目录内容
         echo ""
         echo "=== output 目录 ==="
-        ls -lh output/*.apk output/version.json
+        ls -lh output/version.json
         
     - name: 创建 Release
       if: startsWith(github.ref, 'refs/tags/')
