@@ -175,6 +175,19 @@
                     </label>
                 </div>
             </div>
+            <div class="theme-section" id="devModeSection">
+                <div class="theme-section-title">开发者</div>
+                <div class="pref-row">
+                    <div class="pref-label-wrap">
+                        <span class="pref-title">开发者模式</span>
+                        <span class="pref-desc">在页面底部显示调试日志控制台</span>
+                    </div>
+                    <label class="pref-toggle">
+                        <input type="checkbox" id="devModeToggle">
+                        <span class="pref-toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
         `;
         document.body.appendChild(panel);
 
@@ -339,6 +352,20 @@
                 });
             }
         }
+
+        // 开发者模式
+        (function() {
+            var devToggle = document.getElementById('devModeToggle');
+            if (devToggle) {
+                try { devToggle.checked = localStorage.getItem('bk_dev_mode') === '1'; } catch(e) {}
+                devToggle.addEventListener('change', function() {
+                    var on = this.checked;
+                    try { localStorage.setItem('bk_dev_mode', on ? '1' : '0'); } catch(e) {}
+                    if (on && window.BKDevConsole) window.BKDevConsole.init();
+                    else if (!on && window.BKDevConsole) window.BKDevConsole.destroy();
+                });
+            }
+        })();
 
         // 安卓 APK
         var apkBtn = document.getElementById('androidApkBtn');

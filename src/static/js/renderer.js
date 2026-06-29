@@ -72,10 +72,11 @@
   var _zlIndex = null;          // DataManager 加载的 books-index.json
   var _zlSeries = [];           // 系列数组
   var _zlBooks = [];            // 书籍数组
-  var _zlCurrentSeries = 'all'; // 当前选中的系列过滤
+  var _zlCurrentSeries = '';   // 当前选中的系列过滤
   var _zlCurrentCategory = null;  // 当前选中的类型（null 表示显示类型目录页）
   var _zlCurrentCategoryPrefix = null; // 当前选中类型的 category_prefix
   var _zlDownloadedIds = [];    // 已下载的书籍 ID 列表
+  var _zlHomeView = 'catalog';  // 首页视图模式：'catalog'（系列目录）| 'series'（系列书籍列表）
   var _zlDmReady = false;       // DataManager 是否就绪
   var _dmInitPromise = null;    // DataManager 初始化 Promise（单例）
   var _dlPanelOpen = false;     // 下载面板是否展开
@@ -683,11 +684,21 @@
       emptyHtml += '<div>暂无书籍，请点击导入按钮添加书籍</div>';
       emptyHtml += '</div></div></div>';
       homeView.innerHTML = emptyHtml;
-      // 使用事件委托绑定导入按钮事件
       _bindZlEvents(homeView);
       return;
     }
 
+    if (_zlHomeView === 'catalog') {
+      _renderSeriesCatalog(homeView);
+    } else {
+      _renderSeriesBookList(homeView);
+    }
+  }
+
+  /**
+   * 渲染系列卡片目录（首页默认视图）
+   */
+  function _renderSeriesCatalog(homeView) {
     var html = '<div class="container">';
 
     // 头部
@@ -696,7 +707,6 @@
     html += '<p class="subtitle">电子书阅读应用</p>';
     html += '<div class="home-header-actions">';
     html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
-    // 溢出菜单
     html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
     html += '<button type="button" class="home-action-btn home-overflow-trigger" id="bk-overflow-btn">⋯</button>';
     html += '<div class="home-overflow-dropdown" id="homeOverflowDropdown" style="display:none">';
@@ -710,10 +720,72 @@
     html += '</div>';
     html += '</div>';
 
-    // 系列标签栏
-    html += _buildSeriesTabs();
+    // 系列卡片网格
+    html += '<div class="series-catalog-grid">';
+    for (var i = 0; i < _zlSeries.length; i++) {
+      var s = _zlSeries[i];
+      var color = _getSeriesColor(s.id);
+      var bookCount = 0;
+      for (var j = 0; j < _zlBooks.length; j++) {
+        if (_zlBooks[j].series === s.id) bookCount++;
+      }
+      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '" style="--series-color:' + color + '">';
+      html += '<div class="series-catalog-card-title">' + escText(s.title) + '</div>';
+      html += '<div class="series-catalog-card-count">' + bookCount + ' 本</div>';
+      html += '</div>';
+    }
+    html += '</div>';
 
-    // 书籍网格
+    // 底部
+    html += '<div class="footer">';
+    html += '<p>本站内容仅供主内圣徒交通使用</p>';
+    html += '<p class="footer-meta" id="footerMeta"></p>';
+    html += '</div>';
+    html += '</div>';
+
+    if (_zlDmReady) {
+      html += _buildDownloadPanel();
+    }
+
+    homeView.innerHTML = html;
+    _bindZlEvents(homeView);
+  }
+
+  /**
+   * 渲染系列书籍列表视图（点击系列卡片后进入）
+   */
+  function _renderSeriesBookList(homeView) {
+    var seriesTitle = _getSeriesTitle(_zlCurrentSeries);
+
+    var html = '<div class="container">';
+
+    // 精简头部：返回按钮 + 系列名称
+    html += '<div class="header series-list-header">';
+    html += '<div class="series-back-row">';
+    html += '<button type="button" class="series-back-btn" id="seriesBackBtn" title="返回系列目录">';
+    html += '<span class="series-back-icon">←</span>';
+    html += '</button>';
+    html += '<div class="series-list-titles">';
+    html += '<h1 class="logo-trigger series-list-title">' + escText(seriesTitle) + '</h1>';
+    html += '<p class="subtitle">📖 书报</p>';
+    html += '</div>';
+    html += '</div>';
+    html += '<div class="home-header-actions">';
+    html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
+    html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
+    html += '<button type="button" class="home-action-btn home-overflow-trigger" id="bk-overflow-btn">⋯</button>';
+    html += '<div class="home-overflow-dropdown" id="homeOverflowDropdown" style="display:none">';
+    if (_zlDmReady) {
+      html += '<button type="button" id="bk-dl-mgr-btn" class="home-overflow-item">📥 下载管理</button>';
+    }
+    html += '<button type="button" id="bk-import-btn" class="home-overflow-item">📂 导入</button>';
+    html += '<button type="button" id="bk-manage-btn" class="home-overflow-item">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    // 书籍网格（复用现有逻辑，含 books 系列二级分类导航）
     html += _buildBookGrid(_zlCurrentSeries);
 
     // 底部
@@ -723,14 +795,11 @@
     html += '</div>';
     html += '</div>';
 
-    // 下载面板
     if (_zlDmReady) {
       html += _buildDownloadPanel();
     }
 
     homeView.innerHTML = html;
-
-    // 绑定事件
     _bindZlEvents(homeView);
   }
 
@@ -739,7 +808,6 @@
    */
   function _buildSeriesTabs() {
     var html = '<div class="series-tabs" id="seriesTabs">';
-    html += '<button class="series-tab' + (_zlCurrentSeries === 'all' ? ' active' : '') + '" data-series="all">全部</button>';
     for (var i = 0; i < _zlSeries.length; i++) {
       var s = _zlSeries[i];
       var active = _zlCurrentSeries === s.id ? ' active' : '';
@@ -796,12 +864,9 @@
    * 根据当前系列过滤构建书籍网格 HTML
    */
   function _buildBookGrid(seriesFilter) {
-    var filtered = _zlBooks;
-    if (seriesFilter && seriesFilter !== 'all') {
-      filtered = [];
-      for (var i = 0; i < _zlBooks.length; i++) {
-        if (_zlBooks[i].series === seriesFilter) filtered.push(_zlBooks[i]);
-      }
+    var filtered = [];
+    for (var i = 0; i < _zlBooks.length; i++) {
+      if (_zlBooks[i].series === seriesFilter) filtered.push(_zlBooks[i]);
     }
 
     if (!filtered.length) {
@@ -929,20 +994,39 @@
     }
 
     var clickHandler = function(e) {
+      // 0a. 系列目录卡片点击（进入系列书籍列表）
+      var seriesCatalogCard = e.target.closest ? e.target.closest('.series-catalog-card') : null;
+      if (seriesCatalogCard) {
+        e.preventDefault();
+        _zlCurrentSeries = seriesCatalogCard.getAttribute('data-series');
+        _zlHomeView = 'series';
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        _renderZlHome(homeView);
+        return;
+      }
+
+      // 0b. 返回系列目录按钮
+      if (e.target.closest && e.target.closest('#seriesBackBtn')) {
+        _zlHomeView = 'catalog';
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        _renderZlHome(homeView);
+        return;
+      }
+
       // 1. 系列标签点击
       var tab = e.target.closest ? e.target.closest('.series-tab') : null;
       if (tab) {
         e.preventDefault();
         var seriesId = tab.getAttribute('data-series');
         _zlCurrentSeries = seriesId;
-        _zlCurrentCategory = null;  // 切换系列时重置类型选择
+        _zlCurrentCategory = null;
         _zlCurrentCategoryPrefix = null;
-        // 更新标签状态
         var allTabs = homeView.querySelectorAll('.series-tab');
         for (var j = 0; j < allTabs.length; j++) {
           allTabs[j].className = 'series-tab' + (allTabs[j].getAttribute('data-series') === seriesId ? ' active' : '');
         }
-        // 重新渲染书籍网格
         var gridContainer = document.getElementById('bookGrid');
         if (gridContainer && gridContainer.parentNode) {
           var newGrid = _buildBookGrid(seriesId);
@@ -1018,27 +1102,13 @@
             if (allCards[ci].getAttribute('data-book-id') === delBookId) { cardEl = allCards[ci]; break; }
           }
           if (cardEl) cardEl.parentNode.removeChild(cardEl);
-          // 如果当前系列下没有书籍了，显示空状态
+          // 如果当前系列下没有书籍了，回到系列目录
           var grid = homeView.querySelector('.book-grid');
           if (grid && grid.querySelectorAll('.zl-book-card').length === 0) {
-            if (_zlCurrentSeries !== 'all') {
-              _zlCurrentSeries = 'all';
-              _zlCurrentCategory = null;
-              _zlCurrentCategoryPrefix = null;
-              var allTabs = homeView.querySelectorAll('.series-tab');
-              for (var ti = 0; ti < allTabs.length; ti++) {
-                allTabs[ti].className = 'series-tab' + (allTabs[ti].getAttribute('data-series') === 'all' ? ' active' : '');
-              }
-              var gridContainer = document.getElementById('bookGrid');
-              if (gridContainer && gridContainer.parentNode) {
-                var newGrid = _buildBookGrid('all');
-                var tmp = document.createElement('div');
-                tmp.innerHTML = newGrid;
-                gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
-              }
-            } else {
-              grid.innerHTML = '<div class="home-status">该系列暂无书籍</div>';
-            }
+            _zlHomeView = 'catalog';
+            _zlCurrentCategory = null;
+            _zlCurrentCategoryPrefix = null;
+            _renderZlHome(homeView);
           }
         };
         if (delBookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {

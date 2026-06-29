@@ -91,6 +91,9 @@ jobs:
         # 删除赞助二维码（APK 走远程获取，不需要打包）
         rm -rf output/images/zanzhu-wx.png output/images/zanzhu-zfb.jpg
         echo "✓ 已移除赞助图片（APK 不打包）"
+        # 删除书籍数据（APK/PWA 通过 CDN 在线获取，不打包进安装包）
+        rm -rf output/zl-data
+        echo "✓ 已移除 zl-data/（书籍数据通过 CDN 在线加载）"
         du -sh output/
         find output/ -type f | wc -l
         echo "文件总数"
@@ -811,13 +814,12 @@ jobs:
           
           ### 📦 下载说明
           
-          **离线版 APK** - 约 50-100 MB
+          **轻量版 APK** - 约 10-20 MB
           - 文件名：`Books-${{ github.ref_name }}.apk`
           - 特点：
             - 应用核心功能离线可用
-            - 书籍内容需首次联网后在下载管理中缓存到本地
-            - 支持选择性缓存或全部缓存
-          - 注意：内容更新需要重新下载安装新版本 APK
+            - 书籍内容通过 CDN 在线加载，首次使用需联网
+            - 支持选择性缓存或全部缓存到本地
           
           ### 💡 在线版替代方案
           

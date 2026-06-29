@@ -1371,14 +1371,33 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool) -> Dict[st
     # 构建结果
     result = {}
 
-    # 组装提升后的独立系列
+    # 组装提升后的独立系列（每个分组作为一本书，条目作为章节）
     for series_id, group_list in promoted.items():
         books = []
         book_num = 0
         for group_name, items in group_list:
-            new_books, book_num = _extract_items_to_books(
-                items, series_id, book_num)
-            books.extend(new_books)
+            book_num += 1
+            book_id = f"{series_id}-{book_num:03d}"
+            chapters = []
+            for item in items:
+                is_md = _is_markdown_url(item['url'])
+                extracted = _lookup_and_extract(
+                    item['url'], lookup, is_markdown=is_md)
+                if extracted:
+                    chapters.append({
+                        'number': len(chapters) + 1,
+                        'title': extracted.get('title', '') or item.get('title', ''),
+                        'content': extracted['content'],
+                    })
+                elif verbose:
+                    log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+            if chapters:
+                books.append({
+                    'id': book_id,
+                    'title': sanitize_text(group_name),
+                    'format': 'html',
+                    'chapters': chapters,
+                })
         result[series_id] = books
         log.info(f"  {series_id} (从sy_auto提升): {len(books)} 本书")
 
