@@ -320,8 +320,8 @@
             if (updateBtn) {
                 updateBtn.style.display = 'inline-flex';
                 updateBtn.addEventListener('click', function() {
-                    if (window.AppUpdate && window.AppUpdate.showGitHubUpdateDialog) {
-                        window.AppUpdate.showGitHubUpdateDialog();
+                    if (window.AppUpdate && window.AppUpdate.showCloudflareUpdateDialog) {
+                        window.AppUpdate.showCloudflareUpdateDialog();
                     }
                 });
             }
