@@ -380,8 +380,11 @@
                         .then(function(v) {
                             var f = v.apk_file || ('Books-v' + (v.apk_version || v.version) + '.apk');
                             var sz = v.apk_size ? ' (' + (v.apk_size / 1024 / 1024).toFixed(1) + ' MB)' : '';
+                            // APK 从 GitHub Release 下载（Cloudflare Pages 有 25MB 文件限制）
+                            var apkUrl = v.apk_url ||
+                                ('https://github.com/zhao-zg/books/releases/download/v' + (v.apk_version || v.version) + '/' + f);
                             if (statusEl) { statusEl.textContent = '正在下载 v' + (v.apk_version || v.version) + sz + '...'; statusEl.className = 'cache-status success'; }
-                            window.open(root + f, '_blank');
+                            window.open(apkUrl, '_blank');
                         })
                         .catch(function(e) {
                             if (statusEl) { statusEl.textContent = '获取失败: ' + e.message; statusEl.className = 'cache-status error'; }

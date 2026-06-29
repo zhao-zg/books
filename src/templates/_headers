@@ -1,0 +1,32 @@
+# Cloudflare Pages HTTP Headers
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+# 全局安全头
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+
+# Service Worker: 不缓存，确保每次获取最新版本
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# version.json: 不缓存 + CORS（APK 内检查更新需要跨域访问）
+/version.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Access-Control-Allow-Origin: *
+
+# manifest.json: 不缓存
+/manifest.json
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
+
+# APK 文件: CORS + 正确 Content-Type（当 APK 较小可以部署到 Pages 时使用）
+/*.apk
+  Access-Control-Allow-Origin: *
+  Content-Type: application/vnd.android.package-archive
+  Cache-Control: public, max-age=86400
+
+# changelog.json: 不缓存
+/changelog.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Access-Control-Allow-Origin: *

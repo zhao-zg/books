@@ -94,9 +94,9 @@ jobs:
             exit 1
           fi
       
-      - name: 从 GitHub Release 下载 APK
+      - name: 获取 APK 信息并更新 version.json
         run: |
-          echo "🔍 从 GitHub Release 获取最新 APK..."
+          echo "🔍 从 GitHub Release 获取 APK 信息..."
           
           # 获取最新 Release 信息
           RELEASE_INFO=$(curl -sf "https://api.github.com/repos/zhao-zg/books/releases/latest" || echo "{}")
@@ -113,18 +113,15 @@ jobs:
           APK_VERSION=$(echo "$RELEASE_INFO" | jq -r '.tag_name // empty' | sed 's/^v//')
           
           if [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
-            echo "📥 下载 APK: $APK_NAME"
+            echo "📦 APK 信息:"
+            echo "   文件: $APK_NAME"
             echo "   版本: $APK_VERSION"
             echo "   大小: $APK_SIZE bytes"
             echo "   URL: $APK_URL"
             
-            if curl -sfL -o "output/$APK_NAME" "$APK_URL"; then
-              DOWNLOADED_SIZE=$(stat -c%s "output/$APK_NAME" 2>/dev/null || echo "0")
-              echo "✓ APK 下载成功: $APK_NAME ($DOWNLOADED_SIZE bytes)"
-              
-              # 更新 version.json 添加 APK 信息
-              if [ -f output/version.json ]; then
-                python3 << PYTHON_EOF
+            # 更新 version.json 添加 APK 信息（不下载 APK，Cloudflare Pages 有 25MB 文件限制）
+            if [ -f output/version.json ]; then
+              python3 << PYTHON_EOF
           import json
           
           with open('output/version.json', 'r', encoding='utf-8') as f:
@@ -132,7 +129,8 @@ jobs:
           
           data['apk_file'] = '$APK_NAME'
           data['apk_version'] = '$APK_VERSION'
-          data['apk_size'] = $DOWNLOADED_SIZE
+          data['apk_size'] = $APK_SIZE
+          data['apk_url'] = '$APK_URL'
           
           with open('output/version.json', 'w', encoding='utf-8') as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
@@ -140,11 +138,9 @@ jobs:
           print('✓ version.json 已更新')
           print(f'  APK: $APK_NAME')
           print(f'  版本: $APK_VERSION')
-          print(f'  大小: $DOWNLOADED_SIZE bytes')
+          print(f'  大小: $APK_SIZE bytes')
+          print(f'  下载: $APK_URL')
           PYTHON_EOF
-              fi
-            else
-              echo "⚠️ APK 下载失败"
             fi
           else
             echo "ℹ️ Release 中没有 APK 文件"

@@ -731,13 +731,13 @@ jobs:
         name: android-apk
         path: Books-*.apk
     
-    - name: 准备 Cloudflare Pages 部署
+    - name: 更新 version.json APK 信息
       if: startsWith(github.ref, 'refs/tags/')
       run: |
         VERSION=${GITHUB_REF#refs/tags/v}
         APK_NAME="Books-v${VERSION}.apk"
         
-        echo "=== 准备 Cloudflare Pages 部署 ==="
+        echo "=== 更新 version.json ==="
         
         # 检查 APK 文件是否存在
         if [ ! -f "$APK_NAME" ]; then
@@ -746,23 +746,16 @@ jobs:
           exit 1
         fi
         
+        APK_SIZE=$(stat -c%s "$APK_NAME" 2>/dev/null || echo "0")
+        APK_URL="https://github.com/zhao-zg/books/releases/download/v${VERSION}/${APK_NAME}"
+        
         echo "APK 文件信息:"
         ls -lh "$APK_NAME"
-        
-        # 复制 APK 到 output 目录
-        cp "$APK_NAME" output/
-        echo "✓ APK 已复制到 output 目录"
-        
-        # 验证复制成功
-        if [ ! -f "output/$APK_NAME" ]; then
-          echo "✗ 错误: APK 复制失败"
-          exit 1
-        fi
-        
-        echo "output 目录中的 APK:"
-        ls -lh "output/$APK_NAME"
+        echo "  URL: $APK_URL"
         
         # 更新 version.json 添加 APK 信息
+        # 注意：APK 不复制到 output/，因为 Cloudflare Pages 有 25MB 文件限制
+        # APK 通过 GitHub Release 下载，version.json 中包含 apk_url 指向 GitHub Release
         python3 << PYTHON_EOF
         import json
         import os
@@ -770,6 +763,8 @@ jobs:
         version_file = 'output/version.json'
         version = '$VERSION'
         apk_name = '$APK_NAME'
+        apk_size = $APK_SIZE
+        apk_url = '$APK_URL'
         
         # 读取现有的 version.json
         if os.path.exists(version_file):
@@ -781,7 +776,8 @@ jobs:
         # 添加 APK 信息
         data['apk_version'] = version
         data['apk_file'] = apk_name
-        data['apk_size'] = os.path.getsize('output/' + apk_name)
+        data['apk_size'] = apk_size
+        data['apk_url'] = apk_url
         
         # 保存
         with open(version_file, 'w', encoding='utf-8') as f:
@@ -790,7 +786,8 @@ jobs:
         print(f'✓ version.json 已更新')
         print(f'  APK 版本: {version}')
         print(f'  APK 文件: {apk_name}')
-        print(f'  APK 大小: {data["apk_size"]} bytes')
+        print(f'  APK 大小: {apk_size} bytes')
+        print(f'  APK URL: {apk_url}')
         PYTHON_EOF
         
         # 显示 version.json 内容
