@@ -77,10 +77,10 @@
                     console.log('[NavStack] Capacitor backButton path="' + path + '" parts=' + JSON.stringify(parts));
                     if (parts.length >= 2) {
                         // 阅读视图 → 章节目录
-                        if (window.BKRouter) { window.BKRouter.navigate(parts[0]); return; }
+                        if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
                     } else if (parts.length >= 1) {
                         // 章节目录 → 主页
-                        if (window.BKRouter) { window.BKRouter.navigate(''); return; }
+                        if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                     }
                     window.Capacitor.Plugins.App.exitApp();
                 });

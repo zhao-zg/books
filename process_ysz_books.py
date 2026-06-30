@@ -1424,57 +1424,32 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool) -> Dict[st
                 }],
             })
 
-    # 处理剩余分组
+    # 处理剩余分组：每个分组整体作为一本书，所有直接条目和子分组条目均作为章节
     for group in remaining_groups:
-        sub_groups = group.get('sub_groups', [])
-        # 先处理直接条目（如有）：整组作为一本书
-        direct_items = group.get('items', [])
-        if direct_items:
-            book_num += 1
-            book_id = f"sy_auto-{book_num:03d}"
-            chapters = []
-            for item in direct_items:
-                is_md = _is_markdown_url(item['url'])
-                extracted = _lookup_and_extract(item['url'], lookup, is_markdown=is_md)
-                if extracted:
-                    chapters.append({
-                        'number': len(chapters) + 1,
-                        'title': extracted.get('title', '') or item.get('title', ''),
-                        'content': extracted['content'],
-                    })
-            if chapters:
-                sy_books.append({
-                    'id': book_id,
-                    'title': sanitize_text(group.get('name', '')),
-                    'format': 'html',
-                    'chapters': chapters,
+        all_items = _collect_group_items(group)
+        if not all_items:
+            continue
+        book_num += 1
+        book_id = f"sy_auto-{book_num:03d}"
+        chapters = []
+        for item in all_items:
+            is_md = _is_markdown_url(item['url'])
+            extracted = _lookup_and_extract(item['url'], lookup, is_markdown=is_md)
+            if extracted:
+                chapters.append({
+                    'number': len(chapters) + 1,
+                    'title': extracted.get('title', '') or item.get('title', ''),
+                    'content': extracted['content'],
                 })
-        # 再处理子分组：每个子分组作为一本书，子分组内条目作为章节
-        for sub_group in sub_groups:
-            all_items = _collect_group_items(sub_group)
-            if not all_items:
-                continue
-            book_num += 1
-            book_id = f"sy_auto-{book_num:03d}"
-            chapters = []
-            for item in all_items:
-                is_md = _is_markdown_url(item['url'])
-                extracted = _lookup_and_extract(item['url'], lookup, is_markdown=is_md)
-                if extracted:
-                    chapters.append({
-                        'number': len(chapters) + 1,
-                        'title': extracted.get('title', '') or item.get('title', ''),
-                        'content': extracted['content'],
-                    })
-                elif verbose:
-                    log.debug(f"  sy_auto 未找到: {item.get('url', '')}")
-            if chapters:
-                sy_books.append({
-                    'id': book_id,
-                    'title': sanitize_text(sub_group.get('name', '')),
-                    'format': 'html',
-                    'chapters': chapters,
-                })
+            elif verbose:
+                log.debug(f"  sy_auto 未找到: {item.get('url', '')}")
+        if chapters:
+            sy_books.append({
+                'id': book_id,
+                'title': sanitize_text(group.get('name', '')),
+                'format': 'html',
+                'chapters': chapters,
+            })
 
     result['sy_auto'] = sy_books
     log.info(f"  sy_auto (剩余): {len(sy_books)} 本书")
