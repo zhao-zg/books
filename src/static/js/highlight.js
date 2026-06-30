@@ -655,8 +655,8 @@
                 var h  = self.highlights.find(function (x) { return x.id === id; });
                 if (!h || !h.note) return;
                 self.hideAllMenus();
-                if (!window.CX || !window.CX.openDialog) return;
-                var dlg = window.CX.openDialog({
+                if (!window.BK || !window.BK.openDialog) return;
+                var dlg = window.BK.openDialog({
                     id: 'bk-note-expanded',
                     html:
                         '<div class="bk-note-expanded-card">' +

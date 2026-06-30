@@ -1106,7 +1106,7 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .bk-bm-confirm-cancel:active, .bk-bm-confirm-ok:active { background: var(--surface-alt, #f0f2f8); }
 
 /* ── 通用对话框基础样式 ───────────────────────────────────── */
-.bk-dialog-mask, .cx-dialog-mask {
+.bk-dialog-mask {
     position: fixed; inset: 0; z-index: 5000;
     background: var(--overlay-strong, rgba(0,0,0,.45));
     display: flex; align-items: center; justify-content: center;
@@ -1115,38 +1115,9 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
     -webkit-tap-highlight-color: transparent;
     touch-action: none; overscroll-behavior: none;
 }
-.bk-dialog-mask.show, .cx-dialog-mask.show { opacity: 1; }
+.bk-dialog-mask.show { opacity: 1; }
 
-/* cx-sheet-mask — 底部滑出弹框变体 */
-.cx-sheet-mask {
-    position: fixed; inset: 0; z-index: 5000;
-    background: var(--overlay-strong, rgba(0,0,0,.45));
-    display: flex; align-items: flex-end; justify-content: center;
-    padding: 0; box-sizing: border-box;
-    opacity: 0; transition: opacity .2s ease;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: none; overscroll-behavior: none;
-}
-.cx-sheet-mask.show { opacity: 1; }
-.cx-sheet-mask .cx-sheet {
-    width: 100%; max-height: 85vh;
-    border-radius: 20px 20px 0 0;
-    background: var(--surface, #fff);
-    box-shadow: 0 -4px 24px rgba(0,0,0,.18);
-    overflow-y: auto; overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    padding: 8px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-    transform: translateY(100%);
-    transition: transform .3s cubic-bezier(.4,0,.2,1);
-    touch-action: auto;
-}
-.cx-sheet-mask.show .cx-sheet { transform: translateY(0); }
-.cx-sheet-handle {
-    width: 36px; height: 4px; border-radius: 2px;
-    background: var(--border, #ddd); margin: 6px auto 10px;
-}
-
-.bk-dialog, .cx-dialog {
+.bk-dialog {
     background: var(--surface, #fff); border-radius: 14px;
     width: min(340px, calc(100vw - 40px));
     max-height: 80vh; overflow: hidden;
@@ -1155,7 +1126,7 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
     display: flex; flex-direction: column;
     touch-action: auto;
 }
-.bk-dialog-mask.show .bk-dialog, .cx-dialog-mask.show .cx-dialog { transform: scale(1); }
+.bk-dialog-mask.show .bk-dialog { transform: scale(1); }
 .bk-dialog-title {
     font-size: 1em; font-weight: 600;
     color: var(--heading, #111);

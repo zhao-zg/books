@@ -56,8 +56,8 @@ config.yaml           # 配置
 
 | 文件 | 职责 |
 |---|---|
-| `back-stack.js` | `CX.openDialog` 通用弹框工厂、`CX.backStack` 回退栈、`CX.lockOverlayScroll` 滚动锁定 |
-| `theme-toggle.js` | 主题切换、设置面板（底部弹框）、字体控制 |
+| `back-stack.js` | `BK.openDialog` 通用弹框工厂、`BK.backStack` 回退栈、`BK.lockOverlayScroll` 滚动锁定 |
+| `theme-toggle.js` | 主题切换、设置面板（静态底部面板）、字体控制 |
 | `speech.js` | TTS 朗读（Web Speech API + Capacitor NativeTTS），状态机 `idle/playing/paused` |
 | `router.js` | SPA 路由 |
 | `nav-stack.js` | 页面翻页 & 返回栈（PWA/Capacitor） |
@@ -73,17 +73,17 @@ config.yaml           # 配置
   1. `create_file` / `replace_string_in_file` 工具直接操作，或
   2. Node.js 脚本，以 `fs.writeFileSync(path, content, 'utf8')` 写入（无 BOM）。
 
-## 弹框开发规范（优先使用 CX.openDialog）
+## 弹框开发规范（优先使用 BK.openDialog）
 
-### CX.openDialog — 通用弹框工厂（推荐）
+### BK.openDialog — 通用弹框工厂（推荐）
 
-`theme-toggle.js` 中的 `window.CX.openDialog(opts)` 统一封装了所有弹框样板代码（遮罩创建、lockOverlayScroll、backStack 注册、遮罩点击关闭、冒泡阻止），**新增弹框应优先使用它**：
+`back-stack.js` 中的 `window.BK.openDialog(opts)` 统一封装了所有弹框样板代码（遮罩创建、lockOverlayScroll、backStack 注册、遮罩点击关闭、冒泡阻止），**新增弹框应优先使用它**：
 
 ```js
-var dlg = window.CX.openDialog({
+var dlg = window.BK.openDialog({
     id: 'myDialogMask',          // 可选，用于防止重复打开；重复时返回 null
-    html: '<div class="cx-dialog">...</div>',  // 遮罩内的 innerHTML
-    // className: 'cx-dialog-mask',  // 默认值，一般不需要改
+    html: '<div class="bk-dialog">...</div>',  // 遮罩内的 innerHTML
+    // className: 'bk-dialog-mask',  // 默认值，一般不需要改
     // onClose: function() {},       // 关闭后回调（可选）
 });
 if (!dlg) return;  // id 重复守卫
@@ -111,15 +111,15 @@ if (closeBtn) closeBtn.addEventListener('click', dlg.close);
 ```js
 // 挂载后注册到 backStack（系统返回键直接调用此 fn 关闭）
 document.body.appendChild(mask);
-if (win.CX && win.CX.lockOverlayScroll) win.CX.lockOverlayScroll(mask);
-if (win.CX && win.CX.backStack) win.CX.backStack.push(function() {
+if (win.BK && win.BK.lockOverlayScroll) win.BK.lockOverlayScroll(mask);
+if (win.BK && win.BK.backStack) win.BK.backStack.push(function() {
     if (mask.parentNode) mask.parentNode.removeChild(mask);
 });
 
 // 手动关闭（按钮/遮罩点击）：先移除 DOM，再 pop（内部调 history.back()）
 function closeDialog() {
     if (mask.parentNode) mask.parentNode.removeChild(mask);
-    if (win.CX && win.CX.backStack) win.CX.backStack.pop();
+    if (win.BK && win.BK.backStack) win.BK.backStack.pop();
 }
 // 遮罩点击关闭时必须 stopPropagation，避免冒泡误触主题面板关闭
 mask.addEventListener('click', function(e) {
@@ -127,11 +127,11 @@ mask.addEventListener('click', function(e) {
 });
 ```
 
-**背景**：`window.CX.lockOverlayScroll` 通过绑定 `touchstart` / `touchmove` 防滚动穿透；`backStack` 统一管理系统返回键。
+**背景**：`window.BK.lockOverlayScroll` 通过绑定 `touchstart` / `touchmove` 防滚动穿透；`backStack` 统一管理系统返回键。
 
 ---
 
 **新增弹框时的检查清单**：
-1. 优先用 `CX.openDialog`，填 `id`、`html` 两个字段即可
-2. 若手动创建：class `cx-dialog-mask`，`touch-action:none;overscroll-behavior:none`
+1. 优先用 `BK.openDialog`，填 `id`、`html` 两个字段即可
+2. 若手动创建：class `bk-dialog-mask`，`touch-action:none;overscroll-behavior:none`
 3. 遮罩点击必须 `e.stopPropagation()`，防止冒泡误触设置面板

@@ -232,9 +232,9 @@
   var BKResourcePack = {
 
     showPacksDialog: function () {
-      if (!win.CX || !win.CX.openDialog) return;
+      if (!win.BK || !win.BK.openDialog) return;
 
-      var dlg = win.CX.openDialog({
+      var dlg = win.BK.openDialog({
         id: 'bk-resource-packs',
         html: '<div class="bk-dialog" style="width:min(400px,calc(100vw - 40px))">' +
           '<div class="bk-dialog-title">📦 书籍资源包</div>' +
@@ -337,9 +337,9 @@
 
     showCachedDialog: function () {
       // 已缓存书籍管理 - 列出 bk-main 缓存中的书籍
-      if (!win.CX || !win.CX.openDialog) return;
+      if (!win.BK || !win.BK.openDialog) return;
 
-      var dlg = win.CX.openDialog({
+      var dlg = win.BK.openDialog({
         id: 'bk-cached-books',
         html: '<div class="bk-dialog" style="width:min(400px,calc(100vw - 40px))">' +
           '<div class="bk-dialog-title">💾 已缓存书籍</div>' +

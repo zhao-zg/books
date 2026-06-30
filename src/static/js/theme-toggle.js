@@ -11,7 +11,6 @@
         dark: '#181b21'
     };
     let pageScrollLockCount = 0;
-    let _settingsDlg = null;
 
     function getStoredTheme() {
         try {
@@ -99,8 +98,107 @@
         toggleBtn.title = '设置';
         toggleBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6"/><path d="M4.2 4.2l4.3 4.3m5.5 5.5l4.3 4.3M4.2 19.8l4.3-4.3m5.5-5.5l4.3-4.3"/></svg>';
         containerEl.appendChild(toggleBtn);
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'theme-panel-overlay';
+        overlay.id = 'themePanelOverlay';
+        overlay.onclick = function() { window.toggleThemePanel(); };
+        document.body.appendChild(overlay);
 
-        // 设置面板现在通过 CX.openDialog 按需创建（见 toggleThemePanel）
+        const panel = document.createElement('div');
+        panel.className = 'theme-panel';
+        panel.id = 'themePanel';
+        panel.innerHTML = `
+            <div class="theme-panel-header">
+                <div class="theme-panel-title">设置</div>
+                <button class="theme-panel-close" onclick="toggleThemePanel()" title="关闭">×</button>
+            </div>
+            <div class="theme-section">
+                <div class="theme-section-title">阅读模式</div>
+                <div class="theme-options">
+                    <div class="theme-option" data-theme="warm" onclick="setTheme('warm')">
+                        <div class="theme-preview warm"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
+                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">暖色</div></div>
+                    </div>
+                    <div class="theme-option" data-theme="cool" onclick="setTheme('cool')">
+                        <div class="theme-preview cool"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
+                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">冷色</div></div>
+                    </div>
+                    <div class="theme-option" data-theme="dark" onclick="setTheme('dark')">
+                        <div class="theme-preview dark"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
+                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">夜间</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="theme-section">
+                <div class="theme-section-title">字体大小</div>
+                <div class="font-size-slider-container">
+                    <span class="font-label-small">A</span>
+                    <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="2" oninput="handleFontSliderChange(this.value)">
+                    <span class="font-label-large">A</span>
+                    <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}em</span>
+                </div>
+            </div>
+            <div class="theme-section" id="settingsActionsSection" style="display:none">
+                <div class="theme-section-title">内容与数据</div>
+                <div class="actions-grid">
+                    <button class="action-btn" id="bookmarkListBtn">
+                        <span class="cache-icon">📑</span><span class="cache-text">我的书签</span>
+                    </button>
+                    <button class="action-btn danger" id="clearDataBtn" style="display:none">
+                        <span class="cache-icon">🧹</span><span class="cache-text">清理数据</span>
+                    </button>
+                </div>
+                <div class="theme-section-title" style="margin-top:14px">应用</div>
+                <div class="actions-grid">
+                    <button class="action-btn" id="installBtn" style="display:none">
+                        <span class="cache-icon">📲</span><span class="cache-text">发送桌面</span>
+                    </button>
+                    <button class="action-btn" id="androidApkBtn" style="display:none">
+                        <span class="cache-icon">📱</span><span class="cache-text">安卓APK</span>
+                    </button>
+                    <button class="action-btn" id="checkUpdateBtn" style="display:none">
+                        <span class="cache-icon">🔄</span><span class="cache-text">检查更新</span>
+                    </button>
+                    <button class="action-btn" id="guideBtn">
+                        <span class="cache-icon">📖</span><span class="cache-text">使用说明</span>
+                    </button>
+                    <button class="action-btn feedback" id="feedbackBtn">
+                        <span class="cache-icon">💬</span><span class="cache-text">问题反馈</span>
+                    </button>
+                </div>
+                <div class="cache-status" id="actionStatus"></div>
+            </div>
+            <div class="theme-section" id="autoCheckSection" style="display:none">
+                <div class="theme-section-title">偏好设置</div>
+                <div class="pref-row">
+                    <div class="pref-label-wrap">
+                        <span class="pref-title">自动检查更新</span>
+                        <span class="pref-desc">启动时自动检查是否有新版本</span>
+                    </div>
+                    <label class="pref-toggle">
+                        <input type="checkbox" id="autoCheckUpdateToggle">
+                        <span class="pref-toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="theme-section" id="devModeSection">
+                <div class="theme-section-title">开发者</div>
+                <div class="pref-row">
+                    <div class="pref-label-wrap">
+                        <span class="pref-title">开发者模式</span>
+                        <span class="pref-desc">在页面底部显示调试日志控制台</span>
+                    </div>
+                    <label class="pref-toggle">
+                        <input type="checkbox" id="devModeToggle">
+                        <span class="pref-toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(panel);
+
+        window.BK.lockOverlayScroll(overlay, function() { window.toggleThemePanel(); });
 
         const initialTheme = getPreferredTheme();
         document.documentElement.setAttribute('data-theme', initialTheme);
@@ -124,6 +222,30 @@
             }
         }
         updateFontSizeUI();
+
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('themePanel');
+            const btn = document.querySelector('.theme-toggle-btn');
+            if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !btn.contains(e.target)) {
+                if (e.target.closest && e.target.closest('.bk-dialog-mask')) return;
+                var masks = document.querySelectorAll('.bk-dialog-mask');
+                for (var i = 0; i < masks.length; i++) {
+                    if (masks[i].contains(e.target)) return;
+                }
+                window.toggleThemePanel();
+            }
+        });
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const panel = document.getElementById('themePanel');
+                if (panel && panel.classList.contains('show')) {
+                    window.toggleThemePanel();
+                }
+            }
+        });
+
+        initSettingsActions();
 
         // 记录首次使用时间
         try {
@@ -151,13 +273,7 @@
         }
     }
 
-    let _settingsActionsBound = false;
-
     function initSettingsActions() {
-        // 防止重复绑定（同一弹框实例只绑定一次）
-        if (_settingsActionsBound) return;
-        _settingsActionsBound = true;
-
         window.BK = window.BK || {};
         var section = document.getElementById('settingsActionsSection');
         if (section) section.style.display = 'block';
@@ -331,7 +447,7 @@
     // 清除数据对话框
     function showClearDialog(onConfirm) {
         var selected = 'regular';
-        var dlg = window.CX.openDialog({
+        var dlg = window.BK.openDialog({
             id: 'bkClearDialogMask',
             html: [
                 '<div class="bk-dialog">',
@@ -446,7 +562,7 @@
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>📱</span><div><strong>后台朗读</strong><div style="font-size:0.75em;color:var(--text-secondary)">支持锁屏和后台朗读</div></div></div></div>' +
             '</div></div>';
 
-        var dlg = window.CX.openDialog({
+        var dlg = window.BK.openDialog({
             id: 'bkGuideDialogMask',
             html: html
         });
@@ -458,7 +574,7 @@
     // 反馈问题对话框
     function showFeedbackDialog() {
         var MAX_LEN = 500;
-        var dlg = window.CX.openDialog({
+        var dlg = window.BK.openDialog({
             id: 'bkFeedbackMask',
             html: [
                 '<div class="bk-feedback-box">',
@@ -537,111 +653,28 @@
         }
     }
 
-    // 构建设置面板 HTML（底部弹框内容）
-    function buildSettingsHtml() {
-        return [
-            '<div class="cx-sheet">',
-            '  <div class="cx-sheet-handle"></div>',
-            '  <div class="theme-panel-header">',
-            '    <div class="theme-panel-title">设置</div>',
-            '    <button class="theme-panel-close" id="settingsCloseBtn" title="关闭">×</button>',
-            '  </div>',
-            '  <div class="theme-section">',
-            '    <div class="theme-section-title">阅读模式</div>',
-            '    <div class="theme-options">',
-            '      <div class="theme-option" data-theme="warm" onclick="setTheme(\'warm\')">',
-            '        <div class="theme-preview warm"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>',
-            '        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">暖色</div></div>',
-            '      </div>',
-            '      <div class="theme-option" data-theme="cool" onclick="setTheme(\'cool\')">',
-            '        <div class="theme-preview cool"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>',
-            '        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">冷色</div></div>',
-            '      </div>',
-            '      <div class="theme-option" data-theme="dark" onclick="setTheme(\'dark\')">',
-            '        <div class="theme-preview dark"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>',
-            '        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">夜间</div></div>',
-            '      </div>',
-            '    </div>',
-            '  </div>',
-            '  <div class="theme-section">',
-            '    <div class="theme-section-title">字体大小</div>',
-            '    <div class="font-size-slider-container">',
-            '      <span class="font-label-small">A</span>',
-            '      <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="2" oninput="handleFontSliderChange(this.value)">',
-            '      <span class="font-label-large">A</span>',
-            '      <span class="font-size-value" id="fontSizeDisplay">' + fontSizes[currentSizeIndex] + 'em</span>',
-            '    </div>',
-            '  </div>',
-            '  <div class="theme-section" id="settingsActionsSection" style="display:none">',
-            '    <div class="theme-section-title">内容与数据</div>',
-            '    <div class="actions-grid">',
-            '      <button class="action-btn" id="bookmarkListBtn"><span class="cache-icon">📑</span><span class="cache-text">我的书签</span></button>',
-            '      <button class="action-btn danger" id="clearDataBtn" style="display:none"><span class="cache-icon">🧹</span><span class="cache-text">清理数据</span></button>',
-            '    </div>',
-            '    <div class="theme-section-title" style="margin-top:14px">应用</div>',
-            '    <div class="actions-grid">',
-            '      <button class="action-btn" id="installBtn" style="display:none"><span class="cache-icon">📲</span><span class="cache-text">发送桌面</span></button>',
-            '      <button class="action-btn" id="androidApkBtn" style="display:none"><span class="cache-icon">📱</span><span class="cache-text">安卓APK</span></button>',
-            '      <button class="action-btn" id="checkUpdateBtn" style="display:none"><span class="cache-icon">🔄</span><span class="cache-text">检查更新</span></button>',
-            '      <button class="action-btn" id="guideBtn"><span class="cache-icon">📖</span><span class="cache-text">使用说明</span></button>',
-            '      <button class="action-btn feedback" id="feedbackBtn"><span class="cache-icon">💬</span><span class="cache-text">问题反馈</span></button>',
-            '    </div>',
-            '    <div class="cache-status" id="actionStatus"></div>',
-            '  </div>',
-            '  <div class="theme-section" id="autoCheckSection" style="display:none">',
-            '    <div class="theme-section-title">偏好设置</div>',
-            '    <div class="pref-row">',
-            '      <div class="pref-label-wrap">',
-            '        <span class="pref-title">自动检查更新</span>',
-            '        <span class="pref-desc">启动时自动检查是否有新版本</span>',
-            '      </div>',
-            '      <label class="pref-toggle"><input type="checkbox" id="autoCheckUpdateToggle"><span class="pref-toggle-slider"></span></label>',
-            '    </div>',
-            '  </div>',
-            '  <div class="theme-section" id="devModeSection">',
-            '    <div class="theme-section-title">开发者</div>',
-            '    <div class="pref-row">',
-            '      <div class="pref-label-wrap">',
-            '        <span class="pref-title">开发者模式</span>',
-            '        <span class="pref-desc">在页面底部显示调试日志控制台</span>',
-            '      </div>',
-            '      <label class="pref-toggle"><input type="checkbox" id="devModeToggle"><span class="pref-toggle-slider"></span></label>',
-            '    </div>',
-            '  </div>',
-            '</div>'
-        ].join('');
+    function closeThemePanelInternal(panel, overlay) {
+        panel.classList.remove('show');
+        if (overlay) overlay.classList.remove('show');
+        unlockPageScroll();
     }
 
     window.toggleThemePanel = function() {
-        // 如果已打开，关闭
-        if (_settingsDlg) {
-            _settingsDlg.close();
-            _settingsDlg = null;
-            _settingsActionsBound = false;
-            return;
+        var panel = document.getElementById('themePanel');
+        if (!panel) return;
+        var overlay = document.getElementById('themePanelOverlay');
+        var willShow = !panel.classList.contains('show');
+        if (willShow) {
+            panel.classList.add('show');
+            if (overlay) overlay.classList.add('show');
+            lockPageScroll();
+            window.BK.backStack.push(function() {
+                closeThemePanelInternal(panel, overlay);
+            });
+        } else {
+            closeThemePanelInternal(panel, overlay);
+            window.BK.backStack.pop();
         }
-        // 使用 CX.openDialog 打开底部弹框
-        _settingsDlg = window.CX.openDialog({
-            id: 'bkSettingsSheet',
-            className: 'cx-sheet-mask',
-            html: buildSettingsHtml(),
-            onClose: function() {
-                _settingsDlg = null;
-                _settingsActionsBound = false;
-            }
-        });
-        if (!_settingsDlg) return;
-
-        // 初始化弹框内 UI 状态和事件绑定
-        updateThemeUI(getStoredTheme() || getPreferredTheme());
-        updateFontSizeUI();
-
-        var closeBtn = document.getElementById('settingsCloseBtn');
-        if (closeBtn) closeBtn.addEventListener('click', function() {
-            if (_settingsDlg) { _settingsDlg.close(); _settingsDlg = null; }
-        });
-
-        initSettingsActions();
     };
     
     window.setTheme = function(theme) {
