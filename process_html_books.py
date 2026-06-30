@@ -37,7 +37,7 @@ SERIES_MAP = {
 
 # 敏感词替换规则
 SENSITIVE_REPLACEMENTS = [
-    ("李常受文集", "CWWL"),
+    ("李常受文集", "李文集"),
     ("生命读经", "LS"),
 ]
 
@@ -46,7 +46,7 @@ SERIES_TITLE_MAP = {
     '1n1ba': '读经一年一遍（A计划）',
     '1n1bb': '读经一年一遍（B计划）',
     'cxxl': '初信喂养',
-    'lee8': 'CWWL',
+    'lee8': '李文集',
     'nee': '倪柝声文集',
     'smdj8': 'LS',
     'zsrm365': '圣经真理365',

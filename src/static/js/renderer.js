@@ -616,11 +616,19 @@
   }
 
   /**
+   * 系列标题显示替换（兜底：CWWL → 李文集）
+   */
+  function _displaySeriesTitle(title) {
+    if (title === 'CWWL') return '李文集';
+    return title;
+  }
+
+  /**
    * 根据 series ID 获取系列标题
    */
   function _getSeriesTitle(seriesId) {
     for (var i = 0; i < _zlSeries.length; i++) {
-      if (_zlSeries[i].id === seriesId) return _zlSeries[i].title;
+      if (_zlSeries[i].id === seriesId) return _displaySeriesTitle(_zlSeries[i].title);
     }
     return seriesId || '';
   }
@@ -655,16 +663,94 @@
     }
   }
 
+  // 系列合并：书籍数 < MIN_SERIES_BOOKS 的系列归入拾遗
+  var _MIN_SERIES_BOOKS = 3;
+  var _PICKUP_SERIES_ID = 'sy_auto';
+  var _PROTECTED_SERIES = { 'books': true, 'sy_auto': true }; // 不参与合并的系列
+
+  function _getMergedSeries() {
+    // 计算每个系列的真实书籍数
+    var seriesBookCount = {};
+    for (var i = 0; i < _zlBooks.length; i++) {
+      var sid = _zlBooks[i].series;
+      seriesBookCount[sid] = (seriesBookCount[sid] || 0) + 1;
+    }
+
+    var visibleSeries = [];
+    var mergedCount = 0; // 被合并掉的系列贡献给拾遗的额外书籍数
+
+    for (var i = 0; i < _zlSeries.length; i++) {
+      var s = _zlSeries[i];
+      var count = seriesBookCount[s.id] || 0;
+      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
+        mergedCount += count;
+      } else {
+        visibleSeries.push(s);
+      }
+    }
+
+    // 更新拾遗系列的显示计数
+    if (mergedCount > 0) {
+      for (var i = 0; i < visibleSeries.length; i++) {
+        if (visibleSeries[i].id === _PICKUP_SERIES_ID) {
+          visibleSeries[i] = {
+            id: visibleSeries[i].id,
+            title: visibleSeries[i].title,
+            count: (seriesBookCount[_PICKUP_SERIES_ID] || 0) + mergedCount
+          };
+          break;
+        }
+      }
+    }
+
+    return { series: visibleSeries, bookCount: seriesBookCount, mergedCount: mergedCount };
+  }
+
+  // 获取某系列的书籍列表（考虑合并）
+  function _getSeriesBooks(seriesId) {
+    var books = [];
+    if (seriesId === _PICKUP_SERIES_ID) {
+      // 拾遗系列：包含原始拾遗书籍 + 被合并的小系列书籍
+      var mergedSeriesIds = {};
+      var seriesBookCount = {};
+      for (var i = 0; i < _zlBooks.length; i++) {
+        var sid = _zlBooks[i].series;
+        seriesBookCount[sid] = (seriesBookCount[sid] || 0) + 1;
+      }
+      for (var i = 0; i < _zlSeries.length; i++) {
+        var s = _zlSeries[i];
+        var count = seriesBookCount[s.id] || 0;
+        if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
+          mergedSeriesIds[s.id] = true;
+        }
+      }
+      for (var i = 0; i < _zlBooks.length; i++) {
+        if (_zlBooks[i].series === _PICKUP_SERIES_ID || mergedSeriesIds[_zlBooks[i].series]) {
+          books.push(_zlBooks[i]);
+        }
+      }
+    } else {
+      for (var i = 0; i < _zlBooks.length; i++) {
+        if (_zlBooks[i].series === seriesId) books.push(_zlBooks[i]);
+      }
+    }
+    return books;
+  }
+
   /**
    * 渲染系列卡片目录（首页默认视图）
    */
   function _renderSeriesCatalog(homeView) {
+    var merged = _getMergedSeries();
+    var totalBooks = _zlBooks.length;
+    var totalSeries = merged.series.length;
+
     var html = '<div class="container">';
 
     // 头部
     html += '<div class="header">';
     html += '<h1 class="logo-trigger">📖 书报</h1>';
-    html += '<p class="subtitle">电子书阅读应用</p>';
+    html += '<p class="subtitle">' + totalSeries + ' 个系列 · ' + totalBooks + ' 本书</p>';
     html += '<div class="home-header-actions">';
     html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
     html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
@@ -682,15 +768,16 @@
 
     // 系列卡片网格
     html += '<div class="series-catalog-grid">';
-    for (var i = 0; i < _zlSeries.length; i++) {
-      var s = _zlSeries[i];
-      var color = _getSeriesColor(s.id);
-      var bookCount = 0;
-      for (var j = 0; j < _zlBooks.length; j++) {
-        if (_zlBooks[j].series === s.id) bookCount++;
+    for (var i = 0; i < merged.series.length; i++) {
+      var s = merged.series[i];
+      var bookCount = merged.bookCount[s.id] || 0;
+      // 如果是拾遗系列，使用合并后的计数
+      if (s.id === _PICKUP_SERIES_ID && merged.mergedCount > 0) {
+        bookCount = s.count;
       }
-      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '" style="--series-color:' + color + '">';
-      html += '<div class="series-catalog-card-title">' + escText(s.title) + '</div>';
+      var displayTitle = _displaySeriesTitle ? _displaySeriesTitle(s.title) : s.title;
+      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '">';
+      html += '<div class="series-catalog-card-title">' + escText(displayTitle) + '</div>';
       html += '<div class="series-catalog-card-count">' + bookCount + ' 本</div>';
       html += '</div>';
     }
@@ -767,11 +854,12 @@
    * 构建系列标签栏 HTML
    */
   function _buildSeriesTabs() {
+    var merged = _getMergedSeries();
     var html = '<div class="series-tabs" id="seriesTabs">';
-    for (var i = 0; i < _zlSeries.length; i++) {
-      var s = _zlSeries[i];
+    for (var i = 0; i < merged.series.length; i++) {
+      var s = merged.series[i];
       var active = _zlCurrentSeries === s.id ? ' active' : '';
-      html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(s.title) + '</button>';
+      html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(_displaySeriesTitle(s.title)) + '</button>';
     }
     html += '</div>';
     return html;
@@ -824,10 +912,7 @@
    * 根据当前系列过滤构建书籍网格 HTML
    */
   function _buildBookGrid(seriesFilter) {
-    var filtered = [];
-    for (var i = 0; i < _zlBooks.length; i++) {
-      if (_zlBooks[i].series === seriesFilter) filtered.push(_zlBooks[i]);
-    }
+    var filtered = _getSeriesBooks(seriesFilter);
 
     if (!filtered.length) {
       return '<div class="book-grid" id="bookGrid"><div class="home-status">该系列暂无书籍</div></div>';
@@ -921,10 +1006,12 @@
 
     // 系列下载列表
     html += '<div class="download-series-list">';
-    for (var i = 0; i < _zlSeries.length; i++) {
-      var s = _zlSeries[i];
+    var merged = _getMergedSeries();
+    for (var i = 0; i < merged.series.length; i++) {
+      var s = merged.series[i];
+      var bookCount = (s.id === _PICKUP_SERIES_ID && merged.mergedCount > 0) ? s.count : (merged.bookCount[s.id] || 0);
       html += '<div class="download-series-row">';
-      html += '<span class="download-series-name">' + escText(s.title) + ' (' + (s.count || 0) + '本)</span>';
+      html += '<span class="download-series-name">' + escText(_displaySeriesTitle(s.title)) + ' (' + bookCount + '本)</span>';
       html += '<span class="series-cache-info" data-series="' + escAttr(s.id) + '"></span>';
       html += '<button class="download-series-btn" data-series="' + escAttr(s.id) + '">下载</button>';
       html += '</div>';

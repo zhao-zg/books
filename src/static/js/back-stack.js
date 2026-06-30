@@ -161,10 +161,14 @@
     // ═══════════════════════════════════════════════════════════════════════
 
     var _scrollLockCount = 0;
+    var _lockTimestamp = 0;
+    // 安全超时：锁定超过 30 秒后，页面重新可见时自动释放
+    var _SCROLL_LOCK_MAX_MS = 30000;
 
     function _lockBodyScroll() {
         _scrollLockCount++;
         if (_scrollLockCount === 1) {
+            _lockTimestamp = Date.now();
             document.documentElement.classList.add('bk-scroll-locked');
             document.body.classList.add('bk-scroll-locked');
             // 确保样式存在
@@ -180,10 +184,28 @@
     function _unlockBodyScroll() {
         _scrollLockCount = Math.max(0, _scrollLockCount - 1);
         if (_scrollLockCount === 0) {
+            _lockTimestamp = 0;
             document.documentElement.classList.remove('bk-scroll-locked');
             document.body.classList.remove('bk-scroll-locked');
         }
     }
+
+    // 安全机制：页面重新可见时，若锁定已超时则强制释放
+    function _safetyUnlock() {
+        if (_scrollLockCount > 0 && _lockTimestamp &&
+            (Date.now() - _lockTimestamp) > _SCROLL_LOCK_MAX_MS) {
+            _scrollLockCount = 0;
+            _lockTimestamp = 0;
+            document.documentElement.classList.remove('bk-scroll-locked');
+            document.body.classList.remove('bk-scroll-locked');
+        }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            _safetyUnlock();
+        }
+    });
 
     /**
      * 锁定遮罩/对话框的滚动，并在触摸遮罩背景时调用 closeFn

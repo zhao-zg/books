@@ -721,13 +721,23 @@
                 var apkFile = versionInfo.apk_file || ('Books-v' + latestVersion + '.apk');
                 var apkSize = versionInfo.apk_size;
 
-                // APK 下载：优先使用 GitHub Release URL（通过镜像代理加速）
-                // Cloudflare Pages 有 25MB 文件限制，不从 Pages 直接下载 APK
-                var downloadUrl = versionInfo.apk_url ||
-                    ('https://github.com/zhao-zg/books/releases/download/v' + latestVersion + '/' + apkFile);
-                var mirrors = (window.BK_SERVERS && window.BK_SERVERS.github_mirrors) || [];
-                if (mirrors.length > 0) {
-                    downloadUrl = mirrors[0] + downloadUrl;
+                // APK 下载：优先从 Cloudflare Pages 下载（APK 已随站点部署）
+                // apk_url 为相对路径（如 /Books-vX.Y.Z.apk），用响应成功的 serverUrl 拼接
+                var downloadUrl;
+                var apkUrlFromServer = versionInfo.apk_url;
+                if (apkUrlFromServer && apkUrlFromServer.indexOf('/') === 0) {
+                    // 相对路径，用 Cloudflare 服务器地址拼接
+                    downloadUrl = serverUrl.replace(/\/$/, '') + apkUrlFromServer;
+                } else if (apkUrlFromServer) {
+                    // 绝对路径，直接使用
+                    downloadUrl = apkUrlFromServer;
+                } else {
+                    // 兜底：GitHub Release + 镜像代理
+                    downloadUrl = 'https://github.com/zhao-zg/books/releases/download/v' + latestVersion + '/' + apkFile;
+                    var mirrors = (window.BK_SERVERS && window.BK_SERVERS.github_mirrors) || [];
+                    if (mirrors.length > 0) {
+                        downloadUrl = mirrors[0] + downloadUrl;
+                    }
                 }
                 var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
                 var sizeText = apkSize ? ' (' + (apkSize / 1024 / 1024).toFixed(1) + ' MB)' : '';

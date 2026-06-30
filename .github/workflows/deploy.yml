@@ -104,7 +104,7 @@ jobs:
             exit 1
           fi
       
-      - name: 获取 APK 信息并更新 version.json
+      - name: 下载 APK 并更新 version.json
         run: |
           echo "🔍 从 GitHub Release 获取 APK 信息..."
           
@@ -127,11 +127,19 @@ jobs:
             echo "   文件: $APK_NAME"
             echo "   版本: $APK_VERSION"
             echo "   大小: $APK_SIZE bytes"
-            echo "   URL: $APK_URL"
+            echo "   GitHub URL: $APK_URL"
             
-            # 更新 version.json 添加 APK 信息（不下载 APK，Cloudflare Pages 有 25MB 文件限制）
-            if [ -f output/version.json ]; then
-              python3 << PYTHON_EOF
+            # 下载 APK 到 output/，随站点一起部署到 Cloudflare Pages
+            echo "📥 下载 APK 到 output/..."
+            curl -sL "$APK_URL" -o "output/$APK_NAME"
+            
+            if [ -f "output/$APK_NAME" ]; then
+              DOWNLOADED_SIZE=$(stat -c%s "output/$APK_NAME" 2>/dev/null || echo "0")
+              echo "✓ APK 已下载: output/$APK_NAME ($DOWNLOADED_SIZE bytes)"
+              
+              # 更新 version.json
+              if [ -f output/version.json ]; then
+                python3 << PYTHON_EOF
           import json
           
           with open('output/version.json', 'r', encoding='utf-8') as f:
@@ -140,7 +148,8 @@ jobs:
           data['apk_file'] = '$APK_NAME'
           data['apk_version'] = '$APK_VERSION'
           data['apk_size'] = $APK_SIZE
-          data['apk_url'] = '$APK_URL'
+          # apk_url 使用相对路径，前端用 BK_SERVERS.cloudflare[0] 拼接
+          data['apk_url'] = '/' + '$APK_NAME'
           
           with open('output/version.json', 'w', encoding='utf-8') as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
@@ -149,8 +158,11 @@ jobs:
           print(f'  APK: $APK_NAME')
           print(f'  版本: $APK_VERSION')
           print(f'  大小: $APK_SIZE bytes')
-          print(f'  下载: $APK_URL')
+          print(f'  下载: /$APK_NAME (Cloudflare Pages)')
           PYTHON_EOF
+              fi
+            else
+              echo "⚠️ APK 下载失败，跳过"
             fi
           else
             echo "ℹ️ Release 中没有 APK 文件"

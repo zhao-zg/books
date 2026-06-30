@@ -76,16 +76,16 @@
 
 /* ── 基础布局 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .container { max-width: 960px; margin: 0 auto; padding: 0; }
-.header { padding: 28px 16px 16px; background: var(--header-gradient); border-radius: 0 0 var(--radius-lg) var(--radius-lg); margin-bottom: 4px; }
-.header h1 { font-size: 28px; font-weight: 700; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.02em; }
-.header .subtitle { font-size: 14px; color: var(--text-muted); letter-spacing: 0.01em; }
+.header { padding: 32px 20px 20px; background: none; border-radius: 0; margin-bottom: 4px; }
+.header h1 { font-size: 30px; font-weight: 800; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.04em; }
+.header .subtitle { font-size: 15px; color: var(--text-muted); letter-spacing: 0.01em; margin-top: 6px; }
 .content { padding: 0; }
 
 /* ── 首页头部操作栏 ─────────────────────────────────────── */
 .home-header-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-.home-action-btn { padding: 8px 20px; background: var(--surface-alt); color: var(--brand); border: 1.5px solid var(--border); border-radius: 20px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s ease; }
+.home-action-btn { padding: 9px 22px; background: var(--surface-alt); color: var(--brand); border: 1.5px solid var(--border); border-radius: 22px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s ease; }
 .home-action-btn:active { transform: scale(0.97); background: var(--nav-hover); }
 .home-action-btn.btn-search { background: var(--brand); color: #fff; border-color: var(--brand); }
 .home-action-btn.btn-search:active { opacity: 0.85; }
@@ -99,11 +99,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .series-tab.active { background: var(--accent-color, #4a90d9); color: white; border-color: var(--accent-color, #4a90d9); box-shadow: 0 2px 10px rgba(var(--brand-rgb, 102,126,234), 0.35); font-weight: 600; transform: scale(1.02); }
 
 /* ── 书籍卡片增强 ───────────────────────────────────────── */
-.book-grid { display: grid; gap: 10px; padding: 4px 16px 20px; background: transparent; }
+.book-grid { display: grid; gap: 12px; padding: 8px 20px 24px; background: transparent; }
 @media (min-width: 768px) { .book-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 @media (min-width: 1024px) { .book-grid { grid-template-columns: repeat(3, 1fr); } }
-.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: var(--radius-md); overflow: hidden; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; border: 1px solid var(--border); border-left: 3px solid var(--series-color, var(--accent-color, #667eea)); box-shadow: var(--shadow-card); contain: layout style paint; }
-.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 14px; overflow: hidden; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; border: 1px solid var(--border); border-left: 2px solid var(--series-color, var(--accent-color, #667eea)); box-shadow: 0 1px 4px rgba(0,0,0,.04); contain: layout style paint; }
+.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.08); }
 .zl-book-card:active { transform: scale(0.98); transition-duration: 0.1s; }
 [data-theme="dark"] .zl-book-card { box-shadow: var(--shadow-card); }
 [data-theme="dark"] .zl-book-card:hover { box-shadow: var(--shadow-card-hover); }
@@ -140,16 +140,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .category-back-btn:active { opacity: 0.6; }
 
 /* ── 系列目录卡片（首页） ─────────────────────────────────── */
-.series-catalog-grid { display: grid; gap: 12px; padding: 4px 16px 20px; }
+.series-catalog-grid { display: grid; gap: 14px; padding: 8px 20px 24px; }
 @media (min-width: 768px) { .series-catalog-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 @media (min-width: 1024px) { .series-catalog-grid { grid-template-columns: repeat(3, 1fr); } }
-.series-catalog-card { background: var(--card-bg, var(--surface)); border-radius: 14px; padding: 20px; border: 1px solid var(--border); border-left: 4px solid var(--series-color, var(--accent-color, #667eea)); cursor: pointer; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; -webkit-tap-highlight-color: transparent; user-select: none; position: relative; overflow: hidden; box-shadow: var(--shadow-card); }
-.series-catalog-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+.series-catalog-card { background: var(--card-bg, var(--surface)); border-radius: 16px; padding: 22px 24px; border: 1px solid var(--border); cursor: pointer; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; -webkit-tap-highlight-color: transparent; user-select: none; position: relative; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+.series-catalog-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.08); }
 [data-theme="dark"] .series-catalog-card:hover { box-shadow: var(--shadow-card-hover); }
 .series-catalog-card:active { background: var(--nav-hover); transform: scale(0.98); }
-.series-catalog-card-title { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.4; }
-.series-catalog-card-count { font-size: 12px; color: var(--tag-text, var(--text-muted)); margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; background: var(--tag-bg, rgba(var(--brand-rgb),.08)); padding: 3px 10px 3px 6px; border-radius: 12px; font-weight: 500; }
-.series-catalog-card-count::before { content: '📚'; display: inline-block; font-size: 12px; }
+.series-catalog-card-title { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.4; letter-spacing: 0.02em; }
+.series-catalog-card-count { font-size: 13px; color: var(--text-muted); margin-top: 6px; font-weight: 400; }
+/* count no longer uses emoji */
 
 /* ── 系列书籍列表头部 ──────────────────────────────────── */
 .series-list-header { padding: 20px 16px 12px !important; margin-bottom: 8px !important; }
@@ -228,14 +228,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .home-status-icon { font-size: 24px; margin-bottom: 10px; }
 
 /* ── 底部 ─────────────────────────────────────────────── */
-.footer { text-align: center; padding: 20px 16px; color: var(--text-muted); background: var(--surface-alt); border-top: 1px solid var(--border); font-size: 13px; margin-top: 12px; letter-spacing: 0.01em; }
+.footer { text-align: center; padding: 16px 16px; color: var(--text-muted); background: transparent; border-top: 1px solid var(--border); font-size: 12px; margin-top: 8px; letter-spacing: 0.01em; opacity: 0.85; }
 .footer-meta { margin-top: 8px; font-size: 12px; opacity: 0.8; }
 
 /* ── 响应式微调 ─────────────────────────────────────────── */
 @media (min-width: 768px) {
-  .header { padding: 36px 28px 20px; }
+  .header { padding: 40px 28px 24px; }
   .series-tabs { padding: 14px 28px; }
-  .book-grid { padding: 4px 28px 28px; gap: 14px; }
+  .book-grid { padding: 8px 28px 28px; gap: 14px; }
+  .series-catalog-grid { padding: 8px 28px 28px; }
 }
 
 /* ── 首页溢出菜单 ───────────────────────────────────────── */

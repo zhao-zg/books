@@ -82,6 +82,29 @@
     return UNITS[s] || 0;
   }
 
+  // 整数 → 中文数字（1-150）
+  function intToCn(n) {
+    if (n <= 0 || n > 150) return String(n);
+    var UNITS = ['','一','二','三','四','五','六','七','八','九'];
+    if (n <= 10) return UNITS[n];
+    if (n < 20) return '十' + (n > 10 ? UNITS[n - 10] : '');
+    if (n < 100) {
+      var tens = Math.floor(n / 10);
+      var ones = n % 10;
+      return UNITS[tens] + '十' + (ones ? UNITS[ones] : '');
+    }
+    if (n === 100) return '一百';
+    var h = Math.floor(n / 100);
+    var rest = n % 100;
+    var result = UNITS[h] + '百';
+    if (rest === 0) return result;
+    if (rest < 10) return result + '零' + UNITS[rest];
+    var t = Math.floor(rest / 10);
+    var o = rest % 10;
+    if (t === 0) return result + '零' + UNITS[o];
+    return result + (t === 1 ? '一' : UNITS[t]) + '十' + (o ? UNITS[o] : '');
+  }
+
   // 将文本中完整书名替换为缩写（从长到短）
   var _sortedFullNames = Object.keys(FULL_BOOK_MAP).sort(function(a,b){return b.length-a.length;});
 
@@ -562,6 +585,52 @@
         var irefs = expandCnRefs(fm.text, book, ch);  // 传入当前 book/ch，支持无书卷名的相对章引用
         if (irefs.length > 0) {
           var ilm = irefs[irefs.length - 1].match(/^([^\d:]+)(\d+):(\d+)/);
+          // ★ 正文中过滤掉整章引用（节号全为 :0 的引用），不包裹 span
+          var allVerseZero = irefs.every(function(r) {
+            var vm = r.match(/:(\d+)/);
+            return vm && parseInt(vm[1], 10) === 0;
+          });
+          if (allVerseZero) {
+            // 仍然更新 book/ch 上下文
+            if (ilm && !_lockBook) {
+              book = ilm[1];
+              ch = parseInt(ilm[2], 10);
+            }
+            if (irefs.length === 1) {
+              // 单个整章引用：不包裹
+              result.push(escHtml(fm.text));
+            } else {
+              // ★ 多章范围：拆分为独立 span（如“创世记一至三章”→ 3个独立span）
+              var _splitOk = false;
+              try {
+                var _bookLen = 0;
+                for (var _si = 0; _si < _sortedFullNames.length; _si++) {
+                  if (fm.text.indexOf(_sortedFullNames[_si]) === 0) { _bookLen = _sortedFullNames[_si].length; break; }
+                }
+                if (!_bookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(fm.text)) _bookLen = 1;
+                var _bookPfx = fm.text.slice(0, _bookLen);
+                var _chText = fm.text.slice(_bookLen);
+                // 提取「章/篇」前的章范围文本
+                var _zm = _chText.match(/^(.+)[章篇]/);
+                var _rangeText = _zm ? _zm[1] : _chText;
+                var _rm = _rangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
+                if (_rm) {
+                  var _cStart = cnToInt(_rm[1]), _cEnd = cnToInt(_rm[2]);
+                  if (_cStart && _cEnd && _cEnd >= _cStart && (_cEnd - _cStart + 1) === irefs.length) {
+                    for (var _ci = _cStart; _ci <= _cEnd; _ci++) {
+                      var _cn = intToCn(_ci);
+                      var _txt = (_ci === _cStart ? _bookPfx : '') + _cn + (_zm ? _zm[0].slice(-1) : '');
+                      var _ref = irefs[_ci - _cStart];
+                      result.push('<span class="scripture-ref" data-refs="' + escHtml(_ref) + '">' + escHtml(_txt) + '</span>');
+                    }
+                    _splitOk = true;
+                  }
+                }
+              } catch (_e) { _splitOk = false; }
+              if (!_splitOk) result.push(escHtml(fm.text));
+            }
+            continue;
+          }
           if (ilm && !_lockBook) {
             book = ilm[1];
             // 整章引用（节号为0）与具体节引用均更新章号，
@@ -621,7 +690,51 @@
             ch = _newCh;
           }
         }
-        result.push(makeSpan(m[0], refs));
+        // ★ 括号内也过滤掉整章引用（节号全为 :0），不包裹 span
+        var allParenVerseZero = refs.every(function(r) {
+          var vm = r.match(/:(\d+)/);
+          return vm && parseInt(vm[1], 10) === 0;
+        });
+        if (allParenVerseZero) {
+          if (refs.length === 1) {
+            // 单个整章引用：不包裹
+            result.push(escHtml(m[0]));
+          } else {
+            // ★ 多章范围：拆分为独立 span
+            var _pSplitOk = false;
+            try {
+              var _pInt2c = {1:'一',2:'二',3:'三',4:'四',5:'五',6:'六',7:'七',8:'八',9:'九',10:'十'};
+              var _pBookLen = 0;
+              for (var _psi = 0; _psi < _sortedFullNames.length; _psi++) {
+                if (_inner.indexOf(_sortedFullNames[_psi]) === 0) { _pBookLen = _sortedFullNames[_psi].length; break; }
+              }
+              if (!_pBookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(_inner)) _pBookLen = 1;
+              var _pBookPfx = _inner.slice(0, _pBookLen);
+              var _pChText = _inner.slice(_pBookLen);
+              var _pZm = _pChText.match(/^(.+)[章篇]/);
+              var _pRangeText = _pZm ? _pZm[1] : _pChText;
+              var _pRm = _pRangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
+              if (_pRm) {
+                var _pcStart = cnToInt(_pRm[1]), _pcEnd = cnToInt(_pRm[2]);
+                if (_pcStart && _pcEnd && _pcEnd >= _pcStart && (_pcEnd - _pcStart + 1) === refs.length) {
+                  var _openB = m[0][0], _closeB = m[0][m[0].length - 1];
+                  result.push(escHtml(_openB));
+                  for (var _pci = _pcStart; _pci <= _pcEnd; _pci++) {
+                    var _pcn = _pInt2c[_pci] || String(_pci);
+                    var _ptxt = (_pci === _pcStart ? _pBookPfx : '') + _pcn + (_pZm ? _pZm[0].slice(-1) : '');
+                    var _pref = refs[_pci - _pcStart];
+                    result.push('<span class="scripture-ref" data-refs="' + escHtml(_pref) + '">' + escHtml(_ptxt) + '</span>');
+                  }
+                  result.push(escHtml(_closeB));
+                  _pSplitOk = true;
+                }
+              }
+            } catch (_pe) { _pSplitOk = false; }
+            if (!_pSplitOk) result.push(escHtml(m[0]));
+          }
+        } else {
+          result.push(makeSpan(m[0], refs));
+        }
       } else {
         // 括号整体解析失败（如「在以弗所三章十六节，」含前置词），
         // 回退：把括号开符、内容、闭符分别扫描行内引用
@@ -639,7 +752,16 @@
       var refBody = dashText.replace(/^[—─]+/, '').trim();
       var drefs = expandCnRefs(refBody, book, ch);
       if (drefs.length > 0) {
-        result.push(makeSpan(dashText, drefs));
+        // ★ 破折号引用也过滤掉整章引用（节号全为 :0），不包裹 span
+        var allDashVerseZero = drefs.every(function(r) {
+          var vm = r.match(/:(\d+)/);
+          return vm && parseInt(vm[1], 10) === 0;
+        });
+        if (allDashVerseZero) {
+          result.push(escHtml(dashText));
+        } else {
+          result.push(makeSpan(dashText, drefs));
+        }
       } else {
         result.push('<span class="scripture-ref">' + escHtml(dashText) + '</span>');
       }

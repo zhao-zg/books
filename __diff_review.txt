@@ -1,232 +1,974 @@
+diff --git a/.github/workflows/android-release-offline.yml b/.github/workflows/android-release-offline.yml
+index c40a45ad..af8fb390 100644
+--- a/.github/workflows/android-release-offline.yml
++++ b/.github/workflows/android-release-offline.yml
+@@ -731,13 +731,13 @@ jobs:
+         name: android-apk
+         path: Books-*.apk
+     
+-    - name: 更新 version.json APK 信息
++    - name: 复制 APK 到 output 并更新 version.json
+       if: startsWith(github.ref, 'refs/tags/')
+       run: |
+         VERSION=${GITHUB_REF#refs/tags/v}
+         APK_NAME="Books-v${VERSION}.apk"
+         
+-        echo "=== 更新 version.json ==="
++        echo "=== 复制 APK 到 output/ 并更新 version.json ==="
+         
+         # 检查 APK 文件是否存在
+         if [ ! -f "$APK_NAME" ]; then
+@@ -747,15 +747,15 @@ jobs:
+         fi
+         
+         APK_SIZE=$(stat -c%s "$APK_NAME" 2>/dev/null || echo "0")
+-        APK_URL="https://github.com/zhao-zg/books/releases/download/v${VERSION}/${APK_NAME}"
++        
++        # 复制 APK 到 output/ 目录，随站点一起部署到 Cloudflare Pages
++        cp "$APK_NAME" output/
++        echo "✓ APK 已复制到 output/$APK_NAME"
++        ls -lh output/$APK_NAME
+         
+         echo "APK 文件信息:"
+         ls -lh "$APK_NAME"
+-        echo "  URL: $APK_URL"
+         
+-        # 更新 version.json 添加 APK 信息
+-        # 注意：APK 不复制到 output/，因为 Cloudflare Pages 有 25MB 文件限制
+-        # APK 通过 GitHub Release 下载，version.json 中包含 apk_url 指向 GitHub Release
+         python3 << PYTHON_EOF
+         import json
+         import os
+@@ -764,7 +764,6 @@ jobs:
+         version = '$VERSION'
+         apk_name = '$APK_NAME'
+         apk_size = $APK_SIZE
+-        apk_url = '$APK_URL'
+         
+         # 读取现有的 version.json
+         if os.path.exists(version_file):
+@@ -773,11 +772,11 @@ jobs:
+         else:
+             data = {}
+         
+-        # 添加 APK 信息
++        # 添加 APK 信息（apk_url 使用相对路径，前端用 BK_SERVERS.cloudflare[0] 拼接）
+         data['apk_version'] = version
+         data['apk_file'] = apk_name
+         data['apk_size'] = apk_size
+-        data['apk_url'] = apk_url
++        data['apk_url'] = '/' + apk_name
+         
+         # 保存
+         with open(version_file, 'w', encoding='utf-8') as f:
+@@ -787,7 +786,7 @@ jobs:
+         print(f'  APK 版本: {version}')
+         print(f'  APK 文件: {apk_name}')
+         print(f'  APK 大小: {apk_size} bytes')
+-        print(f'  APK URL: {apk_url}')
++        print(f'  APK URL: /{apk_name} (Cloudflare Pages)')
+         PYTHON_EOF
+         
+         # 显示 version.json 内容
+@@ -795,10 +794,10 @@ jobs:
+         echo "=== version.json 内容 ==="
+         cat output/version.json
+         
+-        # 显示 output 目录内容
++        # 显示 output 目录
+         echo ""
+         echo "=== output 目录 ==="
+-        ls -lh output/version.json
++        ls -lh output/version.json output/$APK_NAME
+         
+     - name: 创建 Release
+       if: startsWith(github.ref, 'refs/tags/')
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 1fc09c1f..59ad5aa7 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -104,7 +104,7 @@ jobs:
+             exit 1
+           fi
+       
+-      - name: 获取 APK 信息并更新 version.json
++      - name: 下载 APK 并更新 version.json
+         run: |
+           echo "🔍 从 GitHub Release 获取 APK 信息..."
+           
+@@ -127,11 +127,19 @@ jobs:
+             echo "   文件: $APK_NAME"
+             echo "   版本: $APK_VERSION"
+             echo "   大小: $APK_SIZE bytes"
+-            echo "   URL: $APK_URL"
++            echo "   GitHub URL: $APK_URL"
+             
+-            # 更新 version.json 添加 APK 信息（不下载 APK，Cloudflare Pages 有 25MB 文件限制）
+-            if [ -f output/version.json ]; then
+-              python3 << PYTHON_EOF
++            # 下载 APK 到 output/，随站点一起部署到 Cloudflare Pages
++            echo "📥 下载 APK 到 output/..."
++            curl -sL "$APK_URL" -o "output/$APK_NAME"
++            
++            if [ -f "output/$APK_NAME" ]; then
++              DOWNLOADED_SIZE=$(stat -c%s "output/$APK_NAME" 2>/dev/null || echo "0")
++              echo "✓ APK 已下载: output/$APK_NAME ($DOWNLOADED_SIZE bytes)"
++              
++              # 更新 version.json
++              if [ -f output/version.json ]; then
++                python3 << PYTHON_EOF
+           import json
+           
+           with open('output/version.json', 'r', encoding='utf-8') as f:
+@@ -140,7 +148,8 @@ jobs:
+           data['apk_file'] = '$APK_NAME'
+           data['apk_version'] = '$APK_VERSION'
+           data['apk_size'] = $APK_SIZE
+-          data['apk_url'] = '$APK_URL'
++          # apk_url 使用相对路径，前端用 BK_SERVERS.cloudflare[0] 拼接
++          data['apk_url'] = '/' + '$APK_NAME'
+           
+           with open('output/version.json', 'w', encoding='utf-8') as f:
+               json.dump(data, f, ensure_ascii=False, indent=2)
+@@ -149,8 +158,11 @@ jobs:
+           print(f'  APK: $APK_NAME')
+           print(f'  版本: $APK_VERSION')
+           print(f'  大小: $APK_SIZE bytes')
+-          print(f'  下载: $APK_URL')
++          print(f'  下载: /$APK_NAME (Cloudflare Pages)')
+           PYTHON_EOF
++              fi
++            else
++              echo "⚠️ APK 下载失败，跳过"
+             fi
+           else
+             echo "ℹ️ Release 中没有 APK 文件"
+diff --git a/__diff_review.txt b/__diff_review.txt
+index d6d389b4..e69de29b 100644
+--- a/__diff_review.txt
++++ b/__diff_review.txt
+@@ -1,232 +0,0 @@
+-diff --git a/src/static/js/renderer.js b/src/static/js/renderer.js
+-index 810ca343..55bfceeb 100644
+---- a/src/static/js/renderer.js
+-+++ b/src/static/js/renderer.js
+-@@ -695,12 +695,18 @@
+-     html += '<h1 class="logo-trigger">📖 书报</h1>';
+-     html += '<p class="subtitle">电子书阅读应用</p>';
+-     html += '<div class="home-header-actions">';
+--    html += '<button type="button" id="bk-search-btn" class="home-action-btn">🔍 搜索</button>';
+-+    html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
+-+    // 溢出菜单
+-+    html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
+-+    html += '<button type="button" class="home-action-btn home-overflow-trigger" id="bk-overflow-btn">⋯</button>';
+-+    html += '<div class="home-overflow-dropdown" id="homeOverflowDropdown" style="display:none">';
+-     if (_zlDmReady) {
+--      html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
+-+      html += '<button type="button" id="bk-dl-mgr-btn" class="home-overflow-item">📥 下载管理</button>';
+-     }
+--    html += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
+--    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
+-+    html += '<button type="button" id="bk-import-btn" class="home-overflow-item">📂 导入</button>';
+-+    html += '<button type="button" id="bk-manage-btn" class="home-overflow-item">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
+-+    html += '</div>';
+-+    html += '</div>';
+-     html += '</div>';
+-     html += '</div>';
+- 
+-@@ -743,6 +749,49 @@
+-     return html;
+-   }
+- 
+-+  /**
+-+   * 构建单个书籍卡片 HTML（纯函数，消除重复代码）
+-+   */
+-+  function _buildBookCard(book) {
+-+    var downloaded = _isBookDownloaded(book.id);
+-+    var seriesTitle = _getSeriesTitle(book.series);
+-+    var chapterCount = book.chapter_count || 0;
+-+    var progress = getReadingProgress(book.id);
+-+    var progressPct = (progress > 0 && chapterCount > 0) ? Math.round(progress / chapterCount * 100) : 0;
+-+
+-+    var html = '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
+-+    html += '<div class="book-card-wrapper">';
+-+    html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+-+    html += '<div class="book-info">';
+-+    html += '<div class="book-header">';
+-+    html += '<div class="book-title-row">';
+-+    html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+-+    html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
+-+    html += '</div>';
+-+    html += '</div>';
+-+    if (seriesTitle) {
+-+      html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+-+    }
+-+    html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+-+    if (progress > 0) {
+-+      html += ' · 读到第' + progress + '章';
+-+    }
+-+    html += '</div>';
+-+    // 阅读进度条
+-+    if (progressPct > 0) {
+-+      html += '<div class="reading-progress"><div class="reading-progress-fill" style="width:' + progressPct + '%"></div></div>';
+-+    }
+-+    html += '</div>';
+-+    html += '</div>';
+-+    html += '</div>';
+-+    // 删除按钮（管理模式或导入书籍）
+-+    if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+-+      html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
+-+    }
+-+    html += '</div>';
+-+    return html;
+-+  }
+-+
+-   /**
+-    * 根据当前系列过滤构建书籍网格 HTML
+-    */
+-@@ -801,36 +850,7 @@
+-         html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">\u2190 返回类型目录</button></div>';
+-         html += '<div class="book-grid">';
+-         for (var i = 0; i < catFiltered.length; i++) {
+--          var book = catFiltered[i];
+--          var downloaded = _isBookDownloaded(book.id);
+--          var seriesTitle = _getSeriesTitle(book.series);
+--          var chapterCount = book.chapter_count || 0;
+--          var progress = getReadingProgress(book.id);
+--          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
+--          html += '<div class="book-card-wrapper">';
+--          html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+--          html += '<div class="book-info">';
+--          html += '<div class="book-header">';
+--          html += '<div class="book-title-row">';
+--          html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+--          html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
+--          html += '</div>';
+--          html += '</div>';
+--          if (seriesTitle) {
+--            html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+--          }
+--          html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+--          if (progress > 0) {
+--            html += ' · 读到第' + progress + '章';
+--          }
+--          html += '</div>';
+--          html += '</div>';
+--          html += '</div>';
+--          html += '</div>';
+--          if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+--            html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
+--          }
+--          html += '</div>';
+-+          html += _buildBookCard(catFiltered[i]);
+-         }
+-         html += '</div></div>';
+-         return html;
+-@@ -840,38 +860,7 @@
+-     // 非 books 系列：保持现有平铺渲染逻辑（完全不变）
+-     var html = '<div class="book-grid" id="bookGrid">';
+-     for (var i = 0; i < filtered.length; i++) {
+--      var book = filtered[i];
+--      var downloaded = _isBookDownloaded(book.id);
+--      var seriesTitle = _getSeriesTitle(book.series);
+--      var chapterCount = book.chapter_count || 0;
+--      var progress = getReadingProgress(book.id);
+--
+--      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
+--      html += '<div class="book-card-wrapper">';
+--      html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
+--      html += '<div class="book-info">';
+--      html += '<div class="book-header">';
+--      html += '<div class="book-title-row">';
+--      html += '<div class="title">' + escText(book.title || book.id) + '</div>';
+--      html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
+--      html += '</div>';
+--      html += '</div>';
+--      if (seriesTitle) {
+--        html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
+--      }
+--      html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
+--      if (progress > 0) {
+--        html += ' · 读到第' + progress + '章';
+--      }
+--      html += '</div>';
+--      html += '</div>';
+--      html += '</div>';
+--      html += '</div>';
+--      // ★ 管理模式下所有书籍显示删除按钮，导入书籍始终显示
+--      if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
+--        html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
+--      }
+--      html += '</div>';
+-+      html += _buildBookCard(filtered[i]);
+-     }
+-     html += '</div>';
+-     return html;
+-@@ -1022,8 +1011,14 @@
+-               if (win.__bkBooks[j].id === delBookId) { win.__bkBooks.splice(j, 1); break; }
+-             }
+-           }
+--          var hv = document.getElementById('homeView');
+--          if (hv) _renderZlHome(hv);
+-+          // 局部 DOM 更新：移除对应卡片
+-+          var cardEl = homeView.querySelector('.zl-book-card[data-book-id="' + delBookId + '"]');
+-+          if (cardEl) cardEl.parentNode.removeChild(cardEl);
+-+          // 如果当前系列下没有书籍了，显示空状态
+-+          var grid = homeView.querySelector('.book-grid');
+-+          if (grid && grid.querySelectorAll('.zl-book-card').length === 0) {
+-+            grid.innerHTML = '<div class="home-status">该系列暂无书籍</div>';
+-+          }
+-         };
+-         if (delBookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
+-           win.ImportManager.deleteImportedBook(delBookId).then(doDelete).catch(function() { doDelete(); });
+-@@ -1138,12 +1133,56 @@
+-       }
+- 
+-       // 13. 管理按钮
+--      if (e.target.closest && e.target.closest('#bk-manage-btn')) {
+-+      if (e.target.closest && (e.target.closest('#bk-manage-btn') || e.target.closest('.home-overflow-item#bk-manage-btn'))) {
+-         _manageMode = !_manageMode;
+--        var hv = document.getElementById('homeView');
+--        if (hv) _renderZlHome(hv);
+-+        // 更新按钮文字
+-+        var manageBtn = document.getElementById('bk-manage-btn');
+-+        if (manageBtn) manageBtn.textContent = _manageMode ? '✅ 完成' : '🗑️ 管理';
+-+        // 遍历所有书籍卡片，添加/移除删除按钮
+-+        var cards = homeView.querySelectorAll('.zl-book-card');
+-+        for (var ci = 0; ci < cards.length; ci++) {
+-+          var card = cards[ci];
+-+          var bookId = card.getAttribute('data-book-id');
+-+          var series = card.getAttribute('data-series');
+-+          var existingDelBtn = card.querySelector('.imported-delete-btn');
+-+          if (_manageMode) {
+-+            if (!existingDelBtn) {
+-+              var btn = document.createElement('button');
+-+              btn.type = 'button';
+-+              btn.className = 'imported-delete-btn';
+-+              btn.setAttribute('data-book-id', bookId);
+-+              btn.title = '删除';
+-+              btn.textContent = '✕';
+-+              card.appendChild(btn);
+-+            }
+-+          } else {
+-+            // 非管理模式：仅移除非导入书籍的删除按钮
+-+            if (existingDelBtn && series !== 'imported' && bookId.indexOf('imported-') !== 0) {
+-+              existingDelBtn.parentNode.removeChild(existingDelBtn);
+-+            }
+-+          }
+-+        }
+-         return;
+-       }
+-+
+-+      // 14. 溢出菜单触发按钮
+-+      if (e.target.closest && e.target.closest('#bk-overflow-btn')) {
+-+        e.stopPropagation();
+-+        var dropdown = document.getElementById('homeOverflowDropdown');
+-+        if (dropdown) {
+-+          dropdown.style.display = (dropdown.style.display === 'none' || !dropdown.style.display) ? 'block' : 'none';
+-+        }
+-+        return;
+-+      }
+-+
+-+      // 15. 点击溢出菜单外区域关闭菜单
+-+      var overflowMenu = document.getElementById('homeOverflowMenu');
+-+      if (overflowMenu && !e.target.closest('#homeOverflowMenu')) {
+-+        var dropdown = document.getElementById('homeOverflowDropdown');
+-+        if (dropdown && dropdown.style.display !== 'none') {
+-+          dropdown.style.display = 'none';
+-+        }
+-+      }
+-     };
+- 
+-     homeView.addEventListener('click', clickHandler);
+diff --git a/process_html_books.py b/process_html_books.py
+index 3ca70889..6d1f9a8c 100644
+--- a/process_html_books.py
++++ b/process_html_books.py
+@@ -37,7 +37,7 @@ SERIES_MAP = {
+ 
+ # 敏感词替换规则
+ SENSITIVE_REPLACEMENTS = [
+-    ("李常受文集", "CWWL"),
++    ("李常受文集", "李文集"),
+     ("生命读经", "LS"),
+ ]
+ 
+@@ -46,7 +46,7 @@ SERIES_TITLE_MAP = {
+     '1n1ba': '读经一年一遍（A计划）',
+     '1n1bb': '读经一年一遍（B计划）',
+     'cxxl': '初信喂养',
+-    'lee8': 'CWWL',
++    'lee8': '李文集',
+     'nee': '倪柝声文集',
+     'smdj8': 'LS',
+     'zsrm365': '圣经真理365',
+diff --git a/process_ysz_books.py b/process_ysz_books.py
+index df0f0678..832ce714 100644
+--- a/process_ysz_books.py
++++ b/process_ysz_books.py
+@@ -29,7 +29,7 @@ SKIP_FILES = {'Zo.txt', 'CJ.txt', 'Y11.txt', 'DE.txt'}
+ 
+ # 敏感词替换规则
+ SENSITIVE_REPLACEMENTS = [
+-    ("李常受文集", "CWWL"),
++    ("李常受文集", "李文集"),
+     ("生命读经", "LS"),
+ ]
+ 
+@@ -38,7 +38,7 @@ SERIES_TITLE_MAP = {
+     'books': '职事书报',
+     'smdj8': 'LS',
+     'nee': '倪柝声文集',
+-    'lee8': 'CWWL',
++    'lee8': '李文集',
+     'sy_auto': '信息拾遗',
+     'zlt': '真理专題',
+     'sjdy': '圣经导读',
+diff --git a/src/static/css/style.css b/src/static/css/style.css
+index 4fcfee59..a3f9abd0 100644
+--- a/src/static/css/style.css
++++ b/src/static/css/style.css
+@@ -76,16 +76,16 @@
+ 
+ /* ── 基础布局 ─────────────────────────────────────────────── */
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
++body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+ .container { max-width: 960px; margin: 0 auto; padding: 0; }
+-.header { padding: 28px 16px 16px; background: var(--header-gradient); border-radius: 0 0 var(--radius-lg) var(--radius-lg); margin-bottom: 4px; }
+-.header h1 { font-size: 28px; font-weight: 700; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.02em; }
+-.header .subtitle { font-size: 14px; color: var(--text-muted); letter-spacing: 0.01em; }
++.header { padding: 32px 20px 20px; background: none; border-radius: 0; margin-bottom: 4px; }
++.header h1 { font-size: 30px; font-weight: 800; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.04em; }
++.header .subtitle { font-size: 15px; color: var(--text-muted); letter-spacing: 0.01em; margin-top: 6px; }
+ .content { padding: 0; }
+ 
+ /* ── 首页头部操作栏 ─────────────────────────────────────── */
+ .home-header-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+-.home-action-btn { padding: 8px 20px; background: var(--surface-alt); color: var(--brand); border: 1.5px solid var(--border); border-radius: 20px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s ease; }
++.home-action-btn { padding: 9px 22px; background: var(--surface-alt); color: var(--brand); border: 1.5px solid var(--border); border-radius: 22px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all 0.15s ease; }
+ .home-action-btn:active { transform: scale(0.97); background: var(--nav-hover); }
+ .home-action-btn.btn-search { background: var(--brand); color: #fff; border-color: var(--brand); }
+ .home-action-btn.btn-search:active { opacity: 0.85; }
+@@ -99,11 +99,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
+ .series-tab.active { background: var(--accent-color, #4a90d9); color: white; border-color: var(--accent-color, #4a90d9); box-shadow: 0 2px 10px rgba(var(--brand-rgb, 102,126,234), 0.35); font-weight: 600; transform: scale(1.02); }
+ 
+ /* ── 书籍卡片增强 ───────────────────────────────────────── */
+-.book-grid { display: grid; gap: 10px; padding: 4px 16px 20px; background: transparent; }
++.book-grid { display: grid; gap: 12px; padding: 8px 20px 24px; background: transparent; }
+ @media (min-width: 768px) { .book-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+ @media (min-width: 1024px) { .book-grid { grid-template-columns: repeat(3, 1fr); } }
+-.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: var(--radius-md); overflow: hidden; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; border: 1px solid var(--border); border-left: 3px solid var(--series-color, var(--accent-color, #667eea)); box-shadow: var(--shadow-card); contain: layout style paint; }
+-.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
++.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 14px; overflow: hidden; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; border: 1px solid var(--border); border-left: 2px solid var(--series-color, var(--accent-color, #667eea)); box-shadow: 0 1px 4px rgba(0,0,0,.04); contain: layout style paint; }
++.zl-book-card:hover { background: var(--nav-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+ .zl-book-card:active { transform: scale(0.98); transition-duration: 0.1s; }
+ [data-theme="dark"] .zl-book-card { box-shadow: var(--shadow-card); }
+ [data-theme="dark"] .zl-book-card:hover { box-shadow: var(--shadow-card-hover); }
+@@ -140,16 +140,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
+ .category-back-btn:active { opacity: 0.6; }
+ 
+ /* ── 系列目录卡片（首页） ─────────────────────────────────── */
+-.series-catalog-grid { display: grid; gap: 12px; padding: 4px 16px 20px; }
++.series-catalog-grid { display: grid; gap: 14px; padding: 8px 20px 24px; }
+ @media (min-width: 768px) { .series-catalog-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+ @media (min-width: 1024px) { .series-catalog-grid { grid-template-columns: repeat(3, 1fr); } }
+-.series-catalog-card { background: var(--card-bg, var(--surface)); border-radius: 14px; padding: 20px; border: 1px solid var(--border); border-left: 4px solid var(--series-color, var(--accent-color, #667eea)); cursor: pointer; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; -webkit-tap-highlight-color: transparent; user-select: none; position: relative; overflow: hidden; box-shadow: var(--shadow-card); }
+-.series-catalog-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
++.series-catalog-card { background: var(--card-bg, var(--surface)); border-radius: 16px; padding: 22px 24px; border: 1px solid var(--border); cursor: pointer; transition: background-color .2s, transform 0.2s ease, box-shadow 0.2s ease; -webkit-tap-highlight-color: transparent; user-select: none; position: relative; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
++.series-catalog-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+ [data-theme="dark"] .series-catalog-card:hover { box-shadow: var(--shadow-card-hover); }
+ .series-catalog-card:active { background: var(--nav-hover); transform: scale(0.98); }
+-.series-catalog-card-title { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.4; }
+-.series-catalog-card-count { font-size: 12px; color: var(--tag-text, var(--text-muted)); margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; background: var(--tag-bg, rgba(var(--brand-rgb),.08)); padding: 3px 10px 3px 6px; border-radius: 12px; font-weight: 500; }
+-.series-catalog-card-count::before { content: '📚'; display: inline-block; font-size: 12px; }
++.series-catalog-card-title { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.4; letter-spacing: 0.02em; }
++.series-catalog-card-count { font-size: 13px; color: var(--text-muted); margin-top: 6px; font-weight: 400; }
++/* count no longer uses emoji */
+ 
+ /* ── 系列书籍列表头部 ──────────────────────────────────── */
+ .series-list-header { padding: 20px 16px 12px !important; margin-bottom: 8px !important; }
+@@ -228,14 +228,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
+ .home-status-icon { font-size: 24px; margin-bottom: 10px; }
+ 
+ /* ── 底部 ─────────────────────────────────────────────── */
+-.footer { text-align: center; padding: 20px 16px; color: var(--text-muted); background: var(--surface-alt); border-top: 1px solid var(--border); font-size: 13px; margin-top: 12px; letter-spacing: 0.01em; }
++.footer { text-align: center; padding: 16px 16px; color: var(--text-muted); background: transparent; border-top: 1px solid var(--border); font-size: 12px; margin-top: 8px; letter-spacing: 0.01em; opacity: 0.85; }
+ .footer-meta { margin-top: 8px; font-size: 12px; opacity: 0.8; }
+ 
+ /* ── 响应式微调 ─────────────────────────────────────────── */
+ @media (min-width: 768px) {
+-  .header { padding: 36px 28px 20px; }
++  .header { padding: 40px 28px 24px; }
+   .series-tabs { padding: 14px 28px; }
+-  .book-grid { padding: 4px 28px 28px; gap: 14px; }
++  .book-grid { padding: 8px 28px 28px; gap: 14px; }
++  .series-catalog-grid { padding: 8px 28px 28px; }
+ }
+ 
+ /* ── 首页溢出菜单 ───────────────────────────────────────── */
+diff --git a/src/static/index.html b/src/static/index.html
+index fa3beac9..657aa86f 100644
+--- a/src/static/index.html
++++ b/src/static/index.html
+@@ -28,16 +28,16 @@
+         .header{color:var(--header-text);margin-bottom:20px}
+         .content{padding:0}
+         @media(min-width:768px){.header{margin-bottom:30px}}
+-        .books-grid{display:flex;flex-direction:column;gap:10px;margin:0;padding:4px 0}
+-        .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s, box-shadow .2s;border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
++        .books-grid{display:flex;flex-direction:column;gap:12px;margin:0;padding:8px 20px 24px}
++        .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s, box-shadow .2s;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+         .book-card:hover{background:var(--nav-hover)}
+         .book-card-wrapper{display:flex;align-items:stretch;gap:0}
+         .book-link{display:block;padding:14px 16px;text-decoration:none;color:inherit;flex:1;min-width:0;transition:background-color .2s;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+         .book-link:active{background:var(--nav-hover)}
+         .book-info{position:relative}
+         .book-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px}
+-        .skeleton-item{padding:18px 16px;background:var(--card-bg, var(--surface));border:1px solid var(--border);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+-        .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--border) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.8s ease-in-out infinite;border-radius:6px;margin-bottom:10px}
++        .skeleton-item{padding:20px 18px;background:var(--card-bg, var(--surface));border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
++        .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--border) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.8s ease-in-out infinite;border-radius:8px;margin-bottom:10px}
+         .skeleton-line.short{width:30%;height:14px}
+         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+         .book-card .book-author{font-size:14px;color:var(--brand);font-weight:600;flex-shrink:0;line-height:1.3}
+@@ -52,7 +52,7 @@
+         .home-status-icon{font-size:24px;margin-bottom:10px}
+         .home-retry-btn{margin-top:20px;padding:10px 20px;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:1px solid var(--btn-primary-border);border-radius:6px;cursor:pointer;font:inherit;font-weight:600;box-shadow:var(--shadow-sm)}
+         .home-retry-btn:active{transform:scale(.98)}
+-        .footer{text-align:center;padding:16px;color:var(--text-muted);background:var(--surface-alt);border-top:1px solid var(--border)}
++        .footer{text-align:center;padding:16px;color:var(--text-muted);background:transparent;border-top:1px solid var(--border);font-size:12px;opacity:.85}
+         .cache-status{margin-top:6px;font-size:12px;color:var(--text-muted);text-align:center;min-height:14px;padding:0}
+         .cache-status.success{color:var(--success-text)}
+         .cache-status.error{color:var(--danger-text)}
+@@ -139,7 +139,7 @@
+             <div class="header">
+                 <h1 id="mainLogo" class="logo-trigger">📖 书报</h1>
+                 <p class="subtitle">电子书阅读应用</p>
+-                <button type="button" id="bk-search-btn" style="margin-top:10px;padding:7px 18px;background:var(--surface-alt);color:var(--brand);border:1.5px solid var(--border);border-radius:20px;font:inherit;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍 搜索内容</button>
++                <button type="button" id="bk-search-btn" style="margin-top:12px;padding:9px 22px;background:var(--surface-alt);color:var(--brand);border:1.5px solid var(--border);border-radius:22px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;-webkit-tap-highlight-color:transparent">🔍 搜索内容</button>
+             </div>
+             <div class="content">
+                 <div class="books-grid" id="booksGrid">
+diff --git a/src/static/js/app-update.js b/src/static/js/app-update.js
+index 4b4a0684..78dc0ed5 100644
+--- a/src/static/js/app-update.js
++++ b/src/static/js/app-update.js
+@@ -721,13 +721,23 @@
+                 var apkFile = versionInfo.apk_file || ('Books-v' + latestVersion + '.apk');
+                 var apkSize = versionInfo.apk_size;
+ 
+-                // APK 下载：优先使用 GitHub Release URL（通过镜像代理加速）
+-                // Cloudflare Pages 有 25MB 文件限制，不从 Pages 直接下载 APK
+-                var downloadUrl = versionInfo.apk_url ||
+-                    ('https://github.com/zhao-zg/books/releases/download/v' + latestVersion + '/' + apkFile);
+-                var mirrors = (window.BK_SERVERS && window.BK_SERVERS.github_mirrors) || [];
+-                if (mirrors.length > 0) {
+-                    downloadUrl = mirrors[0] + downloadUrl;
++                // APK 下载：优先从 Cloudflare Pages 下载（APK 已随站点部署）
++                // apk_url 为相对路径（如 /Books-vX.Y.Z.apk），用响应成功的 serverUrl 拼接
++                var downloadUrl;
++                var apkUrlFromServer = versionInfo.apk_url;
++                if (apkUrlFromServer && apkUrlFromServer.indexOf('/') === 0) {
++                    // 相对路径，用 Cloudflare 服务器地址拼接
++                    downloadUrl = serverUrl.replace(/\/$/, '') + apkUrlFromServer;
++                } else if (apkUrlFromServer) {
++                    // 绝对路径，直接使用
++                    downloadUrl = apkUrlFromServer;
++                } else {
++                    // 兜底：GitHub Release + 镜像代理
++                    downloadUrl = 'https://github.com/zhao-zg/books/releases/download/v' + latestVersion + '/' + apkFile;
++                    var mirrors = (window.BK_SERVERS && window.BK_SERVERS.github_mirrors) || [];
++                    if (mirrors.length > 0) {
++                        downloadUrl = mirrors[0] + downloadUrl;
++                    }
+                 }
+                 var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
+                 var sizeText = apkSize ? ' (' + (apkSize / 1024 / 1024).toFixed(1) + ' MB)' : '';
+diff --git a/src/static/js/back-stack.js b/src/static/js/back-stack.js
+index b0493c28..0d76b18c 100644
+--- a/src/static/js/back-stack.js
++++ b/src/static/js/back-stack.js
+@@ -161,10 +161,14 @@
+     // ═══════════════════════════════════════════════════════════════════════
+ 
+     var _scrollLockCount = 0;
++    var _lockTimestamp = 0;
++    // 安全超时：锁定超过 30 秒后，页面重新可见时自动释放
++    var _SCROLL_LOCK_MAX_MS = 30000;
+ 
+     function _lockBodyScroll() {
+         _scrollLockCount++;
+         if (_scrollLockCount === 1) {
++            _lockTimestamp = Date.now();
+             document.documentElement.classList.add('bk-scroll-locked');
+             document.body.classList.add('bk-scroll-locked');
+             // 确保样式存在
+@@ -180,11 +184,29 @@
+     function _unlockBodyScroll() {
+         _scrollLockCount = Math.max(0, _scrollLockCount - 1);
+         if (_scrollLockCount === 0) {
++            _lockTimestamp = 0;
+             document.documentElement.classList.remove('bk-scroll-locked');
+             document.body.classList.remove('bk-scroll-locked');
+         }
+     }
+ 
++    // 安全机制：页面重新可见时，若锁定已超时则强制释放
++    function _safetyUnlock() {
++        if (_scrollLockCount > 0 && _lockTimestamp &&
++            (Date.now() - _lockTimestamp) > _SCROLL_LOCK_MAX_MS) {
++            _scrollLockCount = 0;
++            _lockTimestamp = 0;
++            document.documentElement.classList.remove('bk-scroll-locked');
++            document.body.classList.remove('bk-scroll-locked');
++        }
++    }
++
++    document.addEventListener('visibilitychange', function () {
++        if (document.visibilityState === 'visible') {
++            _safetyUnlock();
++        }
++    });
++
+     /**
+      * 锁定遮罩/对话框的滚动，并在触摸遮罩背景时调用 closeFn
+      * @param {HTMLElement} overlayEl - 遮罩元素
+diff --git a/src/static/js/ref-detector.js b/src/static/js/ref-detector.js
+index 98ac43df..d1bdec3d 100644
+--- a/src/static/js/ref-detector.js
++++ b/src/static/js/ref-detector.js
+@@ -562,6 +562,53 @@
+         var irefs = expandCnRefs(fm.text, book, ch);  // 传入当前 book/ch，支持无书卷名的相对章引用
+         if (irefs.length > 0) {
+           var ilm = irefs[irefs.length - 1].match(/^([^\d:]+)(\d+):(\d+)/);
++          // ★ 正文中过滤掉整章引用（节号全为 :0 的引用），不包裹 span
++          var allVerseZero = irefs.every(function(r) {
++            var vm = r.match(/:(\d+)/);
++            return vm && parseInt(vm[1], 10) === 0;
++          });
++          if (allVerseZero) {
++            // 仍然更新 book/ch 上下文
++            if (ilm && !_lockBook) {
++              book = ilm[1];
++              ch = parseInt(ilm[2], 10);
++            }
++            if (irefs.length === 1) {
++              // 单个整章引用：不包裹
++              result.push(escHtml(fm.text));
++            } else {
++              // ★ 多章范围：拆分为独立 span（如“创世记一至三章”→ 3个独立span）
++              var _splitOk = false;
++              try {
++                var _int2c = {1:'一',2:'二',3:'三',4:'四',5:'五',6:'六',7:'七',8:'八',9:'九',10:'十'};
++                var _bookLen = 0;
++                for (var _si = 0; _si < _sortedFullNames.length; _si++) {
++                  if (fm.text.indexOf(_sortedFullNames[_si]) === 0) { _bookLen = _sortedFullNames[_si].length; break; }
++                }
++                if (!_bookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(fm.text)) _bookLen = 1;
++                var _bookPfx = fm.text.slice(0, _bookLen);
++                var _chText = fm.text.slice(_bookLen);
++                // 提取「章/篇」前的章范围文本
++                var _zm = _chText.match(/^(.+)[章篇]/);
++                var _rangeText = _zm ? _zm[1] : _chText;
++                var _rm = _rangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
++                if (_rm) {
++                  var _cStart = cnToInt(_rm[1]), _cEnd = cnToInt(_rm[2]);
++                  if (_cStart && _cEnd && _cEnd >= _cStart && (_cEnd - _cStart + 1) === irefs.length) {
++                    for (var _ci = _cStart; _ci <= _cEnd; _ci++) {
++                      var _cn = _int2c[_ci] || String(_ci);
++                      var _txt = (_ci === _cStart ? _bookPfx : '') + _cn + (_zm ? _zm[0].slice(-1) : '');
++                      var _ref = irefs[_ci - _cStart];
++                      result.push('<span class="scripture-ref" data-refs="' + escHtml(_ref) + '">' + escHtml(_txt) + '</span>');
++                    }
++                    _splitOk = true;
++                  }
++                }
++              } catch (_e) { _splitOk = false; }
++              if (!_splitOk) result.push(escHtml(fm.text));
++            }
++            continue;
++          }
+           if (ilm && !_lockBook) {
+             book = ilm[1];
+             // 整章引用（节号为0）与具体节引用均更新章号，
+@@ -621,7 +668,51 @@
+             ch = _newCh;
+           }
+         }
+-        result.push(makeSpan(m[0], refs));
++        // ★ 括号内也过滤掉整章引用（节号全为 :0），不包裹 span
++        var allParenVerseZero = refs.every(function(r) {
++          var vm = r.match(/:(\d+)/);
++          return vm && parseInt(vm[1], 10) === 0;
++        });
++        if (allParenVerseZero) {
++          if (refs.length === 1) {
++            // 单个整章引用：不包裹
++            result.push(escHtml(m[0]));
++          } else {
++            // ★ 多章范围：拆分为独立 span
++            var _pSplitOk = false;
++            try {
++              var _pInt2c = {1:'一',2:'二',3:'三',4:'四',5:'五',6:'六',7:'七',8:'八',9:'九',10:'十'};
++              var _pBookLen = 0;
++              for (var _psi = 0; _psi < _sortedFullNames.length; _psi++) {
++                if (_inner.indexOf(_sortedFullNames[_psi]) === 0) { _pBookLen = _sortedFullNames[_psi].length; break; }
++              }
++              if (!_pBookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(_inner)) _pBookLen = 1;
++              var _pBookPfx = _inner.slice(0, _pBookLen);
++              var _pChText = _inner.slice(_pBookLen);
++              var _pZm = _pChText.match(/^(.+)[章篇]/);
++              var _pRangeText = _pZm ? _pZm[1] : _pChText;
++              var _pRm = _pRangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
++              if (_pRm) {
++                var _pcStart = cnToInt(_pRm[1]), _pcEnd = cnToInt(_pRm[2]);
++                if (_pcStart && _pcEnd && _pcEnd >= _pcStart && (_pcEnd - _pcStart + 1) === refs.length) {
++                  var _openB = m[0][0], _closeB = m[0][m[0].length - 1];
++                  result.push(escHtml(_openB));
++                  for (var _pci = _pcStart; _pci <= _pcEnd; _pci++) {
++                    var _pcn = _pInt2c[_pci] || String(_pci);
++                    var _ptxt = (_pci === _pcStart ? _pBookPfx : '') + _pcn + (_pZm ? _pZm[0].slice(-1) : '');
++                    var _pref = refs[_pci - _pcStart];
++                    result.push('<span class="scripture-ref" data-refs="' + escHtml(_pref) + '">' + escHtml(_ptxt) + '</span>');
++                  }
++                  result.push(escHtml(_closeB));
++                  _pSplitOk = true;
++                }
++              }
++            } catch (_pe) { _pSplitOk = false; }
++            if (!_pSplitOk) result.push(escHtml(m[0]));
++          }
++        } else {
++          result.push(makeSpan(m[0], refs));
++        }
+       } else {
+         // 括号整体解析失败（如「在以弗所三章十六节，」含前置词），
+         // 回退：把括号开符、内容、闭符分别扫描行内引用
+@@ -639,7 +730,16 @@
+       var refBody = dashText.replace(/^[—─]+/, '').trim();
+       var drefs = expandCnRefs(refBody, book, ch);
+       if (drefs.length > 0) {
+-        result.push(makeSpan(dashText, drefs));
++        // ★ 破折号引用也过滤掉整章引用（节号全为 :0），不包裹 span
++        var allDashVerseZero = drefs.every(function(r) {
++          var vm = r.match(/:(\d+)/);
++          return vm && parseInt(vm[1], 10) === 0;
++        });
++        if (allDashVerseZero) {
++          result.push(escHtml(dashText));
++        } else {
++          result.push(makeSpan(dashText, drefs));
++        }
+       } else {
+         result.push('<span class="scripture-ref">' + escHtml(dashText) + '</span>');
+       }
 diff --git a/src/static/js/renderer.js b/src/static/js/renderer.js
-index 810ca343..55bfceeb 100644
+index 72cdd0e1..01109d7c 100644
 --- a/src/static/js/renderer.js
 +++ b/src/static/js/renderer.js
-@@ -695,12 +695,18 @@
-     html += '<h1 class="logo-trigger">📖 书报</h1>';
-     html += '<p class="subtitle">电子书阅读应用</p>';
-     html += '<div class="home-header-actions">';
--    html += '<button type="button" id="bk-search-btn" class="home-action-btn">🔍 搜索</button>';
-+    html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
-+    // 溢出菜单
-+    html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
-+    html += '<button type="button" class="home-action-btn home-overflow-trigger" id="bk-overflow-btn">⋯</button>';
-+    html += '<div class="home-overflow-dropdown" id="homeOverflowDropdown" style="display:none">';
-     if (_zlDmReady) {
--      html += '<button type="button" id="bk-dl-mgr-btn" class="home-action-btn">📥 下载管理</button>';
-+      html += '<button type="button" id="bk-dl-mgr-btn" class="home-overflow-item">📥 下载管理</button>';
-     }
--    html += '<button type="button" id="bk-import-btn" class="home-action-btn">📂 导入</button>';
--    html += '<button type="button" id="bk-manage-btn" class="home-action-btn">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
-+    html += '<button type="button" id="bk-import-btn" class="home-overflow-item">📂 导入</button>';
-+    html += '<button type="button" id="bk-manage-btn" class="home-overflow-item">' + (_manageMode ? '✅ 完成' : '🗑️ 管理') + '</button>';
-+    html += '</div>';
-+    html += '</div>';
-     html += '</div>';
-     html += '</div>';
- 
-@@ -743,6 +749,49 @@
-     return html;
+@@ -615,12 +615,20 @@
+     return _zlDownloadedIds.indexOf(bookId) !== -1;
    }
  
 +  /**
-+   * 构建单个书籍卡片 HTML（纯函数，消除重复代码）
++   * 系列标题显示替换（兜底：CWWL → 李文集）
 +   */
-+  function _buildBookCard(book) {
-+    var downloaded = _isBookDownloaded(book.id);
-+    var seriesTitle = _getSeriesTitle(book.series);
-+    var chapterCount = book.chapter_count || 0;
-+    var progress = getReadingProgress(book.id);
-+    var progressPct = (progress > 0 && chapterCount > 0) ? Math.round(progress / chapterCount * 100) : 0;
-+
-+    var html = '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
-+    html += '<div class="book-card-wrapper">';
-+    html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
-+    html += '<div class="book-info">';
-+    html += '<div class="book-header">';
-+    html += '<div class="book-title-row">';
-+    html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-+    html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
-+    html += '</div>';
-+    html += '</div>';
-+    if (seriesTitle) {
-+      html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
-+    }
-+    html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
-+    if (progress > 0) {
-+      html += ' · 读到第' + progress + '章';
-+    }
-+    html += '</div>';
-+    // 阅读进度条
-+    if (progressPct > 0) {
-+      html += '<div class="reading-progress"><div class="reading-progress-fill" style="width:' + progressPct + '%"></div></div>';
-+    }
-+    html += '</div>';
-+    html += '</div>';
-+    html += '</div>';
-+    // 删除按钮（管理模式或导入书籍）
-+    if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
-+      html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
-+    }
-+    html += '</div>';
-+    return html;
++  function _displaySeriesTitle(title) {
++    if (title === 'CWWL') return '李文集';
++    return title;
 +  }
 +
    /**
-    * 根据当前系列过滤构建书籍网格 HTML
+    * 根据 series ID 获取系列标题
     */
-@@ -801,36 +850,7 @@
-         html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">\u2190 返回类型目录</button></div>';
-         html += '<div class="book-grid">';
-         for (var i = 0; i < catFiltered.length; i++) {
--          var book = catFiltered[i];
--          var downloaded = _isBookDownloaded(book.id);
--          var seriesTitle = _getSeriesTitle(book.series);
--          var chapterCount = book.chapter_count || 0;
--          var progress = getReadingProgress(book.id);
--          html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
--          html += '<div class="book-card-wrapper">';
--          html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
--          html += '<div class="book-info">';
--          html += '<div class="book-header">';
--          html += '<div class="book-title-row">';
--          html += '<div class="title">' + escText(book.title || book.id) + '</div>';
--          html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
--          html += '</div>';
--          html += '</div>';
--          if (seriesTitle) {
--            html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
--          }
--          html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
--          if (progress > 0) {
--            html += ' · 读到第' + progress + '章';
--          }
--          html += '</div>';
--          html += '</div>';
--          html += '</div>';
--          html += '</div>';
--          if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
--            html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
--          }
--          html += '</div>';
-+          html += _buildBookCard(catFiltered[i]);
-         }
-         html += '</div></div>';
-         return html;
-@@ -840,38 +860,7 @@
-     // 非 books 系列：保持现有平铺渲染逻辑（完全不变）
-     var html = '<div class="book-grid" id="bookGrid">';
-     for (var i = 0; i < filtered.length; i++) {
--      var book = filtered[i];
--      var downloaded = _isBookDownloaded(book.id);
--      var seriesTitle = _getSeriesTitle(book.series);
--      var chapterCount = book.chapter_count || 0;
--      var progress = getReadingProgress(book.id);
--
--      html += '<div class="book-card zl-book-card" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
--      html += '<div class="book-card-wrapper">';
--      html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
--      html += '<div class="book-info">';
--      html += '<div class="book-header">';
--      html += '<div class="book-title-row">';
--      html += '<div class="title">' + escText(book.title || book.id) + '</div>';
--      html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
--      html += '</div>';
--      html += '</div>';
--      if (seriesTitle) {
--        html += '<div class="series-tag">' + escText(seriesTitle) + '</div>';
--      }
--      html += '<div class="chapter-count">共 ' + chapterCount + ' 章';
--      if (progress > 0) {
--        html += ' · 读到第' + progress + '章';
--      }
--      html += '</div>';
--      html += '</div>';
--      html += '</div>';
--      html += '</div>';
--      // ★ 管理模式下所有书籍显示删除按钮，导入书籍始终显示
--      if (_manageMode || book.series === 'imported' || book.id.indexOf('imported-') === 0) {
--        html += '<button type="button" class="imported-delete-btn" data-book-id="' + escAttr(book.id) + '" title="删除">✕</button>';
--      }
--      html += '</div>';
-+      html += _buildBookCard(filtered[i]);
+   function _getSeriesTitle(seriesId) {
+     for (var i = 0; i < _zlSeries.length; i++) {
+-      if (_zlSeries[i].id === seriesId) return _zlSeries[i].title;
++      if (_zlSeries[i].id === seriesId) return _displaySeriesTitle(_zlSeries[i].title);
+     }
+     return seriesId || '';
+   }
+@@ -655,16 +663,94 @@
+     }
+   }
+ 
++  // 系列合并：书籍数 < MIN_SERIES_BOOKS 的系列归入拾遗
++  var _MIN_SERIES_BOOKS = 3;
++  var _PICKUP_SERIES_ID = 'sy_auto';
++  var _PROTECTED_SERIES = { 'books': true, 'sy_auto': true }; // 不参与合并的系列
++
++  function _getMergedSeries() {
++    // 计算每个系列的真实书籍数
++    var seriesBookCount = {};
++    for (var i = 0; i < _zlBooks.length; i++) {
++      var sid = _zlBooks[i].series;
++      seriesBookCount[sid] = (seriesBookCount[sid] || 0) + 1;
++    }
++
++    var visibleSeries = [];
++    var mergedCount = 0; // 被合并掉的系列贡献给拾遗的额外书籍数
++
++    for (var i = 0; i < _zlSeries.length; i++) {
++      var s = _zlSeries[i];
++      var count = seriesBookCount[s.id] || 0;
++      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
++        mergedCount += count;
++      } else {
++        visibleSeries.push(s);
++      }
++    }
++
++    // 更新拾遗系列的显示计数
++    if (mergedCount > 0) {
++      for (var i = 0; i < visibleSeries.length; i++) {
++        if (visibleSeries[i].id === _PICKUP_SERIES_ID) {
++          visibleSeries[i] = {
++            id: visibleSeries[i].id,
++            title: visibleSeries[i].title,
++            count: (seriesBookCount[_PICKUP_SERIES_ID] || 0) + mergedCount
++          };
++          break;
++        }
++      }
++    }
++
++    return { series: visibleSeries, bookCount: seriesBookCount, mergedCount: mergedCount };
++  }
++
++  // 获取某系列的书籍列表（考虑合并）
++  function _getSeriesBooks(seriesId) {
++    var books = [];
++    if (seriesId === _PICKUP_SERIES_ID) {
++      // 拾遗系列：包含原始拾遗书籍 + 被合并的小系列书籍
++      var mergedSeriesIds = {};
++      var seriesBookCount = {};
++      for (var i = 0; i < _zlBooks.length; i++) {
++        var sid = _zlBooks[i].series;
++        seriesBookCount[sid] = (seriesBookCount[sid] || 0) + 1;
++      }
++      for (var i = 0; i < _zlSeries.length; i++) {
++        var s = _zlSeries[i];
++        var count = seriesBookCount[s.id] || 0;
++        if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
++          mergedSeriesIds[s.id] = true;
++        }
++      }
++      for (var i = 0; i < _zlBooks.length; i++) {
++        if (_zlBooks[i].series === _PICKUP_SERIES_ID || mergedSeriesIds[_zlBooks[i].series]) {
++          books.push(_zlBooks[i]);
++        }
++      }
++    } else {
++      for (var i = 0; i < _zlBooks.length; i++) {
++        if (_zlBooks[i].series === seriesId) books.push(_zlBooks[i]);
++      }
++    }
++    return books;
++  }
++
+   /**
+    * 渲染系列卡片目录（首页默认视图）
+    */
+   function _renderSeriesCatalog(homeView) {
++    var merged = _getMergedSeries();
++    var totalBooks = _zlBooks.length;
++    var totalSeries = merged.series.length;
++
+     var html = '<div class="container">';
+ 
+     // 头部
+     html += '<div class="header">';
+     html += '<h1 class="logo-trigger">📖 书报</h1>';
+-    html += '<p class="subtitle">电子书阅读应用</p>';
++    html += '<p class="subtitle">' + totalSeries + ' 个系列 · ' + totalBooks + ' 本书</p>';
+     html += '<div class="home-header-actions">';
+     html += '<button type="button" id="bk-search-btn" class="home-action-btn btn-search">🔍 搜索</button>';
+     html += '<div class="home-overflow-menu" id="homeOverflowMenu">';
+@@ -682,15 +768,16 @@
+ 
+     // 系列卡片网格
+     html += '<div class="series-catalog-grid">';
+-    for (var i = 0; i < _zlSeries.length; i++) {
+-      var s = _zlSeries[i];
+-      var color = _getSeriesColor(s.id);
+-      var bookCount = 0;
+-      for (var j = 0; j < _zlBooks.length; j++) {
+-        if (_zlBooks[j].series === s.id) bookCount++;
++    for (var i = 0; i < merged.series.length; i++) {
++      var s = merged.series[i];
++      var bookCount = merged.bookCount[s.id] || 0;
++      // 如果是拾遗系列，使用合并后的计数
++      if (s.id === _PICKUP_SERIES_ID && merged.mergedCount > 0) {
++        bookCount = s.count;
+       }
+-      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '" style="--series-color:' + color + '">';
+-      html += '<div class="series-catalog-card-title">' + escText(s.title) + '</div>';
++      var displayTitle = _displaySeriesTitle ? _displaySeriesTitle(s.title) : s.title;
++      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '">';
++      html += '<div class="series-catalog-card-title">' + escText(displayTitle) + '</div>';
+       html += '<div class="series-catalog-card-count">' + bookCount + ' 本</div>';
+       html += '</div>';
+     }
+@@ -767,11 +854,12 @@
+    * 构建系列标签栏 HTML
+    */
+   function _buildSeriesTabs() {
++    var merged = _getMergedSeries();
+     var html = '<div class="series-tabs" id="seriesTabs">';
+-    for (var i = 0; i < _zlSeries.length; i++) {
+-      var s = _zlSeries[i];
++    for (var i = 0; i < merged.series.length; i++) {
++      var s = merged.series[i];
+       var active = _zlCurrentSeries === s.id ? ' active' : '';
+-      html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(s.title) + '</button>';
++      html += '<button class="series-tab' + active + '" data-series="' + escAttr(s.id) + '">' + escText(_displaySeriesTitle(s.title)) + '</button>';
      }
      html += '</div>';
      return html;
-@@ -1022,8 +1011,14 @@
-               if (win.__bkBooks[j].id === delBookId) { win.__bkBooks.splice(j, 1); break; }
-             }
-           }
--          var hv = document.getElementById('homeView');
--          if (hv) _renderZlHome(hv);
-+          // 局部 DOM 更新：移除对应卡片
-+          var cardEl = homeView.querySelector('.zl-book-card[data-book-id="' + delBookId + '"]');
-+          if (cardEl) cardEl.parentNode.removeChild(cardEl);
-+          // 如果当前系列下没有书籍了，显示空状态
-+          var grid = homeView.querySelector('.book-grid');
-+          if (grid && grid.querySelectorAll('.zl-book-card').length === 0) {
-+            grid.innerHTML = '<div class="home-status">该系列暂无书籍</div>';
-+          }
-         };
-         if (delBookId.indexOf('imported-') === 0 && win.ImportManager && win.ImportManager.deleteImportedBook) {
-           win.ImportManager.deleteImportedBook(delBookId).then(doDelete).catch(function() { doDelete(); });
-@@ -1138,12 +1133,56 @@
-       }
+@@ -824,10 +912,7 @@
+    * 根据当前系列过滤构建书籍网格 HTML
+    */
+   function _buildBookGrid(seriesFilter) {
+-    var filtered = [];
+-    for (var i = 0; i < _zlBooks.length; i++) {
+-      if (_zlBooks[i].series === seriesFilter) filtered.push(_zlBooks[i]);
+-    }
++    var filtered = _getSeriesBooks(seriesFilter);
  
-       // 13. 管理按钮
--      if (e.target.closest && e.target.closest('#bk-manage-btn')) {
-+      if (e.target.closest && (e.target.closest('#bk-manage-btn') || e.target.closest('.home-overflow-item#bk-manage-btn'))) {
-         _manageMode = !_manageMode;
--        var hv = document.getElementById('homeView');
--        if (hv) _renderZlHome(hv);
-+        // 更新按钮文字
-+        var manageBtn = document.getElementById('bk-manage-btn');
-+        if (manageBtn) manageBtn.textContent = _manageMode ? '✅ 完成' : '🗑️ 管理';
-+        // 遍历所有书籍卡片，添加/移除删除按钮
-+        var cards = homeView.querySelectorAll('.zl-book-card');
-+        for (var ci = 0; ci < cards.length; ci++) {
-+          var card = cards[ci];
-+          var bookId = card.getAttribute('data-book-id');
-+          var series = card.getAttribute('data-series');
-+          var existingDelBtn = card.querySelector('.imported-delete-btn');
-+          if (_manageMode) {
-+            if (!existingDelBtn) {
-+              var btn = document.createElement('button');
-+              btn.type = 'button';
-+              btn.className = 'imported-delete-btn';
-+              btn.setAttribute('data-book-id', bookId);
-+              btn.title = '删除';
-+              btn.textContent = '✕';
-+              card.appendChild(btn);
-+            }
-+          } else {
-+            // 非管理模式：仅移除非导入书籍的删除按钮
-+            if (existingDelBtn && series !== 'imported' && bookId.indexOf('imported-') !== 0) {
-+              existingDelBtn.parentNode.removeChild(existingDelBtn);
-+            }
-+          }
-+        }
-         return;
-       }
-+
-+      // 14. 溢出菜单触发按钮
-+      if (e.target.closest && e.target.closest('#bk-overflow-btn')) {
-+        e.stopPropagation();
-+        var dropdown = document.getElementById('homeOverflowDropdown');
-+        if (dropdown) {
-+          dropdown.style.display = (dropdown.style.display === 'none' || !dropdown.style.display) ? 'block' : 'none';
-+        }
-+        return;
-+      }
-+
-+      // 15. 点击溢出菜单外区域关闭菜单
-+      var overflowMenu = document.getElementById('homeOverflowMenu');
-+      if (overflowMenu && !e.target.closest('#homeOverflowMenu')) {
-+        var dropdown = document.getElementById('homeOverflowDropdown');
-+        if (dropdown && dropdown.style.display !== 'none') {
-+          dropdown.style.display = 'none';
-+        }
-+      }
-     };
- 
-     homeView.addEventListener('click', clickHandler);
+     if (!filtered.length) {
+       return '<div class="book-grid" id="bookGrid"><div class="home-status">该系列暂无书籍</div></div>';
+@@ -924,7 +1009,7 @@
+     for (var i = 0; i < _zlSeries.length; i++) {
+       var s = _zlSeries[i];
+       html += '<div class="download-series-row">';
+-      html += '<span class="download-series-name">' + escText(s.title) + ' (' + (s.count || 0) + '本)</span>';
++      html += '<span class="download-series-name">' + escText(_displaySeriesTitle(s.title)) + ' (' + (s.count || 0) + '本)</span>';
+       html += '<span class="series-cache-info" data-series="' + escAttr(s.id) + '"></span>';
+       html += '<button class="download-series-btn" data-series="' + escAttr(s.id) + '">下载</button>';
+       html += '</div>';
+diff --git a/src/static/js/theme-toggle.js b/src/static/js/theme-toggle.js
+index 5d4ad56b..9624ca41 100644
+--- a/src/static/js/theme-toggle.js
++++ b/src/static/js/theme-toggle.js
+@@ -377,9 +377,17 @@
+                         .then(function(v) {
+                             var f = v.apk_file || ('Books-v' + (v.apk_version || v.version) + '.apk');
+                             var sz = v.apk_size ? ' (' + (v.apk_size / 1024 / 1024).toFixed(1) + ' MB)' : '';
+-                            // APK 从 GitHub Release 下载（Cloudflare Pages 有 25MB 文件限制）
+-                            var apkUrl = v.apk_url ||
+-                                ('https://github.com/zhao-zg/books/releases/download/v' + (v.apk_version || v.version) + '/' + f);
++                            // APK 从 Cloudflare Pages 下载（已随站点部署）
++                            var apkUrl;
++                            if (v.apk_url && v.apk_url.indexOf('/') === 0) {
++                                // 相对路径，用当前站点地址拼接
++                                apkUrl = window.location.origin + v.apk_url;
++                            } else if (v.apk_url) {
++                                apkUrl = v.apk_url;
++                            } else {
++                                // 兜底：GitHub Release
++                                apkUrl = 'https://github.com/zhao-zg/books/releases/download/v' + (v.apk_version || v.version) + '/' + f;
++                            }
+                             if (statusEl) { statusEl.textContent = '正在下载 v' + (v.apk_version || v.version) + sz + '...'; statusEl.className = 'cache-status success'; }
+                             window.open(apkUrl, '_blank');
+                         })

@@ -731,13 +731,13 @@ jobs:
         name: android-apk
         path: Books-*.apk
     
-    - name: 更新 version.json APK 信息
+    - name: 复制 APK 到 output 并更新 version.json
       if: startsWith(github.ref, 'refs/tags/')
       run: |
         VERSION=${GITHUB_REF#refs/tags/v}
         APK_NAME="Books-v${VERSION}.apk"
         
-        echo "=== 更新 version.json ==="
+        echo "=== 复制 APK 到 output/ 并更新 version.json ==="
         
         # 检查 APK 文件是否存在
         if [ ! -f "$APK_NAME" ]; then
@@ -747,15 +747,15 @@ jobs:
         fi
         
         APK_SIZE=$(stat -c%s "$APK_NAME" 2>/dev/null || echo "0")
-        APK_URL="https://github.com/zhao-zg/books/releases/download/v${VERSION}/${APK_NAME}"
+        
+        # 复制 APK 到 output/ 目录，随站点一起部署到 Cloudflare Pages
+        cp "$APK_NAME" output/
+        echo "✓ APK 已复制到 output/$APK_NAME"
+        ls -lh output/$APK_NAME
         
         echo "APK 文件信息:"
         ls -lh "$APK_NAME"
-        echo "  URL: $APK_URL"
         
-        # 更新 version.json 添加 APK 信息
-        # 注意：APK 不复制到 output/，因为 Cloudflare Pages 有 25MB 文件限制
-        # APK 通过 GitHub Release 下载，version.json 中包含 apk_url 指向 GitHub Release
         python3 << PYTHON_EOF
         import json
         import os
@@ -764,7 +764,6 @@ jobs:
         version = '$VERSION'
         apk_name = '$APK_NAME'
         apk_size = $APK_SIZE
-        apk_url = '$APK_URL'
         
         # 读取现有的 version.json
         if os.path.exists(version_file):
@@ -773,11 +772,11 @@ jobs:
         else:
             data = {}
         
-        # 添加 APK 信息
+        # 添加 APK 信息（apk_url 使用相对路径，前端用 BK_SERVERS.cloudflare[0] 拼接）
         data['apk_version'] = version
         data['apk_file'] = apk_name
         data['apk_size'] = apk_size
-        data['apk_url'] = apk_url
+        data['apk_url'] = '/' + apk_name
         
         # 保存
         with open(version_file, 'w', encoding='utf-8') as f:
@@ -787,7 +786,7 @@ jobs:
         print(f'  APK 版本: {version}')
         print(f'  APK 文件: {apk_name}')
         print(f'  APK 大小: {apk_size} bytes')
-        print(f'  APK URL: {apk_url}')
+        print(f'  APK URL: /{apk_name} (Cloudflare Pages)')
         PYTHON_EOF
         
         # 显示 version.json 内容
@@ -795,10 +794,10 @@ jobs:
         echo "=== version.json 内容 ==="
         cat output/version.json
         
-        # 显示 output 目录内容
+        # 显示 output 目录
         echo ""
         echo "=== output 目录 ==="
-        ls -lh output/version.json
+        ls -lh output/version.json output/$APK_NAME
         
     - name: 创建 Release
       if: startsWith(github.ref, 'refs/tags/')
