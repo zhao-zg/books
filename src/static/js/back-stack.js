@@ -215,7 +215,7 @@
     document.addEventListener('touchstart', function () {
         if (_scrollLockCount > 0) {
             // 检查是否还有可见的 bk-dialog-mask 或 bk-modal-mask
-            var masks = document.querySelectorAll('.bk-dialog-mask.show, .bk-modal-mask.show, .hl-modal-mask, .scripture-popup-mask');
+            var masks = document.querySelectorAll('.bk-dialog-mask.show, .cx-dialog-mask.show, .cx-sheet-mask.show, .bk-modal-mask.show, .hl-modal-mask, .scripture-popup-mask');
             var hasVisibleMask = false;
             for (var i = 0; i < masks.length; i++) {
                 if (masks[i].offsetParent !== null) {
@@ -306,5 +306,14 @@
     }
 
     win.BK.lockOverlayScroll = lockOverlayScroll;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  4. CX 命名空间 — 通用弹框标准 API
+    // ═══════════════════════════════════════════════════════════════════════
+
+    win.CX = win.CX || {};
+    win.CX.openDialog = openDialog;
+    win.CX.backStack = BKBackStack;
+    win.CX.lockOverlayScroll = lockOverlayScroll;
 
 }(window));

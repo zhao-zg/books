@@ -83,6 +83,7 @@
   var _manageMode = false;      // 书籍管理模式（显示删除按钮）
   var _showAppGen = 0;          // showApp 过渡动画生成计数器
   var _bkHomeClickHandler = null; // 首页事件委托处理器（用于 removeEventListener）
+  var _zlIndexUpdateHandler = null; // 索引更新事件处理器（用于 removeEventListener）
 
   // 滚动位置记忆
   var _scrollSaveTimer = null;
@@ -150,6 +151,9 @@
     _dmInitPromise = (function () {
       if (_zlDmReady) return Promise.resolve();
       var dmUrl = '';
+      var dmUrls = [];
+      var isNativeApp = false;
+      var isPwaStandalone = false;
       try {
         // 检测是否为本地开发环境
         var hostname = win.location.hostname;
@@ -163,24 +167,39 @@
           || hostname === '[::1]';
 
         // ★ 优先检测 APK/PWA（Capacitor WebView 的 hostname 也是 localhost）
-        var isNativeApp = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
-        var isPwaStandalone = (win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || win.navigator.standalone;
+        isNativeApp = !!(win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform());
+        isPwaStandalone = (win.matchMedia && win.matchMedia('(display-mode: standalone)').matches) || win.navigator.standalone;
 
         // 从配置的 cloudflare 地址列表构建数据源 URL（多个地址可容灾）
         var cfServers = (win.BK_SERVERS && win.BK_SERVERS.cloudflare) || [];
-        var dmUrls = [];
 
         if (isNativeApp || isPwaStandalone) {
-          // APK/PWA：使用 cloudflare 地址列表，每个加 /zl-data
+          // APK/PWA：优先使用本地 bundled 索引数据，回退到 CDN
+          var localZlData = './zl-data';
+          var cfFallbackUrls = [];
           if (cfServers.length > 0) {
             for (var si = 0; si < cfServers.length; si++) {
-              dmUrls.push(cfServers[si].replace(/\/+$/, '') + '/zl-data');
+              cfFallbackUrls.push(cfServers[si].replace(/\/+$/, '') + '/zl-data');
             }
           } else {
-            dmUrls.push('https://books-data.pages.dev');
+            cfFallbackUrls.push('https://books-data.pages.dev/zl-data');
           }
-          dmUrl = dmUrls[0];
-          console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：DataManager 使用 ' + dmUrls.length + ' 个地址');
+          // 检查本地索引是否可用
+          return fetch(localZlData + '/books-index.json', { cache: 'no-cache' }).then(function(r) {
+            if (r.ok) {
+              dmUrl = localZlData;
+              dmUrls = [localZlData].concat(cfFallbackUrls);
+              console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据，CDN 备用');
+            } else {
+              throw new Error('本地索引不可用');
+            }
+          }).catch(function() {
+            dmUrls = cfFallbackUrls;
+            dmUrl = cfFallbackUrls[0];
+            console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：本地索引不可用，使用 CDN（' + dmUrls.length + ' 个地址）');
+          }).then(function() {
+            return _setupDataManager(dmUrl, dmUrls);
+          });
         } else if (isLocal) {
           var origin = win.location.origin;
           if (!origin || origin === 'null') origin = 'http://localhost:8080';
@@ -193,44 +212,51 @@
           console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl);
         }
       } catch (e) {}
-      if (!dmUrl || !win.DataManager) return Promise.resolve();
-      win.DataManager.setBaseUrl(dmUrls && dmUrls.length > 1 ? dmUrls : dmUrl);
-      _zlDmReady = true;
-      return Promise.all([
-        win.DataManager.loadIndex(),
-        win.DataManager.getDownloadedBookIds()
-      ]).then(function (results) {
-        var indexData = results[0];
-        var downloadedIds = results[1] || [];
-        if (indexData && indexData.series && indexData.books) {
-          _zlIndex = indexData;
-          _zlSeries = indexData.series || [];
-          _zlBooks = indexData.books || [];
-          _zlDownloadedIds = downloadedIds;
-          BKRenderer._zlActive = true;
-          if (!win.__bkBooks) win.__bkBooks = [];
-          for (var zi = 0; zi < _zlBooks.length; zi++) {
-            var zlBook = _zlBooks[zi];
-            var found = false;
-            for (var bi = 0; bi < win.__bkBooks.length; bi++) {
-              if (win.__bkBooks[bi].id === zlBook.id) { found = true; break; }
-            }
-            if (!found) win.__bkBooks.push(zlBook);
-          }
-          // DataManager 加载成功后，若首页可见则重新渲染为系列目录
-          var homeEl = document.getElementById('homeView');
-          if (homeEl && homeEl.style.display !== 'none' && _zlBooks.length > 0) {
-            _zlHomeView = 'catalog';
-            _renderZlHome(homeEl);
-          }
-        }
-        return _mergeImportedBooks();
-      }).catch(function (err) {
-        console.warn('[Renderer] DataManager 初始化失败:', err.message);
-        _zlDmReady = false;
-      });
+      return _setupDataManager(dmUrl, dmUrls);
     })();
     return _dmInitPromise;
+  }
+
+  /**
+   * 初始化 DataManager（提取为独立函数，供 _ensureDmInit 同步/异步复用）
+   */
+  function _setupDataManager(dmUrl, dmUrls) {
+    if (!dmUrl || !win.DataManager) return Promise.resolve();
+    win.DataManager.setBaseUrl(dmUrls && dmUrls.length > 1 ? dmUrls : dmUrl);
+    _zlDmReady = true;
+    return Promise.all([
+      win.DataManager.loadIndex(),
+      win.DataManager.getDownloadedBookIds()
+    ]).then(function (results) {
+      var indexData = results[0];
+      var downloadedIds = results[1] || [];
+      if (indexData && indexData.series && indexData.books) {
+        _zlIndex = indexData;
+        _zlSeries = indexData.series || [];
+        _zlBooks = indexData.books || [];
+        _zlDownloadedIds = downloadedIds;
+        BKRenderer._zlActive = true;
+        if (!win.__bkBooks) win.__bkBooks = [];
+        for (var zi = 0; zi < _zlBooks.length; zi++) {
+          var zlBook = _zlBooks[zi];
+          var found = false;
+          for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+            if (win.__bkBooks[bi].id === zlBook.id) { found = true; break; }
+          }
+          if (!found) win.__bkBooks.push(zlBook);
+        }
+        // DataManager 加载成功后，若首页可见则重新渲染为系列目录
+        var homeEl = document.getElementById('homeView');
+        if (homeEl && homeEl.style.display !== 'none' && _zlBooks.length > 0) {
+          _zlHomeView = 'catalog';
+          _renderZlHome(homeEl);
+        }
+      }
+      return _mergeImportedBooks();
+    }).catch(function (err) {
+      console.warn('[Renderer] DataManager 初始化失败:', err.message);
+      _zlDmReady = false;
+    });
   }
 
   // ── 容器与视图切换 ────────────────────────────────────────────────────
@@ -882,7 +908,7 @@
     html += '<div class="book-header">';
     html += '<div class="book-title-row">';
     html += '<div class="title">' + escText(book.title || book.id) + '</div>';
-    html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:12px;">' + (downloaded ? '✓' : '☁') + '</span>';
+    html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:0.75em;">' + (downloaded ? '✓' : '☁') + '</span>';
     html += '</div>';
     html += '</div>';
     if (seriesTitle) {
@@ -967,7 +993,7 @@
       }
     }
 
-    // 非 books 系列：保持现有平铺渲染逻辑（完全不变）
+    // 非 books 系列：平铺渲染
     var html = '<div class="book-grid" id="bookGrid">';
     for (var i = 0; i < filtered.length; i++) {
       html += _buildBookCard(filtered[i]);
@@ -987,7 +1013,7 @@
     html += '</div>';
 
     // 资源检查摘要
-    html += '<div class="bk-resource-summary" id="dlResourceSummary" style="padding:8px 12px;margin-bottom:8px;font-size:13px;color:#666;background:#f5f5f5;border-radius:6px;">资源统计加载中...</div>';
+    html += '<div class="bk-resource-summary" id="dlResourceSummary" style="padding:8px 12px;margin-bottom:8px;font-size:0.8125em;color:#666;background:#f5f5f5;border-radius:6px;">资源统计加载中...</div>';
 
     // 存储统计
     html += '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>';
@@ -1325,6 +1351,26 @@
 
     homeView.addEventListener('click', clickHandler);
     _bkHomeClickHandler = clickHandler;
+
+    // 监听 DataManager 索引更新事件（后台拉取到新数据时自动刷新）
+    if (_zlIndexUpdateHandler) {
+      document.removeEventListener('zl:index-updated', _zlIndexUpdateHandler);
+    }
+    _zlIndexUpdateHandler = function () {
+      if (win.DataManager) {
+        var newIndex = win.DataManager.getCachedIndex();
+        if (newIndex && newIndex.books) {
+          _zlIndex = newIndex;
+          _zlSeries = newIndex.series || [];
+          _zlBooks = newIndex.books || [];
+          var homeEl = document.getElementById('homeView');
+          if (homeEl && homeEl.style.display !== 'none' && _zlBooks.length > 0) {
+            _renderZlHome(homeEl);
+          }
+        }
+      }
+    };
+    document.addEventListener('zl:index-updated', _zlIndexUpdateHandler);
 
     startScrollTracking('home');
     restoreScrollPosition('home');

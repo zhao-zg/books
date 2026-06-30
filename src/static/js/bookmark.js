@@ -98,7 +98,7 @@
         style.textContent = [
             '.bk-bm-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);',
             'background:rgba(50,50,50,.92);color:#fff;padding:10px 18px;border-radius:22px;',
-            'font-size:14px;z-index:99999;display:flex;align-items:center;gap:12px;',
+            'font-size:0.875em;z-index:99999;display:flex;align-items:center;gap:12px;',
             'opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;',
             'box-shadow:0 4px 16px rgba(0,0,0,.18)}',
             '.bk-bm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}',
