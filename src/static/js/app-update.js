@@ -26,50 +26,96 @@
         var useStreamingFetch = typeof fetch === 'function';
 
         if (useStreamingFetch) {
-            var response = await fetch(url, { method: 'GET', cache: 'no-cache' });
-            if (!response.ok) throw new Error('HTTP ' + response.status);
+            var controller, timeoutId;
+            if (typeof AbortController !== 'undefined') {
+                controller = new AbortController();
+                timeoutId = setTimeout(function() { controller.abort(); }, options.totalTimeout || 300000);
+            }
+            var fetchOptions = { method: 'GET', cache: 'no-cache' };
+            if (controller) fetchOptions.signal = controller.signal;
 
-            var contentLength = parseInt(response.headers.get('Content-Length') || '0', 10);
-            var reader = response.body ? response.body.getReader() : null;
+            var chunkReadTimeoutMs = options.readTimeout || 30000;
 
-            if (reader) {
-                var chunks = [];
-                var receivedLength = 0;
-                var lastReportTime = 0;
-                var lastReportedBytes = 0;
-                var currentSpeed = 0;
+            try {
+                var response = await fetch(url, fetchOptions);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
 
-                while (true) {
-                    var result = await reader.read();
-                    if (result.done) break;
+                var contentLength = parseInt(response.headers.get('Content-Length') || '0', 10);
+                var reader = response.body ? response.body.getReader() : null;
 
-                    chunks.push(result.value);
-                    receivedLength += result.value.length;
+                if (reader) {
+                    var chunks = [];
+                    var receivedLength = 0;
+                    var lastReportTime = 0;
+                    var lastReportedBytes = 0;
+                    var currentSpeed = 0;
 
-                    var now = Date.now();
-                    if (onProgress && (now - lastReportTime >= 500 || receivedLength === result.value.length)) {
-                        var elapsed = (now - startTime) / 1000;
-                        currentSpeed = elapsed > 0 ? Math.round(receivedLength / 1024 / elapsed) : 0;
-                        var pct = contentLength > 0 ? Math.min(Math.round(receivedLength / contentLength * 70) + 10, 79) : 10;
-                        var downloadedMB = (receivedLength / 1024 / 1024).toFixed(2);
-                        var msg = contentLength > 0
-                            ? '正在下载... ' + downloadedMB + ' / ' + (contentLength / 1024 / 1024).toFixed(2) + ' MB'
-                            : '正在下载... ' + downloadedMB + ' MB';
-                        onProgress(msg, pct, currentSpeed, receivedLength);
-                        lastReportTime = now;
-                        lastReportedBytes = receivedLength;
+                    while (true) {
+                        var readPromise = reader.read();
+                        var result;
+                        if (controller) {
+                            var readTimerId;
+                            var readTimeoutPromise = new Promise(function(_, reject) {
+                                readTimerId = setTimeout(function() { reject(new Error('读取超时')); }, chunkReadTimeoutMs);
+                            });
+                            try {
+                                result = await Promise.race([readPromise, readTimeoutPromise]);
+                            } finally {
+                                clearTimeout(readTimerId);
+                            }
+                        } else {
+                            var fallbackTimerId;
+                            var fallbackTimeout = new Promise(function(_, reject) {
+                                fallbackTimerId = setTimeout(function() { reject(new Error('读取超时')); }, chunkReadTimeoutMs);
+                            });
+                            try {
+                                result = await Promise.race([readPromise, fallbackTimeout]);
+                            } finally {
+                                clearTimeout(fallbackTimerId);
+                            }
+                        }
+                        if (result.done) break;
+
+                        chunks.push(result.value);
+                        receivedLength += result.value.length;
+
+                        var now = Date.now();
+                        if (onProgress && (now - lastReportTime >= 500 || receivedLength === result.value.length)) {
+                            var elapsed = (now - startTime) / 1000;
+                            currentSpeed = elapsed > 0 ? Math.round(receivedLength / 1024 / elapsed) : 0;
+                            var pct = contentLength > 0 ? Math.min(Math.round(receivedLength / contentLength * 70) + 10, 79) : 10;
+                            var downloadedMB = (receivedLength / 1024 / 1024).toFixed(2);
+                            var msg = contentLength > 0
+                                ? '正在下载... ' + downloadedMB + ' / ' + (contentLength / 1024 / 1024).toFixed(2) + ' MB'
+                                : '正在下载... ' + downloadedMB + ' MB';
+                            onProgress(msg, pct, currentSpeed, receivedLength);
+                            lastReportTime = now;
+                            lastReportedBytes = receivedLength;
+                        }
                     }
-                }
 
-                if (onProgress && receivedLength > lastReportedBytes) {
-                    var finalElapsed = (Date.now() - startTime) / 1000;
-                    currentSpeed = finalElapsed > 0 ? Math.round(receivedLength / 1024 / finalElapsed) : 0;
-                    onProgress('正在下载... ' + (receivedLength / 1024 / 1024).toFixed(2) + ' MB', 79, currentSpeed, receivedLength);
-                }
+                    if (onProgress && receivedLength > lastReportedBytes) {
+                        var finalElapsed = (Date.now() - startTime) / 1000;
+                        currentSpeed = finalElapsed > 0 ? Math.round(receivedLength / 1024 / finalElapsed) : 0;
+                        onProgress('正在下载... ' + (receivedLength / 1024 / 1024).toFixed(2) + ' MB', 79, currentSpeed, receivedLength);
+                    }
 
-                blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
-            } else {
-                blob = await response.blob();
+                    blob = new Blob(chunks, { type: 'application/vnd.android.package-archive' });
+                } else {
+                    blob = await response.blob();
+                }
+            } catch (error) {
+                if (error.message === '读取超时') {
+                    try { reader.cancel(); } catch(e) {}
+                    if (controller) controller.abort();
+                    throw new Error('下载超时（读取无响应），请检查网络连接后重试');
+                }
+                if (error.name === 'AbortError') {
+                    throw new Error('下载超时，请检查网络连接后重试');
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutId);
             }
         } else if (CapacitorHttp) {
             var httpResponse = await CapacitorHttp.get({

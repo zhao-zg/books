@@ -673,7 +673,7 @@
             });
         } else {
             closeThemePanelInternal(panel, overlay);
-            window.BK.backStack.pop();
+            window.BK.backStack.discard();
         }
     };
     

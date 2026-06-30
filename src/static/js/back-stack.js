@@ -19,7 +19,27 @@
 
     var _stack = [];
     var _fallback = null;
-    var _skipNextPop = false;
+    var _skipCount = 0;
+
+    // popstate 监听器：浏览器返回键/手势触发时，执行栈顶回调
+    window.addEventListener('popstate', function () {
+        if (_skipCount > 0) {
+            _skipCount--;
+            return;
+        }
+        if (_stack.length > 0) {
+            var fn = _stack.pop();
+            if (fn) {
+                try { fn(); } catch (e) {
+                    console.error('[BackStack] popstate callback error:', e);
+                }
+            }
+        } else if (_fallback) {
+            try { _fallback(); } catch (e) {
+                console.error('[BackStack] fallback error:', e);
+            }
+        }
+    });
 
     var BKBackStack = {
         /**
@@ -29,26 +49,18 @@
         push: function (fn) {
             if (typeof fn === 'function') {
                 _stack.push(fn);
+                try { history.pushState({ bkBack: true }, ''); } catch (e) {}
             }
         },
 
         /**
-         * 弹出栈顶回调并执行
+         * 弹出栈顶回调并消耗对应 history 条目（回调由 popstate 监听器执行）
          */
         pop: function () {
-            if (_skipNextPop) {
-                _skipNextPop = false;
-                return;
-            }
-            var fn = _stack.pop();
-            if (fn) {
-                try { fn(); } catch (e) {
-                    console.error('[BackStack] pop callback error:', e);
-                }
-            } else if (_fallback) {
-                try { _fallback(); } catch (e) {
-                    console.error('[BackStack] fallback error:', e);
-                }
+            if (_stack.length > 0) {
+                _stack.pop();
+                _skipCount++;
+                try { history.back(); } catch (e) {}
             }
         },
 
@@ -56,7 +68,11 @@
          * 弹出栈顶回调但不执行（用于手动关闭后同步栈）
          */
         discard: function () {
-            _stack.pop();
+            if (_stack.length > 0) {
+                _stack.pop();
+                _skipCount++;
+                try { history.back(); } catch (e) {}
+            }
         },
 
         /**
@@ -71,9 +87,8 @@
          * 标记跳过下一次 pop（用于 history.back 触发时的防重入）
          */
         skipNext: function () {
-            _skipNextPop = true;
-            // 安全复位：防止 skipNext 后永远没有 pop
-            setTimeout(function () { _skipNextPop = false; }, 100);
+            _skipCount++;
+            setTimeout(function () { if (_skipCount > 0) _skipCount--; }, 200);
         },
 
         /**
@@ -119,6 +134,7 @@
         mask.classList.add('show');
 
         var _closed = false;
+        var _discarded = false;
 
         function _destroy() {
             if (_closed) return;
@@ -137,7 +153,10 @@
         // 主动关闭：销毁 DOM + 消耗 history 记录
         function close() {
             _destroy();
-            BKBackStack.discard();  // 仅出栈，不调 history.back()
+            if (!_discarded) {
+                _discarded = true;
+                BKBackStack.discard();
+            }
         }
 
         // lockOverlayScroll 统一处理防滚动穿透

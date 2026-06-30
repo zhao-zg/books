@@ -461,23 +461,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 }
 .theme-panel {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  top: 50%;
+  left: 50%;
   background: var(--surface, #fff);
   z-index: 300;
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
-  max-height: 80vh;
+  transform: translate(-50%, -50%) scale(0.95);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  width: min(420px, 90vw);
+  max-height: min(80vh, 640px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 8px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 20px 20px;
+  will-change: transform, opacity;
 }
 .theme-panel.show {
-  transform: translateY(0);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
 }
 .theme-panel-header {
   display: flex;
@@ -667,7 +670,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .action-btn:disabled { opacity: .5; cursor: not-allowed; }
 .action-btn.danger { color: var(--danger-text, #c62828); border-color: var(--danger-border, #fed7d7); background: var(--danger-bg, #fff5f5); }
 .action-btn.danger:active { background: var(--danger-bg-active, #ffe8e8); }
-.action-btn .cache-icon { font-size: 1.375em; }
+.action-btn .cache-icon { font-size: 1.5em; line-height: 1; width: 1.5em; text-align: center; flex-shrink: 0; }
 .action-btn .cache-text { font-size: 0.75em; font-weight: 500; }
 .action-btn.feedback { color: var(--brand, #667eea); border-color: var(--interactive-soft-border, rgba(102,126,234,.16)); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
 .action-btn.feedback:active { background: var(--interactive-soft-hover, rgba(102,126,234,.12)); }
