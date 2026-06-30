@@ -13,6 +13,9 @@
 
 ```
 resource/             # 电子书源文件
+  books/              # EPUB/MD/TXT/DOCX 格式书籍
+  ysz/                # YSZ 格式源文件（需预处理）
+  zl-merged/          # 合并后的标准化数据
 src/
   parser_improved.py  # 文档解析器（双格式自动检测）
   generator.py        # HTML 生成器（调用 Jinja2 模板）
@@ -22,10 +25,32 @@ src/
     css/style.css     # 全局样式（source，main.py 复制到 output/）
     js/               # 前端运行时（source，main.py 复制到 output/）
     index.html        # PWA 首页 source
-output/               # 生成产物（勿手动编辑），deploy 到 Cloudflare Pages
+output/               # 生成产物（⚠️ 勿手动编辑），deploy 到 Cloudflare Pages
 android/              # Capacitor Android 项目
 config.yaml           # 配置
 ```
+
+**领域专属指令文件**（编辑对应目录时自动加载）：
+- [Python 生成器规范](.github/instructions/python-generator.instructions.md) — 数据模型、解析器、Jinja2 模板约定
+- [Android TTS 与插件规范](.github/instructions/android-tts.instructions.md) — NativeTTS 插件架构、TTS 状态机、Android 构建约定
+
+## 构建命令速查
+
+| 命令 | 用途 |
+|---|---|
+| `python main.py` | 重新生成 `output/` 全部静态文件 |
+| `npm run build` | 等同于 `python main.py` |
+| `npm run android:build` | 完整 APK 构建：main.py → cap sync → gradlew assembleRelease |
+| `npm run android:dev` | 开发模式：构建 + 打开 Android Studio |
+| `.\release.bat` | 交互式发布：更新版本号 → git tag → 推送 |
+| `pip install -r requirements.txt` | 安装 Python 依赖 |
+
+## 反模式（禁止操作）
+
+- **禁止本地运行 `encrypt_app_update.py`**：仅在 GitHub Actions CI 中执行，本地应保持明文便于开发
+- **禁止手动创建 git tag**：必须通过 `.\release.bat` 走完整发布流程（更新 app_config.json + changelog + tag）
+- **禁止手动编辑 `output/` 目录**：所有产物由 `python main.py` 生成，修改应改 `src/` 源文件
+- **禁止使用 PowerShell 修改代码文件**（详见下方「代码修改规范」）
 
 ## 关键前端文件（src/static/js/）
 

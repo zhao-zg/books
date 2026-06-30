@@ -1,7 +1,7 @@
 # .github/ — CI/CD 与发布
 
 ## OVERVIEW
-4 个 GitHub Actions workflow + 发布流程文档 + Copilot 指令。
+4 个 GitHub Actions workflow + 发布流程文档 + 代码规范文件。
 
 ## WORKFLOWS
 | 文件 | 触发 | 职责 |
@@ -19,9 +19,10 @@
 ```
 
 ## KEY FILES
-- `copilot-instructions.md` — 弹框开发规范 + 前端 JS 职责表，**改前端必读**
-- `RELEASE_PROCESS.md` — 发布步骤详解
-- `instructions/` — 额外 Copilot 上下文指令
+- [copilot-instructions.md](copilot-instructions.md) — 项目编码规范：弹框开发、前端 JS 职责表、构建命令、反模式，**改代码前必读**
+- [RELEASE_PROCESS.md](RELEASE_PROCESS.md) — 发布步骤详解
+- [instructions/python-generator.instructions.md](instructions/python-generator.instructions.md) — Python 生成器约定
+- [instructions/android-tts.instructions.md](instructions/android-tts.instructions.md) — Android TTS 插件约定
 - `skills/` — 自定义 AI 技能
 
 ## ANTI-PATTERNS
