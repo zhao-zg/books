@@ -56,7 +56,8 @@ config.yaml           # 配置
 
 | 文件 | 职责 |
 |---|---|
-| `theme-toggle.js` | 主题切换、设置面板、`CX.openDialog` 工厂、`CX.backStack` |
+| `back-stack.js` | `CX.openDialog` 通用弹框工厂、`CX.backStack` 回退栈、`CX.lockOverlayScroll` 滚动锁定 |
+| `theme-toggle.js` | 主题切换、设置面板（底部弹框）、字体控制 |
 | `speech.js` | TTS 朗读（Web Speech API + Capacitor NativeTTS），状态机 `idle/playing/paused` |
 | `router.js` | SPA 路由 |
 | `nav-stack.js` | 页面翻页 & 返回栈（PWA/Capacitor） |

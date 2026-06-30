@@ -346,7 +346,7 @@
                     footerHtml +
                     '</div>';
 
-                var dlg = win.BK.openDialog({
+                var dlg = win.CX.openDialog({
                     id: 'bk-bookmark-list',
                     html: dialogHtml
                 });

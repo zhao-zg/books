@@ -626,7 +626,7 @@
 
         html += '</div>';
 
-        var dlg = window.BK.openDialog({ id: dialogId, html: html });
+        var dlg = window.CX.openDialog({ id: dialogId, html: html });
         if (!dlg) return function() {};
 
         var _panel = 'main';
