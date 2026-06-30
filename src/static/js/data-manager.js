@@ -97,9 +97,15 @@
           _currentUrlIndex++;
           DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
           console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL);
-          // 用新地址重新构建 URL 并重试
-          var path = url.substring(url.lastIndexOf('/') + 1);
-          var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + path;
+          // 用新地址重新构建 URL 并重试（保留完整相对路径，含子目录）
+          var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
+          var relativePath;
+          if (url.indexOf(oldBase + '/') === 0) {
+            relativePath = url.substring(oldBase.length + 1);
+          } else {
+            relativePath = url.substring(url.lastIndexOf('/') + 1);
+          }
+          var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
           return fetchWithRetry(newUrl, MAX_RETRIES);
         }
         throw err;

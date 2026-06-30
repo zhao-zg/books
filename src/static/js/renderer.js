@@ -2048,6 +2048,38 @@
           '<div class="bk-error-text">加载失败: ' + escText(err.message) + '</div>' +
           '</div>';
       });
+    },
+
+    // ── 首页内部回退（系列/分类视图 → 上一级）─────────────────────────
+    // 返回 true 表示已处理回退，false 表示已在顶层（系列目录）
+    goBackInHome: function () {
+      var homeView = document.getElementById('homeView');
+      if (!homeView) return false;
+
+      // 分类视图 → 返回系列书籍列表
+      if (_zlCurrentCategory) {
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        var gridContainer = document.getElementById('bookGrid');
+        if (gridContainer && gridContainer.parentNode) {
+          var newGrid = _buildBookGrid(_zlCurrentSeries);
+          var tmp = document.createElement('div');
+          tmp.innerHTML = newGrid;
+          gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+        }
+        return true;
+      }
+
+      // 系列书籍列表 → 返回系列目录
+      if (_zlHomeView === 'series') {
+        _zlHomeView = 'catalog';
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        _renderZlHome(homeView);
+        return true;
+      }
+
+      return false;
     }
   };
 

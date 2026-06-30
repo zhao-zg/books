@@ -81,6 +81,9 @@
                     } else if (parts.length >= 1) {
                         // 章节目录 → 主页
                         if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
+                    } else {
+                        // 主页内部：检查系列/分类视图层级
+                        if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
                     }
                     window.Capacitor.Plugins.App.exitApp();
                 });
@@ -101,6 +104,9 @@
                             if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
                         } else if (parts.length >= 1) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
+                        } else {
+                            // 主页内部：检查系列/分类视图层级
+                            if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
                         }
                         window.__bkExiting = true;
                         window.close();
