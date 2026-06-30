@@ -190,6 +190,10 @@
         }
     }
 
+    // 暴露内部函数，供 theme-toggle.js 等统一使用同一计数器
+    win.BK._lockBodyScroll = _lockBodyScroll;
+    win.BK._unlockBodyScroll = _unlockBodyScroll;
+
     // 安全机制：页面重新可见时，若锁定已超时则强制释放
     function _safetyUnlock() {
         if (_scrollLockCount > 0 && _lockTimestamp &&
@@ -206,6 +210,28 @@
             _safetyUnlock();
         }
     });
+
+    // 自愈机制：用户尝试触摸滚动时，若无可见遮罩则自动释放锁定
+    document.addEventListener('touchstart', function () {
+        if (_scrollLockCount > 0) {
+            // 检查是否还有可见的 bk-dialog-mask 或 bk-modal-mask
+            var masks = document.querySelectorAll('.bk-dialog-mask.show, .bk-modal-mask.show, .hl-modal-mask, .scripture-popup-mask');
+            var hasVisibleMask = false;
+            for (var i = 0; i < masks.length; i++) {
+                if (masks[i].offsetParent !== null) {
+                    hasVisibleMask = true;
+                    break;
+                }
+            }
+            if (!hasVisibleMask) {
+                // 无可见遮罩但仍锁定 → 强制释放
+                _scrollLockCount = 0;
+                _lockTimestamp = 0;
+                document.documentElement.classList.remove('bk-scroll-locked');
+                document.body.classList.remove('bk-scroll-locked');
+            }
+        }
+    }, { passive: true });
 
     /**
      * 锁定遮罩/对话框的滚动，并在触摸遮罩背景时调用 closeFn
@@ -246,12 +272,34 @@
         function cleanup() {
             if (cleaned) return;
             cleaned = true;
+            if (_observer) { _observer.disconnect(); _observer = null; }
             if (overlayEl) {
                 overlayEl.removeEventListener('touchstart', onTouchStart);
                 overlayEl.removeEventListener('touchmove', onTouchMove);
                 overlayEl.removeEventListener('wheel', onWheel);
             }
             _unlockBodyScroll();
+        }
+
+        // MutationObserver：自动检测遮罩从 DOM 中被移除（防止 cleanup 未调用导致永久锁定）
+        var _observer = null;
+        if (overlayEl && overlayEl.parentNode) {
+            _observer = new MutationObserver(function (mutations) {
+                for (var i = 0; i < mutations.length; i++) {
+                    var removed = mutations[i].removedNodes;
+                    for (var j = 0; j < removed.length; j++) {
+                        if (removed[j] === overlayEl || removed[j].contains(overlayEl)) {
+                            cleanup();
+                            return;
+                        }
+                    }
+                }
+                // 遮罩本身还在但已脱离文档树（如被 replaceChild）
+                if (!document.body.contains(overlayEl)) {
+                    cleanup();
+                }
+            });
+            _observer.observe(overlayEl.parentNode, { childList: true, subtree: true });
         }
 
         return cleanup;

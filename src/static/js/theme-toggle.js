@@ -38,12 +38,22 @@
     }
 
     function lockPageScroll() {
+        if (window.BK && window.BK._lockBodyScroll) {
+            window.BK._lockBodyScroll();
+            return;
+        }
+        // fallback: 独立计数器（back-stack.js 未加载时）
         pageScrollLockCount += 1;
         document.documentElement.classList.add('bk-scroll-locked');
         document.body.classList.add('bk-scroll-locked');
     }
 
     function unlockPageScroll() {
+        if (window.BK && window.BK._unlockBodyScroll) {
+            window.BK._unlockBodyScroll();
+            return;
+        }
+        // fallback: 独立计数器
         pageScrollLockCount = Math.max(0, pageScrollLockCount - 1);
         if (pageScrollLockCount === 0) {
             document.documentElement.classList.remove('bk-scroll-locked');
