@@ -208,8 +208,19 @@
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
           dmUrls.push(win.location.origin + '/zl-data');
+          // 添加 CDN 兜底地址，与 APK/PWA 分支保持一致
+          if (cfServers.length > 0) {
+            for (var bi = 0; bi < cfServers.length; bi++) {
+              var cfUrl = cfServers[bi].replace(/\/+$/, '') + '/zl-data';
+              if (dmUrls.indexOf(cfUrl) === -1) {
+                dmUrls.push(cfUrl);
+              }
+            }
+          } else {
+            dmUrls.push('https://books-data.pages.dev/zl-data');
+          }
           dmUrl = dmUrls[0];
-          console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl);
+          console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl + '（' + dmUrls.length + ' 个地址）');
         }
       } catch (e) {}
       return _setupDataManager(dmUrl, dmUrls);

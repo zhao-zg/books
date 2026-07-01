@@ -34,21 +34,20 @@ def load_app_config(config_path='app_config.json'):
 
 
 def copy_zl_merged_data(resource_dir: str, output_dir: str):
-    """将 resource/zl-merged/ 中的索引文件复制到 output/zl-data/，供 APK/PWA 本地使用。
+    """将 resource/zl-merged/ 中的索引文件复制到 output/books/。
 
-    仅复制 books-index.json 和 manifest.json（轻量索引），
-    不复制单本书籍 JSON（体积大，通过 CDN 在线加载）。
+    只复制 books-index.json 和 manifest.json（轻量索引），
+    单本书籍 JSON 不复制，通过在线加载。
     """
     merged_dir = os.path.join(resource_dir, 'zl-merged')
     if not os.path.isdir(merged_dir):
         print("⚠ resource/zl-merged/ 不存在，跳过索引数据复制")
         return
 
-    dst_dir = os.path.join(output_dir, 'zl-data')
+    dst_dir = os.path.join(output_dir, 'books')
     os.makedirs(dst_dir, exist_ok=True)
 
-    # 只复制索引文件（体积小，打包进 APK/PWA）
-    # 单本书籍 JSON 不复制，通过 CDN 在线加载
+    # 只复制索引文件
     copied = []
     for fname in ['books-index.json', 'manifest.json']:
         src = os.path.join(merged_dir, fname)
@@ -56,7 +55,7 @@ def copy_zl_merged_data(resource_dir: str, output_dir: str):
             shutil.copy2(src, os.path.join(dst_dir, fname))
             copied.append(fname)
 
-    # 统计
+    # 统计索引信息
     index_path = os.path.join(dst_dir, 'books-index.json')
     book_count = 0
     series_count = 0
@@ -69,7 +68,7 @@ def copy_zl_merged_data(resource_dir: str, output_dir: str):
         except Exception:
             pass
 
-    print(f"✓ zl-merged 索引已复制到 output/zl-data/（{series_count} 个系列，{book_count} 本书）")
+    print(f"✓ zl-merged 索引已复制到 output/books/（{series_count} 个系列，{book_count} 本书）")
     print(f"  已复制文件: {', '.join(copied)}")
 
 
