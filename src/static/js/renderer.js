@@ -1852,6 +1852,7 @@
           _zlSeries = [];
           _zlBooks = [];
           _zlDownloadedIds = [];
+          if (!win.__bkBooks) win.__bkBooks = [];
           // ★ 即使 DataManager 失败，也要合并导入书籍
           _mergeImportedBooks().then(function () {
             _renderZlHome(homeView);

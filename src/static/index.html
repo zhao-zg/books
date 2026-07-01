@@ -214,7 +214,7 @@
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
         './','./manifest.json','./sw.js',
-        './version.json','./books.json',
+        './version.json','./zl-data/books-index.json',
         './css/style.css',
         './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
@@ -260,88 +260,8 @@
         }
     })();
 
-    // ── 动态加载书籍列表 ──────────────────────────────────────────────────
-    (function(){
-        var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-        var booksUrl = isNative ? 'books.json?t=' + Date.now() : 'books.json';
-        fetch(booksUrl, { cache: 'no-cache' })
-            .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-            .then(function(data){
-                window.__bkBooks=data.books||[];
-                renderBooks(data);
-                var fm=document.getElementById('footerMeta');
-                if(fm&&data.generation_time)fm.textContent='生成时间: '+data.generation_time;
-            })
-            .catch(function(err){
-                console.error('[书籍列表]',err);
-                showLoadError();
-            });
-
-        function renderBooks(data){
-            var grid=document.getElementById('booksGrid');
-            if(!grid)return;
-            var allBooks=data.books||[];
-
-            function buildCard(b){
-                var chapterCount=b.chapter_count||0;
-                var addedDate=b.added_date||'';
-                return '<div class="book-card">'
-                    +'<div class="book-card-wrapper">'
-                    +'<div class="book-link" onclick="window.BKRouter&&BKRouter.navigate(\''+b.id+'\')" role="button" tabindex="0">'
-                    +'<div class="book-info">'
-                    +'<div class="book-header">'
-                    +'<div class="book-author">'+esc(b.author||'')+'</div>'
-                    +'<div class="info">共 '+chapterCount+' 章</div>'
-                    +'</div>'
-                    +'<div class="book-title-row">'
-                    +'<div class="title">'+esc(b.title||b.id)+'</div>'
-                    +'<span class="arrow">→</span>'
-                    +'</div>'
-                    +'</div>'
-                    +'</div>'
-                    +'</div>'
-                    +'</div>';
-            }
-
-            function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-            function buildGridHtml(list){
-                if(!list.length)return'<div class="home-status">暂无书籍内容</div>';
-                var html='';
-                list.forEach(function(b){html+=buildCard(b);});
-                return html;
-            }
-
-            // 构建 PWA 缓存页面列表
-            var pages=[];
-            allBooks.forEach(function(b){
-                pages.push('./'+b.id+'/book.json');
-            });
-            window.__bkBookPages=pages;
-
-            // PWA 显示缓存按钮
-            if(BK_ENV.isStandalone){
-                var cBtn=document.getElementById('cacheAllBtn');
-                if(cBtn)cBtn.style.display='inline-flex';
-            }
-
-            // ── refreshHomeGrid：刷新主页 grid（每次导航回主页时调用）──
-            // 当 BKRenderer 使用 zl-html 数据时，此函数不覆盖网格
-            window.refreshHomeGrid=function(){
-                if(window.BKRenderer&&window.BKRenderer._zlActive)return;
-                var g=document.getElementById('booksGrid');
-                if(!g)return;
-                g.innerHTML=buildGridHtml(allBooks.length?allBooks:[]);
-            };
-
-            window.refreshHomeGrid();
-        }
-
-        function showLoadError(){
-            var grid=document.getElementById('booksGrid');
-            if(grid)grid.innerHTML='<div class="home-status error"><div class="home-status-icon">❌</div><div>加载书籍列表失败</div><button onclick="location.reload()" class="home-retry-btn">重试</button></div>';
-        }
-    })();
+    // ── 书籍列表由 DataManager / Renderer 统一渲染 ───────────────────────
+    // 旧 books.json 入口已移除，首页网格保持骨架屏，等待 Renderer 接管。
 
     // ── 隐藏管理面板（Logo 连点 5 次 + 密码）────────────────────────────
     (function(){
@@ -736,11 +656,7 @@
     <script>
     (function waitRenderer(){
         if(window.BKRenderer){
-            var origRenderHome=window.BKRenderer.renderHome;
-            window.BKRenderer.renderHome=function(){
-                origRenderHome.call(window.BKRenderer);
-                if(window.refreshHomeGrid)window.refreshHomeGrid();
-            };
+            // renderChapterList / renderReadingView 需要先切到 SPA 视图容器
             ['renderChapterList','renderReadingView'].forEach(function(fn){
                 var orig=window.BKRenderer[fn];
                 window.BKRenderer[fn]=function(){
