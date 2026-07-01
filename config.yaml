@@ -20,6 +20,7 @@ default_book:
 # 远程服务器地址（main.py 读取后生成 output/js/remote-config.js，URL 以 base64 存储并混淆）
 remote_servers:
   cloudflare:
+    - https://books-data.pages.dev/
     - https://books.07170501.xyz/
     - https://books.1189.dpdns.org/
   github_api: https://api.github.com/repos/zhao-zg/books/releases/latest

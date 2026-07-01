@@ -17,6 +17,7 @@
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -130,29 +131,48 @@ def main():
     )
     args = parser.parse_args()
 
-    # 确定部署目录：相对于脚本所在路径，兼容 Windows
+    # 确定源目录：相对于脚本所在路径，兼容 Windows
     script_dir = Path(__file__).parent.resolve()
     if args.dir:
-        deploy_dir = Path(args.dir).resolve()
+        source_dir = Path(args.dir).resolve()
     else:
-        deploy_dir = script_dir / 'resource' / 'zl-merged'
+        source_dir = script_dir / 'resource' / 'zl-merged'
 
-    if not deploy_dir.exists():
-        print(f"错误：部署目录不存在：{deploy_dir}")
+    if not source_dir.exists():
+        print(f"错误：源目录不存在：{source_dir}")
         print("请先运行 python merge_zl_data.py 生成合并数据")
         return 1
 
     # 检查 _headers 文件
-    headers_file = deploy_dir / '_headers'
+    headers_file = source_dir / '_headers'
     if not headers_file.exists():
         print(f"警告：{headers_file} 不存在，CORS headers 将不会生效")
+
+    # 创建 zl-data/ 子目录结构的部署目录（与前端 DataManager CDN 路径一致）
+    staging_dir = script_dir / 'deploy-staging'
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    zl_data_dir = staging_dir / 'zl-data'
+    zl_data_dir.mkdir(parents=True)
+    # 复制源目录内容到 zl-data/
+    for item in source_dir.iterdir():
+        dst = zl_data_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, dst)
+        else:
+            shutil.copy2(item, dst)
+    # _headers 放在根目录（/* 通配符覆盖所有路径）
+    if headers_file.exists():
+        shutil.copy2(headers_file, staging_dir / '_headers')
 
     print("=" * 50)
     print(" Cloudflare Pages 数据部署工具")
     print("=" * 50)
+    print(f"源目录：{source_dir}")
+    print(f"部署目录：{staging_dir}（含 zl-data/ 子目录）")
     print()
 
-    success, url = deploy(str(deploy_dir), args.project, args.dry_run)
+    success, url = deploy(str(staging_dir), args.project, args.dry_run)
 
     if success:
         print()

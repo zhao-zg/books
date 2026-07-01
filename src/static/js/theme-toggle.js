@@ -196,8 +196,6 @@
         `;
         document.body.appendChild(panel);
 
-        window.BK.lockOverlayScroll(overlay, function() { window.toggleThemePanel(); });
-
         const initialTheme = getPreferredTheme();
         document.documentElement.setAttribute('data-theme', initialTheme);
         updateThemeUI(initialTheme);

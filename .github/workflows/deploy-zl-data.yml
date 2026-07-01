@@ -42,8 +42,22 @@ jobs:
           ls -la resource/zl-merged/
           cat resource/zl-merged/manifest.json
 
+      - name: Prepare deployment with zl-data prefix
+        run: |
+          echo "=== 创建 zl-data/ 子目录结构 ==="
+          mkdir -p deploy-staging/zl-data
+          cp -r resource/zl-merged/* deploy-staging/zl-data/
+          # _headers 放在根目录，/* 通配符覆盖所有路径（含 /zl-data/）
+          if [ -f resource/zl-merged/_headers ]; then
+            cp resource/zl-merged/_headers deploy-staging/
+          fi
+          echo "✓ 部署目录结构："
+          ls -la deploy-staging/
+          echo "  zl-data/ 内容："
+          ls deploy-staging/zl-data/ | head -20
+
       - name: Deploy to Cloudflare Pages
-        run: wrangler pages deploy resource/zl-merged --project-name=books-data
+        run: wrangler pages deploy deploy-staging --project-name=books-data
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

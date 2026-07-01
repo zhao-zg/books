@@ -50,6 +50,7 @@ resource/zl-ysz/
 
 # Output
 output/
+deploy-staging/
 
 # Temporary downloads
 tmp_downloads/
