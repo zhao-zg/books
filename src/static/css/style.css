@@ -543,15 +543,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .theme-option:hover { border-color: var(--brand, #667eea); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(var(--brand-rgb, 102,126,234),.15); }
 .theme-option.active { border-color: var(--brand, #667eea); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
 .theme-preview {
-  height: 72px;
+  height: 52px;
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 6px;
   border: 1px solid var(--border);
 }
-.theme-preview .tp-bar { height: 18px; }
-.theme-preview .tp-body { padding: 6px 8px; }
-.theme-preview .tp-line { height: 4px; border-radius: 2px; margin-bottom: 4px; }
+.theme-preview .tp-bar { height: 14px; }
+.theme-preview .tp-body { padding: 4px 6px; }
+.theme-preview .tp-line { height: 3px; border-radius: 2px; margin-bottom: 3px; }
 .theme-preview .tp-line.short { width: 60%; }
 .theme-preview.warm .tp-bar { background: #A67C52; }
 .theme-preview.warm .tp-body { background: #F7F2E8; }
@@ -654,15 +654,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
+  gap: 6px;
+  padding: 14px 8px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-alt, #f0f2f8);
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: 0.75em;
+  font-size: 0.875em;
   transition: background 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
@@ -670,8 +670,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
 .action-btn:disabled { opacity: .5; cursor: not-allowed; }
 .action-btn.danger { color: var(--danger-text, #c62828); border-color: var(--danger-border, #fed7d7); background: var(--danger-bg, #fff5f5); }
 .action-btn.danger:active { background: var(--danger-bg-active, #ffe8e8); }
-.action-btn .cache-icon { font-size: 1.5em; line-height: 1; width: 1.5em; text-align: center; flex-shrink: 0; }
-.action-btn .cache-text { font-size: 0.75em; font-weight: 500; }
+.action-btn .cache-icon { font-size: 1.75em; line-height: 1; width: 1.5em; text-align: center; flex-shrink: 0; }
+.action-btn .cache-text { font-size: 0.875em; font-weight: 500; }
 .action-btn.feedback { color: var(--brand, #667eea); border-color: var(--interactive-soft-border, rgba(102,126,234,.16)); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
 .action-btn.feedback:active { background: var(--interactive-soft-hover, rgba(102,126,234,.12)); }
 /* 偏好设置行 */
