@@ -4,7 +4,7 @@
  * 缓存策略（v2，适配在线数据架构）：
  *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存
  *  - 书籍 JSON 数据由 data-manager.js 通过 localforage 管理，SW 不介入
- *  - data CDN 索引文件（books-index.json / manifest.json）使用 stale-while-revalidate
+ *  - data CDN 索引文件（books-index.json / manifest.json / search-index.json）使用 stale-while-revalidate
  *  - 版本检测文件（version.json）始终走网络
  */
 
@@ -40,6 +40,10 @@ const PRECACHE_URLS = [
   './js/search.js',
   './js/speech.js',
   './js/theme-toggle.js',
+  // Vendor
+  './vendor/localforage.min.js',
+  './vendor/jszip.min.js',
+  './vendor/marked.min.js',
   // CSS
   './css/style.css',
   // 图标
@@ -84,7 +88,7 @@ self.addEventListener('activate', event => {
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter(k => OLD_CACHES.includes(k) || ((k.startsWith('books-') || k.startsWith('bk-main-')) && k !== CACHE_NAME))
+            .filter(k => OLD_CACHES.includes(k) || ((k.startsWith('books-') || k.startsWith('bk-')) && k !== CACHE_NAME))
             .map(k => caches.delete(k))
         );
       } catch (e) {
@@ -138,12 +142,12 @@ function isNetworkOnly(url) {
 }
 
 /**
- * 判断请求是否来自 data CDN（books-data.pages.dev 或包含 books-data 的域名）
+ * 判断请求是否为数据 CDN 请求（路径包含 /zl-data/）
  */
 function isDataCDN(url) {
   try {
     const u = new URL(url);
-    return u.hostname === 'books-data.pages.dev' || u.hostname.includes('books-data');
+    return u.pathname.includes('/zl-data/');
   } catch (e) { return false; }
 }
 
@@ -183,8 +187,8 @@ self.addEventListener('fetch', event => {
       event.respondWith((async () => {
         try {
           const url = new URL(request.url);
-          // books-index.json 和 manifest.json：stale-while-revalidate，确保索引尽量最新
-          if (url.pathname.endsWith('books-index.json') || url.pathname.endsWith('manifest.json')) {
+          // books-index.json、manifest.json 和 search-index.json：stale-while-revalidate，确保索引尽量最新
+          if (url.pathname.endsWith('books-index.json') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('search-index.json')) {
             return await staleWhileRevalidate(request, CACHE_NAME);
           }
           // 其他 CDN 请求（书籍 JSON 等）：不缓存，直接透传给 data-manager.js 处理

@@ -47,16 +47,8 @@
         .book-title-row .arrow{margin-left:auto;color:var(--text-muted);font-weight:600;flex-shrink:0}
         .logo-trigger{cursor:pointer;user-select:none}
         .footer-meta{margin-top:10px;font-size:.9em}
-        .home-status{padding:40px 20px;text-align:center;background:var(--surface);color:var(--text-muted)}
-        .home-status.error{color:var(--danger-text)}
-        .home-status-icon{font-size:1.5em;margin-bottom:10px}
         .home-retry-btn{margin-top:20px;padding:10px 20px;background:var(--btn-primary-bg);color:var(--btn-primary-text);border:1px solid var(--btn-primary-border);border-radius:6px;cursor:pointer;font:inherit;font-weight:600;box-shadow:var(--shadow-sm)}
         .home-retry-btn:active{transform:scale(.98)}
-        .footer{text-align:center;padding:16px;color:var(--text-muted);background:transparent;border-top:1px solid var(--border);font-size:0.75em;opacity:.85}
-        .cache-status{margin-top:6px;font-size:0.75em;color:var(--text-muted);text-align:center;min-height:14px;padding:0}
-        .cache-status.success{color:var(--success-text)}
-        .cache-status.error{color:var(--danger-text)}
-        .cache-status.warning{color:var(--warning-text)}
         /* 伪装页 */
         html.bk-disguise .container,html.bk-disguise .footer,html.bk-disguise #app{display:none!important}
         #bkMaintenance{display:none;position:fixed;inset:0;z-index:9999;background:var(--surface,#fff);flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;box-sizing:border-box}
@@ -214,14 +206,13 @@
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
         './','./manifest.json','./sw.js',
-        './version.json','./zl-data/books-index.json',
         './css/style.css',
         './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
         './js/resource-pack.js','./js/data-manager.js',
-        './vendor/localforage.min.js','./vendor/jszip.min.js',
+        './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
         './icons/icon-192.png','./icons/icon-512.png'
     ];
 
@@ -442,61 +433,42 @@
         });
     }
 
-    function verifyCacheIntegrity(books){
-        if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingBooks:[]});
+    function verifyCacheIntegrity(){
+        if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingCoreUrls:[]});
         var coreUrls=window.__bkCoreUrls||[];
         return caches.keys().then(function(keys){
-            var hasCoreCache=keys.some(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
-            if(!hasCoreCache)return{ok:false,coverage:0,missingCore:coreUrls.length,missingBooks:(books||[]).map(function(b){return b.id;})};
+            var mainKey=keys.find(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
+            if(!mainKey)return{ok:false,coverage:0,missingCore:coreUrls.length,missingCoreUrls:[]};
             var checkUrls=coreUrls.filter(function(u){return u!=='./';});
-            return caches.open('bk-main').then(function(cache){
+            return caches.open(mainKey).then(function(cache){
                 return Promise.all(checkUrls.map(function(u){return cache.match(u).then(function(r){return r?null:u;});}));
             }).then(function(results){
                 var missingUrls=results.filter(Boolean);
                 var hits=checkUrls.length-missingUrls.length;
                 var cov=checkUrls.length>0?hits/checkUrls.length:1;
-                if(cov<1)return{ok:false,coverage:cov,missingCore:missingUrls.length,missingCoreUrls:missingUrls,missingBooks:[]};
-                if(!books||!books.length)return{ok:true,coverage:1,missingCore:0,missingBooks:[]};
-                var missingB=books.filter(function(b){return!keys.some(function(k){return k==='bk-'+b.id;});});
-                var bCov=(books.length-missingB.length)/books.length;
-                return{ok:bCov>=1,coverage:bCov,missingCore:0,missingBooks:missingB.map(function(b){return b.id;})};
+                return{ok:cov>=1,coverage:cov,missingCore:missingUrls.length,missingCoreUrls:missingUrls};
             });
-        }).catch(function(){return{ok:false,coverage:0,missingCore:0,missingBooks:[]};});
+        }).catch(function(){return{ok:false,coverage:0,missingCore:0,missingCoreUrls:[]};});
     }
 
     function cacheAllBooks(statusEl,onProgress){
         if(!('caches' in window)){if(statusEl)statusEl.textContent='当前环境不支持缓存';return Promise.resolve();}
-        var books=window.__bkBooks||[];
-        if(!books.length){if(statusEl)statusEl.textContent='书籍列表尚未加载';return Promise.resolve();}
         var coreUrls=window.__bkCoreUrls||[];
         var totalResources=coreUrls.length;var cachedResources=0;
-        books.forEach(function(b){totalResources+=getBookResources(b.id).length;});
         function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
         var cacheShared=caches.open('bk-main').then(function(cache){
             return Promise.allSettled(coreUrls.map(function(url){
                 return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());}).catch(function(){cachedResources++;rep();});
             }));
         }).catch(function(){});
-        return cacheShared.then(function(){
-            return books.reduce(function(p,b){return p.then(function(){
-                var resources=getBookResources(b.id);
-                if(statusEl)statusEl.textContent='缓存：'+b.title;
-                return caches.open('bk-'+b.id).then(function(cache){
-                    return Promise.all(resources.map(function(url){
-                        return fetch(url,{redirect:'follow',cache:'no-cache'}).then(function(r){
-                            if(r.ok){cachedResources++;rep();return cache.put(r.url,r.clone());}
-                        }).catch(function(){cachedResources++;rep();});
-                    }));
-                });
-            });},Promise.resolve());
-        }).then(function(){if(statusEl){statusEl.textContent='✓ 全部缓存完成';statusEl.className='cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
+        return cacheShared.then(function(){if(statusEl){statusEl.textContent='✓ 全部缓存完成';statusEl.className='cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
     }
 
     function showMandatoryInstallDialog(mode,targetVersion){
         if(document.getElementById('bkInstallMask'))return;
         var icons={install:'📦',update:'🔄'};
         var titles={install:'首次安装缓存',update:'缓存更新中'};
-        var subs={install:'首次使用会缓存所有书籍资源，请保持网络连接...',update:'正在重新缓存最新资源，用户数据不受影响...'};
+        var subs={install:'首次使用会缓存应用资源，书籍数据按需加载...',update:'正在重新缓存最新资源，用户数据不受影响...'};
         var mask=document.createElement('div');mask.id='bkInstallMask';mask.className='bk-install-mask';
         mask.innerHTML='<div class="bk-install-box"><div class="bk-install-icon">'+icons[mode]+'</div><div class="bk-install-title">'+titles[mode]+'</div><div class="bk-install-sub">'+subs[mode]+'</div><div class="bk-install-progress"><div class="bk-install-progress-bar" id="bkInstallProgressBar"></div></div><div class="bk-install-status" id="bkInstallStatus">正在准备...</div><button class="bk-install-retry" id="bkInstallRetry">重试</button></div>';
         mask.addEventListener('click',function(e){e.stopPropagation();});
@@ -507,35 +479,29 @@
         function doInstall(){
             if(retryBtn)retryBtn.style.display='none';
             if(progressBar)progressBar.style.width='0%';
-            if(statusEl)statusEl.textContent='正在等待书籍列表...';
-            waitForBooks(15000).then(function(books){
-                var toCache=books;
-                var refreshKeys=toCache.map(function(b){return'bk-'+b.id;});
-                if(statusEl)statusEl.textContent='正在清理旧缓存...';
-                var clearStep=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return refreshKeys.indexOf(k)!==-1;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
-                return clearStep.then(function(){
-                    if(statusEl)statusEl.textContent='开始缓存资源...';
-                    return cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';}).then(function(){
+            if(statusEl)statusEl.textContent='正在清理旧缓存...';
+            var clearStep=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k.indexOf('bk-')===0;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
+            clearStep.then(function(){
+                if(statusEl)statusEl.textContent='开始缓存资源...';
+                return cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';}).then(function(){
+                    if(progressBar)progressBar.style.width='100%';
+                    if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
+                    return verifyCacheIntegrity();
+                }).then(function(result){
+                    if(result.ok){try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
+                        if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
                         if(progressBar)progressBar.style.width='100%';
-                        if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
-                        return verifyCacheIntegrity(toCache);
-                    }).then(function(result){
-                        if(result.ok){try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
-                            if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
-                            if(progressBar)progressBar.style.width='100%';
-                            setTimeout(function(){window.location.reload();},1200);
-                        }else{
-                            var msg='⚠ 部分资源未完整（'+Math.round((result.coverage||0)*100)+'%）';
-                            if(result.missingCore&&result.missingCore>0){
-                                msg+='\n缺少核心资源 '+result.missingCore+' 个';
-                                if(result.missingCoreUrls&&result.missingCoreUrls.length)msg+='：'+result.missingCoreUrls.slice(0,3).map(function(u){return u.split('/').pop();}).join('、')+(result.missingCoreUrls.length>3?'...':'');
-                            }
-                            if(result.missingBooks&&result.missingBooks.length)msg+='\n缺少书籍：'+result.missingBooks.join('、');
-                            msg+='\n请重试';
-                            if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
-                            if(retryBtn)retryBtn.style.display='block';
+                        setTimeout(function(){window.location.reload();},1200);
+                    }else{
+                        var msg='⚠ 部分资源未完整（'+Math.round((result.coverage||0)*100)+'%）';
+                        if(result.missingCore&&result.missingCore>0){
+                            msg+='\n缺少核心资源 '+result.missingCore+' 个';
+                            if(result.missingCoreUrls&&result.missingCoreUrls.length)msg+='：'+result.missingCoreUrls.slice(0,3).map(function(u){return u.split('/').pop();}).join('、')+(result.missingCoreUrls.length>3?'...':'');
                         }
-                    });
+                        msg+='\n请重试';
+                        if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
+                        if(retryBtn)retryBtn.style.display='block';
+                    }
                 });
             }).catch(function(err){if(statusEl)statusEl.textContent='⚠ 出错：'+(err&&err.message||'未知')+'，请重试';if(retryBtn)retryBtn.style.display='block';});
         }
@@ -557,7 +523,7 @@
                     else{showMandatoryInstallDialog('install',targetVersion);}
                     return;
                 }
-                waitForBooks(5000).then(function(books){return verifyCacheIntegrity(books);})
+                verifyCacheIntegrity()
                     .then(function(result){if(!result.ok){var m=storedVersion?'update':'install';showMandatoryInstallDialog(m,targetVersion);}})
                     .catch(function(){});
             })

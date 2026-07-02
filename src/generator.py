@@ -6,6 +6,7 @@
 """
 import json
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -122,26 +123,164 @@ class BooksGenerator:
         print(f"  style.css ({len(css_content)} bytes)")
 
     # ------------------------------------------------------------------
+    # 搜索索引
+    # ------------------------------------------------------------------
+
+    def generate_search_index(self):
+        """生成搜索索引文件 output/books/search-index.json
+
+        遍历 resource/zl-merged/ 下所有系列和书籍，提取书名、章节标题和内容摘要，
+        生成精简的搜索索引供前端使用。
+        """
+        # resource 目录相对于 src/generator.py 的位置
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        resource_dir = os.path.join(project_root, 'resource', 'zl-merged')
+
+        if not os.path.isdir(resource_dir):
+            print(f"⚠ resource 目录不存在: {resource_dir}，跳过搜索索引生成")
+            return
+
+        # 读取全局索引获取系列列表
+        global_index_path = os.path.join(resource_dir, 'books-index.json')
+        if not os.path.isfile(global_index_path):
+            print("⚠ books-index.json 不存在，跳过搜索索引生成")
+            return
+
+        with open(global_index_path, 'r', encoding='utf-8') as f:
+            global_index = json.load(f)
+
+        series_list = global_index.get('series', [])
+
+        # 构建 series id → title 映射
+        series_title_map = {}
+        for s in series_list:
+            series_title_map[s['id']] = s.get('title', s['id'])
+
+        books_output = []
+        html_tag_re = re.compile(r'<[^>]+>')
+        book_count = 0
+        chapter_count = 0
+
+        for series_info in series_list:
+            series_id = series_info['id']
+            series_dir = os.path.join(resource_dir, series_id)
+
+            if not os.path.isdir(series_dir):
+                continue
+
+            # 读取系列索引
+            series_index_path = os.path.join(series_dir, 'index.json')
+            if not os.path.isfile(series_index_path):
+                continue
+
+            with open(series_index_path, 'r', encoding='utf-8') as f:
+                series_books = json.load(f)
+
+            if not isinstance(series_books, list):
+                continue
+
+            for book_info in series_books:
+                book_id = book_info.get('id', '')
+                book_title = book_info.get('title', '')
+
+                # 读取书籍 JSON
+                book_path = os.path.join(series_dir, book_id + '.json')
+                if not os.path.isfile(book_path):
+                    continue
+
+                try:
+                    with open(book_path, 'r', encoding='utf-8') as f:
+                        book_data = json.load(f)
+                except (json.JSONDecodeError, IOError):
+                    print(f"  ⚠ 无法解析书籍文件: {book_path}")
+                    continue
+
+                chapters = book_data.get('chapters', [])
+                chapters_output = []
+
+                for ch in chapters:
+                    ch_number = ch.get('number', 0)
+                    ch_title = ch.get('title', '')
+                    content = ch.get('content', '')
+
+                    # 处理 content：可以是字符串或数组
+                    if isinstance(content, list):
+                        # 数组格式：[{type: "paragraph", text: "..."}]
+                        text_parts = []
+                        for item in content:
+                            if isinstance(item, dict):
+                                text_parts.append(item.get('text', ''))
+                            elif isinstance(item, str):
+                                text_parts.append(item)
+                        content_text = ' '.join(text_parts)
+                    else:
+                        content_text = str(content) if content else ''
+
+                    # 去除 HTML 标签
+                    content_text = html_tag_re.sub('', content_text)
+
+                    # 提取前 150 个字符作为摘要
+                    summary = content_text[:150].strip()
+                    if len(content_text) > 150:
+                        summary = summary + '…'
+
+                    chapters_output.append({
+                        'n': ch_number,
+                        't': ch_title,
+                        's': summary,
+                    })
+
+                books_output.append({
+                    'id': book_id,
+                    'title': book_title,
+                    'series': series_id,
+                    'chapters': chapters_output,
+                })
+
+                book_count += 1
+                chapter_count += len(chapters_output)
+
+        # 输出到 output/books/search-index.json
+        books_dir = os.path.join(self.output_dir, 'books')
+        os.makedirs(books_dir, exist_ok=True)
+
+        search_index = {
+            'version': 1,
+            'generated_at': datetime.now().isoformat(),
+            'books': books_output,
+        }
+
+        output_path = os.path.join(books_dir, 'search-index.json')
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(search_index, f, ensure_ascii=False, separators=(',', ':'))
+
+        file_size = os.path.getsize(output_path)
+        print(f"✓ search-index.json 已生成 ({book_count} 本书, {chapter_count} 个章节, {file_size // 1024} KB)")
+
+    # ------------------------------------------------------------------
     # 完整生成流程
     # ------------------------------------------------------------------
 
     def generate_all(self, app_config: dict = None):
-        """完整生成流程：静态资源 → PWA → version"""
+        """完整生成流程：静态资源 → 搜索索引 → PWA → version"""
 
         # 1. 静态资源（先复制，避免后续生成的文件被覆盖）
         self.copy_static_assets()
 
-        # 2. 生成完整 CSS
+        # 2. 搜索索引（在静态资源复制之后生成，避免被覆盖）
+        self.generate_search_index()
+
+        # 3. 生成完整 CSS
         self.generate_css()
 
-        # 3. PWA manifest 和 Service Worker
+        # 4. PWA manifest 和 Service Worker
         self.generate_manifest_and_sw()
 
-        # 4. version.json
+        # 5. version.json
         if app_config:
             self.generate_version_json(app_config)
 
-        # 5. 复制 app_config.json 到 output/（供前端 loadConfig 回退路径使用）
+        # 6. 复制 app_config.json 到 output/（供前端 loadConfig 回退路径使用）
         app_config_src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app_config.json')
         if os.path.exists(app_config_src):
             shutil.copy2(app_config_src, os.path.join(self.output_dir, 'app_config.json'))
@@ -149,7 +288,7 @@ class BooksGenerator:
         else:
             print("⚠ app_config.json 未找到，跳过复制")
 
-        # 6. .nojekyll（GitHub Pages 兼容）
+        # 7. .nojekyll（GitHub Pages 兼容）
         nojekyll_path = os.path.join(self.output_dir, '.nojekyll')
         with open(nojekyll_path, 'w') as f:
             f.write('')

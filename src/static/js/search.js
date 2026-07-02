@@ -1,6 +1,8 @@
 /*!
- * search.js — 书报搜索（适配在线数据架构）
- * 支持：书名搜索（基于 books-index.json）+ 内容搜索（基于已下载书籍）
+ * search.js — 书报搜索（三阶段全局搜索）
+ * 阶段 1：书名搜索（基于 books-index.json，带相关性评分）
+ * 阶段 2：搜索索引搜索（基于 build-time search-index.json，覆盖所有书籍）
+ * 阶段 3：深度内容搜索（基于已下载书籍，提供上下文片段）
  * 按系列分组显示，防抖 300ms，分页加载（每页 50 条）
  */
 (function (win) {
@@ -69,9 +71,19 @@
       for (var i = 0; i < books.length; i++) {
         var book = books[i];
         var hay = ((book.title || '') + ' ' + (book.id || '')).toLowerCase();
+        var titleLower = (book.title || '').toLowerCase();
         var ok = true;
+        var totalScore = 0;
         for (var j = 0; j < terms.length; j++) {
           if (hay.indexOf(terms[j]) === -1) { ok = false; break; }
+          // 计算每个 term 的相关性分数
+          if (titleLower === terms[j]) {
+            totalScore += 3;  // 精确匹配
+          } else if (titleLower.indexOf(terms[j]) === 0) {
+            totalScore += 2;  // 开头匹配
+          } else {
+            totalScore += 1;  // 包含匹配
+          }
         }
         if (ok) {
           results.push({
@@ -82,10 +94,14 @@
             seriesTitle: seriesMap[book.series] || book.series || '',
             chapterTitle: '',
             context: '',
-            url: book.id
+            url: book.id,
+            score: totalScore
           });
         }
       }
+
+      // 按分数降序排列
+      results.sort(function (a, b) { return b.score - a.score; });
 
       return results;
     },
@@ -212,6 +228,74 @@
       });
     },
 
+    // ── 搜索索引搜索（同步，基于 build-time search-index.json）──────────
+
+    /**
+     * 在构建时生成的搜索索引中搜索所有章节
+     * 覆盖所有书籍（不仅是已下载的），使用章节标题和摘要匹配
+     * @param {string} query 搜索关键词
+     * @returns {Array} 匹配结果数组
+     */
+    _searchContentIndex: function (query) {
+      var DM = win.DataManager;
+      if (!DM) return [];
+      var index = DM.getCachedSearchIndex();
+      if (!index || !index.books) return [];
+
+      var terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      var results = [];
+
+      // 构建 series id → title 映射（从主索引）
+      var mainIndex = DM.getCachedIndex();
+      var seriesList = (mainIndex && mainIndex.series) || [];
+      var seriesMap = {};
+      for (var s = 0; s < seriesList.length; s++) {
+        seriesMap[seriesList[s].id] = seriesList[s].title;
+      }
+
+      for (var i = 0; i < index.books.length; i++) {
+        var book = index.books[i];
+        for (var c = 0; c < book.chapters.length; c++) {
+          var ch = book.chapters[c];
+          var hayTitle = (ch.t || '').toLowerCase();
+          var haySummary = (ch.s || '').toLowerCase();
+
+          // Check title match
+          var titleMatch = false;
+          for (var j = 0; j < terms.length; j++) {
+            if (hayTitle.indexOf(terms[j]) !== -1) { titleMatch = true; break; }
+          }
+
+          // Check summary match
+          var summaryMatch = false;
+          if (!titleMatch) {
+            for (var k = 0; k < terms.length; k++) {
+              if (haySummary.indexOf(terms[k]) !== -1) { summaryMatch = true; break; }
+            }
+          }
+
+          if (titleMatch || summaryMatch) {
+            var score = titleMatch ? 2 : 1;
+            results.push({
+              type: 'content-index',
+              bookId: book.id,
+              bookTitle: book.title,
+              series: book.series || '',
+              seriesTitle: seriesMap[book.series] || book.series || '',
+              chapterTitle: ch.t || ('第' + ch.n + '章'),
+              chapterNumber: ch.n,
+              context: ch.s || '',
+              url: book.id + '/' + ch.n,
+              score: score
+            });
+          }
+        }
+      }
+
+      results.sort(function (a, b) { return b.score - a.score; });
+      return results;
+    },
+
     // ── 高亮匹配关键词 ──────────────────────────────────────────────────
 
     _highlightText: function (text, query) {
@@ -228,7 +312,10 @@
     // ── 搜索执行 ────────────────────────────────────────────────────────
 
     /**
-     * 执行搜索：先书名（同步），再内容（异步）
+     * 执行搜索：三阶段
+     * 1. 同步：书名搜索（_searchTitles）→ 即时结果
+     * 2. 异步：搜索索引搜索（_searchContentIndex）→ 快速，覆盖所有书籍
+     * 3. 异步：深度内容搜索（_searchContent）→ 慢速，仅已下载书籍，提供上下文片段
      */
     _doSearch: function (query) {
       var self = this;
@@ -258,29 +345,35 @@
         titleResults = self._searchTitles(query);
       }
 
-      // 2. 内容搜索（仅 'all' 模式，异步执行）
+      // 2. 内容索引搜索 + 深度内容搜索（仅 'all' 模式）
       if (self._scope === 'all') {
-        // 先显示书名结果
-        self._allResults = titleResults;
-        self._displayedCount = 0;
-        self._renderPage();
+        var DM = win.DataManager;
+        var searchIndex = DM ? DM.getCachedSearchIndex() : null;
 
-        // 异步执行内容搜索
-        if (self._contentTimer) clearTimeout(self._contentTimer);
-        self._contentTimer = setTimeout(function () {
-          self._searchContent(query, function (contentResults) {
-            // 确保仍是同一次搜索
+        if (!searchIndex && DM) {
+          // 搜索索引尚未加载，先显示书名结果，同时触发加载
+          self._allResults = titleResults;
+          self._displayedCount = 0;
+          self._renderPage();
+
+          // 显示加载搜索索引提示
+          if (self._resultsEl) {
+            var loadingHint = '<div class="bk-search-content-loading">📥 正在加载搜索索引...</div>';
+            self._resultsEl.insertAdjacentHTML('beforeend', loadingHint);
+          }
+
+          DM.loadSearchIndex().then(function () {
             if (self._currentQuery !== query) return;
-
-            var elapsed = Date.now() - startTime;
-            self._allResults = titleResults.concat(contentResults);
-            self._displayedCount = 0;
-            self._isLoading = false;
-            self._renderPage();
-            self._updateCount(elapsed);
+            self._doSearchPhase2And3(query, titleResults, startTime);
+          }).catch(function () {
+            if (self._currentQuery !== query) return;
+            // 加载失败，跳过内容索引搜索，直接进入深度搜索
+            self._doSearchPhase3(query, titleResults, [], startTime);
           });
-        }, 50);
-
+        } else {
+          // 搜索索引已就绪，直接执行阶段 2 和 3
+          self._doSearchPhase2And3(query, titleResults, startTime);
+        }
       } else {
         // 仅书名模式
         var elapsed = Date.now() - startTime;
@@ -289,6 +382,117 @@
         self._renderPage();
         self._updateCount(elapsed);
       }
+    },
+
+    /**
+     * 阶段 2：搜索索引搜索 + 阶段 3：深度内容搜索
+     */
+    _doSearchPhase2And3: function (query, titleResults, startTime) {
+      var self = this;
+
+      // 阶段 2：搜索索引搜索
+      var contentIndexResults = self._searchContentIndex(query);
+
+      // 去重：排除已在书名结果中出现的 bookId
+      var titleBookIds = {};
+      for (var t = 0; t < titleResults.length; t++) {
+        titleBookIds[titleResults[t].bookId] = true;
+      }
+
+      // 过滤掉与书名结果重复的 bookId（仅当该书只有 1 个匹配时）
+      var filteredContentIndex = [];
+      for (var c = 0; c < contentIndexResults.length; c++) {
+        filteredContentIndex.push(contentIndexResults[c]);
+      }
+
+      // 合并：书名结果 → 内容索引结果
+      var merged = titleResults.concat(filteredContentIndex);
+      self._allResults = merged;
+      self._displayedCount = 0;
+      self._renderPage();
+
+      // 更新计数（搜索索引阶段完成）
+      var elapsed2 = Date.now() - startTime;
+      self._updateCount(elapsed2);
+
+      // 阶段 3：深度内容搜索（异步，仅已下载书籍）
+      if (self._contentTimer) clearTimeout(self._contentTimer);
+      self._contentTimer = setTimeout(function () {
+        self._searchContent(query, function (contentResults) {
+          if (self._currentQuery !== query) return;
+
+          // 构建已有结果的 URL 集合用于去重
+          var existingUrls = {};
+          for (var e = 0; e < self._allResults.length; e++) {
+            existingUrls[self._allResults[e].url] = true;
+          }
+
+          // 添加不重复的深度内容结果，并为已有的 content-index 结果补充 context
+          var newContentResults = [];
+          for (var r = 0; r < contentResults.length; r++) {
+            var cr = contentResults[r];
+            if (existingUrls[cr.url]) {
+              // 为已有的 content-index 结果补充深度上下文
+              for (var m = 0; m < self._allResults.length; m++) {
+                if (self._allResults[m].url === cr.url && self._allResults[m].type === 'content-index') {
+                  self._allResults[m].context = cr.context;
+                  self._allResults[m].deepContext = true;
+                  break;
+                }
+              }
+            } else {
+              newContentResults.push(cr);
+            }
+          }
+
+          self._allResults = self._allResults.concat(newContentResults);
+          self._displayedCount = 0;
+          self._isLoading = false;
+          self._renderPage();
+
+          var elapsed3 = Date.now() - startTime;
+          self._updateCount(elapsed3);
+        });
+      }, 50);
+    },
+
+    /**
+     * 阶段 3（回退）：当搜索索引加载失败时，仅执行深度内容搜索
+     */
+    _doSearchPhase3: function (query, titleResults, contentIndexResults, startTime) {
+      var self = this;
+
+      var merged = titleResults.concat(contentIndexResults);
+      self._allResults = merged;
+      self._displayedCount = 0;
+      self._renderPage();
+
+      if (self._contentTimer) clearTimeout(self._contentTimer);
+      self._contentTimer = setTimeout(function () {
+        self._searchContent(query, function (contentResults) {
+          if (self._currentQuery !== query) return;
+
+          var existingUrls = {};
+          for (var e = 0; e < self._allResults.length; e++) {
+            existingUrls[self._allResults[e].url] = true;
+          }
+
+          var newResults = [];
+          for (var r = 0; r < contentResults.length; r++) {
+            if (!existingUrls[contentResults[r].url]) {
+              newResults.push(contentResults[r]);
+            }
+          }
+
+          self._allResults = self._allResults.concat(newResults);
+          self._displayedCount = 0;
+          self._isLoading = false;
+          self._renderPage();
+
+          var elapsed = Date.now() - startTime;
+          self._updateCount(elapsed);
+        });
+      }, 50);
     },
 
     /**
@@ -371,9 +575,14 @@
         }
 
         // 搜索结果条目
-        var typeLabel = r.type === 'title'
-          ? '<span class="bk-search-tag bk-tag-title">书名匹配</span>'
-          : '<span class="bk-search-tag bk-tag-content">内容匹配</span>';
+        var typeLabel;
+        if (r.type === 'title') {
+          typeLabel = '<span class="bk-search-tag bk-tag-title">书名匹配</span>';
+        } else if (r.type === 'content-index') {
+          typeLabel = '<span class="bk-search-tag bk-tag-chapter">章节匹配</span>';
+        } else {
+          typeLabel = '<span class="bk-search-tag bk-tag-content">内容匹配</span>';
+        }
 
         html += '<a class="bk-search-item" href="#' + esc(r.url) + '" data-url="' + esc(r.url) + '">';
         html += '<div class="bk-search-item-meta">';
@@ -384,7 +593,7 @@
         html += '</div>';
 
         // 内容匹配显示上下文
-        if (r.type === 'content' && r.context) {
+        if ((r.type === 'content' || r.type === 'content-index') && r.context) {
           html += '<div class="bk-search-item-text">' + self._highlightText(r.context, query) + '</div>';
         } else if (r.type === 'title') {
           html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍</div>';
@@ -426,7 +635,7 @@
 
       // 如果内容搜索还在进行中，显示提示
       if (self._isLoading && self._scope === 'all') {
-        var loadingHint = '<div class="bk-search-content-loading">🔍 正在搜索已下载书籍内容...</div>';
+        var loadingHint = '<div class="bk-search-content-loading">🔍 正在搜索更多内容...</div>';
         self._resultsEl.insertAdjacentHTML('beforeend', loadingHint);
       }
 

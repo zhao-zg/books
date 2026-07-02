@@ -931,7 +931,7 @@
                         var steps = [];
                         if ('caches' in window) {
                             steps.push(caches.keys().then(function(keys) {
-                                return Promise.all(keys.filter(function(k) { return /^bk-\d{4}-\d{2}$/.test(k); }).map(function(k) { return caches.delete(k); }));
+                                return Promise.all(keys.filter(function(k) { return k.startsWith('bk-'); }).map(function(k) { return caches.delete(k); }));
                             }).catch(function() {}));
                         }
                         try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}

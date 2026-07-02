@@ -5,6 +5,8 @@
  *   .loadIndex()              加载/更新全局索引
  *   .getCachedIndex()         获取已缓存索引（同步）
  *   .checkIndexUpdate()       检查索引是否需要更新
+ *   .loadSearchIndex()        加载搜索索引（懒加载）
+ *   .getCachedSearchIndex()   获取已缓存搜索索引（同步）
  *   .downloadBook(id,series)  下载单本书
  *   .downloadSeries(id)       批量下载某系列
  *   .downloadAll()            下载全部书籍
@@ -40,10 +42,12 @@
   var KEY_MANIFEST  = 'zl_manifest';
   var KEY_DOWNLOADED = 'zl_downloaded_ids';
   var KEY_BOOK_PREFIX = 'zl_book:';
+  var KEY_SEARCH_INDEX = 'zl_search_index';
 
   // ── 内存缓存 ──────────────────────────────────────────────────────────
   var _cachedIndex = null;
   var _cachedManifest = null;
+  var _cachedSearchIndex = null;
 
   // ── 下载队列状态 ─────────────────────────────────────────────────────
   var _isDownloading = false;
@@ -909,12 +913,63 @@
     });
   }
 
+  // ── 搜索索引 ────────────────────────────────────────────────────────────
+
+  /**
+   * 加载搜索索引 search-index.json
+   * 策略：内存缓存 → localforage → 远程获取
+   * 返回 { version, generated_at, books: [...] }
+   */
+  function loadSearchIndex() {
+    // 1. 内存缓存
+    if (_cachedSearchIndex) {
+      return Promise.resolve(_cachedSearchIndex);
+    }
+
+    // 2. localforage 缓存
+    return storeGet(KEY_SEARCH_INDEX).then(function (cached) {
+      if (cached) {
+        _cachedSearchIndex = cached;
+        console.log('[DataManager] 使用缓存搜索索引（' + ((cached.books || []).length) + ' 本书）');
+        return cached;
+      }
+
+      // 3. 远程获取
+      var url = buildUrl('books/search-index.json?t=' + Date.now());
+      console.log('[DataManager] 远程加载搜索索引: ' + url);
+      return fetchWithRetry(url)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          _cachedSearchIndex = data;
+          return storeSet(KEY_SEARCH_INDEX, data).then(function () {
+            console.log('[DataManager] 搜索索引加载成功，共 ' +
+              ((data.books || []).length) + ' 本书');
+            return data;
+          });
+        })
+        .catch(function (err) {
+          console.error('[DataManager] 加载搜索索引失败:', err);
+          throw new Error('无法加载搜索索引');
+        });
+    });
+  }
+
+  /**
+   * 获取已缓存的搜索索引（同步）
+   * 返回 null 如果尚未加载
+   */
+  function getCachedSearchIndex() {
+    return _cachedSearchIndex;
+  }
+
   // ── 公开 API ─────────────────────────────────────────────────────────
 
   win.DataManager = {
     loadIndex: loadIndex,
     getCachedIndex: getCachedIndex,
     checkIndexUpdate: checkIndexUpdate,
+    loadSearchIndex: loadSearchIndex,
+    getCachedSearchIndex: getCachedSearchIndex,
     downloadBook: downloadBook,
     downloadSeries: downloadSeries,
     downloadAll: downloadAll,

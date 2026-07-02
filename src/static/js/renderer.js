@@ -813,7 +813,7 @@
         bookCount = s.count;
       }
       var displayTitle = _displaySeriesTitle ? _displaySeriesTitle(s.title) : s.title;
-      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '">';
+      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '" style="--series-color:' + _getSeriesColor(s.id) + '">';
       html += '<div class="series-catalog-card-title">' + escText(displayTitle) + '</div>';
       html += '<div class="series-catalog-card-count">' + bookCount + ' 本</div>';
       html += '</div>';
@@ -918,6 +918,7 @@
     html += '<div class="book-info">';
     html += '<div class="book-header">';
     html += '<div class="book-title-row">';
+    html += '<span class="bk-series-dot" style="background:' + _getSeriesColor(book.series) + '"></span>';
     html += '<div class="title">' + escText(book.title || book.id) + '</div>';
     html += '<span class="cache-status" style="color:' + (downloaded ? '#4caf50' : '#999') + ';font-size:0.75em;">' + (downloaded ? '✓' : '☁') + '</span>';
     html += '</div>';
@@ -1888,6 +1889,14 @@
 
         var html = '<div class="bk-chapter-list-view">';
 
+        // 返回导航栏
+        html += '<div class="bk-cl-header">';
+        html += '<button type="button" class="bk-back-btn" onclick="window.BKRouter && window.BKRouter.navigate(\'\')" title="返回书架">';
+        html += '<span class="bk-back-btn-icon">&#8249;</span>';
+        html += '</button>';
+        html += '<div class="bk-cl-header-title">' + escText(book.title) + '</div>';
+        html += '</div>';
+
         // 书籍信息头部
         html += '<div class="bk-book-header">';
         if (book.cover) {
@@ -1896,6 +1905,10 @@
         html += '<h1 class="bk-book-header-title">' + escText(book.title) + '</h1>';
         if (book.author) html += '<div class="bk-book-header-author">' + escText(book.author) + '</div>';
         if (book.description) html += '<div class="bk-book-header-desc">' + escText(book.description) + '</div>';
+        html += '<div class="bk-book-header-stats">';
+        html += '<span class="bk-stat">' + chapters.length + ' 章</span>';
+        if (progress > 0) html += '<span class="bk-stat">· 读到第' + progress + '章</span>';
+        html += '</div>';
         html += '</div>';
 
         // 章节列表
@@ -1904,10 +1917,13 @@
           var ch = chapters[i];
           var chNum = ch.number || (i + 1);
           var isCurrent = chNum === progress;
-          html += '<a class="bk-chapter-item' + (isCurrent ? ' bk-chapter-current' : '') + '" href="#/' + escAttr(bookId) + '/' + chNum + '">';
+          var isRead = chNum < progress;
+          var statusClass = isCurrent ? ' bk-chapter-current' : (isRead ? ' bk-chapter-read' : '');
+          html += '<a class="bk-chapter-item' + statusClass + '" href="#/' + escAttr(bookId) + '/' + chNum + '">';
           html += '<span class="bk-chapter-num">' + chNum + '</span>';
           html += '<span class="bk-chapter-title">' + escText(ch.title || '第' + chNum + '章') + '</span>';
           if (isCurrent) html += '<span class="bk-chapter-badge">在读</span>';
+          else if (isRead) html += '<span class="bk-chapter-status">✓</span>';
           html += '</a>';
         }
         html += '</div>';
@@ -1973,7 +1989,7 @@
           '</div>';
 
         // 返回书架按钮 + 章节标题
-        html += '<div class="bk-reading-header">';
+        html += '<div class="bk-reading-header bk-glass-header">';
         html += '<div class="bk-reading-header-row">';
         html += '<button type="button" class="bk-back-btn" title="返回书架" aria-label="返回书架">';
         html += '<span class="bk-back-btn-icon">&#8249;</span>';
@@ -1982,6 +1998,9 @@
         html += '<div class="bk-reading-book-title">' + escText(book.title || '') + '</div>';
         html += '<h1 class="bk-reading-chapter-title">' + escText(chapter.title || '第' + chapterNum + '章') + '</h1>';
         html += '</div>';
+        html += '<button type="button" class="bk-toc-btn" data-toc-drawer="1" data-book-id="' + escAttr(bookId) + '" title="目录">';
+        html += '<span class="bk-toc-icon">☰</span>';
+        html += '</button>';
         html += '</div>';
         html += '</div>';
 
