@@ -591,50 +591,14 @@
             return vm && parseInt(vm[1], 10) === 0;
           });
           if (allVerseZero) {
-            // 仍然更新 book/ch 上下文
-            if (ilm && !_lockBook) {
-              book = ilm[1];
-              ch = parseInt(ilm[2], 10);
-            }
-            if (irefs.length === 1) {
-              // 单个整章引用：不包裹
-              result.push(escHtml(fm.text));
-            } else {
-              // ★ 多章范围：拆分为独立 span（如“创世记一至三章”→ 3个独立span）
-              var _splitOk = false;
-              try {
-                var _bookLen = 0;
-                for (var _si = 0; _si < _sortedFullNames.length; _si++) {
-                  if (fm.text.indexOf(_sortedFullNames[_si]) === 0) { _bookLen = _sortedFullNames[_si].length; break; }
-                }
-                if (!_bookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(fm.text)) _bookLen = 1;
-                var _bookPfx = fm.text.slice(0, _bookLen);
-                var _chText = fm.text.slice(_bookLen);
-                // 提取「章/篇」前的章范围文本
-                var _zm = _chText.match(/^(.+)[章篇]/);
-                var _rangeText = _zm ? _zm[1] : _chText;
-                var _rm = _rangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
-                if (_rm) {
-                  var _cStart = cnToInt(_rm[1]), _cEnd = cnToInt(_rm[2]);
-                  if (_cStart && _cEnd && _cEnd >= _cStart && (_cEnd - _cStart + 1) === irefs.length) {
-                    for (var _ci = _cStart; _ci <= _cEnd; _ci++) {
-                      var _cn = intToCn(_ci);
-                      var _txt = (_ci === _cStart ? _bookPfx : '') + _cn + (_zm ? _zm[0].slice(-1) : '');
-                      var _ref = irefs[_ci - _cStart];
-                      result.push('<span class="scripture-ref" data-refs="' + escHtml(_ref) + '">' + escHtml(_txt) + '</span>');
-                    }
-                    _splitOk = true;
-                  }
-                }
-              } catch (_e) { _splitOk = false; }
-              if (!_splitOk) result.push(escHtml(fm.text));
-            }
+            // ★ 正文段落中：没有具体节数的引用（整章引用）不包裹 span，
+            // 也不更新 book/ch 上下文，避免误识别（如"选出三百勇士"中的"出三百"）
+            // 污染后续引用的上下文
+            result.push(escHtml(fm.text));
             continue;
           }
           if (ilm && !_lockBook) {
             book = ilm[1];
-            // 整章引用（节号为0）与具体节引用均更新章号，
-            // 使行内明确提及的章（如「以西结一章说，」）能传递给后续括号引用
             ch = parseInt(ilm[2], 10);
           }
           result.push(makeSpan(fm.text, irefs));

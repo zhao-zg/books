@@ -1060,6 +1060,17 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
   will-change: opacity;
 }
 
+/* ── 左右滑动手势翻页 ──────────────────────────────────────── */
+.reading-view {
+  touch-action: pan-y;   /* 允许纵向滚动，水平滑动由 JS 控制 */
+  will-change: transform;
+  overflow-x: hidden;
+}
+.reading-view.bk-swipe-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* ── 高亮标记基础样式 ────────────────────────────────────────── */
 .bk-highlight { cursor: pointer; border-radius: 2px; transition: opacity .2s; color: inherit !important; text-underline-offset: 3px; }
 .bk-highlight:hover { opacity: .8; }

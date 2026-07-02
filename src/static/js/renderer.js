@@ -595,6 +595,151 @@
       document.removeEventListener('keydown', _readingKeyHandler);
       _readingKeyHandler = null;
     }
+    _removeSwipeHandler();
+  }
+
+  // ── 左右滑动手势翻页 ──────────────────────────────────────────────────
+
+  var _swipeState = null;       // { startX, startY, startTime, active, el }
+  var _swipeHandlers = null;    // { touchstart, touchmove, touchend }
+  var _swipeEl = null;          // 当前绑定滑动的 DOM 元素
+  var SWIPE_THRESHOLD = 80;     // 最小触发距离（px）
+  var SWIPE_MAX_VERTICAL = 60; // 垂直偏差上限（px），超过则视为纵向滚动
+  var SWIPE_DURATION = 280;     // 滑动动画时长（ms）
+
+  function _navigateChapter(bookId, uniqueChapters, chapterNum, direction) {
+    for (var i = 0; i < uniqueChapters.length; i++) {
+      if (uniqueChapters[i].number === chapterNum) {
+        var target = direction < 0 ? (i > 0 ? uniqueChapters[i - 1] : null) : (i < uniqueChapters.length - 1 ? uniqueChapters[i + 1] : null);
+        if (target && win.BKRouter) {
+          win.BKRouter.navigate(bookId + '/' + target.number);
+        }
+        break;
+      }
+    }
+  }
+
+  function _installSwipeHandler(bookId, uniqueChapters, chapterNum) {
+    _removeSwipeHandler();
+
+    var readingView = document.getElementById('readingView');
+    if (!readingView) return;
+
+    function onTouchStart(e) {
+      // 忽略多点触控
+      if (e.touches.length > 1) return;
+      var t = e.touches[0];
+      _swipeState = {
+        startX: t.clientX,
+        startY: t.clientY,
+        startTime: Date.now(),
+        active: false,       // 是否已确认为水平滑动
+        rejected: false,     // 已判定为纵向滚动或无效
+        el: readingView
+      };
+    }
+
+    function onTouchMove(e) {
+      if (!_swipeState || _swipeState.rejected || e.touches.length > 1) return;
+      var t = e.touches[0];
+      var dx = t.clientX - _swipeState.startX;
+      var dy = t.clientY - _swipeState.startY;
+
+      // 尚未确认方向时进行判定
+      if (!_swipeState.active) {
+        // 垂直偏差过大 → 纵向滚动，放弃
+        if (Math.abs(dy) > SWIPE_MAX_VERTICAL) {
+          _swipeState.rejected = true;
+          return;
+        }
+        // 水平位移超过 15px 才激活
+        if (Math.abs(dx) < 15) return;
+        // 水平必须大于垂直
+        if (Math.abs(dx) <= Math.abs(dy)) {
+          _swipeState.rejected = true;
+          return;
+        }
+        _swipeState.active = true;
+        _swipeState.el.classList.add('bk-swipe-active');
+      }
+
+      // 已激活：阻止默认滚动，应用位移
+      e.preventDefault();
+      // 边界阻尼：第一章左滑 / 最后一章右滑 加阻尼
+      var isAtStart = chapterNum <= (uniqueChapters[0] ? uniqueChapters[0].number : 0);
+      var isAtEnd = chapterNum >= (uniqueChapters.length ? uniqueChapters[uniqueChapters.length - 1].number : 0);
+      if ((dx > 0 && isAtStart) || (dx < 0 && isAtEnd)) {
+        dx = dx * 0.25; // 阻尼效果
+      }
+      _swipeState.el.style.transform = 'translateX(' + dx + 'px)';
+      _swipeState.currentDx = dx;
+    }
+
+    function onTouchEnd() {
+      if (!_swipeState) return;
+      var state = _swipeState;
+      _swipeState = null;
+
+      if (!state.active) {
+        // 未激活，清理
+        return;
+      }
+
+      state.el.classList.remove('bk-swipe-active');
+      var dx = state.currentDx || 0;
+      var elapsed = Date.now() - state.startTime;
+      var velocity = Math.abs(dx) / elapsed; // px/ms
+
+      // 判断是否触发翻页：距离够 或 速度够快
+      var shouldNavigate = Math.abs(dx) > SWIPE_THRESHOLD || (velocity > 0.4 && Math.abs(dx) > 30);
+
+      if (shouldNavigate) {
+        // 滑动方向：dx > 0 → 右滑 → 上一章；dx < 0 → 左滑 → 下一章
+        var direction = dx > 0 ? -1 : 1;
+        // 动画滑出
+        var fullW = dx > 0 ? win.innerWidth : -win.innerWidth;
+        state.el.style.transition = 'transform ' + SWIPE_DURATION + 'ms ease-out';
+        state.el.style.transform = 'translateX(' + fullW + 'px)';
+        setTimeout(function () {
+          state.el.style.transition = '';
+          state.el.style.transform = '';
+          _navigateChapter(bookId, uniqueChapters, chapterNum, direction);
+        }, SWIPE_DURATION);
+      } else {
+        // 回弹
+        state.el.style.transition = 'transform ' + (SWIPE_DURATION * 0.6) + 'ms ease-out';
+        state.el.style.transform = 'translateX(0)';
+        setTimeout(function () {
+          state.el.style.transition = '';
+          state.el.style.transform = '';
+        }, SWIPE_DURATION * 0.6);
+      }
+    }
+
+    _swipeHandlers = {
+      touchstart: onTouchStart,
+      touchmove: onTouchMove,
+      touchend: onTouchEnd
+    };
+
+    readingView.addEventListener('touchstart', onTouchStart, { passive: true });
+    readingView.addEventListener('touchmove', onTouchMove, { passive: false });
+    readingView.addEventListener('touchend', onTouchEnd, { passive: true });
+    _swipeEl = readingView;
+  }
+
+  function _removeSwipeHandler() {
+    if (_swipeHandlers && _swipeEl) {
+      _swipeEl.removeEventListener('touchstart', _swipeHandlers.touchstart);
+      _swipeEl.removeEventListener('touchmove', _swipeHandlers.touchmove);
+      _swipeEl.removeEventListener('touchend', _swipeHandlers.touchend);
+      _swipeEl.classList.remove('bk-swipe-active');
+      _swipeEl.style.transition = '';
+      _swipeEl.style.transform = '';
+    }
+    _swipeHandlers = null;
+    _swipeState = null;
+    _swipeEl = null;
   }
 
   // ── 页面导航栏 ──────────────────────────────────────────────────────
@@ -2071,8 +2216,9 @@
           win.BKScripturePopup.init();
         }
 
-        // 安装键盘快捷键
+        // 安装键盘快捷键 + 滑动手势
         _installReadingShortcuts(bookId, uniqueChapters, chapterNum);
+        _installSwipeHandler(bookId, uniqueChapters, chapterNum);
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
