@@ -3,7 +3,7 @@
     'use strict';
     
     const fontSizes = [0.875, 1, 1.125, 1.25, 1.375, 1.5, 1.625, 1.75];
-    const defaultSizeIndex = 2;
+    const defaultSizeIndex = 3;
     let currentSizeIndex = defaultSizeIndex;
     const themeMetaColors = {
         cool: '#fafbff',
@@ -132,7 +132,7 @@
                 <div class="theme-section-title">字体大小</div>
                 <div class="font-size-slider-container">
                     <span class="font-label-small">A</span>
-                    <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="2" oninput="handleFontSliderChange(this.value)">
+                    <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="3" oninput="handleFontSliderChange(this.value)">
                     <span class="font-label-large">A</span>
                     <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}em</span>
                 </div>
@@ -214,9 +214,10 @@
             }
             if (savedIndex !== -1) {
                 currentSizeIndex = savedIndex;
-                applyFontSize(fontSizes[currentSizeIndex]);
             }
         }
+        // 始终应用字号（确保默认值也生效）
+        applyFontSize(fontSizes[currentSizeIndex]);
         updateFontSizeUI();
 
         document.addEventListener('click', function(e) {
@@ -691,7 +692,8 @@
     }
     
     function applyFontSize(size) {
-        document.body.style.fontSize = size + 'em';
+        // 设置在 html 根元素上，使 rem 单位也能响应字号调节
+        document.documentElement.style.fontSize = (size * 100) + '%';
         localStorage.setItem('globalFontSize', size);
     }
     

@@ -120,7 +120,7 @@
 
 /* ── 基础布局 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+body { font-size: 1em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .container { max-width: 960px; margin: 0 auto; padding: 0; }
 .header { padding: 32px 20px 20px; background: none; border-radius: 0; margin-bottom: 4px; }
 .header h1 { font-size: var(--text-3xl); font-weight: 800; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.04em; }
@@ -1596,7 +1596,6 @@ button:active { transition-duration: 0.05s; }
   .series-catalog-card { padding: 14px 14px 14px 26px; }
   .series-catalog-card-title { font-size: var(--text-md); }
   .bk-reading-chapter-title { font-size: var(--text-lg); }
-  #chapterContent { font-size: var(--text-md); }
   .nav-link { padding: 8px 12px; font-size: var(--text-sm); min-width: 40px; min-height: 40px; }
   .nav-label { max-width: 72px; }
   .theme-panel { max-height: 90vh; }
