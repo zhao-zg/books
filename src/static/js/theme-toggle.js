@@ -2,8 +2,8 @@
 (function() {
     'use strict';
     
-    const fontSizes = [0.875, 1, 1.125, 1.25, 1.375, 1.5, 1.625, 1.75];
-    const defaultSizeIndex = 3;
+    const fontSizes = [14, 15, 16, 18, 20, 22, 24, 26]; // px 固定值
+    const defaultSizeIndex = 3; // 18px
     let currentSizeIndex = defaultSizeIndex;
     const themeMetaColors = {
         cool: '#fafbff',
@@ -134,7 +134,7 @@
                     <span class="font-label-small">A</span>
                     <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="3" oninput="handleFontSliderChange(this.value)">
                     <span class="font-label-large">A</span>
-                    <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}em</span>
+                    <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}px</span>
                 </div>
             </div>
             <div class="theme-section" id="settingsActionsSection" style="display:none">
@@ -205,12 +205,19 @@
         if (savedSize) {
             var savedVal = parseFloat(savedSize);
             var savedIndex;
-            // 向下兼容旧的 px 值
-            if (savedVal > 5) {
-                var pxToEm = { 14: 0, 16: 1, 18: 2, 20: 3, 22: 4, 24: 5, 26: 6, 28: 7 };
-                savedIndex = pxToEm[parseInt(savedSize)] !== undefined ? pxToEm[parseInt(savedSize)] : -1;
-            } else {
-                savedIndex = fontSizes.indexOf(savedVal);
+            // 向下兼容：新 px 值（10~30 范围）
+            if (savedVal >= 10 && savedVal <= 30) {
+                savedIndex = fontSizes.indexOf(parseInt(savedSize));
+            }
+            // 旧 em 值（< 5）
+            else if (savedVal < 5) {
+                var emToPxIndex = { 0.875: 0, 1: 1, 1.125: 2, 1.25: 3, 1.375: 4, 1.5: 5, 1.625: 6, 1.75: 7 };
+                savedIndex = emToPxIndex[savedVal] !== undefined ? emToPxIndex[savedVal] : -1;
+            }
+            // 旧 px 值（> 5，早期版本 14/16/18/20/22/24/26/28）
+            else {
+                var oldPxToIndex = { 14: 0, 16: 1, 18: 3, 20: 4, 22: 5, 24: 6, 26: 7, 28: 7 };
+                savedIndex = oldPxToIndex[parseInt(savedSize)] !== undefined ? oldPxToIndex[parseInt(savedSize)] : -1;
             }
             if (savedIndex !== -1) {
                 currentSizeIndex = savedIndex;
@@ -692,15 +699,15 @@
     }
     
     function applyFontSize(size) {
-        // 设置在 html 根元素上，使 rem 单位也能响应字号调节
-        document.documentElement.style.fontSize = (size * 100) + '%';
+        // 使用固定 px 值，不依赖 em/rem
+        document.documentElement.style.fontSize = size + 'px';
         localStorage.setItem('globalFontSize', size);
     }
     
     function updateFontSizeUI() {
         const size = fontSizes[currentSizeIndex];
         const display = document.getElementById('fontSizeDisplay');
-        if (display) display.textContent = size + 'em';
+        if (display) display.textContent = size + 'px';
         const slider = document.getElementById('fontSizeSlider');
         if (slider) slider.value = currentSizeIndex;
     }

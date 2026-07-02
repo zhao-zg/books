@@ -584,7 +584,7 @@
           typeLabel = '<span class="bk-search-tag bk-tag-content">内容匹配</span>';
         }
 
-        html += '<a class="bk-search-item" href="#' + esc(r.url) + '" data-url="' + esc(r.url) + '">';
+        html += '<a class="bk-search-item" href="#' + esc(r.url) + '" data-url="' + esc(r.url) + '" data-book-id="' + esc(r.bookId) + '" data-series="' + esc(r.series) + '">';
         html += '<div class="bk-search-item-meta">';
         html += typeLabel;
         if (r.chapterTitle) {
@@ -596,7 +596,7 @@
         if ((r.type === 'content' || r.type === 'content-index') && r.context) {
           html += '<div class="bk-search-item-text">' + self._highlightText(r.context, query) + '</div>';
         } else if (r.type === 'title') {
-          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍</div>';
+          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍（未缓存将自动下载）</div>';
         }
 
         html += '</a>';
@@ -646,10 +646,47 @@
           item.addEventListener('click', function (e) {
             e.preventDefault();
             var url = item.getAttribute('data-url');
-            if (url && win.BKRouter) {
-              win.BKRouter.navigate(url.replace(/^#\/?/, ''));
+            var bookId = item.getAttribute('data-book-id');
+            var series = item.getAttribute('data-series');
+            var DM = win.DataManager;
+
+            function doNavigate() {
+              if (url && win.BKRouter) {
+                win.BKRouter.navigate(url.replace(/^#\/?/, ''));
+              }
+              self.close();
             }
-            self.close();
+
+            // 检查书籍是否已下载，未下载则先自动下载
+            if (DM && bookId) {
+              DM.isBookDownloaded(bookId).then(function (downloaded) {
+                if (downloaded) {
+                  doNavigate();
+                } else {
+                  // 未缓存：显示下载中状态，自动下载后打开
+                  var textEl = item.querySelector('.bk-search-item-text');
+                  var origHTML = textEl ? textEl.innerHTML : '';
+                  item.classList.add('bk-search-item-downloading');
+                  if (textEl) textEl.textContent = '⏳ 正在下载书籍...';
+
+                  DM.downloadBook(bookId, series || '').then(function () {
+                    item.classList.remove('bk-search-item-downloading');
+                    doNavigate();
+                  }).catch(function (err) {
+                    item.classList.remove('bk-search-item-downloading');
+                    if (textEl) textEl.innerHTML = '⚠ 下载失败，点击重试';
+                    console.error('[BKSearch] 下载书籍失败:', err);
+                    // 降级：仍尝试直接导航（renderChapterList → loadBook 会再次尝试下载）
+                    doNavigate();
+                  });
+                }
+              }).catch(function () {
+                // isBookDownloaded 检查失败，降级直接导航
+                doNavigate();
+              });
+            } else {
+              doNavigate();
+            }
           });
         })(items[k]);
       }

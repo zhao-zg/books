@@ -432,11 +432,11 @@
     var nextIdx = 0;
 
     function runNext() {
-      // 检查取消
+      // 检查取消（在消费任务前）
       if (_isCancelled) {
         return Promise.resolve();
       }
-      // 检查暂停：轮询等待
+      // 检查暂停：轮询等待（在消费任务前，避免恢复时重复递增索引）
       if (_isPaused) {
         return new Promise(function (resolve) {
           var checkInterval = setInterval(function () {
@@ -445,6 +445,7 @@
               if (_isCancelled) {
                 resolve();
               } else {
+                // 恢复后重新进入 runNext，从当前 nextIdx 开始（未消费）
                 resolve(runNext());
               }
             }
@@ -452,12 +453,13 @@
         });
       }
 
+      // 所有任务已分发，worker 退出
       if (nextIdx >= tasks.length) {
         return Promise.resolve();
       }
 
-      var idx = nextIdx;
-      nextIdx++;
+      // 消费当前任务索引（暂停/取消检查已在此之前完成）
+      var idx = nextIdx++;
       var taskFn = tasks[idx];
 
       return taskFn()

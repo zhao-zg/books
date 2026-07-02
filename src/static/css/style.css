@@ -708,7 +708,7 @@ body { font-size: 1em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI
 }
 .actions-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);   /* 始终每排 2 个 */
+  grid-template-columns: repeat(3, 1fr);   /* 始终每排 3 个 */
   gap: 8px;
 }
 .action-btn {
