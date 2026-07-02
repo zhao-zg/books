@@ -745,45 +745,24 @@
   // ── 页面导航栏 ──────────────────────────────────────────────────────
 
   function buildPageNavigation(book, chapter) {
-    var uniqueChapters = _getUniqueChapters(book.chapters || []);
-    var chapterNum = chapter.number || 0;
-    var prevChapter = null, nextChapter = null;
-    for (var i = 0; i < uniqueChapters.length; i++) {
-      if (uniqueChapters[i].number === chapterNum) {
-        if (i > 0) prevChapter = uniqueChapters[i - 1];
-        if (i < uniqueChapters.length - 1) nextChapter = uniqueChapters[i + 1];
-        break;
-      }
-    }
+    var html = '<nav class="bk-bottom-bar" id="pageNavigation">';
 
-    var html = '<nav class="page-navigation" id="pageNavigation">';
+    // 左：目录按钮
+    html += '<button type="button" class="bk-bottom-btn bk-bottom-toc" data-toc-drawer="1" data-book-id="' + escAttr(book.id) + '" title="目录" aria-label="目录">';
+    html += '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
+    html += '</button>';
 
-    // 返回书架按钮
-    html += '<a class="nav-link nav-home" href="#/" id="back-btn" title="返回书架">';
-    html += '<span class="nav-icon">⬅</span>';
-    html += '</a>';
+    // 中：播放按钮（点击唤出朗读栏）
+    html += '<button type="button" class="bk-bottom-btn bk-bottom-play" id="bkBottomPlayBtn" title="朗读" aria-label="朗读">';
+    html += '<svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    html += '<svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    html += '</button>';
 
-    if (prevChapter) {
-      html += '<a class="nav-link nav-prev" href="#/' + escAttr(book.id) + '/' + prevChapter.number + '">';
-      html += '<span class="nav-arrow">‹</span>';
-      html += '<span class="nav-label">' + escText(prevChapter.title || '上一章') + '</span>';
-      html += '</a>';
-    } else {
-      html += '<span class="nav-link nav-prev nav-disabled"><span class="nav-arrow">‹</span></span>';
-    }
+    // 右：设置齿轮
+    html += '<button type="button" class="bk-bottom-btn bk-bottom-settings" id="bkBottomSettingsBtn" title="设置" aria-label="设置">';
+    html += '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+    html += '</button>';
 
-    html += '<a class="nav-link nav-toc" href="#/' + escAttr(book.id) + '" data-toc-drawer="1" data-book-id="' + escAttr(book.id) + '" role="button">';
-    html += '<span class="nav-icon">☰</span>';
-    html += '</a>';
-
-    if (nextChapter) {
-      html += '<a class="nav-link nav-next" href="#/' + escAttr(book.id) + '/' + nextChapter.number + '">';
-      html += '<span class="nav-label">' + escText(nextChapter.title || '下一章') + '</span>';
-      html += '<span class="nav-arrow">›</span>';
-      html += '</a>';
-    } else {
-      html += '<span class="nav-link nav-next nav-disabled"><span class="nav-arrow">›</span></span>';
-    }
     html += '</nav>';
     return html;
   }
@@ -1990,6 +1969,7 @@
     renderHome: function () {
       stopScrollTracking();
       _removeReadingShortcuts();
+      document.body.classList.remove('bk-reading-page');
       showHome();
 
       var homeView = document.getElementById('homeView');
@@ -2024,6 +2004,7 @@
     renderChapterList: function (bookId) {
       stopScrollTracking();
       _removeReadingShortcuts();
+      document.body.classList.remove('bk-reading-page');
       showApp();
       var app = getApp();
       app.innerHTML = '<div class="bk-loading"><div class="bk-spinner"></div><div>加载中...</div></div>';
@@ -2037,7 +2018,7 @@
         // 返回导航栏
         html += '<div class="bk-cl-header">';
         html += '<button type="button" class="bk-back-btn" onclick="window.BKRouter && window.BKRouter.navigate(\'\')" title="返回书架">';
-        html += '<span class="bk-back-btn-icon">&#8249;</span>';
+        html += '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
         html += '</button>';
         html += '<div class="bk-cl-header-title">' + escText(book.title) + '</div>';
         html += '</div>';
@@ -2133,20 +2114,17 @@
           '<div class="bk-reading-progress-bar" style="width:' + progressPct + '%"></div>' +
           '</div>';
 
-        // 返回书架按钮 + 章节标题
+        // 顶部紧凑栏：← 返回 | 书名 - 章节（居中）
         html += '<div class="bk-reading-header bk-glass-header">';
-        html += '<div class="bk-reading-header-row">';
         html += '<button type="button" class="bk-back-btn" title="返回书架" aria-label="返回书架">';
-        html += '<span class="bk-back-btn-icon">&#8249;</span>';
+        html += '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
         html += '</button>';
-        html += '<div class="bk-reading-header-titles">';
-        html += '<div class="bk-reading-book-title">' + escText(book.title || '') + '</div>';
-        html += '<h1 class="bk-reading-chapter-title">' + escText(chapter.title || '第' + chapterNum + '章') + '</h1>';
+        html += '<div class="bk-reading-header-title">';
+        html += '<span class="bk-reading-header-book">' + escText(book.title || '') + '</span>';
+        html += '<span class="bk-reading-header-sep"> - </span>';
+        html += '<span class="bk-reading-header-chapter">' + escText(chapter.title || '第' + chapterNum + '章') + '</span>';
         html += '</div>';
-        html += '<button type="button" class="bk-toc-btn" data-toc-drawer="1" data-book-id="' + escAttr(bookId) + '" title="目录">';
-        html += '<span class="bk-toc-icon">☰</span>';
-        html += '</button>';
-        html += '</div>';
+        html += '<div class="bk-reading-header-spacer"></div>';
         html += '</div>';
 
         // 章节内容
@@ -2154,22 +2132,76 @@
         html += renderChapterContent(chapter);
         html += '</div>';
 
-        // 页面导航
+        // TTS 展开面板（默认隐藏，点击播放按钮展开）
+        html += '<div class="bk-tts-panel" id="bkTtsPanel">';
+        html += buildBottomControlBar();
+        html += '</div>';
+
+        // 底部紧凑栏
         html += buildPageNavigation(book, chapter);
 
         html += '</div>';
 
-        // TTS 控制栏
-        html += buildBottomControlBar();
-
         app.innerHTML = html;
+        document.body.classList.add('bk-reading-page');
 
-        // 绑定返回书架按钮（头部）
+        // 绑定顶部返回按钮
         var headerBackBtn = app.querySelector('.bk-back-btn');
         if (headerBackBtn) {
           headerBackBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             if (win.BKRouter) win.BKRouter.navigate('');
+          });
+        }
+
+        // 绑定底部栏按钮
+        var ttsPanel = document.getElementById('bkTtsPanel');
+        var playBtn = document.getElementById('bkBottomPlayBtn');
+        if (playBtn) {
+          playBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!ttsPanel) return;
+
+            // 确保 TTS 控制栏可见
+            var ctrlBar = document.getElementById('bottomControlBar');
+            if (ctrlBar && ctrlBar.style.display === 'none') {
+              ctrlBar.style.display = '';
+              // 触发 TTS init
+              if (win.BKSpeech && win.BKSpeech.init) {
+                win.BKSpeech.init({
+                  getElements: function() {
+                    var container = document.getElementById('chapterContent');
+                    if (!container) return [];
+                    var els = [];
+                    var paragraphs = container.querySelectorAll('.bk-paragraph, .bk-quote-content, .bk-heading, .bk-code, li');
+                    for (var pi = 0; pi < paragraphs.length; pi++) {
+                      els.push({ el: paragraphs[pi] });
+                    }
+                    return els;
+                  }
+                });
+              }
+            }
+
+            // 展开/收起 TTS 面板
+            var isExpanded = ttsPanel.classList.contains('bk-tts-expanded');
+            if (!isExpanded) {
+              ttsPanel.classList.add('bk-tts-expanded');
+            }
+
+            // 转发点击到 TTS 播放按钮
+            var ttsPlayPause = document.getElementById('playPauseBtn');
+            if (ttsPlayPause) {
+              ttsPlayPause.click();
+            }
+          });
+        }
+
+        var settingsBtn = document.getElementById('bkBottomSettingsBtn');
+        if (settingsBtn) {
+          settingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (win.toggleThemePanel) win.toggleThemePanel();
           });
         }
 

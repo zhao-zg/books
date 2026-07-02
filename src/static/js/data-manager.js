@@ -83,10 +83,19 @@
     return fetch(url, { cache: 'no-cache' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
+        // 检测 CDN 返回 HTML 兜底页面（如 Cloudflare Pages 404 回退到 index.html）而非 JSON
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('text/html') !== -1) {
+          // 文件在此 CDN 上不存在，无需重试，直接标记为 HTML 错误
+          var htmlErr = new Error('HTML_RESPONSE');
+          htmlErr._isHtmlResponse = true;
+          throw htmlErr;
+        }
         return r;
       })
       .catch(function (err) {
-        if (retries > 0) {
+        // HTML 响应说明文件在该 CDN 不存在，跳过重试直接切换备用地址
+        if (!err._isHtmlResponse && retries > 0) {
           // 当前地址还有重试次数，指数退避后重试
           var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
           console.warn('[DataManager] 请求失败，' + delay + 'ms 后重试: ' + url);
@@ -96,11 +105,12 @@
             return fetchWithRetry(url, retries - 1);
           });
         }
-        // 当前地址重试耗尽，尝试切换到下一个地址
+        // 当前地址重试耗尽（或 HTML 响应），尝试切换到下一个地址
         if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1) {
           _currentUrlIndex++;
           DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
-          console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL);
+          console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
+            (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
           // 用新地址重新构建 URL 并重试（保留完整相对路径，含子目录）
           var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
           var relativePath;
@@ -112,7 +122,9 @@
           var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
           return fetchWithRetry(newUrl, MAX_RETRIES);
         }
-        throw err;
+        throw err._isHtmlResponse
+          ? new Error('该书籍数据文件在所有服务器上均不存在')
+          : err;
       });
   }
 

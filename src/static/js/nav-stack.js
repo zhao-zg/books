@@ -142,9 +142,8 @@
     }
 
     function isPageNavVisible() {
-        var nav = getPageNav();
-        if (!nav) return true;
-        return nav.getBoundingClientRect().bottom > 0;
+        // 底部栏始终固定可见，浮动导航不需要检测可见性
+        return false;
     }
 
     function ensureEl() {
@@ -158,11 +157,8 @@
                 e.stopPropagation();
                 var t = e.target;
                 while (t && t !== _el) {
-                    if (t.classList && t.classList.contains('nav-link')) {
+                    if (t.classList && t.classList.contains('bk-float-nav-link')) {
                         hide(); return;
-                    }
-                    if (t.classList && t.classList.contains('bk-float-nav-settings')) {
-                        return;
                     }
                     t = t.parentElement;
                 }
@@ -173,30 +169,60 @@
     }
 
     function syncContent() {
-        var pageNav = getPageNav();
-        if (!pageNav) return false;
         var el = ensureEl();
+        // 从当前 hash 解析 bookId 和 chapterNum
+        var hash = window.location.hash || '';
+        var m = hash.match(/^#\/([^\/]+)\/(\d+)/);
+        if (!m) return false;
+        var bookId = m[1];
+        var chapterNum = parseInt(m[2], 10);
 
-        var cloned = pageNav.cloneNode(true);
-        var withId = cloned.querySelectorAll('[id]');
-        for (var i = 0; i < withId.length; i++) {
-            withId[i].removeAttribute('id');
+        // 获取章节列表（从 DOM 或路由缓存）
+        var chapters = [];
+        try {
+            var tocBody = document.getElementById('bkTocDrawerBody');
+            if (tocBody) {
+                var items = tocBody.querySelectorAll('.bk-toc-chapter-item');
+                for (var i = 0; i < items.length; i++) {
+                    var href = items[i].getAttribute('href') || '';
+                    var cm = href.match(/\/(\d+)$/);
+                    if (cm) chapters.push(parseInt(cm[1], 10));
+                }
+            }
+        } catch(e) {}
+
+        // 如果没从 drawer 获取到，尝试从路由状态获取
+        if (chapters.length === 0 && window.BKRenderer && window.BKRenderer._getUniqueChapters) {
+            chapters = window.BKRenderer._getUniqueChapters();
         }
 
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'bk-float-nav-settings';
-        btn.title = '设置';
-        btn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6"/><path d="M4.2 4.2l4.3 4.3m5.5 5.5l4.3 4.3M4.2 19.8l4.3-4.3m5.5-5.5l4.3-4.3"/></svg>';
-        btn.onclick = function(e) {
-            e.stopPropagation();
-            hide();
-            if (window.toggleThemePanel) window.toggleThemePanel();
-        };
+        var prevNum = null, nextNum = null;
+        for (var j = 0; j < chapters.length; j++) {
+            if (chapters[j] === chapterNum) {
+                if (j > 0) prevNum = chapters[j - 1];
+                if (j < chapters.length - 1) nextNum = chapters[j + 1];
+                break;
+            }
+        }
 
-        el.innerHTML = '';
-        el.appendChild(cloned);
-        el.appendChild(btn);
+        var html = '<div class="bk-float-nav-inner">';
+        // 返回书架
+        html += '<a class="bk-float-nav-link" href="#/" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
+        // 上一章
+        if (prevNum) {
+            html += '<a class="bk-float-nav-link" href="#/' + bookId + '/' + prevNum + '" title="上一章"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></a>';
+        } else {
+            html += '<span class="bk-float-nav-link bk-float-disabled"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>';
+        }
+        // 下一章
+        if (nextNum) {
+            html += '<a class="bk-float-nav-link" href="#/' + bookId + '/' + nextNum + '" title="下一章"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></a>';
+        } else {
+            html += '<span class="bk-float-nav-link bk-float-disabled"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
+        }
+        html += '</div>';
+
+        el.innerHTML = html;
         return true;
     }
 
@@ -364,7 +390,9 @@
                     cls.contains('highlight-trigger')   || cls.contains('bk-dialog-mask') ||
                     cls.contains('theme-panel')         || cls.contains('theme-toggle-btn') ||
                     cls.contains('toc-item')            ||
-                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon')) return false;
+                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon') ||
+                    cls.contains('bk-bottom-bar')       || cls.contains('bk-bottom-btn') ||
+                    cls.contains('bk-tts-panel')) return false;
             }
             el = el.parentElement;
         }

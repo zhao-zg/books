@@ -334,6 +334,12 @@
           pauseIcon.style.display = playing ? 'inline' : 'none';
         }
         playPauseBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
+        // 同步底部栏播放按钮状态
+        var bottomPlay = document.getElementById('bkBottomPlayBtn');
+        if (bottomPlay) {
+          if (playing) bottomPlay.classList.add('bk-playing');
+          else bottomPlay.classList.remove('bk-playing');
+        }
       }
 
       // -- TTS sentence-level highlighting ----------------------------------
@@ -665,6 +671,9 @@
       if (playIcon) playIcon.style.display = 'inline';
       if (pauseIcon) pauseIcon.style.display = 'none';
     }
+    // 重置底部栏播放按钮
+    var bottomPlay = byId('bkBottomPlayBtn');
+    if (bottomPlay) bottomPlay.classList.remove('bk-playing');
   }
 
   // 导出 normalizeContent 供外部（如章节级 TTS）使用

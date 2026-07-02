@@ -566,12 +566,15 @@
           html += '<div class="bk-search-series-title">📚 ' + esc(r.seriesTitle || r.series) + '</div>';
         }
 
-        // 书籍分组标题
+        // 书籍分组标题（可点击，显示缓存状态）
         if (r.bookTitle !== lastBook) {
           if (lastBook) html += '</div>';
           lastBook = r.bookTitle;
           html += '<div class="bk-search-group">';
-          html += '<div class="bk-search-group-title">📖 ' + esc(lastBook) + '</div>';
+          html += '<div class="bk-search-group-title bk-search-group-title-clickable"' +
+            ' data-book-id="' + esc(r.bookId) + '"' +
+            ' data-series="' + esc(r.series) + '">📖 ' + esc(lastBook) +
+            ' <span class="bk-search-cache-status" data-book-id="' + esc(r.bookId) + '"></span></div>';
         }
 
         // 搜索结果条目
@@ -689,6 +692,79 @@
             }
           });
         })(items[k]);
+      }
+
+      // 绑定书名标题点击事件（点击书名导航到书籍首页）
+      var groupTitles = self._resultsEl.querySelectorAll('.bk-search-group-title-clickable');
+      for (var g = 0; g < groupTitles.length; g++) {
+        (function (title) {
+          if (title._clickBound) return;
+          title._clickBound = true;
+          title.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var bookId = title.getAttribute('data-book-id');
+            var series = title.getAttribute('data-series');
+            var DM = win.DataManager;
+
+            function doNavigate() {
+              if (bookId && win.BKRouter) {
+                win.BKRouter.navigate(bookId);
+              }
+              self.close();
+            }
+
+            if (DM && bookId) {
+              DM.isBookDownloaded(bookId).then(function (downloaded) {
+                if (downloaded) {
+                  doNavigate();
+                } else {
+                  // 未缓存：显示下载中状态
+                  var statusEl = title.querySelector('.bk-search-cache-status');
+                  if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = '#ff9800'; }
+                  DM.downloadBook(bookId, series || '').then(function () {
+                    doNavigate();
+                  }).catch(function (err) {
+                    if (statusEl) { statusEl.textContent = '✗'; statusEl.style.color = '#f44336'; }
+                    console.error('[BKSearch] 下载书籍失败:', err);
+                    doNavigate();
+                  });
+                }
+              }).catch(function () { doNavigate(); });
+            } else {
+              doNavigate();
+            }
+          });
+        })(groupTitles[g]);
+      }
+
+      // 异步更新缓存状态图标
+      var DM = win.DataManager;
+      if (DM && DM.isBookDownloaded) {
+        var statusEls = self._resultsEl.querySelectorAll('.bk-search-cache-status');
+        var pending = {};
+        for (var s = 0; s < statusEls.length; s++) {
+          var bid = statusEls[s].getAttribute('data-book-id');
+          if (!bid) continue;
+          if (!pending[bid]) pending[bid] = [];
+          pending[bid].push(statusEls[s]);
+        }
+        var bookIds = Object.keys(pending);
+        for (var b = 0; b < bookIds.length; b++) {
+          (function (bookId, els) {
+            DM.isBookDownloaded(bookId).then(function (downloaded) {
+              for (var j = 0; j < els.length; j++) {
+                els[j].textContent = downloaded ? '✓' : '☁';
+                els[j].style.color = downloaded ? '#4caf50' : '#999';
+              }
+            }).catch(function () {
+              for (var j = 0; j < els.length; j++) {
+                els[j].textContent = '☁';
+                els[j].style.color = '#999';
+              }
+            });
+          })(bookIds[b], pending[bookIds[b]]);
+        }
       }
     },
 
