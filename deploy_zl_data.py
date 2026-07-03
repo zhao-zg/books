@@ -21,7 +21,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from main import package_zl_zips
 
 
 def check_wrangler():
@@ -162,9 +161,6 @@ def main():
             shutil.copytree(item, dst)
         else:
             shutil.copy2(item, dst)
-    # 打包系列 ZIP 资源包到 zl-data/zips/
-    resource_dir = str(script_dir / 'resource')
-    package_zl_zips(resource_dir, str(zl_data_dir))
     # _headers 放在根目录（/* 通配符覆盖所有路径）
     if headers_file.exists():
         shutil.copy2(headers_file, staging_dir / '_headers')

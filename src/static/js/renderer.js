@@ -238,8 +238,7 @@
     _zlDmReady = true;
     return Promise.all([
       win.DataManager.loadIndex(),
-      win.DataManager.getDownloadedBookIds(),
-      win.DataManager.loadZipManifest ? win.DataManager.loadZipManifest() : Promise.resolve(null)
+      win.DataManager.getDownloadedBookIds()
     ]).then(function (results) {
       var indexData = results[0];
       var downloadedIds = results[1] || [];
@@ -1502,30 +1501,9 @@
     _showDownloadProgress();
     var seriesTitle = _getSeriesTitle(seriesId);
 
-    // 优先使用 ZIP 资源包下载
-    var hasZipSupport = win.DataManager.getZipManifest && win.DataManager.getZipManifest();
-    var dlPromise;
-
-    if (hasZipSupport && win.DataManager.downloadSeriesPacks) {
-      dlPromise = win.DataManager.downloadSeriesPacks(seriesId, function (completed, total, currentTitle) {
-        _updateDownloadProgressUI(completed, total, currentTitle);
-      }).then(function (result) {
-        // ZIP 下载标记 fallback：该系列不在 ZIP 清单中，降级为逐本下载
-        if (result.fallback) {
-          console.log('[Renderer] ZIP 清单不含该系列，降级为逐本下载: ' + seriesId);
-          return win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
-            _updateDownloadProgressUI(completed, total, currentTitle);
-          });
-        }
-        return result;
-      });
-    } else {
-      dlPromise = win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
-        _updateDownloadProgressUI(completed, total, currentTitle);
-      });
-    }
-
-    dlPromise.then(function (result) {
+    win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
+      _updateDownloadProgressUI(completed, total, currentTitle);
+    }).then(function (result) {
       _onDownloadComplete(result, seriesTitle);
     }).catch(function (err) {
       _onDownloadError(err);
@@ -1539,29 +1517,9 @@
     if (!_zlDmReady || !win.DataManager) return;
     _showDownloadProgress();
 
-    // 优先使用 ZIP 资源包下载
-    var hasZipSupport = win.DataManager.getZipManifest && win.DataManager.getZipManifest();
-    var dlPromise;
-
-    if (hasZipSupport && win.DataManager.downloadAllPacks) {
-      dlPromise = win.DataManager.downloadAllPacks(function (completed, total, currentTitle) {
-        _updateDownloadProgressUI(completed, total, currentTitle);
-      }).then(function (result) {
-        if (result.fallback) {
-          console.log('[Renderer] ZIP 清单不可用，降级为逐本下载');
-          return win.DataManager.downloadAll(function (completed, total, currentTitle) {
-            _updateDownloadProgressUI(completed, total, currentTitle);
-          });
-        }
-        return result;
-      });
-    } else {
-      dlPromise = win.DataManager.downloadAll(function (completed, total, currentTitle) {
-        _updateDownloadProgressUI(completed, total, currentTitle);
-      });
-    }
-
-    dlPromise.then(function (result) {
+    win.DataManager.downloadAll(function (completed, total, currentTitle) {
+      _updateDownloadProgressUI(completed, total, currentTitle);
+    }).then(function (result) {
       _onDownloadComplete(result, '全部');
     }).catch(function (err) {
       _onDownloadError(err);

@@ -33,86 +33,6 @@ def load_app_config(config_path='app_config.json'):
         return json.load(f)
 
 
-def package_zl_zips(resource_dir, output_dir):
-    """将 resource/zl-merged/ 中各系列的 JSON 文件打包为 ZIP 压缩包。
-
-    每个系列生成一个 {seriesId}.zip，同时生成 manifest.json 索引。
-    ZIP 文件输出到 {output_dir}/zips/，供前端批量下载。
-    """
-    import zipfile
-
-    merged_dir = os.path.join(resource_dir, 'zl-merged')
-    if not os.path.isdir(merged_dir):
-        print("⚠ resource/zl-merged/ 不存在，跳过 ZIP 打包")
-        return 0
-
-    zips_dir = os.path.join(output_dir, 'zips')
-    os.makedirs(zips_dir, exist_ok=True)
-
-    # 读取索引获取系列标题和书籍数
-    index_path = os.path.join(merged_dir, 'books-index.json')
-    series_title_map = {}
-    series_book_count = {}
-    if os.path.exists(index_path):
-        try:
-            with open(index_path, 'r', encoding='utf-8') as f:
-                idx = json.load(f)
-            for s in idx.get('series', []):
-                series_title_map[s['id']] = s.get('title', s['id'])
-            for b in idx.get('books', []):
-                sid = b.get('series', '')
-                series_book_count[sid] = series_book_count.get(sid, 0) + 1
-        except Exception:
-            pass
-
-    # 遍历系列目录
-    entries = sorted(os.listdir(merged_dir))
-    packaged = 0
-    manifest_packs = []
-
-    for entry in entries:
-        series_dir = os.path.join(merged_dir, entry)
-        if not os.path.isdir(series_dir) or entry in ('zips', '_headers'):
-            continue
-
-        # 收集 JSON 文件（排除 index.json）
-        json_files = sorted(
-            f for f in os.listdir(series_dir)
-            if f.endswith('.json') and f != 'index.json'
-        )
-        if not json_files:
-            continue
-
-        zip_name = entry + '.zip'
-        zip_path = os.path.join(zips_dir, zip_name)
-
-        try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-                for jf in json_files:
-                    zf.write(os.path.join(series_dir, jf), jf)
-
-            zip_size = os.path.getsize(zip_path)
-            manifest_packs.append({
-                'id': entry,
-                'title': series_title_map.get(entry, entry),
-                'book_count': len(json_files),
-                'file': zip_name,
-                'size': zip_size
-            })
-            packaged += 1
-        except Exception as e:
-            print(f"  ✗ 打包 {entry} 失败: {e}")
-
-    # 写清单
-    manifest = {'version': 1, 'packs': manifest_packs}
-    manifest_path = os.path.join(zips_dir, 'manifest.json')
-    with open(manifest_path, 'w', encoding='utf-8') as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2)
-
-    print(f"✓ ZIP 资源包已生成: {packaged} 个系列 → {zips_dir}/")
-    return packaged
-
-
 def copy_zl_merged_data(resource_dir: str, output_dir: str):
     """将 resource/zl-merged/ 中的索引文件复制到 output/books/。
 
@@ -350,11 +270,6 @@ def main():
 
     # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
     copy_zl_merged_data(resource_dir, output_dir)
-
-    # 打包系列 ZIP 资源包到 output/books/zips/（供前端批量下载）
-    books_dir = os.path.join(output_dir, 'books')
-    os.makedirs(books_dir, exist_ok=True)
-    package_zl_zips(resource_dir, books_dir)
 
     print(f"\n{'=' * 60}")
     print(f" 构建完成!")
