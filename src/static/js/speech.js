@@ -334,8 +334,8 @@
           pauseIcon.style.display = playing ? 'inline' : 'none';
         }
         playPauseBtn.setAttribute('aria-label', playing ? '暂停' : '播放');
-        // 同步底部栏播放按钮状态
-        var bottomPlay = document.getElementById('bkBottomPlayBtn');
+        // 同步浮动栏播放按钮状态
+        var bottomPlay = document.querySelector('.bk-float-play-btn');
         if (bottomPlay) {
           if (playing) bottomPlay.classList.add('bk-playing');
           else bottomPlay.classList.remove('bk-playing');
@@ -671,8 +671,8 @@
       if (playIcon) playIcon.style.display = 'inline';
       if (pauseIcon) pauseIcon.style.display = 'none';
     }
-    // 重置底部栏播放按钮
-    var bottomPlay = byId('bkBottomPlayBtn');
+    // 重置浮动栏播放按钮
+    var bottomPlay = document.querySelector('.bk-float-play-btn');
     if (bottomPlay) bottomPlay.classList.remove('bk-playing');
   }
 

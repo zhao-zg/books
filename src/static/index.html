@@ -25,9 +25,9 @@
     <style>
         body{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));padding-top:env(safe-area-inset-top, 0px)}
         .container{padding:0}
-        .header{color:var(--header-text);margin-bottom:20px}
+        .header{color:var(--header-text);margin-bottom:8px}
         .content{padding:0}
-        @media(min-width:768px){.header{margin-bottom:30px}}
+        @media(min-width:768px){.header{margin-bottom:12px}}
         .books-grid{display:flex;flex-direction:column;gap:12px;margin:0;padding:8px 20px 24px}
         .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s, box-shadow .2s;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
         .book-card:hover{background:var(--nav-hover)}
@@ -243,11 +243,28 @@
     })();
 
     // ── SPA 视图切换辅助 ──────────────────────────────────────────────────
+    var _showHomeGen = 0;
     window._bkShowHome = function() {
-        document.getElementById('homeView').style.display = '';
-        document.getElementById('app').style.display = 'none';
+        var homeEl = document.getElementById('homeView');
+        var appEl = document.getElementById('app');
+        if (appEl) appEl.style.display = 'none';
+        if (homeEl) homeEl.style.display = '';
         document.title = '书报';
         window.scrollTo(0, 0);
+        // 触发淡入过渡（与 #app 一致）
+        if (homeEl) {
+            var gen = ++_showHomeGen;
+            homeEl.classList.remove('bk-view-enter', 'bk-view-enter-active');
+            homeEl.classList.add('bk-view-enter');
+            requestAnimationFrame(function() {
+                if (gen !== _showHomeGen) return;
+                requestAnimationFrame(function() {
+                    if (gen !== _showHomeGen) return;
+                    homeEl.classList.remove('bk-view-enter');
+                    homeEl.classList.add('bk-view-enter-active');
+                });
+            });
+        }
     };
     window._bkShowApp = function() {
         document.getElementById('homeView').style.display = 'none';

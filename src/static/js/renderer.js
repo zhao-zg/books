@@ -238,7 +238,8 @@
     _zlDmReady = true;
     return Promise.all([
       win.DataManager.loadIndex(),
-      win.DataManager.getDownloadedBookIds()
+      win.DataManager.getDownloadedBookIds(),
+      win.DataManager.loadZipManifest ? win.DataManager.loadZipManifest() : Promise.resolve(null)
     ]).then(function (results) {
       var indexData = results[0];
       var downloadedIds = results[1] || [];
@@ -741,31 +742,6 @@
     _swipeHandlers = null;
     _swipeState = null;
     _swipeEl = null;
-  }
-
-  // ── 页面导航栏 ──────────────────────────────────────────────────────
-
-  function buildPageNavigation(book, chapter) {
-    var html = '<nav class="bk-bottom-bar" id="pageNavigation">';
-
-    // 左：目录按钮
-    html += '<button type="button" class="bk-bottom-btn bk-bottom-toc" data-toc-drawer="1" data-book-id="' + escAttr(book.id) + '" title="目录" aria-label="目录">';
-    html += '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
-    html += '</button>';
-
-    // 中：播放按钮（点击唤出朗读栏）
-    html += '<button type="button" class="bk-bottom-btn bk-bottom-play" id="bkBottomPlayBtn" title="朗读" aria-label="朗读">';
-    html += '<svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
-    html += '<svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-    html += '</button>';
-
-    // 右：设置齿轮
-    html += '<button type="button" class="bk-bottom-btn bk-bottom-settings" id="bkBottomSettingsBtn" title="设置" aria-label="设置">';
-    html += '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-    html += '</button>';
-
-    html += '</nav>';
-    return html;
   }
 
   // ── zl-html 首页渲染辅助函数 ────────────────────────────────────────
@@ -1526,9 +1502,30 @@
     _showDownloadProgress();
     var seriesTitle = _getSeriesTitle(seriesId);
 
-    win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
-      _updateDownloadProgressUI(completed, total, currentTitle);
-    }).then(function (result) {
+    // 优先使用 ZIP 资源包下载
+    var hasZipSupport = win.DataManager.getZipManifest && win.DataManager.getZipManifest();
+    var dlPromise;
+
+    if (hasZipSupport && win.DataManager.downloadSeriesPacks) {
+      dlPromise = win.DataManager.downloadSeriesPacks(seriesId, function (completed, total, currentTitle) {
+        _updateDownloadProgressUI(completed, total, currentTitle);
+      }).then(function (result) {
+        // ZIP 下载标记 fallback：该系列不在 ZIP 清单中，降级为逐本下载
+        if (result.fallback) {
+          console.log('[Renderer] ZIP 清单不含该系列，降级为逐本下载: ' + seriesId);
+          return win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
+            _updateDownloadProgressUI(completed, total, currentTitle);
+          });
+        }
+        return result;
+      });
+    } else {
+      dlPromise = win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
+        _updateDownloadProgressUI(completed, total, currentTitle);
+      });
+    }
+
+    dlPromise.then(function (result) {
       _onDownloadComplete(result, seriesTitle);
     }).catch(function (err) {
       _onDownloadError(err);
@@ -1542,9 +1539,29 @@
     if (!_zlDmReady || !win.DataManager) return;
     _showDownloadProgress();
 
-    win.DataManager.downloadAll(function (completed, total, currentTitle) {
-      _updateDownloadProgressUI(completed, total, currentTitle);
-    }).then(function (result) {
+    // 优先使用 ZIP 资源包下载
+    var hasZipSupport = win.DataManager.getZipManifest && win.DataManager.getZipManifest();
+    var dlPromise;
+
+    if (hasZipSupport && win.DataManager.downloadAllPacks) {
+      dlPromise = win.DataManager.downloadAllPacks(function (completed, total, currentTitle) {
+        _updateDownloadProgressUI(completed, total, currentTitle);
+      }).then(function (result) {
+        if (result.fallback) {
+          console.log('[Renderer] ZIP 清单不可用，降级为逐本下载');
+          return win.DataManager.downloadAll(function (completed, total, currentTitle) {
+            _updateDownloadProgressUI(completed, total, currentTitle);
+          });
+        }
+        return result;
+      });
+    } else {
+      dlPromise = win.DataManager.downloadAll(function (completed, total, currentTitle) {
+        _updateDownloadProgressUI(completed, total, currentTitle);
+      });
+    }
+
+    dlPromise.then(function (result) {
       _onDownloadComplete(result, '全部');
     }).catch(function (err) {
       _onDownloadError(err);
@@ -1939,13 +1956,7 @@
 
         var html = '<div class="bk-chapter-list-view">';
 
-        // 返回导航栏
-        html += '<div class="bk-cl-header">';
-        html += '<button type="button" class="bk-back-btn" onclick="window.BKRouter && window.BKRouter.navigate(\'\')" title="返回书架">';
-        html += '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
-        html += '</button>';
-        html += '<div class="bk-cl-header-title">' + escText(book.title) + '</div>';
-        html += '</div>';
+        // 顶部栏已移至浮动导航（nav-stack.js），不再渲染永久顶栏
 
         // 书籍信息头部
         html += '<div class="bk-book-header">';
@@ -2038,18 +2049,7 @@
           '<div class="bk-reading-progress-bar" style="width:' + progressPct + '%"></div>' +
           '</div>';
 
-        // 顶部紧凑栏：← 返回 | 书名 - 章节（居中）
-        html += '<div class="bk-reading-header bk-glass-header">';
-        html += '<button type="button" class="bk-back-btn" title="返回书架" aria-label="返回书架">';
-        html += '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
-        html += '</button>';
-        html += '<div class="bk-reading-header-title">';
-        html += '<span class="bk-reading-header-book">' + escText(book.title || '') + '</span>';
-        html += '<span class="bk-reading-header-sep"> - </span>';
-        html += '<span class="bk-reading-header-chapter">' + escText(chapter.title || '第' + chapterNum + '章') + '</span>';
-        html += '</div>';
-        html += '<div class="bk-reading-header-spacer"></div>';
-        html += '</div>';
+        // 顶部栏已移至浮动导航（nav-stack.js），不再渲染永久顶栏
 
         // 章节内容
         html += '<div class="content" id="chapterContent">';
@@ -2061,73 +2061,14 @@
         html += buildBottomControlBar();
         html += '</div>';
 
-        // 底部紧凑栏
-        html += buildPageNavigation(book, chapter);
+        // 底部栏已移至浮动导航（nav-stack.js），不再渲染永久底栏
 
         html += '</div>';
 
         app.innerHTML = html;
         document.body.classList.add('bk-reading-page');
 
-        // 绑定顶部返回按钮
-        var headerBackBtn = app.querySelector('.bk-back-btn');
-        if (headerBackBtn) {
-          headerBackBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (win.BKRouter) win.BKRouter.navigate('');
-          });
-        }
-
-        // 绑定底部栏按钮
-        var ttsPanel = document.getElementById('bkTtsPanel');
-        var playBtn = document.getElementById('bkBottomPlayBtn');
-        if (playBtn) {
-          playBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (!ttsPanel) return;
-
-            // 确保 TTS 控制栏可见
-            var ctrlBar = document.getElementById('bottomControlBar');
-            if (ctrlBar && ctrlBar.style.display === 'none') {
-              ctrlBar.style.display = '';
-              // 触发 TTS init
-              if (win.BKSpeech && win.BKSpeech.init) {
-                win.BKSpeech.init({
-                  getElements: function() {
-                    var container = document.getElementById('chapterContent');
-                    if (!container) return [];
-                    var els = [];
-                    var paragraphs = container.querySelectorAll('.bk-paragraph, .bk-quote-content, .bk-heading, .bk-code, li');
-                    for (var pi = 0; pi < paragraphs.length; pi++) {
-                      els.push({ el: paragraphs[pi] });
-                    }
-                    return els;
-                  }
-                });
-              }
-            }
-
-            // 展开/收起 TTS 面板
-            var isExpanded = ttsPanel.classList.contains('bk-tts-expanded');
-            if (!isExpanded) {
-              ttsPanel.classList.add('bk-tts-expanded');
-            }
-
-            // 转发点击到 TTS 播放按钮
-            var ttsPlayPause = document.getElementById('playPauseBtn');
-            if (ttsPlayPause) {
-              ttsPlayPause.click();
-            }
-          });
-        }
-
-        var settingsBtn = document.getElementById('bkBottomSettingsBtn');
-        if (settingsBtn) {
-          settingsBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (win.toggleThemePanel) win.toggleThemePanel();
-          });
-        }
+        // 事件绑定已移至浮动导航（nav-stack.js）
 
         var pageKey = bookId + '/' + chapterNum;
         win.__bkCurrentPath = pageKey;
