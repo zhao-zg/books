@@ -215,6 +215,7 @@
     // ── 全局根路径 ────────────────────────────────────────────────────────
     window.BK_ROOT = './';
     window.BK = window.BK || {};
+    window.__BK_CACHE_VERSION__ = '__APP_VERSION__';
 
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
@@ -486,7 +487,7 @@
         var coreUrls=window.__bkCoreUrls||[];
         var totalResources=coreUrls.length;var cachedResources=0;
         function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
-        var cacheShared=caches.open('bk-main').then(function(cache){
+        var cacheShared=caches.open('bk-main-'+(window.__BK_CACHE_VERSION__||'dev')).then(function(cache){
             return Promise.allSettled(coreUrls.map(function(url){
                 return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());}).catch(function(){cachedResources++;rep();});
             }));

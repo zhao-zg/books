@@ -8,10 +8,7 @@
  *  - 版本检测文件（version.json）始终走网络
  */
 
-const CACHE_NAME = 'bk-main-__BUILD_VERSION__';
-
-// 旧版缓存名称（首次升级时清理），激活时清理
-const OLD_CACHES = ['books-main', 'bk-main'];
+const CACHE_NAME = 'bk-main-__APP_VERSION__';
 
 const CONFIG = {
   TIMEOUT: 5000,
@@ -84,11 +81,11 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     (async () => {
       try {
-        // 清理旧版本缓存
+        // 清理所有旧版缓存，仅保留当前 CACHE_NAME
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter(k => OLD_CACHES.includes(k) || ((k.startsWith('books-') || k.startsWith('bk-')) && k !== CACHE_NAME))
+            .filter(k => (k.startsWith('books-') || k.startsWith('bk-')) && k !== CACHE_NAME)
             .map(k => caches.delete(k))
         );
       } catch (e) {

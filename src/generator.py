@@ -52,11 +52,13 @@ class BooksGenerator:
 
         print("✓ 静态资源已复制到 output/")
 
-    def generate_manifest_and_sw(self):
+    def generate_manifest_and_sw(self, app_config: dict = None):
         """生成 PWA manifest.json 和 sw.js（从 templates 目录复制）"""
         template_dir = os.path.join(os.path.dirname(__file__), 'templates')
         if not os.path.isdir(template_dir):
             return
+
+        app_version = (app_config or {}).get('version', 'dev')
 
         # manifest.json
         manifest_src = os.path.join(template_dir, 'main_manifest.json')
@@ -64,17 +66,25 @@ class BooksGenerator:
             shutil.copy2(manifest_src, os.path.join(self.output_dir, 'manifest.json'))
             print("✓ manifest.json 已生成")
 
-        # sw.js - 注入构建版本号，使 CACHE_NAME 每次都变化，确保 SW 能正确更新缓存
+        # sw.js - 注入应用版本号到 CACHE_NAME
         sw_src = os.path.join(template_dir, 'main_sw.js')
         if os.path.exists(sw_src):
+            sw_dst = os.path.join(self.output_dir, 'sw.js')
             with open(sw_src, 'r', encoding='utf-8') as f:
                 sw_content = f.read()
-            build_version = datetime.now().strftime('%Y%m%d%H%M%S')
-            sw_content = sw_content.replace('__BUILD_VERSION__', build_version)
-            sw_dst = os.path.join(self.output_dir, 'sw.js')
+            sw_content = sw_content.replace('__APP_VERSION__', app_version)
             with open(sw_dst, 'w', encoding='utf-8') as f:
                 f.write(sw_content)
-            print(f"✓ sw.js 已生成 (版本: {build_version})")
+            print(f"✓ sw.js 已生成 (版本: {app_version})")
+
+        # 将版本号注入已复制的 output/index.html
+        index_dst = os.path.join(self.output_dir, 'index.html')
+        if os.path.exists(index_dst):
+            with open(index_dst, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            html_content = html_content.replace('__APP_VERSION__', app_version)
+            with open(index_dst, 'w', encoding='utf-8') as f:
+                f.write(html_content)
 
         # _redirects（Cloudflare Pages）
         redirects_src = os.path.join(template_dir, '_redirects')
@@ -273,8 +283,8 @@ class BooksGenerator:
         # 3. 生成完整 CSS
         self.generate_css()
 
-        # 4. PWA manifest 和 Service Worker
-        self.generate_manifest_and_sw()
+        # 4. PWA manifest 和 Service Worker（注入版本号）
+        self.generate_manifest_and_sw(app_config)
 
         # 5. version.json
         if app_config:
