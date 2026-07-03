@@ -31,7 +31,14 @@
     _lockCleanup: null,
 
     // 搜索范围：'title' 仅书名 | 'all' 书名+内容
-    _scope: 'all',
+    _scope: 'title',
+
+    /**
+     * 检查书籍是否有上次阅读进度
+     */
+    _hasProgress: function (bookId) {
+      try { return parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10) > 0; } catch(e) { return false; }
+    },
 
     // 当前搜索状态
     _currentQuery: '',
@@ -599,7 +606,7 @@
         if ((r.type === 'content' || r.type === 'content-index') && r.context) {
           html += '<div class="bk-search-item-text">' + self._highlightText(r.context, query) + '</div>';
         } else if (r.type === 'title') {
-          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍（未缓存将自动下载）</div>';
+          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍' + (self._hasProgress(r.bookId) ? '（继续阅读）' : '') + '</div>';
         }
 
         html += '</a>';
@@ -654,8 +661,15 @@
             var DM = win.DataManager;
 
             function doNavigate() {
-              if (url && win.BKRouter) {
-                win.BKRouter.navigate(url.replace(/^#\/?/, ''));
+              if (win.BKRouter) {
+                // 检查阅读进度，有进度则直接跳转到上次阅读的章节
+                var progress = 0;
+                try { progress = parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10); } catch(ex) {}
+                if (progress > 0 && bookId) {
+                  win.BKRouter.navigate(bookId + '/' + progress);
+                } else if (url) {
+                  win.BKRouter.navigate(url.replace(/^#\/?/, ''));
+                }
               }
               self.close();
             }
@@ -709,7 +723,14 @@
 
             function doNavigate() {
               if (bookId && win.BKRouter) {
-                win.BKRouter.navigate(bookId);
+                // 检查阅读进度，有进度则直接跳转到上次阅读的章节
+                var progress = 0;
+                try { progress = parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10); } catch(ex) {}
+                if (progress > 0) {
+                  win.BKRouter.navigate(bookId + '/' + progress);
+                } else {
+                  win.BKRouter.navigate(bookId);
+                }
               }
               self.close();
             }
@@ -827,6 +848,11 @@
       var self = this;
       if (this._modal) {
         this._modal.style.display = 'flex';
+        // 同步搜索范围单选按钮状态
+        var radios = this._modal.querySelectorAll('.bk-scope-radio');
+        for (var i = 0; i < radios.length; i++) {
+          radios[i].checked = (radios[i].value === this._scope);
+        }
         if (this._input) setTimeout(function () { self._input.focus(); }, 100);
         return;
       }
@@ -842,11 +868,11 @@
           '<div class="bk-search-toolbar" id="bkSearchToolbar">' +
             '<div class="bk-search-scope-toggle">' +
               '<label class="bk-scope-label">' +
-                '<input type="radio" name="bkSearchScope" value="title" class="bk-scope-radio"> ' +
+                '<input type="radio" name="bkSearchScope" value="title" class="bk-scope-radio" checked> ' +
                 '<span class="bk-scope-text">仅书名</span>' +
               '</label>' +
               '<label class="bk-scope-label">' +
-                '<input type="radio" name="bkSearchScope" value="all" class="bk-scope-radio" checked> ' +
+                '<input type="radio" name="bkSearchScope" value="all" class="bk-scope-radio"> ' +
                 '<span class="bk-scope-text">书名+内容</span>' +
               '</label>' +
             '</div>' +

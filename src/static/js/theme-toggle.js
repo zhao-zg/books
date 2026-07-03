@@ -167,6 +167,20 @@
                 </div>
                 <div class="cache-status" id="actionStatus"></div>
             </div>
+            <div class="theme-section" id="resourceManageSection" style="display:none">
+                <div class="theme-section-title">资源管理</div>
+                <div class="actions-grid">
+                    <button class="action-btn" id="dlMgrBtn">
+                        <span class="cache-icon">📥</span><span class="cache-text">下载管理</span>
+                    </button>
+                    <button class="action-btn" id="manageBooksBtn">
+                        <span class="cache-icon">🗑️</span><span class="cache-text">管理书籍</span>
+                    </button>
+                    <button class="action-btn" id="importBtn">
+                        <span class="cache-icon">📂</span><span class="cache-text">导入</span>
+                    </button>
+                </div>
+            </div>
             <div class="theme-section" id="autoCheckSection" style="display:none">
                 <div class="theme-section-title">偏好设置</div>
                 <div class="pref-row">
@@ -331,6 +345,64 @@
                 else { showClearDialog(); }
             });
         }
+
+        // 资源管理
+        (function() {
+            var section = document.getElementById('resourceManageSection');
+            if (!section) return;
+
+            var dlMgrBtn = document.getElementById('dlMgrBtn');
+            var manageBtn = document.getElementById('manageBooksBtn');
+            var importBtn = document.getElementById('importBtn');
+
+            if (dlMgrBtn || manageBtn || importBtn) {
+                section.style.display = 'block';
+            }
+
+            if (dlMgrBtn) {
+                dlMgrBtn.addEventListener('click', function() {
+                    if (window.BKRenderer && window.BKRenderer.openDownloadManager) {
+                        window.BKRenderer.openDownloadManager();
+                    }
+                });
+            }
+
+            if (importBtn) {
+                importBtn.addEventListener('click', function() {
+                    if (window.BKRenderer && window.BKRenderer.pickAndImport) {
+                        window.BKRenderer.pickAndImport();
+                    }
+                });
+            }
+
+            if (manageBtn) {
+                // 更新按钮文字以反映当前管理模式状态
+                function updateManageLabel() {
+                    var label = manageBtn.querySelector('.cache-text');
+                    if (label) {
+                        label.textContent = (window.BKRenderer && window.BKRenderer.isManageMode && window.BKRenderer.isManageMode()) ? '完成管理' : '管理书籍';
+                    }
+                    var icon = manageBtn.querySelector('.cache-icon');
+                    if (icon) {
+                        icon.textContent = (window.BKRenderer && window.BKRenderer.isManageMode && window.BKRenderer.isManageMode()) ? '✅' : '🗑️';
+                    }
+                }
+
+                // 每次设置面板打开时刷新状态
+                var observer = new MutationObserver(function() {
+                    var panel = document.getElementById('themePanel');
+                    if (panel && panel.classList.contains('show')) updateManageLabel();
+                });
+                var panel = document.getElementById('themePanel');
+                if (panel) observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+
+                manageBtn.addEventListener('click', function() {
+                    if (window.BKRenderer && window.BKRenderer.toggleManageMode) {
+                        window.BKRenderer.toggleManageMode();
+                    }
+                });
+            }
+        })();
 
         // 检查更新
         var updateBtn = document.getElementById('checkUpdateBtn');

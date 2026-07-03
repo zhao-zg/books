@@ -89,6 +89,7 @@
     </div>
     <script>(function(){
         var _splashDone=false;
+        var _windowLoaded=false;
         function _dismissSplash(){
             if(_splashDone)return;_splashDone=true;
             var el=document.getElementById('bkSplash');
@@ -96,9 +97,21 @@
             el.classList.add('bk-splash-out');
             setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},480);
         }
-        if(document.readyState==='complete')_dismissSplash();
-        else window.addEventListener('load',_dismissSplash);
-        setTimeout(_dismissSplash,4000);
+        // 等 window.load + 数据就绪后再消失
+        function _tryDismiss(){
+            if(!_windowLoaded)return;
+            if(window._bkDataReady){
+                window._bkDataReady.then(_dismissSplash).catch(_dismissSplash);
+            } else {
+                _dismissSplash();
+            }
+        }
+        if(document.readyState==='complete'){_windowLoaded=true;_tryDismiss();}
+        else window.addEventListener('load',function(){_windowLoaded=true;_tryDismiss();});
+        // 兜底：最多等 6 秒
+        setTimeout(_dismissSplash,6000);
+        // 供 renderer.js 数据就绪后调用
+        window.bkDismissSplash=_dismissSplash;
     })();</script>
     <!-- 阅读进度条 -->
     <div id="bkReadingProgress" class="bk-reading-progress"></div>

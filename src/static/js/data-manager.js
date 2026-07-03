@@ -473,6 +473,7 @@
     var success = 0;
     var failed = 0;
     var errors = [];
+    var failedTasks = [];
     var nextIdx = 0;
 
     function runNext() {
@@ -514,6 +515,7 @@
         .catch(function (err) {
           failed++;
           errors.push({ index: idx, error: err.message || String(err) });
+          failedTasks.push(tasks[idx]);
           if (onTaskComplete) onTaskComplete(success + failed, tasks.length);
         })
         .then(function () {
@@ -527,8 +529,44 @@
       workers.push(runNext());
     }
     return Promise.all(workers).then(function () {
-      return { success: success, failed: failed, errors: errors };
+      return { success: success, failed: failed, errors: errors, failedTasks: failedTasks };
     });
+  }
+
+  /**
+   * 对批量下载中的失败任务进行自动重试
+   * @param {Array<function>} failedTasks 上一轮失败的任务工厂函数
+   * @param {number} maxRounds 最多重试轮数
+   * @param {function} onProgress (completed, total, currentTitle) => {}
+   * @param {object} acc 累计结果 { success, failed, errors, failedBookNames }
+   * @returns {Promise<object>} 累计结果
+   */
+  function _retryFailed(failedTasks, maxRounds, onProgress, acc) {
+    if (!failedTasks.length || maxRounds <= 0 || _isCancelled) {
+      return Promise.resolve(acc);
+    }
+    console.log('[DataManager] 自动重试 ' + failedTasks.length + ' 个失败任务（剩余 ' + maxRounds + ' 轮）');
+    // 重试前等待 2 秒，给网络一个缓冲期
+    return new Promise(function (resolve) { setTimeout(resolve, 2000); })
+      .then(function () {
+        return runConcurrent(failedTasks, MAX_CONCURRENT, function (completed, total) {
+          if (onProgress) onProgress(acc.success + completed, acc.success + acc.failed, '重试中...');
+        }).then(function (retryResult) {
+          acc.success += retryResult.success;
+          // 收集本轮仍然失败的书名（从 failedTasks 的 _bookTitle 属性）
+          acc.failedBookNames = [];
+          for (var i = 0; i < retryResult.failedTasks.length; i++) {
+            var t = retryResult.failedTasks[i];
+            if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+          }
+          if (retryResult.failed > 0) {
+            acc.failed = retryResult.failed;
+            return _retryFailed(retryResult.failedTasks, maxRounds - 1, onProgress, acc);
+          }
+          acc.failed = 0;
+          return acc;
+        });
+      });
   }
 
   /**
@@ -610,16 +648,34 @@
 
           // 构建任务列表（downloadBook 会自动查找 series）
           var tasks = filtered.map(function (book) {
-            return function () {
+            var fn = function () {
               _dlCurrentTitle = book.title || book.id;
               if (onProgress) onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
               return downloadBook(book.id, book.series);
             };
+            fn._bookTitle = book.title || book.id;
+            return fn;
           });
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
             if (onProgress) onProgress(completed, total, _dlCurrentTitle);
+          }).then(function (result) {
+            // 收集首轮失败的书名
+            var acc = {
+              success: result.success,
+              failed: result.failed,
+              errors: result.errors,
+              failedBookNames: []
+            };
+            for (var i = 0; i < result.failedTasks.length; i++) {
+              var t = result.failedTasks[i];
+              if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+            }
+            if (result.failed > 0) {
+              return _retryFailed(result.failedTasks, 2, onProgress, acc);
+            }
+            return acc;
           }).then(function (result) {
             _isDownloading = false;
             _dlCurrentTitle = '';
@@ -681,16 +737,33 @@
           }
 
           var tasks = toDownload.map(function (book) {
-            return function () {
+            var fn = function () {
               _dlCurrentTitle = book.title || book.id;
               if (onProgress) onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
               return downloadBook(book.id, book.series);
             };
+            fn._bookTitle = book.title || book.id;
+            return fn;
           });
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
             if (onProgress) onProgress(completed, total, _dlCurrentTitle);
+          }).then(function (result) {
+            var acc = {
+              success: result.success,
+              failed: result.failed,
+              errors: result.errors,
+              failedBookNames: []
+            };
+            for (var i = 0; i < result.failedTasks.length; i++) {
+              var t = result.failedTasks[i];
+              if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+            }
+            if (result.failed > 0) {
+              return _retryFailed(result.failedTasks, 2, onProgress, acc);
+            }
+            return acc;
           }).then(function (result) {
             _isDownloading = false;
             _dlCurrentTitle = '';
