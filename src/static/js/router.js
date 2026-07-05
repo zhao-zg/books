@@ -25,9 +25,9 @@
   function dispatch(path) {
     var parts = path.split('/').filter(Boolean);
     win.__bkCurrentPath = path;
-    // 路由切换时关闭搜索面板
+    // 路由切换时关闭搜索面板（skipHistory: 导航已在进行中，不需要 history.back()）
     if (win.BKSearch && win.BKSearch.close) {
-      try { win.BKSearch.close(); } catch (e) {}
+      try { win.BKSearch.close(true); } catch (e) {}
     }
     var R = win.BKRenderer;
     console.log('[Router] dispatch path="' + path + '" parts=' + JSON.stringify(parts) + ' BKRenderer=' + (R ? 'ok' : 'NULL'));

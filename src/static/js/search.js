@@ -671,7 +671,7 @@
                   win.BKRouter.navigate(url.replace(/^#\/?/, ''));
                 }
               }
-              self.close();
+              self.close(true);
             }
 
             // 检查书籍是否已下载，未下载则先自动下载
@@ -732,7 +732,7 @@
                   win.BKRouter.navigate(bookId);
                 }
               }
-              self.close();
+              self.close(true);
             }
 
             if (DM && bookId) {
@@ -830,7 +830,7 @@
             if (seriesId && win.BKRouter) {
               win.BKRouter.navigate('series/' + seriesId);
             }
-            self.close();
+            self.close(true);
           });
         })(cards[c]);
       }
@@ -940,7 +940,7 @@
       }
     },
 
-    close: function () {
+    close: function (skipHistory) {
       if (this._modal) {
         this._modal.style.display = 'none';
       }
@@ -952,10 +952,10 @@
         this._lockCleanup();
         this._lockCleanup = null;
       }
-      if (this._inBackStack && win.BK && win.BK.backStack) {
+      if (!skipHistory && this._inBackStack && win.BK && win.BK.backStack) {
         win.BK.backStack.discard();
-        this._inBackStack = false;
       }
+      this._inBackStack = false;
     }
   };
 
