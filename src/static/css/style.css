@@ -435,6 +435,8 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 1.1em;
+  line-height: 1.4;
 }
 .bk-toc-chapter-badge {
   font-size: var(--text-xs);
@@ -1003,6 +1005,8 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 1.1em;
+  line-height: 1.4;
 }
 .bk-chapter-badge {
   font-size: var(--text-xs);
