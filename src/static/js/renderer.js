@@ -11,6 +11,15 @@
 (function (win) {
   'use strict';
 
+  // ── 本地开发模式检测 ──────────────────────────────────────────────────
+  // 本地测试时跳过所有远程请求（更新检查、CDN 下载等）
+  (function () {
+    var h = win.location.hostname, p = win.location.protocol;
+    win.__BK_LOCAL_DEV__ = (h === 'localhost' || h === '127.0.0.1' || h === '' ||
+      p === 'file:' || /^192\.168\.\d+\.\d+$/.test(h) ||
+      /^10\.\d+\.\d+\.\d+$/.test(h) || h === '[::1]');
+  })();
+
   // ── 工具 ────────────────────────────────────────────────────────────────
 
   function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -191,10 +200,10 @@
           console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据，CDN 备用');
           return _setupDataManager(dmUrl, dmUrls);
         } else if (isLocal) {
-          var origin = win.location.origin;
-          if (!origin || origin === 'null') origin = 'http://localhost:8080';
-          dmUrls.push(origin + '/zl-data');
-          dmUrl = dmUrls[0];
+          // 本地开发模式：使用 resource/zl-merged/ 目录（含完整索引+书籍数据）
+          // 页面在 /output/index.html，用绝对路径确保从项目根正确解析
+          dmUrl = '/resource/zl-merged';
+          dmUrls.push(dmUrl);
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
           dmUrls.push(win.location.origin + '/zl-data');

@@ -264,10 +264,12 @@
                     hide();
                     return;
                 }
-                // 朗读按钮 → 切换朗读栏
+                // 朗读按钮 → 切换朗读栏（不隐藏边栏，重置自动隐藏计时器）
                 if (t.hasAttribute && t.hasAttribute('data-tts-toggle')) {
                     e.preventDefault();
                     _toggleTtsBar();
+                    clearTimeout(_timer);
+                    _timer = setTimeout(hide, HIDE_DELAY);
                     return;
                 }
                 // 设置按钮
@@ -490,7 +492,7 @@
     }
 
     window.addEventListener('scroll', function() {
-        if (_el && _el.classList.contains('show')) {
+        if (_el && _el.classList.contains('show') && !_ttsBarVisible) {
             hide();
         }
     }, { passive: true });
@@ -535,6 +537,12 @@
 
     document.addEventListener('click', function(e) {
         if (_el && _el.classList.contains('show')) {
+            // 安全检查：底栏和朗读栏的点击已被 stopPropagation 拦截，这里双重保险
+            var el = e.target;
+            while (el && el !== document.body) {
+                if (el.classList && (el.classList.contains('bk-float-bottom') || el.classList.contains('bk-float-tts-bar'))) return;
+                el = el.parentElement;
+            }
             hide();
             return;
         }

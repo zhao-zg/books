@@ -40,6 +40,7 @@
   var _manifest = null;
 
   function fetchManifest() {
+    if (win.__BK_LOCAL_DEV__) return Promise.reject(new Error('本地开发模式，跳过远程请求'));
     if (_manifest) return Promise.resolve(_manifest);
     var servers = (win.BK_SERVERS && win.BK_SERVERS.cloudflare) || [];
     var bust = '?t=' + Date.now();

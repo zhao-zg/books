@@ -330,6 +330,7 @@
    * 后台静默检查索引更新，有新版本则自动拉取
    */
   function _silentCheckUpdate() {
+    if (win.__BK_LOCAL_DEV__) return;
     var url = buildUrl('manifest.json?t=' + Date.now());
     fetch(url, { cache: 'no-cache' })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -363,6 +364,7 @@
    * 返回 { needUpdate: boolean, remoteVersion, localVersion }
    */
   function checkIndexUpdate() {
+    if (win.__BK_LOCAL_DEV__) return Promise.resolve({ needUpdate: false });
     var url = buildUrl('manifest.json?t=' + Date.now());
     console.log('[DataManager] 检查清单更新: ' + url);
     return fetchWithRetry(url)

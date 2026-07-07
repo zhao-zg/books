@@ -970,6 +970,7 @@
 
     // ── 静默后台检查更新 ────────────────────────────────────────────
     AppUpdate.silentCheckUpdate = async function() {
+        if (window.__BK_LOCAL_DEV__) return;
         if (this._configReady) { await this._configReady; this._configReady = null; }
         try { if (sessionStorage.getItem('bk_update_toast_shown')) return; } catch(e) {}
 
