@@ -137,7 +137,8 @@
     var _timer = null;
     var HIDE_DELAY = 5000;
     var _ttsSyncCleanup = null;
-    var _ttsBarVisible = false;
+    var _ttsBarVisible = false;   // 浮动朗读栏当前是否显示
+    var _ttsActive = false;       // 朗读栏是否已激活（用户开启过朗读，需随底栏出现）
 
     // 检测当前页面类型：reading | catalog | null
     function getPageType() {
@@ -184,10 +185,16 @@
 
         // 获取书名
         var bookTitle = '';
-        var titleEl = document.querySelector('.bk-cl-header-title, .bk-book-header-title');
-        if (titleEl) bookTitle = titleEl.textContent || '';
-        if (!bookTitle && window.BKRenderer && window.BKRenderer._getBookTitle) {
-            bookTitle = window.BKRenderer._getBookTitle(bookId) || '';
+        if (pageType === 'reading') {
+            // 阅读页：从 BKRenderer 缓存读取（renderReadingView 渲染时设置）
+            bookTitle = (window.BKRenderer && window.BKRenderer._currentBookTitle) || '';
+        } else {
+            // 目录页：从 DOM 或 BKRenderer 获取
+            var titleEl = document.querySelector('.bk-cl-header-title, .bk-book-header-title');
+            if (titleEl) bookTitle = titleEl.textContent || '';
+            if (!bookTitle && window.BKRenderer && window.BKRenderer._getBookTitle) {
+                bookTitle = window.BKRenderer._getBookTitle(bookId) || '';
+            }
         }
 
         var html = '<div class="bk-float-nav-inner">';
@@ -196,10 +203,8 @@
             // 返回书架
             html += '<a class="bk-float-nav-link" href="#/" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
 
-            // 书名 - 章节
-            var chapterTitle = '';
-            var headerChapterEl = document.querySelector('.bk-reading-header-chapter');
-            if (headerChapterEl) chapterTitle = headerChapterEl.textContent || '';
+            // 书名 - 章节（从 BKRenderer 缓存读取章节标题）
+            var chapterTitle = (window.BKRenderer && window.BKRenderer._currentChapterTitle) || '';
             var displayTitle = bookTitle + (chapterTitle ? ' - ' + chapterTitle : (chapterNum ? ' - 第' + chapterNum + '章' : ''));
             html += '<div class="bk-float-title">' + (displayTitle || '') + '</div>';
 
@@ -252,6 +257,8 @@
 
         html += '</div>';
         el.innerHTML = html;
+        // 重新挂载朗读栏（避免被 innerHTML 清空），朗读栏作为底栏子元素随其收起
+        if (_ttsEl && _ttsEl.parentNode !== _bottomEl) _bottomEl.appendChild(_ttsEl);
     }
 
     function _bindBottomEvents() {
@@ -269,7 +276,11 @@
                     e.preventDefault();
                     _toggleTtsBar();
                     clearTimeout(_timer);
-                    _timer = setTimeout(hide, HIDE_DELAY);
+                    // 激活朗读栏：下边栏保持可见（绑定朗读栏，避免控件消失后无法播放）；
+                    // 关闭朗读栏：恢复自动隐藏。
+                    if (!_ttsBarVisible) {
+                        _timer = setTimeout(hide, HIDE_DELAY);
+                    }
                     return;
                 }
                 // 设置按钮
@@ -288,6 +299,7 @@
 
     function _toggleTtsBar() {
         _ttsBarVisible = !_ttsBarVisible;
+        _ttsActive = _ttsBarVisible;
 
         if (_ttsBarVisible) {
             // 确保 TTS 已初始化
@@ -313,16 +325,20 @@
             var ttsPanel = document.getElementById('bkTtsPanel');
             if (ttsPanel) ttsPanel.classList.add('bk-tts-expanded');
 
-            // 显示浮动 TTS 栏
+            // 显示浮动 TTS 栏（作为底栏子元素，随底栏定位/收起）
             syncTtsContent();
             if (_ttsEl) _ttsEl.classList.add('show');
         } else {
             // 隐藏浮动 TTS 栏
             if (_ttsEl) _ttsEl.classList.remove('show');
+            _ttsBarVisible = false;
 
             // 收起嵌入式 TTS 面板
-            var ttsPanel = document.getElementById('bkTtsPanel');
-            if (ttsPanel) ttsPanel.classList.remove('bk-tts-expanded');
+            var ttsPanel = document.getElementById('bottomControlBar');
+            if (ttsPanel) {
+                ttsPanel.classList.remove('bk-tts-expanded');
+                if (ttsPanel.style.display !== 'none') ttsPanel.style.display = 'none';
+            }
         }
     }
 
@@ -352,15 +368,18 @@
     }
 
     function ensureTtsEl() {
+        ensureBottomEl();
         if (!_ttsEl) {
             _ttsEl = document.createElement('div');
             _ttsEl.className = 'bk-float-tts-bar';
             _ttsEl.setAttribute('aria-label', '朗读控制');
-            document.body.appendChild(_ttsEl);
             _ttsEl.addEventListener('click', function(e) { e.stopPropagation(); });
         }
+        // 作为底栏子元素，朗读栏随底栏一起定位/收起，避免重叠与“收不回”问题
+        if (_ttsEl.parentNode !== _bottomEl) _bottomEl.appendChild(_ttsEl);
         return _ttsEl;
     }
+
 
     function syncTtsContent() {
         var orig = getTtsBar();
@@ -476,10 +495,15 @@
             _bottomEl.classList.add('show');
         }
         clearTimeout(_timer);
-        _timer = setTimeout(hide, HIDE_DELAY);
-        if (_ttsBarVisible) {
+        // 朗读栏已激活时：底栏出现则朗读栏随之出现，并保持显示（不自动收起）；
+        // 其余情况正常启动自动隐藏计时器。
+        if (_ttsActive) {
+            _ttsBarVisible = true;
             syncTtsContent();
             if (_ttsEl) _ttsEl.classList.add('show');
+        }
+        if (!_ttsBarVisible) {
+            _timer = setTimeout(hide, HIDE_DELAY);
         }
     }
 
@@ -487,7 +511,15 @@
         clearTimeout(_timer);
         if (_el) _el.classList.remove('show');
         if (_bottomEl) _bottomEl.classList.remove('show');
-        if (_ttsEl && _ttsBarVisible) _ttsEl.classList.remove('show');
+        // 朗读栏与下边栏状态绑定：下边栏隐藏时，朗读栏必须同步消失。
+        // 同时收起浮动朗读栏克隆与页面内嵌的 TTS 控制面板，避免下边栏消失后朗读栏孤立残留。
+        if (_ttsEl) _ttsEl.classList.remove('show');
+        _ttsBarVisible = false;
+        var ttsPanel = document.getElementById('bottomControlBar');
+        if (ttsPanel) {
+            ttsPanel.classList.remove('bk-tts-expanded');
+            if (ttsPanel.style.display !== 'none') ttsPanel.style.display = 'none';
+        }
         if (_ttsSyncCleanup) { _ttsSyncCleanup(); _ttsSyncCleanup = null; }
     }
 
@@ -500,6 +532,7 @@
     window.addEventListener('hashchange', function() {
         hide();
         _ttsBarVisible = false;
+        _ttsActive = false;
         if (_el && _el.parentNode) _el.parentNode.removeChild(_el);
         _el = null;
         if (_bottomEl && _bottomEl.parentNode) _bottomEl.parentNode.removeChild(_bottomEl);
@@ -536,8 +569,13 @@
     }
 
     document.addEventListener('click', function(e) {
-        if (_el && _el.classList.contains('show')) {
-            // 安全检查：底栏和朗读栏的点击已被 stopPropagation 拦截，这里双重保险
+        // 任一控制栏（顶栏或底栏）可见时，点击空白处即收起（含朗读栏已激活时）；
+        // 朗读栏内控件点击已被 stopPropagation 拦截，不会收起。
+        var controlsVisible = (_el && _el.classList.contains('show')) ||
+                              (_bottomEl && _bottomEl.classList.contains('show'));
+        if (controlsVisible) {
+            // 安全检查：底栏和朗读栏内的点击已被 stopPropagation 拦截，这里双重保险；
+            // 朗读栏内控件（进度条/倍速/播放等）点击不会收起，点页面空白处则收起全部。
             var el = e.target;
             while (el && el !== document.body) {
                 if (el.classList && (el.classList.contains('bk-float-bottom') || el.classList.contains('bk-float-tts-bar'))) return;

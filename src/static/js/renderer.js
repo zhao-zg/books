@@ -98,6 +98,17 @@
   var _scrollSaveTimer = null;
   var _scrollSaveHandler = null;
   var _scrollPageKey = null;
+  var _scrollTarget = null; // 当前滚动监听挂载的元素（window 或 .bk-carousel-page）
+
+  // 阅读视图的纵向滚动发生在当前 .bk-carousel-page 内部（不再依赖文档滚动，
+  // 以免被 bk-scroll-locked 的 touch-action:none 阻断）。此处返回真正的滚动容器。
+  function _getScrollContainer() {
+    if (document.body.classList.contains('bk-reading-page')) {
+      var page = (_carouselPages && _carouselPages.curr) || document.getElementById('carouselPageCurr');
+      if (page) return page;
+    }
+    return win;
+  }
 
   // ── 数据加载 ─────────────────────────────────────────────────────────────
 
@@ -308,7 +319,11 @@
 
   function saveScrollPosition() {
     if (!_scrollPageKey) return;
-    try { localStorage.setItem('bk_scroll:' + _scrollPageKey, String(win.scrollY || 0)); } catch(e) {}
+    try {
+      var c = _getScrollContainer();
+      var y = c === win ? (win.scrollY || 0) : (c.scrollTop || 0);
+      localStorage.setItem('bk_scroll:' + _scrollPageKey, String(y));
+    } catch(e) {}
   }
 
   function restoreScrollPosition(pageKey) {
@@ -316,7 +331,11 @@
       var y = parseInt(localStorage.getItem('bk_scroll:' + pageKey) || '0', 10);
       if (y > 0) {
         requestAnimationFrame(function() {
-          requestAnimationFrame(function() { win.scrollTo(0, y); });
+          requestAnimationFrame(function() {
+            var c = _getScrollContainer();
+            if (c === win) win.scrollTo(0, y);
+            else c.scrollTop = y;
+          });
         });
       }
     } catch(e) {}
@@ -329,14 +348,17 @@
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(saveScrollPosition, 300);
     };
-    win.addEventListener('scroll', _scrollSaveHandler, { passive: true });
+    _scrollTarget = _getScrollContainer();
+    _scrollTarget.addEventListener('scroll', _scrollSaveHandler, { passive: true });
   }
 
   function stopScrollTracking() {
     saveScrollPosition();
     if (_scrollSaveHandler) {
-      win.removeEventListener('scroll', _scrollSaveHandler);
+      var target = _scrollTarget || win;
+      target.removeEventListener('scroll', _scrollSaveHandler);
       _scrollSaveHandler = null;
+      _scrollTarget = null;
     }
     _scrollPageKey = null;
   }
@@ -384,7 +406,7 @@
 
   // ── Content → HTML 渲染 ──────────────────────────────────────────────
 
-  function renderContentItem(item, ctx) {
+  function renderContentItem(item, ctx, eager) {
     if (!item) return '';
     var type = item.type || 'paragraph';
     var text = item.text || '';
@@ -406,8 +428,10 @@
       case 'image':
         var src = item.src || '';
         var alt = item.attrs && item.attrs.alt || '';
+        // 预览页（carousel prev/next）需要立即加载图片，否则滑动时视口外图片因 lazy 未加载而显示空白
+        var imgLoading = eager ? 'eager' : 'lazy';
         html = '<figure class="bk-figure">' +
-          '<img src="' + escAttr(src) + '" alt="' + escAttr(alt || text) + '" loading="lazy">' +
+          '<img src="' + escAttr(src) + '" alt="' + escAttr(alt || text) + '" loading="' + imgLoading + '">' +
           (text ? '<figcaption>' + escText(text) + '</figcaption>' : '') +
           '</figure>';
         break;
@@ -450,7 +474,7 @@
     return html;
   }
 
-  function renderChapterContent(chapter) {
+  function renderChapterContent(chapter, eager) {
     var contentArr = chapter.content || [];
     var html = '';
 
@@ -511,7 +535,7 @@
 
     for (var i = 0; i < contentArr.length; i++) {
       var item = contentArr[i];
-      html += renderContentItem(item, ctx);
+      html += renderContentItem(item, ctx, eager);
       // 对有文本内容的项更新经文上下文
       if (item && item.text && win.BKRef && win.BKRef.scanCtx) {
         ctx = win.BKRef.scanCtx(item.text, ctx);
@@ -598,44 +622,146 @@
     _removeSwipeHandler();
   }
 
-  // ── 左右滑动手势翻页 ──────────────────────────────────────────────────
+  // ── 三页轮播（carousel swipe） ────────────────────────────────────────
+  //
+  // 三页轮播：track 包含 prev/curr/next 三个 page，translateX(-33.333%) 居中当前页。
+  // 滑动时直接 translate track，松手后动画完成 → 重排 DOM → 重置 translateX。
+  // 每次路由跳转重新渲染 carousel 以确保数据准确。
 
-  var _swipeState = null;       // { startX, startY, startTime, active, el }
-  var _swipeHandlers = null;    // { touchstart, touchmove, touchend }
-  var _swipeEl = null;          // 当前绑定滑动的 DOM 元素
-  var SWIPE_THRESHOLD = 80;     // 最小触发距离（px）
-  var SWIPE_MAX_VERTICAL = 60; // 垂直偏差上限（px），超过则视为纵向滚动
-  var SWIPE_DURATION = 280;     // 滑动动画时长（ms）
+  var _carouselBookId = null;
+  var _carouselChapterNum = null;
+  var _carouselUniqueChapters = null;
+  var _carouselPages = null;   // { prev, curr, next } 三个 DOM 元素
+  var _carouselTrack = null;
+  var _swipeState = null;
+  var _swipeHandlers = null;
+  var _swipeEl = null;
+  var SWIPE_THRESHOLD = 80;
+  var SWIPE_MAX_VERTICAL = 60;
+  var SWIPE_DURATION = 280;
 
-  function _navigateChapter(bookId, uniqueChapters, chapterNum, direction) {
+  // 生成单个 carousel page 的 HTML
+  function _renderCarouselPage(chapter, pageId) {
+    var html = '<div class="bk-carousel-page" id="carouselPage' + pageId + '">';
+    html += '<div class="content" id="carouselContent' + pageId + '">';
+    if (chapter) {
+      html += renderChapterContent(chapter, true);
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  // 获取指定章节号对应的 chapter 对象
+  function _getChapter(uniqueChapters, num) {
+    if (!uniqueChapters || num == null) return null;
     for (var i = 0; i < uniqueChapters.length; i++) {
-      if (uniqueChapters[i].number === chapterNum) {
-        var target = direction < 0 ? (i > 0 ? uniqueChapters[i - 1] : null) : (i < uniqueChapters.length - 1 ? uniqueChapters[i + 1] : null);
-        if (target && win.BKRouter) {
-          win.BKRouter.navigate(bookId + '/' + target.number);
-        }
-        break;
-      }
+      if (uniqueChapters[i].number === num) return uniqueChapters[i];
+    }
+    return null;
+  }
+
+  // 获取当前章节在列表中的索引
+  function _getChapterIndex(uniqueChapters, num) {
+    for (var i = 0; i < uniqueChapters.length; i++) {
+      if (uniqueChapters[i].number === num) return i;
+    }
+    return -1;
+  }
+
+  // 获取相邻章节号
+  function _getAdjacentChapterNum(uniqueChapters, currentNum, direction) {
+    var idx = _getChapterIndex(uniqueChapters, currentNum);
+    if (idx < 0) return null;
+    var targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= uniqueChapters.length) return null;
+    return uniqueChapters[targetIdx].number;
+  }
+
+  // 填充 carousel page 的内容
+  function _fillCarouselPage(pageEl, chapter) {
+    var contentEl = pageEl.querySelector('.content');
+    if (!contentEl) return;
+    if (chapter) {
+      // 相邻预览页同样需要 eager 加载，避免滑动时才去 lazy 加载而显示空白
+      contentEl.innerHTML = renderChapterContent(chapter, true);
+    } else {
+      contentEl.innerHTML = '';
     }
   }
 
-  function _installSwipeHandler(bookId, uniqueChapters, chapterNum) {
+  // 滑动完成后重排页面
+  function _reorderCarousel(direction) {
+    if (!_carouselTrack || !_carouselPages) return;
+    var prev = _carouselPages.prev;
+    var curr = _carouselPages.curr;
+    var next = _carouselPages.next;
+
+    if (direction === 1) {
+      // 下一章：prev=旧curr, curr=旧next, next=新下一章
+      _carouselTrack.appendChild(prev);
+      _carouselPages = { prev: curr, curr: next, next: prev };
+    } else {
+      // 上一章：prev=新上一章, curr=旧prev, next=旧curr
+      _carouselTrack.insertBefore(next, prev);
+      _carouselPages = { prev: next, curr: prev, next: curr };
+    }
+    var pageW = _carouselTrack.parentElement.offsetWidth;
+    _carouselTrack.style.transform = 'translateX(' + (-pageW) + 'px)';
+
+    // 交换内容容器 ID：新 curr 必须是 chapterContent（承载 padding/字号样式）
+    // 注意：初始当前页的 id 是 "chapterContent"（非 carouselContent 前缀），
+    // 一旦被移除会拿不回 [id^="carouselContent"]，故统一用 .content 定位容器
+    var oldCurrContent = curr.querySelector('.content');
+    var newCurrContent = _carouselPages.curr.querySelector('.content');
+    if (oldCurrContent) {
+      oldCurrContent.removeAttribute('id');
+    }
+    if (newCurrContent) {
+      newCurrContent.id = 'chapterContent';
+    }
+  }
+
+  // 更新相邻页面内容
+  function _updateAdjacentPages(bookId, uniqueChapters, chapterNum) {
+    var prevNum = _getAdjacentChapterNum(uniqueChapters, chapterNum, -1);
+    var nextNum = _getAdjacentChapterNum(uniqueChapters, chapterNum, 1);
+    var prevChapter = prevNum != null ? _getChapter(uniqueChapters, prevNum) : null;
+    var nextChapter = nextNum != null ? _getChapter(uniqueChapters, nextNum) : null;
+    if (_carouselPages) {
+      _fillCarouselPage(_carouselPages.prev, prevChapter);
+      _fillCarouselPage(_carouselPages.next, nextChapter);
+    }
+  }
+
+  function _installCarouselSwipe(bookId, uniqueChapters, chapterNum) {
     _removeSwipeHandler();
 
-    var readingView = document.getElementById('readingView');
-    if (!readingView) return;
+    var track = document.querySelector('.bk-carousel-track');
+    if (!track) return;
+    _carouselTrack = track;
+    _carouselBookId = bookId;
+    _carouselChapterNum = chapterNum;
+    _carouselUniqueChapters = uniqueChapters;
+
+    var pages = track.querySelectorAll('.bk-carousel-page');
+    if (pages.length !== 3) return;
+    _carouselPages = { prev: pages[0], curr: pages[1], next: pages[2] };
+
+    // 用像素精确设定静止位置，与滑动手势的像素定位保持一致，避免亚像素跳动
+    if (track.parentElement) {
+      var pageW0 = track.parentElement.offsetWidth || win.innerWidth || 0;
+      track.style.transform = 'translateX(' + (-pageW0) + 'px)';
+    }
 
     function onTouchStart(e) {
-      // 忽略多点触控
       if (e.touches.length > 1) return;
       var t = e.touches[0];
       _swipeState = {
         startX: t.clientX,
         startY: t.clientY,
         startTime: Date.now(),
-        active: false,       // 是否已确认为水平滑动
-        rejected: false,     // 已判定为纵向滚动或无效
-        el: readingView
+        active: false,
+        rejected: false
       };
     }
 
@@ -645,33 +771,29 @@
       var dx = t.clientX - _swipeState.startX;
       var dy = t.clientY - _swipeState.startY;
 
-      // 尚未确认方向时进行判定
       if (!_swipeState.active) {
-        // 垂直偏差过大 → 纵向滚动，放弃
-        if (Math.abs(dy) > SWIPE_MAX_VERTICAL) {
-          _swipeState.rejected = true;
-          return;
-        }
-        // 水平位移超过 15px 才激活
+        if (Math.abs(dy) > SWIPE_MAX_VERTICAL) { _swipeState.rejected = true; return; }
         if (Math.abs(dx) < 15) return;
-        // 水平必须大于垂直
-        if (Math.abs(dx) <= Math.abs(dy)) {
-          _swipeState.rejected = true;
-          return;
-        }
+        if (Math.abs(dx) <= Math.abs(dy)) { _swipeState.rejected = true; return; }
         _swipeState.active = true;
-        _swipeState.el.classList.add('bk-swipe-active');
+        track.classList.add('bk-swipe-active');
+        track.style.transition = 'none';
       }
 
-      // 已激活：阻止默认滚动，应用位移
-      e.preventDefault();
-      // 边界阻尼：第一章左滑 / 最后一章右滑 加阻尼
+      // 事件可能已被浏览器锁定为滚动（cancelable=false），此时 preventDefault 无效且会刷警告
+      if (e.cancelable) e.preventDefault();
+      var pageW = track.parentElement.offsetWidth;
+      // 用像素定位，避免 -33.333% 这类重复小数产生亚像素抖动
+      var px = dx;
+
       var isAtStart = chapterNum <= (uniqueChapters[0] ? uniqueChapters[0].number : 0);
-      var isAtEnd = chapterNum >= (uniqueChapters.length ? uniqueChapters[uniqueChapters.length - 1].number : 0);
+      var isAtEnd = chapterNum >= (uniqueChapters[uniqueChapters.length - 1] ? uniqueChapters[uniqueChapters.length - 1].number : 0);
       if ((dx > 0 && isAtStart) || (dx < 0 && isAtEnd)) {
-        dx = dx * 0.25; // 阻尼效果
+        px *= 0.25;
       }
-      _swipeState.el.style.transform = 'translateX(' + dx + 'px)';
+      track.style.transform = 'translateX(' + (-pageW + px) + 'px)';
+      var pct = pageW ? (px / pageW) : 0; // 当前已滑动的页面比例（-1~1 之间）
+      _swipeState.currentPct = pct;
       _swipeState.currentDx = dx;
     }
 
@@ -680,52 +802,128 @@
       var state = _swipeState;
       _swipeState = null;
 
-      if (!state.active) {
-        // 未激活，清理
-        return;
-      }
+      if (!state.active) return;
 
-      state.el.classList.remove('bk-swipe-active');
+      track.classList.remove('bk-swipe-active');
       var dx = state.currentDx || 0;
+      var pct = state.currentPct || 0;
       var elapsed = Date.now() - state.startTime;
-      var velocity = Math.abs(dx) / elapsed; // px/ms
+      var velocity = Math.abs(dx) / elapsed;
+      var pageW = track.parentElement.offsetWidth;
 
-      // 判断是否触发翻页：距离够 或 速度够快
       var shouldNavigate = Math.abs(dx) > SWIPE_THRESHOLD || (velocity > 0.4 && Math.abs(dx) > 30);
+      var direction = dx > 0 ? -1 : 1; // -1=上一章, 1=下一章
+      var targetNum = _getAdjacentChapterNum(uniqueChapters, chapterNum, direction);
 
-      if (shouldNavigate) {
-        // 滑动方向：dx > 0 → 右滑 → 上一章；dx < 0 → 左滑 → 下一章
-        var direction = dx > 0 ? -1 : 1;
-        // 动画滑出
-        var fullW = dx > 0 ? win.innerWidth : -win.innerWidth;
-        state.el.style.transition = 'transform ' + SWIPE_DURATION + 'ms ease-out';
-        state.el.style.transform = 'translateX(' + fullW + 'px)';
-        setTimeout(function () {
-          state.el.style.transition = '';
-          state.el.style.transform = '';
-          _navigateChapter(bookId, uniqueChapters, chapterNum, direction);
-        }, SWIPE_DURATION);
+      if (shouldNavigate && targetNum != null) {
+        // 动画滑到相邻页（用像素定位，避免亚像素抖动）
+        var targetPx = direction === -1 ? 0 : -2 * pageW;
+        track.style.transition = 'transform ' + SWIPE_DURATION + 'ms ease-out';
+        track.style.transform = 'translateX(' + targetPx + 'px)';
+
+        // 用 transitionend 在动画恰好结束时重排，避免 setTimeout 与动画不同步造成跳帧抖动
+        // 注意：transitionend 会冒泡，子元素（.scripture-ref / .bk-highlight 等）自身的过渡
+        // 也会冒泡到 track 并误触发 finish()，导致在滑动动画未完成时就重排/复位。
+        // 因此必须过滤：仅当事件目标是 track 自身且属性为 transform 时才执行。
+        var finished = false;
+        function finish(e) {
+          if (finished) return;
+          // 由 transitionend 触发时，必须确认是 track 自己的 transform 过渡，忽略子元素冒泡
+          if (e && (e.target !== track || e.propertyName !== 'transform')) return;
+          finished = true;
+          track.removeEventListener('transitionend', finish);
+          track.style.transition = 'none';
+          _reorderCarousel(direction);
+
+          // 更新状态
+          chapterNum = targetNum;
+          _carouselChapterNum = chapterNum;
+
+          // 更新当前页内容（curr 现在是新章节，ID 已交换为 chapterContent）
+          var newChapter = _getChapter(uniqueChapters, chapterNum);
+          if (newChapter) {
+            var contentEl = document.getElementById('chapterContent');
+            if (contentEl) {
+              contentEl.innerHTML = renderChapterContent(newChapter, true);
+            }
+          }
+          // 更新相邻页面
+          _updateAdjacentPages(bookId, uniqueChapters, chapterNum);
+
+          // 更新 URL（不触发 router 重新渲染）
+          // 用 try/finally 保证 _carouselNavigating 一定复位，避免 navigate 抛异常时
+          // 标志位卡死为 true，导致后续 renderReadingView 全部 early-return、carousel 被冻结
+          _carouselNavigating = true;
+          try {
+            if (win.BKRouter) {
+              win.BKRouter.navigate(bookId + '/' + chapterNum);
+            } else {
+              win.location.hash = '#/' + bookId + '/' + chapterNum;
+            }
+          } finally {
+            _carouselNavigating = false;
+          }
+
+          // 更新缓存的标题和进度
+          BKRenderer._currentChapterTitle = newChapter ? (newChapter.title || '') : '';
+          saveReadingProgress(bookId, chapterNum);
+          document.title = (BKRenderer._currentBookTitle || '') + ' - ' + (newChapter ? (newChapter.title || '第' + chapterNum + '章') : '');
+
+          // 更新进度条
+          var progressBar = document.querySelector('.bk-reading-progress-bar');
+          if (progressBar) {
+            var totalChapters = uniqueChapters.length;
+            var progressPct = totalChapters > 0 ? Math.round(chapterNum / totalChapters * 100) : 0;
+            progressBar.style.width = progressPct + '%';
+          }
+
+          // 保存“被滑走”的旧章节滚动位置（reorder 后旧当前页已变为 prev）
+          if (_carouselPages && _carouselPages.prev) {
+            try { localStorage.setItem('bk_scroll:' + _scrollPageKey, String(_carouselPages.prev.scrollTop || 0)); } catch(e) {}
+          }
+
+          // 切到新章节：滚动容器复位到顶部（页内滚动，不再依赖 window）
+          var _sc = _getScrollContainer();
+          if (_sc === win) win.scrollTo(0, 0);
+          else _sc.scrollTop = 0;
+
+          // 重新初始化依赖 DOM 的功能
+          if (win.BKHighlight && win.BKHighlight.redoHighlights) win.BKHighlight.redoHighlights();
+          if (win.BKScripturePopup && win.BKScripturePopup.init) win.BKScripturePopup.init();
+
+          // 滚动监听改挂到新的当前页（reorder 后 curr 已是新章节元素），
+          // 并以新章节 pageKey 记录滚动位置
+          _scrollPageKey = bookId + '/' + chapterNum;
+          if (_scrollSaveHandler) {
+            var _oldT = _scrollTarget || win;
+            _oldT.removeEventListener('scroll', _scrollSaveHandler);
+            _scrollTarget = _getScrollContainer();
+            _scrollTarget.addEventListener('scroll', _scrollSaveHandler, { passive: true });
+          }
+
+          // 重新绑定滑动（用新的 chapterNum）
+          _installCarouselSwipe(bookId, uniqueChapters, chapterNum);
+        }
+        track.addEventListener('transitionend', finish);
+        setTimeout(finish, SWIPE_DURATION + 80); // 兜底：防止 transitionend 未触发
       } else {
         // 回弹
-        state.el.style.transition = 'transform ' + (SWIPE_DURATION * 0.6) + 'ms ease-out';
-        state.el.style.transform = 'translateX(0)';
+        track.style.transition = 'transform ' + (SWIPE_DURATION * 0.6) + 'ms ease-out';
+        track.style.transform = 'translateX(' + (-pageW) + 'px)';
         setTimeout(function () {
-          state.el.style.transition = '';
-          state.el.style.transform = '';
+          track.style.transition = 'none';
         }, SWIPE_DURATION * 0.6);
       }
     }
 
-    _swipeHandlers = {
-      touchstart: onTouchStart,
-      touchmove: onTouchMove,
-      touchend: onTouchEnd
-    };
-
-    readingView.addEventListener('touchstart', onTouchStart, { passive: true });
-    readingView.addEventListener('touchmove', onTouchMove, { passive: false });
-    readingView.addEventListener('touchend', onTouchEnd, { passive: true });
-    _swipeEl = readingView;
+    _swipeHandlers = { touchstart: onTouchStart, touchmove: onTouchMove, touchend: onTouchEnd };
+    var readingView = document.getElementById('readingView');
+    if (readingView) {
+      readingView.addEventListener('touchstart', onTouchStart, { passive: true });
+      readingView.addEventListener('touchmove', onTouchMove, { passive: false });
+      readingView.addEventListener('touchend', onTouchEnd, { passive: true });
+      _swipeEl = readingView;
+    }
   }
 
   function _removeSwipeHandler() {
@@ -741,6 +939,9 @@
     _swipeState = null;
     _swipeEl = null;
   }
+
+  // 防止 carousel 内部导航触发 router 重复渲染
+  var _carouselNavigating = false;
 
   // ── zl-html 首页渲染辅助函数 ────────────────────────────────────────
 
@@ -1073,13 +1274,11 @@
         for (var i = 0; i < filtered.length; i++) {
           if (filtered[i].category === _zlCurrentCategory && filtered[i].category_prefix === _zlCurrentCategoryPrefix) catFiltered.push(filtered[i]);
         }
-        var html = '<div id="bookGrid">';
-        html += '<div class="category-back-bar"><button type="button" class="category-back-btn" id="categoryBackBtn">返回类型目录</button></div>';
-        html += '<div class="book-grid">';
+        var html = '<div class="book-grid" id="bookGrid">';
         for (var i = 0; i < catFiltered.length; i++) {
           html += _buildBookCard(catFiltered[i]);
         }
-        html += '</div></div>';
+        html += '</div>';
         return html;
       }
     }
@@ -1170,12 +1369,29 @@
         return;
       }
 
-      // 0b. 返回系列目录按钮
+      // 0b. 返回按钮（动态：分类视图→返回类型目录 / 否则→返回系列目录）
       if (e.target.closest && e.target.closest('#seriesBackBtn')) {
-        _zlHomeView = 'catalog';
-        _zlCurrentCategory = null;
-        _zlCurrentCategoryPrefix = null;
-        _renderZlHome(homeView);
+        if (_zlCurrentCategory) {
+          // 在类型书籍二级页面 → 返回类型目录（一级）
+          _zlCurrentCategory = null;
+          _zlCurrentCategoryPrefix = null;
+          var gridContainer = document.getElementById('bookGrid');
+          if (gridContainer && gridContainer.parentNode) {
+            var newGrid = _buildBookGrid(_zlCurrentSeries);
+            var tmp = document.createElement('div');
+            tmp.innerHTML = newGrid;
+            gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
+          }
+          // 恢复标题为系列名称
+          var titleEl = homeView.querySelector('.series-list-title');
+          if (titleEl) titleEl.textContent = _getSeriesTitle(_zlCurrentSeries);
+        } else {
+          // 在系列书籍列表 → 返回系列目录
+          _zlHomeView = 'catalog';
+          _zlCurrentCategory = null;
+          _zlCurrentCategoryPrefix = null;
+          _renderZlHome(homeView);
+        }
         return;
       }
 
@@ -1213,20 +1429,9 @@
           tmp.innerHTML = newGrid;
           gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
         }
-        return;
-      }
-
-      // 1.5b 返回类型目录
-      if (e.target.closest && e.target.closest('#categoryBackBtn')) {
-        _zlCurrentCategory = null;
-        _zlCurrentCategoryPrefix = null;
-        var gridContainer = document.getElementById('bookGrid');
-        if (gridContainer && gridContainer.parentNode) {
-          var newGrid = _buildBookGrid(_zlCurrentSeries);
-          var tmp = document.createElement('div');
-          tmp.innerHTML = newGrid;
-          gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
-        }
+        // 更新标题为分类名称
+        var titleEl = homeView.querySelector('.series-list-title');
+        if (titleEl) titleEl.textContent = _zlCurrentCategoryPrefix + '-' + _zlCurrentCategory;
         return;
       }
 
@@ -1726,7 +1931,8 @@
   /**
    * 切换 Drawer 的打开/关闭状态
    */
-  function _toggleTocDrawer(open) {
+  function _toggleTocDrawer(open, opts) {
+    opts = opts || {};
     var drawer = document.getElementById('bkTocDrawer');
     var overlay = document.getElementById('bkTocOverlay');
     if (drawer) drawer.classList.toggle('open', open);
@@ -1748,7 +1954,10 @@
       }, 320);
     } else {
       document.removeEventListener('keydown', _tocEscHandler);
-      if (win.BK && win.BK.backStack) {
+      // 点击章节跳转时（navigate=true）：抽屉的 pushState 历史条目会被 router 的
+      // replaceState 复用，这里只移除回退栈回调（silentPop），绝不 history.back，
+      // 否则会与章节跳转抢历史记录导致跳回原章节、看起来“点击不跳转”。
+      if (!opts.navigate && win.BK && win.BK.backStack) {
         win.BK.backStack.pop();
       }
     }
@@ -1834,8 +2043,19 @@
       // drawer 内章节链接
       var chapterLink = e.target.closest ? e.target.closest('[data-toc-nav]') : null;
       if (chapterLink) {
-        // 先关闭 drawer，href 会自动触发 hashchange 导航
-        _toggleTocDrawer(false);
+        // 阻止默认的 href 跳转（与下面 router 导航冲突），改用 router 跳转。
+        // 同书章节切换走 replaceState，跨书走 hash 变化，均不会触发 history.back，
+        // 因此点击章节能正确跳转到目标页。
+        e.preventDefault();
+        var href = chapterLink.getAttribute('href') || '';
+        var navPath = href.replace(/^#\/?/, '');
+        // 关闭 drawer 视觉并清掉其回退栈条目（不 history.back），再导航
+        _toggleTocDrawer(false, { navigate: true });
+        if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) {
+          win.BK.backStack.silentPop();
+        }
+        if (win.BKRouter) win.BKRouter.navigate(navPath);
+        return;
       }
     }, true);
   }
@@ -1966,6 +2186,9 @@
     // ── 阅读视图 ────────────────────────────────────────────────────
 
     renderReadingView: function (bookId, chapterNum) {
+      // 防止 carousel 内部导航触发重复渲染
+      if (_carouselNavigating) return;
+
       stopScrollTracking();
       _removeReadingShortcuts();
       showApp();
@@ -1975,9 +2198,11 @@
       loadBook(bookId).then(function (book) {
         var uniqueChapters = _getUniqueChapters(book.chapters || []);
         var chapter = null;
+        var chapterIdx = -1;
         for (var i = 0; i < uniqueChapters.length; i++) {
           if (uniqueChapters[i].number === chapterNum) {
             chapter = uniqueChapters[i];
+            chapterIdx = i;
             break;
           }
         }
@@ -1993,10 +2218,18 @@
         // 保存阅读进度
         saveReadingProgress(bookId, chapterNum);
 
+        // 缓存当前书名和章节标题（供浮动导航栏使用）
+        BKRenderer._currentBookTitle = book.title || '';
+        BKRenderer._currentChapterTitle = chapter.title || '';
+
         // 设置文档标题
         document.title = (book.title || '') + ' - ' + (chapter.title || '第' + chapterNum + '章');
 
-        // 渲染页面结构
+        // 获取前后章节
+        var prevChapter = chapterIdx > 0 ? uniqueChapters[chapterIdx - 1] : null;
+        var nextChapter = chapterIdx < uniqueChapters.length - 1 ? uniqueChapters[chapterIdx + 1] : null;
+
+        // 渲染页面结构（三页轮播 carousel）
         var html = '<div class="reading-view" id="readingView">';
 
         // 阅读进度条
@@ -2006,11 +2239,15 @@
           '<div class="bk-reading-progress-bar" style="width:' + progressPct + '%"></div>' +
           '</div>';
 
-        // 顶部栏已移至浮动导航（nav-stack.js），不再渲染永久顶栏
-
-        // 章节内容
-        html += '<div class="content" id="chapterContent">';
-        html += renderChapterContent(chapter);
+        // 三页轮播 track：prev / curr / next
+        html += '<div class="bk-carousel-track">';
+        html += _renderCarouselPage(prevChapter, 'Prev');
+        // 当前页用 id="chapterContent" 以便 TTS/字号/高亮等模块引用
+        html += '<div class="bk-carousel-page" id="carouselPageCurr">' +
+          '<div class="content" id="chapterContent">' +
+          renderChapterContent(chapter, true) +
+          '</div></div>';
+        html += _renderCarouselPage(nextChapter, 'Next');
         html += '</div>';
 
         // TTS 展开面板（默认隐藏，点击播放按钮展开）
@@ -2018,14 +2255,10 @@
         html += buildBottomControlBar();
         html += '</div>';
 
-        // 底部栏已移至浮动导航（nav-stack.js），不再渲染永久底栏
-
         html += '</div>';
 
         app.innerHTML = html;
         document.body.classList.add('bk-reading-page');
-
-        // 事件绑定已移至浮动导航（nav-stack.js）
 
         var pageKey = bookId + '/' + chapterNum;
         win.__bkCurrentPath = pageKey;
@@ -2037,7 +2270,11 @@
         try { bmScrollY = parseInt(localStorage.getItem(bmScrollKey) || '0', 10); } catch(e) {}
         if (bmScrollY > 0) {
           requestAnimationFrame(function() {
-            requestAnimationFrame(function() { win.scrollTo(0, bmScrollY); });
+            requestAnimationFrame(function() {
+              var c = _getScrollContainer();
+              if (c === win) win.scrollTo(0, bmScrollY);
+              else c.scrollTop = bmScrollY;
+            });
           });
         }
 
@@ -2065,14 +2302,14 @@
           win.BKHighlight.redoHighlights();
         }
 
-        // 初始化经文弹窗（处理动态插入的 scripture-block 和行内引用标注）
+        // 初始化经文弹窗
         if (win.BKScripturePopup && win.BKScripturePopup.init) {
           win.BKScripturePopup.init();
         }
 
-        // 安装键盘快捷键 + 滑动手势
+        // 安装键盘快捷键 + 三页轮播滑动手势
         _installReadingShortcuts(bookId, uniqueChapters, chapterNum);
-        _installSwipeHandler(bookId, uniqueChapters, chapterNum);
+        _installCarouselSwipe(bookId, uniqueChapters, chapterNum);
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
@@ -2086,21 +2323,24 @@
     toggleManageMode: function () {
       _manageMode = !_manageMode;
 
-      // 如果在系列目录页（catalog），自动进入第一个系列以便显示删除按钮
+      var homeView = document.getElementById('homeView');
+
+      // 进入管理模式时，确保首页处于“书籍列表”视图，否则删除按钮无处挂载
       if (_manageMode && _zlHomeView !== 'series') {
         var merged = _getMergedSeries();
         if (merged.series.length > 0) {
           _zlCurrentSeries = merged.series[0].id;
-          _zlHomeView = 'series';
-          _zlCurrentCategory = null;
-          _zlCurrentCategoryPrefix = null;
-          var homeView = document.getElementById('homeView');
-          if (homeView) _renderZlHome(homeView);
+        } else if (_zlBooks.length > 0) {
+          // 没有任何可见系列（书籍未分组）时，仍切换到系列视图以展示书籍卡片
+          _zlCurrentSeries = _zlBooks[0].series || '';
         }
+        _zlHomeView = 'series';
+        _zlCurrentCategory = null;
+        _zlCurrentCategoryPrefix = null;
+        if (homeView) _renderZlHome(homeView);
       }
 
       // 遍历所有书籍卡片，添加/移除删除按钮
-      var homeView = document.getElementById('homeView');
       if (homeView) {
         var cards = homeView.querySelectorAll('.zl-book-card');
         for (var ci = 0; ci < cards.length; ci++) {
@@ -2200,6 +2440,9 @@
           tmp.innerHTML = newGrid;
           gridContainer.parentNode.replaceChild(tmp.firstChild, gridContainer);
         }
+        // 恢复标题为系列名称
+        var titleEl = homeView.querySelector('.series-list-title');
+        if (titleEl) titleEl.textContent = _getSeriesTitle(_zlCurrentSeries);
         return true;
       }
 
@@ -2213,6 +2456,17 @@
       }
 
       return false;
+    },
+
+    // ── 工具方法（供 nav-stack.js 等外部模块调用）─────────────────────
+
+    _getBookTitle: function (bookId) {
+      if (_zlBooks) {
+        for (var i = 0; i < _zlBooks.length; i++) {
+          if (_zlBooks[i].id === bookId) return _zlBooks[i].title || '';
+        }
+      }
+      return '';
     }
   };
 

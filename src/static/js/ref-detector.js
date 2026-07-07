@@ -655,47 +655,14 @@
           }
         }
         // ★ 括号内也过滤掉整章引用（节号全为 :0），不包裹 span
+        // 无论单章还是多章范围，只要没有具体到某一节，就不识别：
+        // 直接输出括号原文（含括号），避免「约四十」「约三至五章」这类被误识别/拆分包裹
         var allParenVerseZero = refs.every(function(r) {
           var vm = r.match(/:(\d+)/);
           return vm && parseInt(vm[1], 10) === 0;
         });
         if (allParenVerseZero) {
-          if (refs.length === 1) {
-            // 单个整章引用：不包裹
-            result.push(escHtml(m[0]));
-          } else {
-            // ★ 多章范围：拆分为独立 span
-            var _pSplitOk = false;
-            try {
-              var _pInt2c = {1:'一',2:'二',3:'三',4:'四',5:'五',6:'六',7:'七',8:'八',9:'九',10:'十'};
-              var _pBookLen = 0;
-              for (var _psi = 0; _psi < _sortedFullNames.length; _psi++) {
-                if (_inner.indexOf(_sortedFullNames[_psi]) === 0) { _pBookLen = _sortedFullNames[_psi].length; break; }
-              }
-              if (!_pBookLen && /^[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启]/.test(_inner)) _pBookLen = 1;
-              var _pBookPfx = _inner.slice(0, _pBookLen);
-              var _pChText = _inner.slice(_pBookLen);
-              var _pZm = _pChText.match(/^(.+)[章篇]/);
-              var _pRangeText = _pZm ? _pZm[1] : _pChText;
-              var _pRm = _pRangeText.match(/^([一二三四五六七八九十百〇○]+)[至到~～\-]([一二三四五六七八九十百〇○]+)$/);
-              if (_pRm) {
-                var _pcStart = cnToInt(_pRm[1]), _pcEnd = cnToInt(_pRm[2]);
-                if (_pcStart && _pcEnd && _pcEnd >= _pcStart && (_pcEnd - _pcStart + 1) === refs.length) {
-                  var _openB = m[0][0], _closeB = m[0][m[0].length - 1];
-                  result.push(escHtml(_openB));
-                  for (var _pci = _pcStart; _pci <= _pcEnd; _pci++) {
-                    var _pcn = _pInt2c[_pci] || String(_pci);
-                    var _ptxt = (_pci === _pcStart ? _pBookPfx : '') + _pcn + (_pZm ? _pZm[0].slice(-1) : '');
-                    var _pref = refs[_pci - _pcStart];
-                    result.push('<span class="scripture-ref" data-refs="' + escHtml(_pref) + '">' + escHtml(_ptxt) + '</span>');
-                  }
-                  result.push(escHtml(_closeB));
-                  _pSplitOk = true;
-                }
-              }
-            } catch (_pe) { _pSplitOk = false; }
-            if (!_pSplitOk) result.push(escHtml(m[0]));
-          }
+          result.push(escHtml(m[0]));
         } else {
           result.push(makeSpan(m[0], refs));
         }

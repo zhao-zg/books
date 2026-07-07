@@ -708,15 +708,16 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
-  border-radius: 12px;
+  gap: 3px;
+  padding: 8px 6px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-alt, #f0f2f8);
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
+  line-height: 1.1;
   transition: background 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
@@ -724,8 +725,8 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
 .action-btn:disabled { opacity: .5; cursor: not-allowed; }
 .action-btn.danger { color: var(--danger-text, #c62828); border-color: var(--danger-border, #fed7d7); background: var(--danger-bg, #fff5f5); }
 .action-btn.danger:active { background: var(--danger-bg-active, #ffe8e8); }
-.action-btn .cache-icon { font-size: 1.75em; line-height: 1; width: 1.5em; text-align: center; flex-shrink: 0; }
-.action-btn .cache-text { font-size: var(--text-base); font-weight: 500; }
+.action-btn .cache-icon { font-size: 1.35em; line-height: 1; width: 1.4em; text-align: center; flex-shrink: 0; }
+.action-btn .cache-text { font-size: var(--text-sm); font-weight: 500; }
 .action-btn.feedback { color: var(--brand, #667eea); border-color: var(--interactive-soft-border, rgba(102,126,234,.16)); background: var(--interactive-soft-bg, rgba(102,126,234,.08)); }
 .action-btn.feedback:active { background: var(--interactive-soft-hover, rgba(102,126,234,.12)); }
 /* 偏好设置行 */
@@ -778,8 +779,12 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
 .bk-scroll-locked { overflow: hidden !important; }
 
 /* ── 阅读内容排版 ────────────────────────────────────────── */
-#chapterContent { padding: 0 16px 24px; line-height: 1.85; font-size: var(--reading-font-size, 16px); }
-@media (min-width: 768px) { #chapterContent { padding: 0 24px 32px; } }
+/* 三页轮播中当前页=chapterContent、预览页=carouselContentPrev/Next（均含 .content），
+   字号/行高需统一命中，否则滑动时预览页与当前页字体不一致。 */
+/* 顶部留出浮动导航栏高度（约 48px）+ 刘海安全区，避免长章节首行被遮挡；
+   左右边距相对收窄，使阅读区更居中、上下更平衡。 */
+#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 48px) 16px 28px; line-height: 1.85; font-size: var(--reading-font-size, 16px); }
+@media (min-width: 768px) { #chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 56px) 24px 32px; } }
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
 .bk-heading + .bk-paragraph { text-indent: 0; }
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
@@ -1051,6 +1056,32 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .reading-view.bk-swipe-active {
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* ── 三页轮播（carousel swipe） ──────────────────────────────── */
+/* 关键：track 不能用 align-items: stretch，否则短章节页会被拉伸到与最长章节
+   同高，配合 justify-content: center 导致内容被垂直居中到不可见区域——
+   既会造成“纵向滑不动/顶部空白”，也会在左右滑动动画里让侧页顶部显示空白。
+   改为 flex-start，每页保持自身高度（短页=100vh，长页按内容增长），
+   短内容仍在本页内垂直居中（完全落在一屏内，滑动时可见），长内容从顶部排列可纵向滚动。 */
+.bk-carousel-track { display: flex; width: 300%; transform: translateX(-33.333%); align-items: flex-start; }
+/* 每页固定一屏高度、自身 overflow-y:auto 内部纵向滚动：
+   - 短内容垂直居中（safe center，完全落在一屏内，滑动时可见，不再顶部空白）；
+   - 长内容从顶部排列，在“本页内”纵向滚动，与文档/滚动锁无关，纵向必可滑；
+   - 用 100dvh 适配移动端动态地址栏，旧浏览器回退 100vh。 */
+.bk-carousel-page {
+  flex: 0 0 33.333%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* ── 高亮标记基础样式 ────────────────────────────────────────── */
@@ -1489,8 +1520,8 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .bk-float-bottom-tts-btn .bk-pause-icon { display: none; }
 .bk-float-bottom-tts-btn.bk-playing .bk-play-icon { display: none; }
 .bk-float-bottom-tts-btn.bk-playing .bk-pause-icon { display: block; }
-.bk-float-tts-bar { position: fixed; bottom: calc(52px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; z-index: 991; transform: translateY(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); pointer-events: none; }
-.bk-float-tts-bar.show { transform: translateY(0); pointer-events: auto; }
+.bk-float-tts-bar { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 1; display: none; pointer-events: none; }
+.bk-float-tts-bar.show { display: block; pointer-events: auto; }
 .bk-float-tts-bar .bottom-control-bar { margin: 0; border-radius: 0; border: none; box-shadow: none; background: rgba(var(--surface-rgb, 246,248,252), 0.92); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 4px 8px 4px 8px; border-top: 1px solid var(--border, #e0e3ef); }
 [data-theme="dark"] .bk-float-tts-bar .bottom-control-bar { background: rgba(var(--surface-rgb, 22,25,32), 0.92); border-top-color: rgba(255,255,255,0.06); }
 

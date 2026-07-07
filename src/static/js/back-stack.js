@@ -76,6 +76,17 @@
         },
 
         /**
+         * 仅弹出栈顶回调，不触发 history.back（用于“点击章节跳转”场景：
+         * 此时抽屉的 pushState 历史条目会被后续 router 的 replaceState 复用，
+         * 不应再 history.back 与跳转抢历史记录，否则会跳回原章节）
+         */
+        silentPop: function () {
+            if (_stack.length > 0) {
+                _stack.pop();
+            }
+        },
+
+        /**
          * 返回栈大小
          * @returns {number}
          */
