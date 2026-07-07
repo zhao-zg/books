@@ -783,8 +783,8 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
    字号/行高需统一命中，否则滑动时预览页与当前页字体不一致。 */
 /* 顶部留出浮动导航栏高度（约 48px）+ 刘海安全区，避免长章节首行被遮挡；
    左右边距相对收窄，使阅读区更居中、上下更平衡。 */
-#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 48px) 16px 28px; line-height: 1.85; font-size: var(--reading-font-size, 16px); }
-@media (min-width: 768px) { #chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 56px) 24px 32px; } }
+#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 28px; line-height: 1.85; font-size: var(--reading-font-size, 16px); }
+@media (min-width: 768px) { #chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 20px) 24px 32px; } }
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
 .bk-heading + .bk-paragraph { text-indent: 0; }
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
@@ -800,7 +800,6 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
   padding-bottom: .5em;
   border-bottom: 1px solid var(--border);
 }
-.bk-page-title + .bk-paragraph { text-indent: 0; }
 .bk-h2 { font-size: 1.4em; }
 .bk-h3 { font-size: 1.2em; }
 .bk-h4 { font-size: 1.1em; }
