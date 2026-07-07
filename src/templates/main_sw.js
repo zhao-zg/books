@@ -21,15 +21,17 @@ const PRECACHE_URLS = [
   './index.html',
   // JS
   './js/app-update.js',
-  './js/bible-dict.js',
   './js/back-stack.js',
+  './js/bible-dict.js',
   './js/bookmark.js',
   './js/data-manager.js',
   './js/dev-console.js',
+  './js/font-control.js',
   './js/highlight.js',
   './js/import-manager.js',
   './js/nav-stack.js',
   './js/ref-detector.js',
+  './js/remote-config.js',
   './js/renderer.js',
   './js/resource-pack.js',
   './js/router.js',
@@ -150,15 +152,17 @@ function isDataCDN(url) {
 
 /**
  * stale-while-revalidate：先返回缓存，同时后台更新缓存
+ * 缓存操作使用不含 query string 的 URL，避免 DataManager 的 ?t= 时间戳导致缓存不命中
  */
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cacheUrl = request.url.replace(/\?.*$/, '');
+  const cached = await cache.match(cacheUrl);
 
   const fetchPromise = fetch(request).then(response => {
     if (response && response.status === 200) {
-      // 后台更新缓存（不等待完成）
-      cache.put(request, response.clone()).catch(() => {});
+      // 用不含 query 的 URL 写缓存，确保下次匹配命中
+      cache.put(cacheUrl, response.clone()).catch(() => {});
     }
     return response;
   }).catch(() => cached); // 网络失败时降级到缓存

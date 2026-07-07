@@ -184,22 +184,12 @@
           } else {
             cfFallbackUrls.push('https://books-data.pages.dev/zl-data');
           }
-          // 检查本地索引是否可用
-          return fetch(localZlData + '/books-index.json', { cache: 'no-cache' }).then(function(r) {
-            if (r.ok) {
-              dmUrl = localZlData;
-              dmUrls = [localZlData].concat(cfFallbackUrls);
-              console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据，CDN 备用');
-            } else {
-              throw new Error('本地索引不可用');
-            }
-          }).catch(function() {
-            dmUrls = cfFallbackUrls;
-            dmUrl = cfFallbackUrls[0];
-            console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：本地索引不可用，使用 CDN（' + dmUrls.length + ' 个地址）');
-          }).then(function() {
-            return _setupDataManager(dmUrl, dmUrls);
-          });
+          // APK/PWA 本地数据始终可用（APK 打包 / PWA 安装时缓存），
+          // DataManager.loadIndex() 对本地路径走 localforage 缓存优先，无需探路 fetch
+          dmUrl = localZlData;
+          dmUrls = [localZlData].concat(cfFallbackUrls);
+          console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据，CDN 备用');
+          return _setupDataManager(dmUrl, dmUrls);
         } else if (isLocal) {
           var origin = win.location.origin;
           if (!origin || origin === 'null') origin = 'http://localhost:8080';

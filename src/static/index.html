@@ -221,13 +221,17 @@
     window.__bkCoreUrls = [
         './','./manifest.json','./sw.js',
         './css/style.css',
+        './js/app-update.js',
         './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
         './js/resource-pack.js','./js/data-manager.js',
+        './js/font-control.js','./js/remote-config.js','./js/import-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
-        './icons/icon-192.png','./icons/icon-512.png'
+        './icons/icon-192.png','./icons/icon-512.png',
+        'https://books-data.pages.dev/zl-data/books-index.json',
+        'https://books-data.pages.dev/zl-data/manifest.json'
     ];
 
     // ── 环境检测 ──────────────────────────────────────────────────────────
@@ -495,7 +499,7 @@
         return cacheShared.then(function(){if(statusEl){statusEl.textContent='✓ 全部缓存完成';statusEl.className='cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
     }
 
-    function showMandatoryInstallDialog(mode,targetVersion){
+    function showMandatoryInstallDialog(mode,targetVersion,onComplete){
         if(document.getElementById('bkInstallMask'))return;
         var icons={install:'📦',update:'🔄'};
         var titles={install:'首次安装缓存',update:'缓存更新中'};
@@ -519,10 +523,17 @@
                     if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
                     return verifyCacheIntegrity();
                 }).then(function(result){
-                    if(result.ok){try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
-                        if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
-                        if(progressBar)progressBar.style.width='100%';
-                        setTimeout(function(){window.location.reload();},1200);
+                    if(result.ok){
+                        if(onComplete){
+                            // 委托给调用方处理后续逻辑（激活 SW、设版本、reload）
+                            if(statusEl)statusEl.textContent='✅ 缓存完成';
+                            onComplete();
+                        }else{
+                            try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
+                            if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
+                            if(progressBar)progressBar.style.width='100%';
+                            setTimeout(function(){window.location.reload();},1200);
+                        }
                     }else{
                         var msg='⚠ 部分资源未完整（'+Math.round((result.coverage||0)*100)+'%）';
                         if(result.missingCore&&result.missingCore>0){
@@ -539,8 +550,10 @@
         if(retryBtn)retryBtn.addEventListener('click',doInstall);
         doInstall();
     }
+    window.showMandatoryInstallDialog=showMandatoryInstallDialog;
 
     function checkPwaStartupCache(){
+        if(window.__bkUpdateInProgress)return;
         if(!BK_ENV.isStandalone||BK_ENV.isCapacitorApp||!('caches' in window))return;
         var storedVersion=null;try{storedVersion=localStorage.getItem('bk_pwa_version');}catch(e){}
         fetch('./version.json?t='+Date.now(),{cache:'no-store'})
@@ -597,7 +610,10 @@
             reg.addEventListener('updatefound',function(){
                 var nw=reg.installing;
                 if(nw)nw.addEventListener('statechange',function(){
-                    if(nw.state==='installed'&&navigator.serviceWorker.controller)nw.postMessage({type:'SKIP_WAITING'});
+                    if(nw.state==='installed'&&navigator.serviceWorker.controller){
+                        // 存储等待中的 SW，供更新对话框控制激活时机
+                        window.__bkSwWaiting=nw;
+                    }
                 });
             });
             return navigator.serviceWorker.ready;
@@ -605,6 +621,7 @@
         var refreshing=false;
         navigator.serviceWorker.addEventListener('controllerchange',function(){
             if(refreshing)return;
+            if(window.__bkUpdateInProgress)return;
             var isNative=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
             if(isNative)return;
             refreshing=true;window.location.reload();

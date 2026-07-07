@@ -923,21 +923,38 @@
                     btnEl.onclick = function() {
                         closeDialog();
                         window.__bkUpdateInProgress = true;
-                        if (window.__bkSwWaiting) {
-                            try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
-                            window.__bkSwWaiting = null;
-                        }
-                        if (extStatusEl) { extStatusEl.textContent = '正在准备更新...'; extStatusEl.className = 'cache-status'; }
-                        var steps = [];
-                        if ('caches' in window) {
-                            steps.push(caches.keys().then(function(keys) {
-                                return Promise.all(keys.filter(function(k) { return k.startsWith('bk-'); }).map(function(k) { return caches.delete(k); }));
-                            }).catch(function() {}));
-                        }
-                        try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
-                        try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
                         if (window.BK && window.BK.errorLog) window.BK.errorLog.clear();
-                        Promise.all(steps).then(function() { window.location.replace(root + 'index.html'); });
+
+                        if (window.showMandatoryInstallDialog) {
+                            // 单次 reload：清缓存 → 重建 → 激活新 SW → reload
+                            window.showMandatoryInstallDialog('update', remoteVersion, function() {
+                                // 缓存重建完成，激活等待中的新 SW
+                                if (window.__bkSwWaiting) {
+                                    try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
+                                    window.__bkSwWaiting = null;
+                                }
+                                try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
+                                try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
+                                window.__bkUpdateInProgress = false;
+                                setTimeout(function() { window.location.replace(root + 'index.html'); }, 800);
+                            });
+                        } else {
+                            // fallback：showMandatoryInstallDialog 不可用时走原流程
+                            if (window.__bkSwWaiting) {
+                                try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
+                                window.__bkSwWaiting = null;
+                            }
+                            var steps = [];
+                            if ('caches' in window) {
+                                steps.push(caches.keys().then(function(keys) {
+                                    return Promise.all(keys.filter(function(k) { return k.startsWith('bk-'); }).map(function(k) { return caches.delete(k); }));
+                                }).catch(function() {}));
+                            }
+                            try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
+                            try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
+                            window.__bkUpdateInProgress = false;
+                            Promise.all(steps).then(function() { window.location.replace(root + 'index.html'); });
+                        }
                     };
                 }
 
