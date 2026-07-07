@@ -478,6 +478,10 @@
     var contentArr = chapter.content || [];
     var html = '';
 
+    // 当页章节标题：固定在正文顶部展示，浮动导航自动收起后仍可见当前章节
+    var pageTitle = chapter.title || ('第' + (chapter.number != null ? chapter.number : '') + '章');
+    html += '<h1 class="bk-page-title">' + escText(pageTitle) + '</h1>';
+
     // 从章节标题提取初始经文上下文
     // 例如标题 "约翰福音" → scanCtx 可识别出 "约" 书卷
     // 例如标题 "第十三章" → 在已有书卷基础上识别章号

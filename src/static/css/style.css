@@ -790,6 +790,17 @@ body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe U
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
 .bk-paragraph + .bk-heading { margin-top: 2em; }
 .bk-h1 { font-size: 1.6em; }
+/* 阅读内容顶部：当页章节标题 */
+.bk-page-title {
+  font-size: var(--text-2xl, 22px);
+  font-weight: 700;
+  color: var(--heading);
+  line-height: 1.35;
+  margin: 0 0 1em;
+  padding-bottom: .5em;
+  border-bottom: 1px solid var(--border);
+}
+.bk-page-title + .bk-paragraph { text-indent: 0; }
 .bk-h2 { font-size: 1.4em; }
 .bk-h3 { font-size: 1.2em; }
 .bk-h4 { font-size: 1.1em; }
@@ -1499,9 +1510,9 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .bk-float-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 990; background: rgba(var(--surface-rgb, 246,248,252), 0.88); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-glass, 0 2px 10px rgba(0,0,0,.12)); border-bottom: 1px solid var(--border, #e0e3ef); transform: translateY(-100%); transition: transform .3s var(--ease-out, cubic-bezier(.4,0,.2,1)); pointer-events: none; padding: env(safe-area-inset-top, 0px) 8px 4px; }
 [data-theme="dark"] .bk-float-nav { background: rgba(var(--surface-rgb, 22,25,32), 0.88); border-bottom-color: rgba(255,255,255,0.06); }
 .bk-float-nav.show { transform: translateY(0); pointer-events: auto; }
-.bk-float-nav-inner { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 4px 0; }
-.bk-float-nav-link { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; color: var(--text-muted, #888); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background .15s, transform .1s; }
-.bk-float-nav-link:active { background: var(--nav-hover); transform: scale(0.9); }
+.bk-float-nav-inner { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 4px 0; position: relative; }
+.bk-float-nav-link { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; color: var(--text-muted, #888); text-decoration: none; -webkit-tap-highlight-color: transparent; transition: background .15s, transform .1s; }
+.bk-float-nav-link:active { background: var(--nav-hover); transform: translateY(-50%) scale(0.9); }
 .bk-float-nav-link.bk-float-disabled { opacity: 0.25; pointer-events: none; }
 .bk-float-nav-settings { display: none; }
 .bk-float-title { flex: 1; min-width: 0; text-align: center; font-size: var(--text-xs, 0.75rem); color: var(--text-muted, #888); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; padding: 0 4px; }
