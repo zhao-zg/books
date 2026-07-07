@@ -24,14 +24,14 @@
   --progress-fill: var(--brand);
   --tag-bg: rgba(102,126,234,.08);
   --tag-text: #667eea;
-  --text-xs: 0.75rem;     /* 12px, auxiliary info */
-  --text-sm: 0.8125rem;   /* 13px, secondary text */
-  --text-base: 0.875rem;  /* 14px, standard UI text */
-  --text-md: 0.9375rem;   /* 15px, slightly emphasized */
-  --text-lg: 1rem;        /* 16px, subheadings */
-  --text-xl: 1.25rem;     /* 20px, section titles */
-  --text-2xl: 1.5rem;     /* 24px, page titles */
-  --text-3xl: 1.875rem;   /* 30px, app title */
+  --text-xs: 12px;        /* auxiliary info */
+  --text-sm: 13px;        /* secondary text */
+  --text-base: 14px;      /* standard UI text */
+  --text-md: 15px;        /* slightly emphasized */
+  --text-lg: 16px;        /* subheadings */
+  --text-xl: 18px;        /* section titles */
+  --text-2xl: 22px;       /* page titles */
+  --text-3xl: 26px;       /* app title */
   /* Spacing tokens */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
   /* Transition tokens */
@@ -120,7 +120,7 @@
 
 /* ── 基础布局 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-size: 1em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+body { font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif; background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .container { max-width: 960px; margin: 0 auto; padding: 0; }
 .header { padding: 16px 20px 12px; background: none; border-radius: 0; margin-bottom: 8px; }
 .header h1 { font-size: var(--text-3xl); font-weight: 800; color: var(--brand); margin-bottom: 4px; letter-spacing: 0.04em; }
@@ -778,7 +778,7 @@ body { font-size: 1em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI
 .bk-scroll-locked { overflow: hidden !important; }
 
 /* ── 阅读内容排版 ────────────────────────────────────────── */
-#chapterContent { padding: 0 16px 24px; line-height: 1.85; }
+#chapterContent { padding: 0 16px 24px; line-height: 1.85; font-size: var(--reading-font-size, 16px); }
 @media (min-width: 768px) { #chapterContent { padding: 0 24px 32px; } }
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
 .bk-heading + .bk-paragraph { text-indent: 0; }

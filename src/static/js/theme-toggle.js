@@ -771,8 +771,8 @@
     }
     
     function applyFontSize(size) {
-        // 使用固定 px 值，不依赖 em/rem
-        document.documentElement.style.fontSize = size + 'px';
+        // 通过 CSS 变量控制阅读区字号，UI 元素保持 16px 基准不变
+        document.documentElement.style.setProperty('--reading-font-size', size + 'px');
         localStorage.setItem('globalFontSize', size);
     }
     
