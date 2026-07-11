@@ -595,6 +595,10 @@
         }
 
         html += '<a class="bk-search-item" href="#' + esc(r.url) + '" data-url="' + esc(r.url) + '" data-book-id="' + esc(r.bookId) + '" data-series="' + esc(r.series) + '">';
+        if (win.BKRenderer && win.BKRenderer._coverHTML) {
+          html += win.BKRenderer._coverHTML(r, { size: 'sm', seriesTitle: r.seriesTitle });
+        }
+        html += '<div class="bk-search-item-body">';
         html += '<div class="bk-search-item-meta">';
         html += typeLabel;
         if (r.chapterTitle) {
@@ -609,6 +613,7 @@
           html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍' + (self._hasProgress(r.bookId) ? '（继续阅读）' : '') + '</div>';
         }
 
+        html += '</div>';
         html += '</a>';
       }
 
@@ -742,11 +747,11 @@
                 } else {
                   // 未缓存：显示下载中状态
                   var statusEl = title.querySelector('.bk-search-cache-status');
-                  if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = '#ff9800'; }
+                  if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = 'var(--gold)'; }
                   DM.downloadBook(bookId, series || '').then(function () {
                     doNavigate();
                   }).catch(function (err) {
-                    if (statusEl) { statusEl.textContent = '✗'; statusEl.style.color = '#f44336'; }
+                    if (statusEl) { statusEl.textContent = '✗'; statusEl.style.color = 'var(--danger-text)'; }
                     console.error('[BKSearch] 下载书籍失败:', err);
                     doNavigate();
                   });
@@ -776,12 +781,12 @@
             DM.isBookDownloaded(bookId).then(function (downloaded) {
               for (var j = 0; j < els.length; j++) {
                 els[j].textContent = downloaded ? '✓' : '☁';
-                els[j].style.color = downloaded ? '#4caf50' : '#999';
+                els[j].style.color = downloaded ? 'var(--brand)' : 'var(--text-muted)';
               }
             }).catch(function () {
               for (var j = 0; j < els.length; j++) {
                 els[j].textContent = '☁';
-                els[j].style.color = '#999';
+                els[j].style.color = 'var(--text-muted)';
               }
             });
           })(bookIds[b], pending[bookIds[b]]);
@@ -859,6 +864,10 @@
 
       var modal = document.createElement('div');
       modal.className = 'bk-search-overlay';
+      // 平板/宽屏：3×3 网格布局（设计稿 29:140）
+      if (win.matchMedia && win.matchMedia('(min-width: 768px)').matches) {
+        modal.classList.add('bk-search-tablet');
+      }
       modal.innerHTML =
         '<div class="bk-search-modal">' +
           '<div class="bk-search-header">' +

@@ -443,6 +443,37 @@
 
     box.appendChild(header);
     box.appendChild(body);
+
+    /* 底部操作栏：复制 / 分享到笔记（Soft Nordic 抽屉风格） */
+    var actions = document.createElement('div');
+    actions.className = 'scripture-popup-actions';
+
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'bk-btn bk-btn-secondary';
+    copyBtn.textContent = '复制';
+    copyBtn.addEventListener('click', function () {
+      var txt = body.innerText || '';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).catch(function () {});
+      }
+    });
+
+    var shareBtn = document.createElement('button');
+    shareBtn.className = 'bk-btn bk-btn-primary';
+    shareBtn.textContent = '分享到笔记';
+    shareBtn.addEventListener('click', function () {
+      var txt = body.innerText || '';
+      if (window.BKNotes && window.BKNotes.addFromText) {
+        window.BKNotes.addFromText(txt);
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).catch(function () {});
+      }
+    });
+
+    actions.appendChild(copyBtn);
+    actions.appendChild(shareBtn);
+    box.appendChild(actions);
+
     overlay.appendChild(box);
     document.body.appendChild(overlay);
 
@@ -517,12 +548,12 @@
       m.title.textContent = frame.label || (frame.refs || '').replace(/,/g, '、');
       if (window.BK_BIBLE_TEXT_READY) {
         /* 数据已缓存（预加载），直接渲染，避免 loading→内容 双重 innerHTML 导致闪屏 */
-        m.body.innerHTML = renderVerseList(frame.refs, frame.verseKey || '');
+        m.body.innerHTML = renderVerseList(frame.refs, frame.verseKey || '', true);
         m.body.scrollTop = frame._scrollTop || 0;
       } else {
         m.body.innerHTML = '<div class="scripture-popup-loading">加载中…</div>';
         ensureBibleText(function () {
-          m.body.innerHTML = renderVerseList(frame.refs, frame.verseKey || '');
+          m.body.innerHTML = renderVerseList(frame.refs, frame.verseKey || '', true);
           m.body.scrollTop = frame._scrollTop || 0;
         });
       }
@@ -625,7 +656,7 @@
   }
 
   /* 渲染经文列表（支持 {N} → fn-ref, [a] → xref-ref） */
-  function renderVerseList(refs, contextRef) {
+  function renderVerseList(refs, contextRef, withMeta) {
     var dict = window.BK_SCRIPTURES_DATA || {};
     /* 整章展开只从全本圣经 bible-text.json 里取节列表 */
     var bibleDict = window.BK_BIBLE_TEXT_DATA || dict;
@@ -633,7 +664,7 @@
     /* 展开整章/区间引用，并规范化中文写法 */
     var refArr = parseAndExpandRefs(refs, bibleDict, contextBook);
     if (!refArr.length) return '<div class="scripture-popup-empty">暂无经文</div>';
-    return refArr.map(function (ref) {
+    var html = refArr.map(function (ref) {
       ref = ref.trim();
       if (!ref) return '';
       var nr = normalizeRef(ref) || ref;
@@ -691,6 +722,13 @@
         + '<span class="scripture-popup-text">（未收录）</span>'
         + '</div>';
     }).join('');
+    if (withMeta) {
+      html += '<div class="scripture-popup-meta">'
+        + '<div class="scripture-popup-source">' + esc(refs) + '</div>'
+        + '<span class="bk-chip-sage">已检测到经文引用</span>'
+        + '</div>';
+    }
+    return html;
   }
 
   /* 把 {N} 转为注脚上标，[a] 转为串珠上标 */

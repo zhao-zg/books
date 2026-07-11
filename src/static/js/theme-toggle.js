@@ -6,9 +6,9 @@
     const defaultSizeIndex = 3; // 18px
     let currentSizeIndex = defaultSizeIndex;
     const themeMetaColors = {
-        cool: '#fafbff',
-        warm: '#F7F2E8',
-        dark: '#181b21'
+        cool: '#F5F4F1',
+        warm: '#FAF8F4',
+        dark: '#1A1917'
     };
     let pageScrollLockCount = 0;
 
@@ -90,13 +90,6 @@
             }).catch(function() {});
         })();
 
-        const toggleBtn = document.createElement('div');
-        toggleBtn.className = 'theme-toggle-btn';
-        toggleBtn.onclick = toggleThemePanel;
-        toggleBtn.title = '设置';
-        toggleBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M1 12h6m6 0h6"/><path d="M4.2 4.2l4.3 4.3m5.5 5.5l4.3 4.3M4.2 19.8l4.3-4.3m5.5-5.5l4.3-4.3"/></svg>';
-        document.body.appendChild(toggleBtn);
-        
         const overlay = document.createElement('div');
         overlay.className = 'theme-panel-overlay';
         overlay.id = 'themePanelOverlay';
@@ -243,8 +236,7 @@
 
         document.addEventListener('click', function(e) {
             const panel = document.getElementById('themePanel');
-            const btn = document.querySelector('.theme-toggle-btn');
-            if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !btn.contains(e.target)) {
+            if (panel && panel.classList.contains('show') && !panel.contains(e.target)) {
                 if (e.target.closest && e.target.closest('.bk-dialog-mask')) return;
                 var masks = document.querySelectorAll('.bk-dialog-mask');
                 for (var i = 0; i < masks.length; i++) {
@@ -369,7 +361,9 @@
 
             if (importBtn) {
                 importBtn.addEventListener('click', function() {
-                    if (window.BKRenderer && window.BKRenderer.pickAndImport) {
+                    if (window.BKResourcePack && window.BKResourcePack.showImportDialog) {
+                        window.BKResourcePack.showImportDialog();
+                    } else if (window.BKRenderer && window.BKRenderer.pickAndImport) {
                         window.BKRenderer.pickAndImport();
                     }
                 });
@@ -527,27 +521,33 @@
             id: 'bkClearDialogMask',
             html: [
                 '<div class="bk-dialog">',
-                '  <div class="bk-dialog-title">清除数据</div>',
-                '  <div class="bk-dialog-desc">选择要清除的内容</div>',
-                '  <div class="bk-dialog-opts">',
-                '    <div class="bk-dialog-opt selected" data-val="regular">',
-                '      <div class="bk-dialog-opt-icon">🧾</div>',
-                '      <div class="bk-dialog-opt-body">',
-                '        <div class="bk-dialog-opt-title">常规数据</div>',
-                '        <div class="bk-dialog-opt-sub">离线缓存、阅读进度、字体语速设置<br>保留划线笔记</div>',
+                '  <div class="bk-drawer-header">',
+                '    <div class="bk-drawer-title">清理数据</div>',
+                '    <button class="bk-drawer-close" data-action="cancel" aria-label="关闭">×</button>',
+                '  </div>',
+                '  <div class="bk-drawer-divider"></div>',
+                '  <div class="bk-drawer-body">',
+                '    <div class="bk-note"><span class="bk-note-icon">⚠️</span><div class="bk-note-text">清理操作不可恢复，将移除所选内容。请确认后再继续。</div></div>',
+                '    <div class="bk-dialog-opts">',
+                '      <div class="bk-dialog-opt selected" data-val="regular">',
+                '        <div class="bk-dialog-opt-icon">🧾</div>',
+                '        <div class="bk-dialog-opt-body">',
+                '          <div class="bk-dialog-opt-title">常规数据</div>',
+                '          <div class="bk-dialog-opt-sub">离线缓存、阅读进度、字体语速设置<br>保留划线笔记</div>',
+                '        </div>',
                 '      </div>',
-                '    </div>',
-                '    <div class="bk-dialog-opt" data-val="notes">',
-                '      <div class="bk-dialog-opt-icon">📝</div>',
-                '      <div class="bk-dialog-opt-body">',
-                '        <div class="bk-dialog-opt-title">划线笔记</div>',
-                '        <div class="bk-dialog-opt-sub">仅清除所有划线和高亮<br>保留其他设置</div>',
+                '      <div class="bk-dialog-opt" data-val="notes">',
+                '        <div class="bk-dialog-opt-icon">📝</div>',
+                '        <div class="bk-dialog-opt-body">',
+                '          <div class="bk-dialog-opt-title">划线笔记</div>',
+                '          <div class="bk-dialog-opt-sub">仅清除所有划线和高亮<br>保留其他设置</div>',
+                '        </div>',
                 '      </div>',
                 '    </div>',
                 '  </div>',
                 '  <div class="bk-dialog-actions">',
                 '    <button class="bk-dialog-cancel" data-action="cancel">取消</button>',
-                '    <button class="bk-dialog-confirm" data-action="confirm">确定清除</button>',
+                '    <button class="bk-dialog-confirm" data-action="confirm">确认清理</button>',
                 '  </div>',
                 '</div>'
             ].join('')
@@ -620,9 +620,9 @@
     // 使用说明对话框
     function showGuideDialog() {
         var html = '<div class="bk-dialog" style="max-width:420px;padding:0;position:relative;max-height:80vh;display:flex;flex-direction:column">' +
-            '<div style="padding:14px 16px 10px;font-size:1em;font-weight:600;color:var(--heading);flex-shrink:0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">' +
-                '<span>📖 使用说明</span>' +
-                '<button id="bkGuideClose" style="width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:1.125em;display:flex;align-items:center;justify-content:center" title="关闭">×</button>' +
+            '<div class="bk-drawer-header">' +
+                '<div class="bk-drawer-title">使用说明</div>' +
+                '<button id="bkGuideClose" class="bk-drawer-close" title="关闭">×</button>' +
             '</div>' +
             '<div style="flex:1;overflow-y:auto;padding:12px 16px 16px;line-height:1.6;font-size:0.8125em;color:var(--text)">' +
                 '<div style="margin-bottom:14px"><div style="font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">🎨 阅读设置</div>' +
@@ -655,17 +655,22 @@
             html: [
                 '<div class="bk-feedback-box">',
                 '  <div class="bk-feedback-header">',
-                '    <div class="bk-feedback-title">💬 反馈问题</div>',
+                '    <div class="bk-feedback-title">问题反馈</div>',
                 '    <button class="bk-feedback-close" id="bkFeedbackClose">×</button>',
                 '  </div>',
                 '  <div class="bk-feedback-body">',
-                '    <textarea class="bk-feedback-textarea" id="bkFeedbackText" maxlength="' + MAX_LEN + '" placeholder="请描述您遇到的问题或建议…"></textarea>',
+                '    <div class="bk-label-muted">反馈类型</div>',
+                '    <div class="bk-pill-row">',
+                '      <button class="bk-pill active" data-fb-type="suggest">功能建议</button>',
+                '      <button class="bk-pill" data-fb-type="bug">遇到问题</button>',
+                '      <button class="bk-pill" data-fb-type="other">其他</button>',
+                '    </div>',
+                '    <textarea class="bk-feedback-textarea" id="bkFeedbackText" maxlength="' + MAX_LEN + '" placeholder="请描述您遇到的问题或建议…" style="margin-top:14px"></textarea>',
                 '    <div class="bk-feedback-count" id="bkFeedbackCount">0/' + MAX_LEN + '</div>',
                 '    <div class="bk-feedback-status" id="bkFeedbackStatus"></div>',
                 '  </div>',
                 '  <div class="bk-feedback-actions">',
-                '    <button class="bk-feedback-cancel" id="bkFeedbackCancelBtn">取消</button>',
-                '    <button class="bk-feedback-submit" id="bkFeedbackSubmitBtn">发送</button>',
+                '    <button class="bk-feedback-submit" id="bkFeedbackSubmitBtn">提交反馈</button>',
                 '  </div>',
                 '</div>'
             ].join('')
@@ -679,8 +684,17 @@
 
         var closeBtn = document.getElementById('bkFeedbackClose');
         if (closeBtn) closeBtn.addEventListener('click', dlg.close);
-        var cancelBtn = document.getElementById('bkFeedbackCancelBtn');
-        if (cancelBtn) cancelBtn.addEventListener('click', dlg.close);
+
+        var feedbackType = 'suggest';
+        var typePills = dlg.mask ? dlg.mask.querySelectorAll('.bk-pill') : [];
+        for (var pi = 0; pi < typePills.length; pi++) {
+            typePills[pi].addEventListener('click', function (e) {
+                var t = e.currentTarget;
+                feedbackType = t.getAttribute('data-fb-type') || 'suggest';
+                for (var q = 0; q < typePills.length; q++) typePills[q].classList.remove('active');
+                t.classList.add('active');
+            });
+        }
 
         var textarea = document.getElementById('bkFeedbackText');
         var countEl = document.getElementById('bkFeedbackCount');
@@ -704,7 +718,8 @@
                 submitBtn.disabled = true;
                 submitBtn.textContent = '发送中…';
                 // GitHub Issues 反馈
-                var content = text + '\n\n---\n环境: ' + (window.Capacitor ? 'APK' : (window.navigator.standalone ? 'PWA' : '浏览器'));
+                var typeLabel = feedbackType === 'bug' ? '遇到问题' : (feedbackType === 'other' ? '其他' : '功能建议');
+                var content = '【' + typeLabel + '】\n' + text + '\n\n---\n环境: ' + (window.Capacitor ? 'APK' : (window.navigator.standalone ? 'PWA' : '浏览器'));
                 // 简单反馈：复制到剪贴板
                 var done = function() {
                     submitBtn.disabled = false;

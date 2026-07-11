@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="书报 - 电子书阅读应用">
-    <meta name="theme-color" content="#f6f8fc">
+    <meta name="theme-color" content="#F5F4F1">
     <meta name="app-version" content="">
     <!-- 防止主题跳色：在渲染前设置主题 -->
-    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#F5EFE4':(t==='dark'?'#161920':'#f6f8fc'));}})();</script>
+    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#FAF8F4':(t==='dark'?'#1A1917':'#F5F4F1'));}})();</script>
     <!-- 防止阅读字号闪烁：在渲染前设置 --reading-font-size -->
     <script>(function(){try{var s=localStorage.getItem('globalFontSize');if(s){var v=parseFloat(s);if(v>=10&&v<=30)document.documentElement.style.setProperty('--reading-font-size',v+'px');}}catch(e){}})();</script>
     <!-- 伪装检测 -->
@@ -23,6 +23,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
     <title>书报</title>
+    <!-- 字体使用系统自带，不下载 webfont -->
     <link rel="stylesheet" href="css/style.css">
     <style>
         body{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));padding-top:env(safe-area-inset-top, 0px)}
@@ -31,14 +32,14 @@
         .content{padding:0}
         @media(min-width:768px){.header{margin-bottom:12px}}
         .books-grid{display:flex;flex-direction:column;gap:12px;margin:0;padding:8px 20px 24px}
-        .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s, box-shadow .2s;border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+        .book-card{background:var(--card-bg, var(--surface));overflow:hidden;transition:background-color .2s;border:1px solid var(--border);border-radius:16px;box-shadow:none}
         .book-card:hover{background:var(--nav-hover)}
         .book-card-wrapper{display:flex;align-items:stretch;gap:0}
         .book-link{display:block;padding:14px 16px;text-decoration:none;color:inherit;flex:1;min-width:0;transition:background-color .2s;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
         .book-link:active{background:var(--nav-hover)}
         .book-info{position:relative}
         .book-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px}
-        .skeleton-item{padding:20px 18px;background:var(--card-bg, var(--surface));border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+        .skeleton-item{padding:20px 18px;background:var(--card-bg, var(--surface));border:1px solid var(--border);border-radius:16px;box-shadow:none}
         .skeleton-line{height:18px;background:linear-gradient(90deg,var(--surface-alt) 25%,var(--border) 50%,var(--surface-alt) 75%);background-size:200% 100%;animation:shimmer 1.8s ease-in-out infinite;border-radius:8px;margin-bottom:10px}
         .skeleton-line.short{width:30%;height:14px}
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -60,25 +61,25 @@
         .bk-maint-sub{font-size:0.875em;color:var(--text-muted,#999);text-align:center;line-height:1.7;max-width:280px}
         /* PWA 强制安装遮罩 */
         .bk-install-mask{display:flex;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
-        .bk-install-box{background:var(--surface,#fff);border-radius:16px;width:min(320px,calc(100vw - 40px));box-shadow:0 8px 40px rgba(0,0,0,.35);overflow:hidden;text-align:center;padding:28px 24px 22px}
+        .bk-install-box{background:var(--surface,#fff);border-radius:16px;width:min(320px,calc(100vw - 40px));overflow:hidden;text-align:center;padding:28px 24px 22px}
         .bk-install-icon{font-size:2.75em;margin-bottom:10px}
         .bk-install-title{font-size:1.0625em;font-weight:700;color:var(--heading,#111);margin-bottom:6px}
         .bk-install-sub{font-size:0.75em;color:var(--text-muted,#888);margin-bottom:18px;line-height:1.65}
         .bk-install-progress{height:4px;background:var(--border,#e0e0e0);border-radius:2px;margin-bottom:14px;overflow:hidden}
-        .bk-install-progress-bar{height:100%;background:var(--brand,#007aff);border-radius:2px;width:0%;transition:width .3s ease}
+        .bk-install-progress-bar{height:100%;background:var(--brand,#3D8A5A);border-radius:2px;width:0%;transition:width .3s ease}
         .bk-install-status{font-size:0.75em;color:var(--text-muted,#666);min-height:16px;margin-bottom:14px;line-height:1.5}
-        .bk-install-retry{display:none;padding:9px 22px;background:var(--brand,#007aff);color:#fff;border:none;border-radius:8px;font-size:0.875em;font-weight:600;cursor:pointer}
+        .bk-install-retry{display:none;padding:9px 22px;background:var(--brand,#3D8A5A);color:#fff;border:none;border-radius:8px;font-size:0.875em;font-weight:600;cursor:pointer}
         /* 离线横幅 */
-        #bkOfflineBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:8000;background:#e65100;color:#fff;padding:11px 16px;font-size:0.8125em;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.2);line-height:1.5}
+        #bkOfflineBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:8000;background:#B5793A;color:#fff;padding:11px 16px;font-size:0.8125em;text-align:center;line-height:1.5}
         #bkOfflineBanner.show{display:block}
         #bkOfflineBanner .bk-banner-dismiss{background:rgba(255,255,255,.25);border:none;color:#fff;padding:3px 10px;border-radius:4px;margin-left:8px;font-size:0.75em;cursor:pointer;vertical-align:middle;-webkit-tap-highlight-color:transparent}
         /* SPA 视图容器 */
         #app{min-height:100vh}
         /* 启动加载页 */
-        #bkSplash{position:fixed;inset:0;z-index:9800;background:var(--surface,#f6f8fc);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;box-sizing:border-box;transition:opacity .45s ease;pointer-events:none}
+        #bkSplash{position:fixed;inset:0;z-index:9800;background:var(--surface,#F5F4F1);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;box-sizing:border-box;transition:opacity .45s ease;pointer-events:none}
         #bkSplash.bk-splash-out{opacity:0}
         .bk-splash-icon{font-size:3em;margin-bottom:16px}
-        .bk-splash-title{font-size:1.25em;color:var(--brand,#667eea);font-weight:600;letter-spacing:.08em;margin-bottom:10px;text-align:center}
+        .bk-splash-title{font-size:1.25em;color:var(--brand,#3D8A5A);font-weight:600;letter-spacing:.08em;margin-bottom:10px;text-align:center}
         .bk-splash-sub{font-size:0.9375em;color:var(--text,#1a1a1a);text-align:center;line-height:2;font-weight:400}
     </style>
 </head>
@@ -192,6 +193,7 @@
     <!-- SPA 核心 -->
     <script src="js/back-stack.js"></script>
     <script src="js/ref-detector.js"></script>
+    <script src="js/shelf.js"></script>
     <script src="js/router.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/speech.js"></script>
@@ -200,8 +202,11 @@
     <script src="js/highlight.js" defer></script>
     <script src="js/bookmark.js" defer></script>
     <script src="js/nav-stack.js"></script>
+    <script src="js/bottom-tab-bar.js" defer></script>
+    <script src="js/pwa-banner.js" defer></script>
     <script src="vendor/marked.min.js" defer></script>
     <script src="js/import-manager.js" defer></script>
+    <script src="js/webdav-manager.js" defer></script>
 
     <!-- APK 更新（仅在 APP / PWA 中加载） -->
     <script>(function(){
@@ -224,12 +229,13 @@
         './','./manifest.json','./sw.js',
         './css/style.css',
         './js/app-update.js',
-        './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js',
+        './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js','./js/shelf.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
         './js/resource-pack.js','./js/data-manager.js',
         './js/font-control.js','./js/remote-config.js','./js/import-manager.js',
+        './js/webdav-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
         './icons/icon-192.png','./icons/icon-512.png',
         'https://books-data.pages.dev/zl-data/books-index.json',

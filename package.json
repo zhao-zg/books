@@ -11,7 +11,8 @@
     "cap:sync": "npx cap sync",
     "cap:open": "npx cap open android",
     "android:build": "npm run build && npm run cap:sync && cd android && ./gradlew assembleRelease",
-    "android:dev": "npm run build && npm run cap:sync && npm run cap:open"
+    "android:dev": "npm run build && npm run cap:sync && npm run cap:open",
+    "test:ui": "node --test tests/ui/test-*.js"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^5.1.0",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
-    "javascript-obfuscator": "^4.1.0"
+    "javascript-obfuscator": "^4.1.0",
+    "jsdom": "^29.1.1"
   }
 }

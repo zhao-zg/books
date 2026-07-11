@@ -347,8 +347,16 @@
           }
         });
       })
-      .catch(function () {
-        // 后台检查失败无所谓，用缓存就好
+      .catch(function (e) {
+        console.warn('[data-manager] 静默更新检查失败', e);
+        // 保留"静默不弹窗"语义；离线时尝试展示已有离线提示条
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          var banner = document.getElementById('bkOfflineBanner');
+          if (banner) {
+            banner.hidden = false;
+            banner.classList.add('bk-offline-visible');
+          }
+        }
       });
   }
 

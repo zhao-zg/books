@@ -439,10 +439,10 @@
     
     function getTheme() {
         return window.THEME || {
-            brand: '#667eea',
-            brandDark: '#5b7ce6',
-            bg: 'linear-gradient(135deg, #667eea 0%, #5b7ce6 100%)',
-            success: '#48bb78',
+            brand: '#3D8A5A',
+            brandDark: '#5EAE7E',
+            bg: 'linear-gradient(135deg, #3D8A5A 0%, #5EAE7E 100%)',
+            success: '#3D8A5A',
             successDark: '#38a169'
         };
     }
@@ -490,7 +490,7 @@
         }
         html += '</p>';
         
-        html += '<div style="background: #e2e8f0; border-radius: 10px; height: 20px; overflow: hidden; margin-bottom: 10px;">';
+        html += '<div style="background: #EDEAE4; border-radius: 10px; height: 20px; overflow: hidden; margin-bottom: 10px;">';
         html += '<div id="apkProgressBar" style="background: ' + THEME.bg + '; height: 100%; width: ' + progress + '%; transition: width 0.3s;"></div>';
         html += '</div>';
         
@@ -571,7 +571,7 @@
             html += '</ul></div>';
         }
         if (entry['opt'] && entry['opt'].length) {
-            html += '<div style="margin-bottom:3px;"><span style="color:#2563eb;font-size:0.75em;font-weight:600;">⚡ 优化</span>';
+            html += '<div style="margin-bottom:3px;"><span style="color:#3D8A5A;font-size:0.75em;font-weight:600;">⚡ 优化</span>';
             html += '<ul style="margin:2px 0 0 14px;padding:0;font-size:0.8125em;color:#333;">';
             entry['opt'].forEach(function(item) { html += '<li>' + item + '</li>'; });
             html += '</ul></div>';
@@ -634,7 +634,7 @@
                 if (_histShown < historyVersions.length) {
                     var moreBtn = document.createElement('button');
                     moreBtn.className = 'hist-more-btn';
-                    moreBtn.style.cssText = 'width:100%;padding:9px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8125em;cursor:pointer;margin-top:4px;';
+                    moreBtn.style.cssText = 'width:100%;padding:9px;background:#F1F0ED;color:#9A958C;border:1px solid #E5E2DD;border-radius:6px;font-size:0.8125em;cursor:pointer;margin-top:4px;';
                     moreBtn.textContent = '更多（还有 ' + (historyVersions.length - _histShown) + ' 个版本）';
                     moreBtn.onclick = _renderHistPage;
                     histContent.appendChild(moreBtn);
@@ -648,26 +648,33 @@
     function createUpdateDialog(dialogId, title, statusId, btnId) {
         var THEME = getTheme();
 
-        var html = '<div style="background:white;border-radius:12px;max-width:400px;width:100%;max-height:88vh;overflow:hidden;">';
+        var html = '<div class="bk-update-card" style="background:var(--card-bg,#FFFFFF);border-radius:24px;max-width:400px;width:100%;max-height:88vh;overflow:hidden;box-shadow:none;display:flex;flex-direction:column;">';
 
-        html += '<div id="' + dialogId + '-panel-main" style="display:block;">';
-        html += '<div style="padding:20px 20px 16px;overflow-y:auto;max-height:88vh;">';
-        html += '<h3 style="color:' + THEME.brand + ';margin-bottom:14px;font-size:1.125em;text-align:center;">' + title + '</h3>';
-        html += '<div style="padding:14px;background:#f8f9ff;border-radius:8px;border:1px solid #e0e4ff;margin-bottom:12px;">';
-        html += '<div id="' + statusId + '" style="color:#666;font-size:0.875em;line-height:1.7;">正在检查...</div>';
-        html += '<button id="' + btnId + '" style="display:none;width:100%;padding:10px;margin-top:10px;background:' + THEME.bg + ';color:white;border:none;border-radius:6px;font-size:0.875em;font-weight:600;cursor:pointer;">立即更新应用</button>';
+        html += '<div id="' + dialogId + '-panel-main" style="display:flex;flex-direction:column;flex:1;min-height:0;">';
+        html += '<div class="bk-drawer-header">';
+        html += '<div class="bk-drawer-title">' + title + '</div>';
+        html += '<button id="' + dialogId + '-close" class="bk-drawer-close" aria-label="关闭">×</button>';
         html += '</div>';
-        html += '<div id="' + dialogId + '-cl-inline" style="display:none;background:#f6fff8;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin-bottom:12px;overflow-y:auto;max-height:260px;font-size:0.8125em;"></div>';
-        html += '<button id="' + dialogId + '-hist-btn" style="display:none;width:100%;padding:9px 14px;margin-bottom:12px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8125em;font-weight:600;cursor:pointer;text-align:left;">📖 历史版本 ›</button>';
-        html += '<button id="' + dialogId + '-close" style="width:100%;padding:11px;background:#e2e8f0;color:#4a5568;border:none;border-radius:8px;font-size:0.875em;font-weight:600;cursor:pointer;">关闭</button>';
-        html += '</div></div>';
+        html += '<div class="bk-drawer-divider"></div>';
+        html += '<div class="bk-drawer-body">';
+        html += '<div id="' + statusId + '" style="color:var(--text-muted,#9A958C);font-size:0.875em;line-height:1.7;">正在检查更新...</div>';
+        html += '<div id="' + dialogId + '-version-pill" class="bk-chip-sage" style="display:none;margin-top:12px;"></div>';
+        html += '<div class="bk-label-muted" style="margin-top:16px;">更新内容</div>';
+        html += '<div id="' + dialogId + '-cl-inline" style="display:none;color:var(--text-muted,#9A958C);font-size:0.8125em;line-height:1.7;"></div>';
+        html += '<div id="' + dialogId + '-hist-btn" style="display:none;margin-top:14px;color:var(--brand,#3D8A5A);font-size:0.8125em;font-weight:600;cursor:pointer;">📖 历史版本 ›</div>';
+        html += '</div>';
+        html += '<div class="bk-drawer-actions">';
+        html += '<button id="' + dialogId + '-cancel" class="bk-btn bk-btn-secondary" style="display:none">稍后</button>';
+        html += '<button id="' + btnId + '" class="bk-btn bk-btn-primary" style="display:none">立即更新</button>';
+        html += '</div>';
+        html += '</div>';
 
-        html += '<div id="' + dialogId + '-panel-hist" style="display:none;">';
-        html += '<div style="padding:12px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;">';
-        html += '<button id="' + dialogId + '-hist-back" style="background:none;border:none;color:' + THEME.brand + ';font-size:0.875em;font-weight:600;cursor:pointer;padding:4px 10px 4px 0;">← 返回</button>';
-        html += '<span style="font-size:0.9375em;font-weight:600;color:#222;">📖 历史版本</span>';
+        html += '<div id="' + dialogId + '-panel-hist" style="display:none;flex-direction:column;flex:1;min-height:0;">';
+        html += '<div style="padding:16px 24px;border-bottom:1px solid var(--border,#E5E2DD);display:flex;align-items:center;flex-shrink:0;">';
+        html += '<button id="' + dialogId + '-hist-back" style="background:none;border:none;color:var(--brand,#3D8A5A);font-size:0.875em;font-weight:600;cursor:pointer;padding:4px 10px 4px 0;">← 返回</button>';
+        html += '<span style="font-size:0.9375em;font-weight:600;color:var(--heading,#1A1918);">📖 历史版本</span>';
         html += '</div>';
-        html += '<div id="' + dialogId + '-hist-content" style="padding:14px 16px;overflow-y:auto;max-height:calc(88vh - 50px);font-size:0.8125em;"></div>';
+        html += '<div id="' + dialogId + '-hist-content" class="bk-drawer-body"></div>';
         html += '</div>';
 
         html += '</div>';
@@ -702,28 +709,40 @@
         if (el) el.onclick = function() { history.back(); };
         el = document.getElementById(dialogId + '-close');
         if (el) el.onclick = _close;
+        el = document.getElementById(dialogId + '-cancel');
+        if (el) el.onclick = _close;
 
         return _close;
     }
     
-    function handleVersionComparison(statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl) {
+    function handleVersionComparison(dialogId, statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl) {
         var currentClean = currentVersion.replace('v', '');
         var latestClean = latestVersion.replace('v', '');
-        
+
+        var vpill = document.getElementById(dialogId + '-version-pill');
+        if (vpill) {
+            if (comparison > 0 && sizeText) {
+                vpill.textContent = '更新大小 ' + sizeText.replace(/[()]/g, '').trim();
+                vpill.style.display = 'inline-flex';
+            } else {
+                vpill.style.display = 'none';
+            }
+        }
+
         if (comparison > 0) {
             statusEl.innerHTML = '✅ 发现新版本<br>当前: v' + currentClean + '<br>最新: v' + latestClean + sizeText;
             btnEl.style.display = 'block';
-            btnEl.textContent = '立即更新' + sizeText;
+            btnEl.textContent = '立即更新';
             btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
         } else if (comparison === 0) {
             statusEl.innerHTML = '✅ 已是最新版本<br>版本: v' + currentClean;
             btnEl.style.display = 'block';
-            btnEl.textContent = '重新下载' + sizeText;
+            btnEl.textContent = '重新下载';
             btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
         } else if (comparison === null) {
             statusEl.innerHTML = '⚠️ 无法比较版本<br>当前: ' + currentVersion + '<br>最新: v' + latestClean;
             btnEl.style.display = 'block';
-            btnEl.textContent = '下载最新版' + sizeText;
+            btnEl.textContent = '下载最新版';
             btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
         } else {
             statusEl.innerHTML = '当前: v' + currentClean + '<br>远程: v' + latestClean;
@@ -734,7 +753,7 @@
     AppUpdate.showCloudflareUpdateDialog = function() {
         var CLOUDFLARE_SERVERS = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
         
-        createUpdateDialog('cloudflareUpdateDialog', '🔄 检查更新', 'cfCheckStatus', 'cfUpdateBtn');
+        createUpdateDialog('cloudflareUpdateDialog', '发现新版本', 'cfCheckStatus', 'cfUpdateBtn');
         
         var statusEl = document.getElementById('cfCheckStatus');
         var btnEl = document.getElementById('cfUpdateBtn');
@@ -788,7 +807,7 @@
                 var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
                 var sizeText = apkSize ? ' (' + (apkSize / 1024 / 1024).toFixed(1) + ' MB)' : '';
 
-                handleVersionComparison(statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl);
+                handleVersionComparison('cloudflareUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl);
 
                 if (comparison > 0) {
                     var clInline = document.getElementById('cloudflareUpdateDialog-cl-inline');
@@ -814,7 +833,7 @@
         var GITHUB_API_URL = (window.BK_SERVERS && window.BK_SERVERS.github_api) ||
             'https://api.github.com/repos/zhao-zg/books/releases/latest';
         
-        createUpdateDialog('githubUpdateDialog', '🔄 检查更新 (GitHub)', 'ghCheckStatus', 'ghUpdateBtn');
+        createUpdateDialog('githubUpdateDialog', '发现新版本', 'ghCheckStatus', 'ghUpdateBtn');
         
         var statusEl = document.getElementById('ghCheckStatus');
         var btnEl = document.getElementById('ghUpdateBtn');
@@ -843,7 +862,7 @@
                     var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
                     var sizeText = ' (' + (apk.size / 1024 / 1024).toFixed(1) + ' MB)';
 
-                    handleVersionComparison(statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, apk.browser_download_url);
+                    handleVersionComparison('githubUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, apk.browser_download_url);
 
                     if (comparison > 0) {
                         var clInline = document.getElementById('githubUpdateDialog-cl-inline');
@@ -868,7 +887,7 @@
         var root = (options && options.root) || './';
         var extStatusEl = (options && options.statusEl) || null;
 
-        var closeDialog = createUpdateDialog('pwaUpdateDialog', '🔄 检查更新', 'pwaCheckStatus', 'pwaUpdateBtn');
+        var closeDialog = createUpdateDialog('pwaUpdateDialog', '发现新版本', 'pwaCheckStatus', 'pwaUpdateBtn');
 
         var statusEl = document.getElementById('pwaCheckStatus');
         var btnEl    = document.getElementById('pwaUpdateBtn');

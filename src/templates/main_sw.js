@@ -33,6 +33,7 @@ const PRECACHE_URLS = [
   './js/ref-detector.js',
   './js/remote-config.js',
   './js/renderer.js',
+  './js/shelf.js',
   './js/resource-pack.js',
   './js/router.js',
   './js/scripture-popup.js',
@@ -276,7 +277,7 @@ self.addEventListener('fetch', event => {
             headers: { 'Content-Type': 'text/html; charset=utf-8' }
           });
         }
-        throw err;
+        return new Response('', { status: 503, statusText: 'Offline' });
       }
     })());
   } catch (err) {

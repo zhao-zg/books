@@ -1,0 +1,24 @@
+sequenceDiagram
+  actor U as 用户
+  participant R as _renderZlHome
+  participant E as _renderEnhancedHome
+  participant CL as _renderContinueList
+  participant SG as _renderShelfGrid
+  participant B as _bindZlEvents
+  participant RT as BKRouter(hash)
+
+  U->>R: 打开首页(homeView)
+  R->>E: _renderEnhancedHome(homeView)
+  E->>E: 拼装 头部 + 继续阅读/书架区头 + 锚点(#bkContinueListAnchor, #bkShelfAnchor)
+  E->>CL: _renderContinueList(homeView)
+  CL->>CL: _getContinueList(limit): 扫 _zlBooks + getReadingProgress
+  CL-->>E: 注入续读卡(封面+进度条+箭头) 到 #bkContinueListAnchor\n(空则注入引导卡)
+  E->>SG: _renderShelfGrid(homeView)
+  SG->>SG: 遍历 _zlBooks 调 _buildBookCard
+  SG-->>E: 注入 .book-grid 到 #bkShelfAnchor
+  E->>B: _bindZlEvents(homeView)
+  B-->>E: 绑定 #bk-search-btn / #bk-continue-viewall / .book-link / .bk-continue-card
+  U->>B: 点搜索图标
+  B->>B: win.BKSearch.open()
+  U->>RT: 点续读卡/书架卡(hash #/bookId/chapter)
+  RT->>RT: navigate(bookId/chapter)

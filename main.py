@@ -34,26 +34,19 @@ def load_app_config(config_path='app_config.json'):
 
 
 def copy_zl_merged_data(resource_dir: str, output_dir: str):
-    """将 resource/zl-merged/ 中的索引文件复制到 output/books/。
+    """将 resource/zl-merged/ 完整复制到 output/zl-data/（含索引+书籍数据）。
 
-    只复制 books-index.json 和 manifest.json（轻量索引），
-    单本书籍 JSON 不复制，通过在线加载。
+    zl-data 是 DataManager 前端约定路径，与 APK/PWA 模式保持一致。
     """
     merged_dir = os.path.join(resource_dir, 'zl-merged')
     if not os.path.isdir(merged_dir):
-        print("⚠ resource/zl-merged/ 不存在，跳过索引数据复制")
+        print("⚠ resource/zl-merged/ 不存在，跳过 zl-data 复制")
         return
 
-    dst_dir = os.path.join(output_dir, 'books')
-    os.makedirs(dst_dir, exist_ok=True)
-
-    # 只复制索引文件
-    copied = []
-    for fname in ['books-index.json', 'manifest.json']:
-        src = os.path.join(merged_dir, fname)
-        if os.path.exists(src):
-            shutil.copy2(src, os.path.join(dst_dir, fname))
-            copied.append(fname)
+    dst_dir = os.path.join(output_dir, 'zl-data')
+    if os.path.exists(dst_dir):
+        shutil.rmtree(dst_dir)
+    shutil.copytree(merged_dir, dst_dir)
 
     # 统计索引信息
     index_path = os.path.join(dst_dir, 'books-index.json')
@@ -68,8 +61,15 @@ def copy_zl_merged_data(resource_dir: str, output_dir: str):
         except Exception:
             pass
 
-    print(f"✓ zl-merged 索引已复制到 output/books/（{series_count} 个系列，{book_count} 本书）")
-    print(f"  已复制文件: {', '.join(copied)}")
+    # 将生成的搜索索引也复制到 zl-data/ 下（loadSearchIndex 路径为 books/search-index.json）
+    search_index_dst_dir = os.path.join(dst_dir, 'books')
+    os.makedirs(search_index_dst_dir, exist_ok=True)
+    search_index_src = os.path.join(output_dir, 'books', 'search-index.json')
+    if os.path.exists(search_index_src):
+        shutil.copy2(search_index_src, os.path.join(search_index_dst_dir, 'search-index.json'))
+
+    print(f"✓ zl-data 已生成（{series_count} 个系列，{book_count} 本书）")
+    print(f"  目标: {dst_dir}")
 
 
 def generate_remote_config(config: dict, output_dir: str = 'output'):

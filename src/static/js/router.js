@@ -4,6 +4,10 @@
  *   #/                    → 首页（书籍列表）
  *   #/{book-id}           → 章节列表（目录）
  *   #/{book-id}/{chapter} → 阅读视图
+ *   #/my                  → 我的（个人中心，手机）
+ *   #/me                  → 我的（个人中心，平板）
+ *   #/settings            → 设置（全部设置项展开）
+ *   #/bookmarks           → 书签列表
  *
  * 暴露：window.BKRouter
  *   .start()
@@ -35,6 +39,15 @@
     win.scrollTo(0, 0);
     if (parts.length === 0) {
       R.renderHome();
+    } else if (parts.length === 1 && (parts[0] === 'me' || parts[0] === 'my')) {
+      // me=平板(双栏) / my=手机(单栏)，都是 renderMyPage
+      R.renderMyPage();
+    } else if (parts.length === 1 && parts[0] === 'settings') {
+      R.renderFullSettingsPage();
+    } else if (parts.length === 1 && parts[0] === 'bookmarks') {
+      R.renderBookmarksPage();
+    } else if (parts.length === 1 && parts[0] === 'shelf') {
+      R.renderShelfPage();
     } else if (parts.length === 1) {
       R.renderChapterList(parts[0]);
     } else if (parts.length === 2) {

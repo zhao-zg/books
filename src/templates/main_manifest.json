@@ -6,7 +6,7 @@
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#fafbff",
+  "theme_color": "#F5F4F1",
   "orientation": "any",
   "categories": ["books", "education"],
   "icons": [

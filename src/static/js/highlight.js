@@ -92,10 +92,10 @@
         config: {
             storageKey: 'bk_highlights',
             colors: {
-                yellow: '#fff59d',
-                green:  '#a5d6a7',
-                blue:   '#90caf9',
-                pink:   '#f48fb1'
+                yellow: '#F4E6C0',
+                green:  '#D8EBDD',
+                blue:   '#E3EFE8',
+                pink:   '#F3DDD3'
             },
             defaultColor: 'yellow'
         },
@@ -335,11 +335,11 @@
                     }
 
                     if (highlight.underline) {
-                        mark.style.borderBottom    = '2px solid #e53935';
+                        mark.style.borderBottom    = '2px solid var(--danger-text)';
                         mark.style.paddingBottom   = '1px';
                     }
                     if (highlight.note) {
-                        mark.style.textDecoration      = 'underline wavy #eb6c05 1px';
+                        mark.style.textDecoration      = 'underline wavy var(--gold) 1px';
                         mark.style.textUnderlineOffset = '2px';
                     }
 

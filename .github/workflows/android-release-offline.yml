@@ -318,7 +318,7 @@ jobs:
         path = 'android/app/src/main/res/values/styles.xml'
         with open(path, 'r') as f:
             content = f.read()
-        item = '        <item name="android:windowBackground">#fafbff</item>\n'
+        item = '        <item name="android:windowBackground">#F5F4F1</item>\n'
         if 'windowBackground' not in content:
             # 插入到 AppTheme style 块内第一个 <item> 之前
             content = re.sub(

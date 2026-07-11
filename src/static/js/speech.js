@@ -285,7 +285,7 @@
       progressBar.style.display  = 'none';
       rateSelect.style.display   = 'none';
       speechTime.textContent     = message;
-      speechTime.style.color     = '#999';
+      speechTime.style.color     = 'var(--text-muted)';
       speechTime.style.fontSize  = '11px';
       speechTime.style.textAlign = 'center';
     }
@@ -312,7 +312,13 @@
       var playIcon  = playPauseBtn.querySelector('.play-icon');
       var pauseIcon = playPauseBtn.querySelector('.pause-icon');
 
-      var savedRate = localStorage.getItem('bk_speechRate');
+      var savedRate = null;
+      try {
+        savedRate = localStorage.getItem('bk_speechRate');
+      } catch (e) {
+        // 隐私模式 / 旧 WebView 可能禁用 localStorage，回退到默认速率
+        savedRate = null;
+      }
       if (savedRate) rateSelect.value = savedRate;
 
       var state = 'idle';
@@ -616,7 +622,9 @@
 
       playPauseBtn.addEventListener('click', function () {
         if (state === 'idle') {
-          localStorage.setItem('bk_speechRate', rateSelect.value);
+          try {
+            localStorage.setItem('bk_speechRate', rateSelect.value);
+          } catch (e) { /* 隐私模式 / 旧 WebView 可能禁用 localStorage，静默忽略 */ }
           startSpeakingFromPercent(0);
         } else if (state === 'playing') {
           elapsedOffset = currentElapsedSeconds();
@@ -635,7 +643,9 @@
       });
 
       rateSelect.addEventListener('change', function () {
-        localStorage.setItem('bk_speechRate', rateSelect.value);
+        try {
+          localStorage.setItem('bk_speechRate', rateSelect.value);
+        } catch (e) { /* 隐私模式 / 旧 WebView 可能禁用 localStorage，静默忽略 */ }
         if (state !== 'idle') {
           var pct = totalDuration > 0 ? (currentElapsedSeconds() / totalDuration * 100) : 0;
           resetState();

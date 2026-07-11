@@ -1,0 +1,35 @@
+classDiagram
+  direction LR
+  class BKRenderer {
+    +_renderEnhancedHome(homeView)
+    +_getContinueList(limit) ContinueItem[]
+    +_renderContinueList(homeView, opts)
+    +_renderShelfGrid(homeView)
+    +_bindZlEvents(homeView)
+    -_fillContinueCard(homeView) «replaced»
+    -_fillRecentBooks(homeView) «removed»
+  }
+  class ContinueItem {
+    +book: object
+    +progress: int
+    +chapterCount: int
+    +progressPct: int
+    +chapterTitle: string
+  }
+  class ReusableAPI {
+    +_coverHTML(book, opts) string
+    +_buildBookCard(book) string
+    +_getSeriesBooks(id) object[]
+    +getReadingProgress(id) int
+    +_cleanBookTitle(t) string
+    +_getSeriesTitle(id) string
+    +escAttr(s) string
+    +escText(s) string
+  }
+  class RetainedViews {
+    +_renderSeriesCatalog(homeView)
+    +_renderSeriesBookList(homeView)
+  }
+  BKRenderer ..> ContinueItem : builds
+  BKRenderer ..> ReusableAPI : reuses
+  BKRenderer ..> RetainedViews : keeps (not on home)

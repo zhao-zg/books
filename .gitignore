@@ -64,11 +64,13 @@ output/js_original/
 app-update.js.backup
 
 # IDE
+.workbuddy/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+tests/
 
 # OS
 .DS_Store

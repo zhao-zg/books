@@ -246,14 +246,20 @@
         var bookId = m ? m[1] : '';
         var html = '<div class="bk-float-bottom-inner">';
 
-        // 目录
-        html += '<button type="button" class="bk-float-bottom-btn" data-toc-drawer="1" data-book-id="' + bookId + '" title="目录"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>';
+        // 书签
+        html += '<button type="button" class="bk-float-bottom-btn" data-float-bookmark="1" title="书签"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg></button>';
 
         // 朗读
         html += '<button type="button" class="bk-float-bottom-btn bk-float-bottom-tts-btn" data-tts-toggle="1" title="朗读"><svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>';
 
+        // 字号
+        html += '<button type="button" class="bk-float-bottom-btn" data-float-fontsize="1" title="字号"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></button>';
+
+        // 目录
+        html += '<button type="button" class="bk-float-bottom-btn" data-toc-drawer="1" data-book-id="' + bookId + '" title="目录"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>';
+
         // 设置
-        html += '<button type="button" class="bk-float-bottom-btn" data-float-settings="1" title="设置"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
+        html += '<button type="button" class="bk-float-bottom-btn" data-float-settings="1" title="设置"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
 
         html += '</div>';
         el.innerHTML = html;
@@ -266,8 +272,13 @@
         _bottomEl.addEventListener('click', function(e) {
             var t = e.target;
             while (t && t !== _bottomEl) {
-                // 目录按钮 → 隐藏浮动栏，让全局事件委托打开 drawer
+                // 目录按钮 → 双栏模式下滚动 TOC 到当前章；否则隐藏浮动栏，让全局事件委托打开 drawer
                 if (t.classList && t.classList.contains('bk-float-bottom-btn') && t.hasAttribute('data-toc-drawer')) {
+                    if (document.body.classList.contains('bk-split-mode')) {
+                        var cur = document.querySelector('#bkTocDrawerBody .bk-toc-current');
+                        if (cur) cur.scrollIntoView({ block: 'center', behavior: 'auto' });
+                        return;
+                    }
                     hide();
                     return;
                 }
@@ -281,6 +292,18 @@
                     if (!_ttsBarVisible) {
                         _timer = setTimeout(hide, HIDE_DELAY);
                     }
+                    return;
+                }
+                // 书签按钮 → 打开书签列表
+                if (t.hasAttribute && t.hasAttribute('data-float-bookmark')) {
+                    e.preventDefault();
+                    if (window.BKBookmark && window.BKBookmark.showList) window.BKBookmark.showList();
+                    return;
+                }
+                // 字号按钮 → 打开字号选择器弹窗
+                if (t.hasAttribute && t.hasAttribute('data-float-fontsize')) {
+                    e.preventDefault();
+                    if (window._openFontSizeDialog) window._openFontSizeDialog();
                     return;
                 }
                 // 设置按钮
@@ -321,9 +344,8 @@
                     }
                 });
             }
-            // 展开嵌入式 TTS 面板
-            var ttsPanel = document.getElementById('bkTtsPanel');
-            if (ttsPanel) ttsPanel.classList.add('bk-tts-expanded');
+            // 注意：内嵌 #bkTtsPanel 不再作为可见栏（设计稿 3:410 仅一个悬浮播放器）；
+            // #bottomControlBar 保留为隐藏宿主供 speech.js 绑定
 
             // 显示浮动 TTS 栏（作为底栏子元素，随底栏定位/收起）
             syncTtsContent();
@@ -481,6 +503,36 @@
             })(cloneBtns[b], b);
         }
 
+        // 注入章节标题（设计稿 3:410 独立 TTS 播放器 UI）
+        var titleEl = cloned.querySelector('.tts-title');
+        if (!titleEl) {
+            titleEl = document.createElement('div');
+            titleEl.className = 'tts-title';
+            var progSection = cloned.querySelector('.progress-section');
+            if (progSection && progSection.parentNode) {
+                progSection.parentNode.insertBefore(titleEl, progSection);
+            } else {
+                cloned.appendChild(titleEl);
+            }
+        }
+        try {
+            var curTitle = '';
+            var chTitleEl = document.querySelector(
+                '.bk-reading-page .bk-chapter-title, #chapterContent h1, #chapterContent h2, .reader-verse-title'
+            );
+            if (chTitleEl) curTitle = chTitleEl.textContent.trim();
+            if (!curTitle && win.__bkCurrentPath) {
+                var p = win.__bkCurrentPath.split('/');
+                if (win.__bkBooks) {
+                    for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+                        if (win.__bkBooks[bi].id === p[0]) { curTitle = win.__bkBooks[bi].title || ''; break; }
+                    }
+                }
+                if (p[1]) curTitle += (curTitle ? ' · ' : '') + '第' + p[1] + '章';
+            }
+            titleEl.textContent = curTitle || '正在朗读…';
+        } catch (e) {}
+
         el.innerHTML = '';
         el.appendChild(cloned);
         return true;
@@ -558,7 +610,7 @@
                 var cls = el.classList;
                 if (cls.contains('speech-btn')          || cls.contains('play-btn') ||
                     cls.contains('highlight-trigger')   || cls.contains('bk-dialog-mask') ||
-                    cls.contains('theme-panel')         || cls.contains('theme-toggle-btn') ||
+                    cls.contains('theme-panel')         ||
                     cls.contains('toc-item')            ||
                     cls.contains('bk-highlight')        || cls.contains('bk-note-icon') ||
                     cls.contains('bk-tts-panel')) return false;

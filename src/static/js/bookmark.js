@@ -97,13 +97,12 @@
         style.id = 'bk-bm-toast-style';
         style.textContent = [
             '.bk-bm-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);',
-            'background:rgba(50,50,50,.92);color:#fff;padding:10px 18px;border-radius:22px;',
+            'background:#1A1918;color:#fff;padding:10px 18px;border-radius:22px;',
             'font-size:0.875em;z-index:99999;display:flex;align-items:center;gap:12px;',
-            'opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;',
-            'box-shadow:0 4px 16px rgba(0,0,0,.18)}',
+            'opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}',
             '.bk-bm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}',
             '.bk-bm-toast-text{white-space:nowrap}',
-            '.bk-bm-toast-undo{color:#90caf9;cursor:pointer;font-weight:500;white-space:nowrap}'
+            '.bk-bm-toast-undo{color:#3D8A5A;cursor:pointer;font-weight:500;white-space:nowrap}'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -298,6 +297,25 @@
         },
 
         /**
+         * 更新书签笔记
+         * @param {String} id 书签 id
+         * @param {String} note 笔记文本
+         * @returns {Promise}
+         */
+        updateNote: function (id, note) {
+            return _load().then(function (arr) {
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].id === id) {
+                        arr[i].note = note || '';
+                        arr[i].timestamp = Date.now();
+                        break;
+                    }
+                }
+                return _save(arr);
+            });
+        },
+
+        /**
          * 显示书签列表弹框
          */
         showList: function () {
@@ -324,7 +342,10 @@
                             '<div class="bk-bm-item-title">' + _escHtml(displayTitle) + '</div>' +
                             '<div class="bk-bm-item-meta">' + _escHtml(meta) + '</div>' +
                             '</div>' +
+                            '<div class="bk-bm-item-actions">' +
+                            '<button class="bk-bm-item-note" aria-label="编辑笔记" title="编辑笔记">📝</button>' +
                             '<button class="bk-bm-item-del" aria-label="删除">✕</button>' +
+                            '</div>' +
                             '</div>';
                     }
                 }
@@ -406,11 +427,26 @@
                         return;
                     }
 
+                    // 笔记按钮 → 打开书签笔记编辑面板
+                    var noteBtn = t.closest ? t.closest('.bk-bm-item-note') : null;
+                    if (!noteBtn && t.classList && t.classList.contains('bk-bm-item-note')) noteBtn = t;
+                    if (noteBtn) {
+                        var noteItemDiv = noteBtn.closest ? noteBtn.closest('.bk-bm-item') : noteBtn.parentNode.parentNode;
+                        var noteBmId = noteItemDiv ? noteItemDiv.getAttribute('data-id') : null;
+                        var noteTarget = null;
+                        for (var nk = 0; nk < arr.length; nk++) {
+                            if (arr[nk].id === noteBmId) { noteTarget = arr[nk]; break; }
+                        }
+                        if (noteTarget) _openNoteEditor(noteTarget);
+                        return;
+                    }
                     var delBtn = t.closest ? t.closest('.bk-bm-item-del') : null;
                     if (!delBtn && t.classList && t.classList.contains('bk-bm-item-del')) delBtn = t;
                     if (delBtn) {
-                        var itemDiv = delBtn.parentNode;
-                        var bmId = itemDiv.getAttribute('data-id');
+                        // 目标节点是 .bk-bm-item（data-id 挂在其上），而非按钮的父容器 .bk-bm-item-actions
+                        var itemDiv = delBtn.closest ? delBtn.closest('.bk-bm-item') : (delBtn.parentNode && delBtn.parentNode.parentNode);
+                        var bmId = itemDiv ? itemDiv.getAttribute('data-id') : null;
+                        if (!itemDiv || !bmId) return;
                         itemDiv.style.opacity = '0';
                         itemDiv.style.transform = 'translateX(30px)';
                         itemDiv.style.transition = 'opacity .2s,transform .2s';
@@ -463,6 +499,67 @@
             });
         }
     };
+
+    // ─── 书签笔记编辑面板（设计稿 10:54）────────────────────────────────
+    function _openNoteEditor(bookmark) {
+        if (!bookmark) return;
+        var quote = bookmark.title || bookmark.path || '未命名书签';
+        var noteVal = bookmark.note || '';
+
+        var html =
+            '<div class="bk-dialog bk-note-editor">' +
+                '<div class="bk-dialog-header">' +
+                    '<span class="bk-dialog-title">书签笔记</span>' +
+                    '<button class="bk-dialog-close" id="bkNoteClose" aria-label="关闭">×</button>' +
+                '</div>' +
+                '<div class="bk-dialog-body" style="padding:16px">' +
+                    '<div class="bk-note-quote">' + _escHtml(quote) + '</div>' +
+                    '<textarea class="bk-note-textarea" id="bkNoteTextarea" placeholder="写下你的读书笔记...">' + _escHtml(noteVal) + '</textarea>' +
+                '</div>' +
+                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:space-between">' +
+                    '<button class="bk-btn bk-btn-danger-ghost" id="bkNoteDelete">删除书签</button>' +
+                    '<div style="display:flex;gap:10px">' +
+                        '<button class="bk-btn bk-btn-secondary" id="bkNoteCancel">取消</button>' +
+                        '<button class="bk-btn bk-btn-primary" id="bkNoteSave">保存</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+
+        var dlg = win.BK.openDialog({ id: 'bk-note-editor', html: html });
+        if (!dlg) return;
+        var dialogEl = document.getElementById('bk-note-editor');
+        if (!dialogEl) return;
+
+        var ta = dialogEl.querySelector('#bkNoteTextarea');
+        var closeBtn = dialogEl.querySelector('#bkNoteClose');
+        var cancelBtn = dialogEl.querySelector('#bkNoteCancel');
+        var saveBtn = dialogEl.querySelector('#bkNoteSave');
+        var delBtn = dialogEl.querySelector('#bkNoteDelete');
+
+        function _closeAndRefresh() {
+            dlg.close();
+            var list = document.getElementById('bk-bookmark-list');
+            if (list && list.parentNode) list.parentNode.removeChild(list);
+            if (win.BK && win.BK.backStack && win.BK.backStack.discard) win.BK.backStack.discard();
+            if (win.BKBookmark && win.BKBookmark.showList) win.BKBookmark.showList();
+        }
+
+        if (closeBtn) closeBtn.addEventListener('click', function () { dlg.close(); });
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { dlg.close(); });
+        if (saveBtn) saveBtn.addEventListener('click', function () {
+            var val = ta ? ta.value : '';
+            BKBookmark.updateNote(bookmark.id, val).then(function () {
+                _closeAndRefresh();
+            });
+        });
+        if (delBtn) delBtn.addEventListener('click', function () {
+            if (!confirm('确定删除该书签及其笔记？')) return;
+            BKBookmark.remove(bookmark.id).then(function () {
+                _closeAndRefresh();
+            });
+        });
+        if (ta) setTimeout(function () { ta.focus(); }, 50);
+    }
 
     // ─── HTML 转义 ─────────────────────────────────────────────────────────
     function _escHtml(str) {
