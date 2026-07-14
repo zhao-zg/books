@@ -144,11 +144,7 @@
     // 搜索浮层（close 时仅 display:none，需检查可见性）
     var searchOverlay = doc.querySelector('.bk-search-overlay');
     if (searchOverlay && win.getComputedStyle(searchOverlay).display !== 'none') return true;
-    // 主题 / 设置面板
-    var tp = doc.getElementById('themePanel');
-    if (tp && tp.classList.contains('show')) return true;
-    var tpo = doc.getElementById('themePanelOverlay');
-    if (tpo && tpo.classList.contains('show')) return true;
+    // 主题 / 设置面板（已由 BK.openDialog 统一管理，.bk-dialog-mask 已覆盖）
     // 目录抽屉
     if (doc.querySelector('.bk-toc-drawer.open')) return true;
     if (doc.querySelector('.bk-toc-drawer-overlay.open')) return true;

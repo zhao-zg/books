@@ -10,7 +10,7 @@
         warm: '#FAF8F4',
         dark: '#1A1917'
     };
-    let pageScrollLockCount = 0;
+
 
     function getStoredTheme() {
         try {
@@ -37,30 +37,7 @@
         } catch (e) {}
     }
 
-    function lockPageScroll() {
-        if (window.BK && window.BK._lockBodyScroll) {
-            window.BK._lockBodyScroll();
-            return;
-        }
-        // fallback: 独立计数器（back-stack.js 未加载时）
-        pageScrollLockCount += 1;
-        document.documentElement.classList.add('bk-scroll-locked');
-        document.body.classList.add('bk-scroll-locked');
-    }
 
-    function unlockPageScroll() {
-        if (window.BK && window.BK._unlockBodyScroll) {
-            window.BK._unlockBodyScroll();
-            return;
-        }
-        // fallback: 独立计数器
-        pageScrollLockCount = Math.max(0, pageScrollLockCount - 1);
-        if (pageScrollLockCount === 0) {
-            document.documentElement.classList.remove('bk-scroll-locked');
-            document.body.classList.remove('bk-scroll-locked');
-        }
-    }
-    
     function initDevConsole()  { window.BKDevConsole && window.BKDevConsole.init(); }
 
     function initThemeToggle() {
@@ -88,49 +65,6 @@
                 }
             }).catch(function() {});
         })();
-
-        const overlay = document.createElement('div');
-        overlay.className = 'theme-panel-overlay';
-        overlay.id = 'themePanelOverlay';
-        overlay.onclick = function() { window.toggleThemePanel(); };
-        document.body.appendChild(overlay);
-
-        const panel = document.createElement('div');
-        panel.className = 'theme-panel';
-        panel.id = 'themePanel';
-        panel.innerHTML = `
-            <div class="theme-panel-header">
-                <div class="theme-panel-title">设置</div>
-                <button class="theme-panel-close" onclick="toggleThemePanel()" title="关闭">×</button>
-            </div>
-            <div class="theme-section">
-                <div class="theme-section-title">阅读模式</div>
-                <div class="theme-options">
-                    <div class="theme-option" data-theme="warm" onclick="setTheme('warm')">
-                        <div class="theme-preview warm"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
-                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">暖色</div></div>
-                    </div>
-                    <div class="theme-option" data-theme="cool" onclick="setTheme('cool')">
-                        <div class="theme-preview cool"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
-                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">冷色</div></div>
-                    </div>
-                    <div class="theme-option" data-theme="dark" onclick="setTheme('dark')">
-                        <div class="theme-preview dark"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>
-                        <div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">夜间</div></div>
-                    </div>
-                </div>
-            </div>
-            <div class="theme-section">
-                <div class="theme-section-title">字体大小</div>
-                <div class="font-size-slider-container">
-                    <span class="font-label-small">A</span>
-                    <input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="3" oninput="handleFontSliderChange(this.value)">
-                    <span class="font-label-large">A</span>
-                    <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}px</span>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(panel);
 
         const initialTheme = getPreferredTheme();
         document.documentElement.setAttribute('data-theme', initialTheme);
@@ -162,27 +96,6 @@
         // 始终应用字号（确保默认值也生效）
         applyFontSize(fontSizes[currentSizeIndex]);
         updateFontSizeUI();
-
-        document.addEventListener('click', function(e) {
-            const panel = document.getElementById('themePanel');
-            if (panel && panel.classList.contains('show') && !panel.contains(e.target)) {
-                if (e.target.closest && e.target.closest('.bk-dialog-mask')) return;
-                var masks = document.querySelectorAll('.bk-dialog-mask');
-                for (var i = 0; i < masks.length; i++) {
-                    if (masks[i].contains(e.target)) return;
-                }
-                window.toggleThemePanel();
-            }
-        });
-        
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                const panel = document.getElementById('themePanel');
-                if (panel && panel.classList.contains('show')) {
-                    window.toggleThemePanel();
-                }
-            }
-        });
 
         // 应用级操作已移至「我的」页面，设置面板仅保留阅读模式 + 字体大小
         // 但保留全局函数注册（downloadApk / showGuideDialog / showFeedbackDialog）
@@ -500,28 +413,68 @@
     }
     window.showFeedbackDialog = showFeedbackDialog;
 
-    function closeThemePanelInternal(panel, overlay) {
-        panel.classList.remove('show');
-        if (overlay) overlay.classList.remove('show');
-        unlockPageScroll();
-    }
+    var _themeDialog = null;
 
     window.toggleThemePanel = function() {
-        var panel = document.getElementById('themePanel');
-        if (!panel) return;
-        var overlay = document.getElementById('themePanelOverlay');
-        var willShow = !panel.classList.contains('show');
-        if (willShow) {
-            panel.classList.add('show');
-            if (overlay) overlay.classList.add('show');
-            lockPageScroll();
-            window.BK.backStack.push(function() {
-                closeThemePanelInternal(panel, overlay);
-            });
-        } else {
-            closeThemePanelInternal(panel, overlay);
-            window.BK.backStack.discard();
+        // 如果已打开，关闭
+        if (_themeDialog) {
+            _themeDialog.close();
+            return;
         }
+
+        var html = '<div class="bk-dialog bk-theme-dialog">' +
+            '<div class="bk-drawer-header">' +
+                '<span class="bk-drawer-title">设置</span>' +
+                '<button class="bk-drawer-close" onclick="toggleThemePanel()" title="关闭">✕</button>' +
+            '</div>' +
+            '<hr class="bk-drawer-divider">' +
+            '<div class="bk-drawer-body">' +
+                '<div class="theme-section">' +
+                    '<div class="theme-section-title">阅读模式</div>' +
+                    '<div class="theme-options">' +
+                        '<div class="theme-option" data-theme="warm" onclick="setTheme(\'warm\')">' +
+                            '<div class="theme-preview warm"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>' +
+                            '<div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">暖色</div></div>' +
+                        '</div>' +
+                        '<div class="theme-option" data-theme="cool" onclick="setTheme(\'cool\')">' +
+                            '<div class="theme-preview cool"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>' +
+                            '<div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">冷色</div></div>' +
+                        '</div>' +
+                        '<div class="theme-option" data-theme="dark" onclick="setTheme(\'dark\')">' +
+                            '<div class="theme-preview dark"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>' +
+                            '<div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">夜间</div></div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="theme-section">' +
+                    '<div class="theme-section-title">字体大小</div>' +
+                    '<div class="font-size-slider-container">' +
+                        '<span class="font-label-small">A</span>' +
+                        '<input type="range" class="font-size-slider" id="fontSizeSlider" min="0" max="7" step="1" value="' + currentSizeIndex + '" oninput="handleFontSliderChange(this.value)">' +
+                        '<span class="font-label-large">A</span>' +
+                        '<span class="font-size-value" id="fontSizeDisplay">' + fontSizes[currentSizeIndex] + 'px</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+        _themeDialog = window.BK.openDialog({
+            id: 'bk-theme-dialog',
+            html: html,
+            onClose: function() {
+                _themeDialog = null;
+            }
+        });
+
+        if (!_themeDialog) return; // 防重复
+
+        // 同步当前 UI 状态
+        updateThemeUI(getPreferredTheme());
+        updateFontSizeUI();
+    };
+
+    window.closeThemePanel = function() {
+        if (_themeDialog) _themeDialog.close();
     };
     
     window.setTheme = function(theme) {

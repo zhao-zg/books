@@ -53,6 +53,8 @@
     function initHomePage() {
         if (isCapacitor()) {
             window.Capacitor.Plugins.App.addListener('backButton', function() {
+                // 阅读/目录页按返回键：立即隐藏浮动顶边栏，避免残留到下一界面
+                if (window.BKNavStack && window.BKNavStack.hideNow) window.BKNavStack.hideNow();
                 if (window.BK && window.BK.backStack && window.BK.backStack.size() > 0) {
                     try { history.back(); } catch(e) {}
                     return;
@@ -62,16 +64,21 @@
                         ? window.__bkCurrentPath
                         : window.location.hash.replace(/^#\/?/, '');
                     var parts = path.split('/').filter(Boolean);
-                    console.log('[NavStack] Capacitor backButton path="' + path + '" parts=' + JSON.stringify(parts));
+                    // 主页内部路由：按返回键先尝试逐级回退（书城 L3→L2→L1），无法回退再 exitApp
+                    var _HOME_SEGS = ['shelf', 'city', 'my', 'me', 'bookmarks'];
+                    var isHomeRoute = parts.length <= 1 && (parts.length === 0 || _HOME_SEGS.indexOf(parts[0]) !== -1);
+                    console.log('[NavStack] Capacitor backButton path="' + path + '" parts=' + JSON.stringify(parts) + ' isHomeRoute=' + isHomeRoute);
+                    if (isHomeRoute) {
+                        if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
+                        window.Capacitor.Plugins.App.exitApp();
+                        return;
+                    }
                     if (parts.length >= 2) {
                         // 阅读视图 → 章节目录
                         if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
                     } else if (parts.length >= 1) {
                         // 章节目录 → 主页
                         if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
-                    } else {
-                        // 主页内部：检查系列/分类视图层级
-                        if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
                     }
                     window.Capacitor.Plugins.App.exitApp();
                 });
@@ -88,13 +95,18 @@
                     console.log('[NavStack] PWA fallback from="' + path + '" parts=' + JSON.stringify(parts));
 
                     handleBackCommon(function() {
-                        if (parts.length >= 2) {
+                        // 阅读/目录页按返回键（PWA）：立即隐藏浮动顶边栏（navigateReplace 不触发 hashchange，原 hide 不跑）
+                        if (window.BKNavStack && window.BKNavStack.hideNow) window.BKNavStack.hideNow();
+                        // 主页内部路由：按返回键先尝试逐级回退（书城 L3→L2→L1）
+                        var _HOME_SEGS = ['shelf', 'city', 'my', 'me', 'bookmarks'];
+                        var isHomeRoute = parts.length <= 1 && (parts.length === 0 || _HOME_SEGS.indexOf(parts[0]) !== -1);
+                        if (isHomeRoute) {
+                            if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
+                            // 已在最外层主页
+                        } else if (parts.length >= 2) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
                         } else if (parts.length >= 1) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
-                        } else {
-                            // 主页内部：检查系列/分类视图层级
-                            if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
                         }
                         window.__bkExiting = true;
                         window.close();
@@ -170,7 +182,7 @@
                     }
                     t = t.parentElement;
                 }
-                hide();
+                // 仅返回链接关闭顶栏；点书名区等其余区域为空操作（不再误关栏）
             });
         }
         return _el;
@@ -339,7 +351,7 @@
                     }
                 });
             }
-            // 注意：内嵌 #bkTtsPanel 不再作为可见栏（设计稿 3:410 仅一个悬浮播放器）；
+            // 注意：内嵌 #bkTtsPanel 已移除（设计稿 3:410 仅一个悬浮播放器）；
             // #bottomControlBar 保留为隐藏宿主供 speech.js 绑定
 
             // 显示浮动 TTS 栏（作为底栏子元素，随底栏定位/收起）
@@ -352,10 +364,9 @@
             // 停止克隆进度条轮询，避免悬挂的定时器持续写已分离的节点
             if (_ttsSyncCleanup) { _ttsSyncCleanup(); _ttsSyncCleanup = null; }
 
-            // 收起嵌入式 TTS 面板
+            // 收起嵌入式 TTS 控制栏
             var ttsPanel = document.getElementById('bottomControlBar');
             if (ttsPanel) {
-                ttsPanel.classList.remove('bk-tts-expanded');
                 if (ttsPanel.style.display !== 'none') ttsPanel.style.display = 'none';
             }
         }
@@ -570,10 +581,31 @@
         _ttsBarVisible = false;
         var ttsPanel = document.getElementById('bottomControlBar');
         if (ttsPanel) {
-            ttsPanel.classList.remove('bk-tts-expanded');
             if (ttsPanel.style.display !== 'none') ttsPanel.style.display = 'none';
         }
         if (_ttsSyncCleanup) { _ttsSyncCleanup(); _ttsSyncCleanup = null; }
+    }
+
+    // 立即隐藏（无滑出动画）：供系统/硬件返回键调用，避免顶栏残留到下一界面
+    function hideNow() {
+        if (_el) _el.style.transition = 'none';
+        if (_bottomEl) _bottomEl.style.transition = 'none';
+        if (_ttsEl) _ttsEl.style.transition = 'none';
+        hide();
+        // 一帧后恢复过渡，保证后续 show() 仍有滑入动画
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                if (_el) _el.style.transition = '';
+                if (_bottomEl) _bottomEl.style.transition = '';
+                if (_ttsEl) _ttsEl.style.transition = '';
+            });
+        });
+    }
+
+    // 刷新顶栏内容（如 carousel 滑动切章后同步章名）；仅当顶栏正显示时
+    function refresh() {
+        if (!_el || !_el.classList.contains('show')) return;
+        syncContent();
     }
 
     window.addEventListener('scroll', function() {
@@ -611,10 +643,8 @@
                 var cls = el.classList;
                 if (cls.contains('speech-btn')          || cls.contains('play-btn') ||
                     cls.contains('highlight-trigger')   || cls.contains('bk-dialog-mask') ||
-                    cls.contains('theme-panel')         ||
                     cls.contains('toc-item')            ||
-                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon') ||
-                    cls.contains('bk-tts-panel')) return false;
+                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon')) return false;
             }
             el = el.parentElement;
         }
@@ -642,4 +672,10 @@
             show();
         }
     }, false);
+
+    // 暴露给外部模块（renderer 滑动切章刷新标题、返回键立即隐藏顶栏）
+    if (window.BKNavStack) {
+        window.BKNavStack.hideNow = hideNow;
+        window.BKNavStack.refresh = refresh;
+    }
 })();

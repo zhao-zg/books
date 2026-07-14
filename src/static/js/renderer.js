@@ -205,7 +205,7 @@
   var _zlDmReady = false;       // DataManager 是否就绪
   var _bmLoadedListenerBound = false; // 「书签已加载」事件监听是否已注册（仅一次）
   var _dmInitPromise = null;    // DataManager 初始化 Promise（单例）
-  var _dlPanelOpen = false;     // 下载面板是否展开
+  var _dlDialog = null;      // 下载管理对话框引用（BK.openDialog 返回）
   var _dlProgressTimer = null;  // 下载进度轮询定时器
   var _manageMode = false;      // 书籍管理模式（显示删除按钮）
   var _showAppGen = 0;          // showApp 过渡动画生成计数器
@@ -1191,6 +1191,9 @@
           saveReadingProgress(_carouselBookId, targetNum);
           document.title = (BKRenderer._currentBookTitle || '') + ' - ' + (newChapter ? (newChapter.title || '第' + targetNum + '章') : '');
 
+          // 同步浮动顶栏标题（若正显示），避免滑动切章后顶栏残留旧章名
+          if (win.BKNavStack && win.BKNavStack.refresh) win.BKNavStack.refresh();
+
           // 更新进度条
           var progressBar = document.querySelector('.bk-reading-progress-bar');
           if (progressBar) {
@@ -1586,57 +1589,54 @@
   }
 
   /**
-   * 切换下载面板显示/隐藏
+   * 打开下载管理对话框（使用 BK.openDialog 居中弹出）
    */
-  function _toggleDownloadPanel(open) {
-    _dlPanelOpen = open;
-    var panel = document.getElementById('downloadPanel');
-    var overlay = document.getElementById('dlOverlay');
-    if (panel) panel.className = 'download-panel' + (open ? ' open' : '');
-    if (overlay) overlay.className = 'download-panel-overlay' + (open ? ' open' : '');
-  }
+  function _openDownloadDialog() {
+    // 防重复：如果对话框已存在，直接返回
+    if (_dlDialog) return;
 
-  /**
-   * 确保下载管理面板已构建（全局持久元素，独立于当前页面视图）。
-   * 面板挂载到 document.body，避免被书架/我的 等页面切换隐藏（旧实现挂在
-   * #homeView 内，切到「我的」设置页时 #homeView 被隐藏，导致按钮点击无反应）。
-   */
-  function _ensureDownloadPanel() {
-    if (document.getElementById('downloadPanel')) return;
-    var holder = document.createElement('div');
-    holder.innerHTML =
-      '<div class="download-panel" id="downloadPanel">' +
-        '<div class="download-panel-header">' +
-          '<span class="download-panel-title">📥 下载管理</span>' +
-          '<button class="download-panel-close" id="dlPanelClose" aria-label="关闭">✕</button>' +
+    var html =
+      '<div class="bk-dialog bk-download-dialog">' +
+        '<div class="bk-drawer-header">' +
+          '<span class="bk-drawer-title">📥 下载管理</span>' +
+          '<button class="bk-drawer-close" id="dlPanelClose" aria-label="关闭">✕</button>' +
         '</div>' +
-        '<div class="dl-overview">' +
-          '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSeries">—</span><span class="dl-ov-label">系列</span></div>' +
-          '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvCached">—</span><span class="dl-ov-label">已缓存</span></div>' +
-          '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSize">—</span><span class="dl-ov-label">占用</span></div>' +
+        '<hr class="bk-drawer-divider">' +
+        '<div class="bk-drawer-body">' +
+          '<div class="dl-overview">' +
+            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSeries">—</span><span class="dl-ov-label">系列</span></div>' +
+            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvCached">—</span><span class="dl-ov-label">已缓存</span></div>' +
+            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSize">—</span><span class="dl-ov-label">占用</span></div>' +
+          '</div>' +
+          '<div class="download-resource-summary" id="dlResourceSummary">资源统计加载中...</div>' +
+          '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>' +
+          '<div class="download-progress" id="dlProgressWrap" style="display:none">' +
+            '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>' +
+          '</div>' +
+          '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
+          '<div class="download-controls" id="dlControls" style="display:none">' +
+            '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
+            '<button class="dl-ctrl-btn" id="dlCancelBtn">取消</button>' +
+          '</div>' +
+          '<div class="download-series-list" id="dlSeriesList"></div>' +
+          '<button class="download-all-btn" id="dlAllBtn">全部下载</button>' +
         '</div>' +
-        '<div class="download-resource-summary" id="dlResourceSummary">资源统计加载中...</div>' +
-        '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>' +
-        '<div class="download-progress" id="dlProgressWrap" style="display:none">' +
-          '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>' +
-        '</div>' +
-        '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
-        '<div class="download-controls" id="dlControls" style="display:none">' +
-          '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
-          '<button class="dl-ctrl-btn" id="dlCancelBtn">取消</button>' +
-        '</div>' +
-        '<div class="download-series-list" id="dlSeriesList"></div>' +
-        '<button class="download-all-btn" id="dlAllBtn">全部下载</button>' +
-      '</div>' +
-      '<div class="download-panel-overlay" id="dlOverlay"></div>';
-    while (holder.firstChild) document.body.appendChild(holder.firstChild);
+      '</div>';
+
+    _dlDialog = win.BK.openDialog({
+      id: 'bk-download-dialog',
+      html: html,
+      onClose: function () {
+        _dlDialog = null;
+        _stopProgressPolling();
+      }
+    });
+
+    if (!_dlDialog) return; // 防重复（同 id 已存在）
 
     // 关闭按钮
     var dlClose = document.getElementById('dlPanelClose');
-    if (dlClose) dlClose.addEventListener('click', function () { _toggleDownloadPanel(false); });
-    // 遮罩：点击关闭
-    var dlOverlay = document.getElementById('dlOverlay');
-    if (dlOverlay) dlOverlay.addEventListener('click', function () { _toggleDownloadPanel(false); });
+    if (dlClose) dlClose.addEventListener('click', function () { _dlDialog.close(); });
     // 全部下载
     var dlAllBtn = document.getElementById('dlAllBtn');
     if (dlAllBtn) dlAllBtn.addEventListener('click', function () { _startAllDownload(); });
@@ -1654,6 +1654,10 @@
       if (win.DataManager) win.DataManager.cancelDownload();
       _stopProgressPolling();
     });
+
+    // 渲染内容
+    _renderDlSeriesList();
+    _refreshStorageStats();
   }
 
   /**
@@ -2100,11 +2104,7 @@
       if (win.BK && win.BK.backStack) {
         win.BK.backStack.push(function() { _toggleTocDrawer(false); });
       }
-      // 打开时聚焦搜索框
-      setTimeout(function() {
-        var si = document.getElementById('bkTocSearchInput');
-        if (si) si.focus();
-      }, 320);
+      // 不自动聚焦搜索框，避免唤出键盘
     } else {
       document.removeEventListener('keydown', _tocEscHandler);
       // 点击章节跳转时（navigate=true）：抽屉的 pushState 历史条目会被 router 的
@@ -3121,8 +3121,10 @@
       // 应用（按环境显示，避免无效行）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">应用</div>';
-      html += '<button class="bk-settings-row" data-action="install-pwa"><span class="bk-row-icon">📲</span><span class="bk-row-label">发送桌面</span><span class="bk-row-arrow">›</span></button>';
-      html += '<div class="cache-status" id="meInstallStatus" style="display:none"></div>';
+      if (!isNativeApp && !isPwaStandalone) {
+        html += '<button class="bk-settings-row" data-action="install-pwa"><span class="bk-row-icon">📲</span><span class="bk-row-label">发送桌面</span><span class="bk-row-arrow">›</span></button>';
+        html += '<div class="cache-status" id="meInstallStatus" style="display:none"></div>';
+      }
       if (isAndroid && !isCapacitor) {
         html += '<button class="bk-settings-row" data-action="android-apk"><span class="bk-row-icon">📱</span><span class="bk-row-label">安卓APK</span><span class="bk-row-arrow">›</span></button>';
         html += '<div class="cache-status" id="meApkStatus" style="display:none"></div>';
@@ -3485,10 +3487,8 @@
         html += _renderCarouselPage(nextChapter, 'Next');
         html += '</div>';
 
-        // TTS 展开面板（默认隐藏，点击播放按钮展开）
-        html += '<div class="bk-tts-panel" id="bkTtsPanel">';
+        // TTS 控制栏（隐藏宿主，供 speech.js 绑定事件）
         html += buildBottomControlBar();
-        html += '</div>';
 
         html += '</div>';
 
@@ -3566,11 +3566,8 @@
       _rerenderCurrentView();
 
       // 关闭设置面板
-      if (typeof window.toggleThemePanel === 'function') {
-        var panel = document.getElementById('themePanel');
-        if (panel && panel.classList.contains('show')) {
-          window.toggleThemePanel();
-        }
+      if (typeof window.closeThemePanel === 'function') {
+        window.closeThemePanel();
       }
     },
 
@@ -3578,18 +3575,12 @@
 
     openDownloadManager: function () {
       // 关闭设置面板
-      if (typeof window.toggleThemePanel === 'function') {
-        var panel = document.getElementById('themePanel');
-        if (panel && panel.classList.contains('show')) {
-          window.toggleThemePanel();
-        }
+      if (typeof window.closeThemePanel === 'function') {
+        window.closeThemePanel();
       }
-      // 确保面板已挂载（全局持久元素），并等待数据就绪后再填充系列列表与统计
-      _ensureDownloadPanel();
+      // 等待数据就绪后打开对话框
       var open = function () {
-        _renderDlSeriesList();
-        _toggleDownloadPanel(true);
-        _refreshStorageStats();
+        _openDownloadDialog();
       };
       if (_zlDmReady) open();
       else if (typeof _ensureDmInit === 'function') _ensureDmInit().then(open).catch(open);
@@ -3606,11 +3597,8 @@
     pickAndImport: function () {
       if (!win.ImportManager || !win.ImportManager.pickAndImport) return;
       // 关闭设置面板
-      if (typeof window.toggleThemePanel === 'function') {
-        var panel = document.getElementById('themePanel');
-        if (panel && panel.classList.contains('show')) {
-          window.toggleThemePanel();
-        }
+      if (typeof window.closeThemePanel === 'function') {
+        window.closeThemePanel();
       }
       win.ImportManager.pickAndImport().then(function(bookData) {
         if (!bookData) return;
