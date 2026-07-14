@@ -113,6 +113,20 @@
   }
 
   /**
+   * 导入来源的人类可读标签（用于书架副标题 / 封面系列位，替代泄漏的 series='imported' 字面量）。
+   *  - webdav -> 服务器名称（缺省回退 'WebDAV'）
+   *  - local  -> '本地导入'
+   * 无 source（书城目录书）返回 ''（交给 series 兜底）。
+   */
+  function _sourceLabel(book) {
+    var s = book && book.source;
+    if (!s || !s.type) return '';
+    if (s.type === 'webdav') return s.serverName || 'WebDAV';
+    if (s.type === 'local') return '本地导入';
+    return '';
+  }
+
+  /**
    * 版式封面（typographic cover）：无真实封面图时的优雅降级。
    * 系列主题色作底 + 衬线书名 + 系列名 + 品牌角标，整体符合 Soft Nordic 调性。
    * @param {Object} bookOrResult 书籍对象或搜索结果对象（含 title/bookTitle/series/seriesTitle）
@@ -1453,7 +1467,7 @@
     html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
     // 仅书架/搜索等非书城卡片用固定 60px 小封面(size:'md')；书城 L3 海报由 .bk-city-book-grid 专属规则撑满，md 会被覆盖成死 class，故去掉
     var coverSize = cityBook ? null : 'md';
-    html += _coverHTML(book, { size: coverSize, seriesTitle: _getSeriesTitle(book.series) });
+    html += _coverHTML(book, { size: coverSize, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
     if (cityBook) {
       // 书城三级：封面海报 + 下方精简信息条（书名 + 书号(可选) + 章节数）
       var bookNo = _extractBookNo(book.title);
@@ -2365,7 +2379,8 @@
       var rec = bucket[i];
       var book = _findBookById(rec.bookId) || { id: rec.bookId, title: rec.bookId, series: '' };
       var title = book.title ? _cleanBookTitle(book.title) : (rec.bookId || '未知书籍');
-      var author = book.author || _getSeriesTitle(book.series) || '';
+      // 作者/来源：优先真实作者；导入书（无作者）改为展示来源标签（WebDAV/本地），不再泄漏 series='imported' 字面量。
+      var author = book.author || _sourceLabel(book) || _getSeriesTitle(book.series) || '';
       var cover = _coverHTML(book, { size: 'sm' });
       var isRead = _isReadFn(rec.bookId);
 
@@ -3078,6 +3093,8 @@
       // 环境判断（与 themePanel 一致的可见性规则，避免「点了没反应」的无效行）
       var ua = navigator.userAgent;
       var isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      var isNativeApp = isCapacitor;
+      var isPwaStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
       var isAndroid = /Android/i.test(ua);
       var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
       var isStandalone = (window.navigator.standalone === true) || window.matchMedia('(display-mode: standalone)').matches;

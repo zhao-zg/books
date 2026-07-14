@@ -1684,7 +1684,7 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
 .bk-float-nav-link:active { background: var(--nav-hover); transform: translateY(-50%) scale(0.9); }
 .bk-float-nav-link.bk-float-disabled { opacity: 0.25; pointer-events: none; }
 .bk-float-nav-settings { display: none; }
-.bk-float-title { flex: 1; min-width: 0; text-align: center; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--text, #1A1918); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; padding: 0 4px; }
+.bk-float-title { flex: 1; min-width: 0; text-align: center; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--text, #1A1918); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; padding: 0 4px 0 52px; }
 .bk-float-play-btn { color: var(--brand, #3D8A5A); border: none; background: transparent; cursor: pointer; padding: 0; }
 .bk-float-play-btn .bk-pause-icon { display: none; }
 .bk-float-play-btn.bk-playing .bk-play-icon { display: none; }

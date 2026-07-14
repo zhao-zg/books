@@ -8,7 +8,8 @@
  *  - 记录形状：{ bookId, addedAt, finished?, completedAt?, note, rating, status }
  *      · finished（布尔，可选）：权威判定「已读」。true=读完；缺省/undefined=未读（在架或在读）。
  *      · completedAt：仅当 finished 时有效/显示（YYYY-MM-DD）；缺省/空表示未读完。
- *      · addedAt：入架日期（YYYY-MM-DD），用于书架排序兜底。
+ *      · addedAt：入架日期（YYYY-MM-DD），用于排序兜底（旧记录无 addedAtTs 时）。
+ *      · addedAtTs：入架时刻时间戳（ms），书架主排序键——最近加入的在最上面。
  *      · status：文档化字段，固定写 'collected'（旧记录 legacy 'read' 读取时忽略）。
  *  - 入架（add）= 收藏，不写 finished/completedAt（与旧记录形状一致，天然未读）。
  *  - 标记已读（markRead / finish）= 置 finished:true + completedAt；幂等去重。
@@ -73,6 +74,7 @@
     var rec = {
       bookId: bookId,
       addedAt: opts.addedAt || _today(),
+      addedAtTs: (typeof opts.addedAtTs === 'number') ? opts.addedAtTs : Date.now(),
       note: (opts.note !== undefined ? opts.note : null),
       rating: (opts.rating !== undefined ? opts.rating : null),
       status: STATUS
@@ -104,11 +106,13 @@
       if (opts.rating !== undefined) rec.rating = opts.rating;
       if (!rec.status) rec.status = STATUS;
       if (!rec.addedAt) rec.addedAt = opts.addedAt || now;
+      if (!rec.addedAtTs) rec.addedAtTs = opts.addedAtTs || Date.now();
     } else {
       // 记录不存在则创建（收藏 + 已读）
       rec = {
         bookId: bookId,
         addedAt: opts.addedAt || now,
+        addedAtTs: (typeof opts.addedAtTs === 'number') ? opts.addedAtTs : Date.now(),
         finished: true,
         completedAt: opts.completedAt || now,
         note: (opts.note !== undefined ? opts.note : null),
@@ -143,12 +147,13 @@
     rec.finished = false;
     rec.completedAt = null;
     if (opts.addedAt && !rec.addedAt) rec.addedAt = opts.addedAt;
+    if (opts.addedAtTs && !rec.addedAtTs) rec.addedAtTs = opts.addedAtTs;
     _safeSet(_key(bookId), JSON.stringify(rec));
     emitChanged(bookId, 'unread');
   }
 
   /**
-   * 扫描所有 bk_shelf: 前缀键，返回记录数组（按 completedAt || addedAt 倒序）。
+   * 扫描所有 bk_shelf: 前缀键，返回记录数组（按 addedAtTs 倒序——最近加入的在最上面）。
    * @returns {Array<Object>}
    */
   function all() {
@@ -168,9 +173,13 @@
     }
 
     records.sort(function (a, b) {
-      // 倒序：最近的 completedAt 优先，没有 completedAt 的回退到 addedAt
-      var ka = a.completedAt || a.addedAt || '';
-      var kb = b.completedAt || b.addedAt || '';
+      // 主排序：入架时间戳倒序——最近加入的在最上面（不受「标记已读」影响）。
+      var ta = (typeof a.addedAtTs === 'number') ? a.addedAtTs : 0;
+      var tb = (typeof b.addedAtTs === 'number') ? b.addedAtTs : 0;
+      if (ta !== tb) return tb - ta;
+      // 兜底：旧记录无时间戳，按 addedAt 日期字符串倒序。
+      var ka = a.addedAt || '';
+      var kb = b.addedAt || '';
       return kb.localeCompare(ka);
     });
     return records;
