@@ -892,15 +892,47 @@
         var frag = document.createDocumentFragment();
         var lastIdx = 0;
         var m;
+        /* 单字书卷缩写字符集（用于判断匹配首字是否为经卷缩写） */
+        var _bookAbbrChars = '创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启';
+        /* CJK 字符判断 */
+        var _isCJK = /[\u4e00-\u9fff]/;
         while ((m = INLINE_REF_RE.exec(text)) !== null) {
           if (m.index > lastIdx) {
             frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
           }
-          var span = document.createElement('span');
-          span.className = 'scripture-ref scripture-ref--inline';
-          span.setAttribute('data-refs', m[1] || m[0]);
-          span.textContent = m[0];
-          frag.appendChild(span);
+          var matched = m[0];
+          /* ── 防误识别过滤 ──
+           * 弹框内自动标注的 INLINE_REF_RE 不含 ref-detector 的上下文过滤规则，
+           * 需在此补充关键检查，防止普通汉语被误标为经文引用。
+           */
+          var _skip = false;
+          /* 过滤A：匹配首字为单字经卷缩写，且匹配文本完全不含阿拉伯数字
+           * → 很可能是普通汉语数量表达（如"约四十卫星""大约四十人""约三百勇士"），
+           *   而非经文引用（合法引用必须有阿拉伯节号，如"约四19"）
+           */
+          if (matched.length >= 2 && _bookAbbrChars.indexOf(matched[0]) >= 0 && !/\d/.test(matched)) {
+            _skip = true;
+          }
+          /* 过滤B：匹配前一个字符为"大/新/旧/圣/和/平/盟/条"等修饰字
+           * → 构成复合词（"大约""新约""旧约""圣约""和约""平约""盟约""条约"），
+           *   其中的单字并非经卷缩写
+           */
+          if (!_skip && m.index > 0) {
+            var prevChar = text[m.index - 1];
+            if (_isCJK.test(prevChar) && '大新旧圣和平盟条协签'.indexOf(prevChar) >= 0
+                && _bookAbbrChars.indexOf(matched[0]) >= 0) {
+              _skip = true;
+            }
+          }
+          if (_skip) {
+            frag.appendChild(document.createTextNode(matched));
+          } else {
+            var span = document.createElement('span');
+            span.className = 'scripture-ref scripture-ref--inline';
+            span.setAttribute('data-refs', m[1] || m[0]);
+            span.textContent = matched;
+            frag.appendChild(span);
+          }
           lastIdx = INLINE_REF_RE.lastIndex;
         }
         if (lastIdx < text.length) {
@@ -931,8 +963,8 @@
         block.innerHTML = renderVerseList(refs);
       });
       // 经文块渲染完成后，通知 highlight.js 重新计算字符偏移并恢复划线
-      if (window.BKHighlight && window.BKHighlight.redoHighlights) {
-        window.BKHighlight.redoHighlights();
+      if (window.BKHighlight && window.BKHighlight.rendoHighlights) {
+        window.BKHighlight.rendoHighlights();
       }
       // 经文块撑开内容后，通知翻页布局重新计算容器高度（避免 overflow:hidden 截断最后段落）
       document.dispatchEvent(new CustomEvent('cx:scriptureBlocksRendered'));
@@ -1037,8 +1069,8 @@
         out += esc(docText.slice(lastPos));
         block.innerHTML = out;
       });
-      if (window.BKHighlight && window.BKHighlight.redoHighlights) {
-        window.BKHighlight.redoHighlights();
+      if (window.BKHighlight && window.BKHighlight.rendoHighlights) {
+        window.BKHighlight.rendoHighlights();
       }
       document.dispatchEvent(new CustomEvent('cx:scriptureBlocksRendered'));
     });

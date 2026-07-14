@@ -153,7 +153,7 @@
         document.getElementById('bk-dev-close').addEventListener('click', function(e) {
             e.stopPropagation();
             try { localStorage.setItem('bk_dev_mode', '0'); } catch(ex) {}
-            var tog = document.getElementById('devModeToggle');
+            var tog = document.getElementById('meDevToggle');
             if (tog) tog.checked = false;
             destroy();
         });

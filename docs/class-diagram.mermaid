@@ -1,35 +1,59 @@
 classDiagram
-  direction LR
-  class BKRenderer {
-    +_renderEnhancedHome(homeView)
-    +_getContinueList(limit) ContinueItem[]
-    +_renderContinueList(homeView, opts)
-    +_renderShelfGrid(homeView)
-    +_bindZlEvents(homeView)
-    -_fillContinueCard(homeView) «replaced»
-    -_fillRecentBooks(homeView) «removed»
-  }
-  class ContinueItem {
-    +book: object
-    +progress: int
-    +chapterCount: int
-    +progressPct: int
-    +chapterTitle: string
-  }
-  class ReusableAPI {
-    +_coverHTML(book, opts) string
-    +_buildBookCard(book) string
-    +_getSeriesBooks(id) object[]
-    +getReadingProgress(id) int
-    +_cleanBookTitle(t) string
-    +_getSeriesTitle(id) string
-    +escAttr(s) string
-    +escText(s) string
-  }
-  class RetainedViews {
-    +_renderSeriesCatalog(homeView)
-    +_renderSeriesBookList(homeView)
-  }
-  BKRenderer ..> ContinueItem : builds
-  BKRenderer ..> ReusableAPI : reuses
-  BKRenderer ..> RetainedViews : keeps (not on home)
+    class BKRenderer {
+        <<module window.BKRenderer>>
+        +renderCityPage()
+        +renderSeriesPage(seriesId)  «深链 #/series/<id>»
+        +cityLoadMore()
+        -_renderCityHome(homeView)  «L1 系列网格»
+        -_renderCityCategoryList(homeView, seriesId)  «L2 分类列表»
+        -_renderCityBookList(homeView, seriesId, cat, prefix, implicit)  «L3»
+        -_renderCityCrumb(level, seriesTitle, catName, implicit)
+        -_getSeriesList() Array~Series~
+        -_getSeriesCategories(seriesId) Array~{prefix,name,count}~
+        -_getBooksInSeriesCategory(seriesId, cat, prefix) Array~Book~
+        -_enterSeries(homeView, seriesId)
+        -_bindCityEvents(homeView)
+        -_cityBackToSeries()  «→L1»
+        -_cityBackToCategories()  «→L2»
+    }
+    class CityState {
+        <<module state (renderer.js 内部变量)>>
+        -_citySeries : string = ''
+        -_cityCategory : string = null
+        -_cityCategoryPrefix : string = null
+        -_cityBookOffset : number = 0
+        -_cityLoading : boolean = false
+        -_cityAllBooks : Array = []
+        +_cityLevel() number  «3=书列,2=分类列,1=系列列»
+    }
+    class BookData {
+        <<data helper>>
+        -_zlBooks : Array~Book~
+        -_zlSeries : Array~Series~
+        -_countSeriesBooks(seriesId) number
+        -_getSeriesTitle(seriesId) string
+    }
+    class Series {
+        <<data model (books-index.json.series)>>
+        +id : string
+        +title : string
+        +count : number
+        +categories : Array~{prefix,name,count}~  «仅 books 系列有»
+    }
+    class Book {
+        <<data model>>
+        +id : string
+        +title : string
+        +series : string
+        +chapter_count : number
+        +category : string
+        +category_prefix : string
+    }
+    BKRenderer o-- CityState
+    BKRenderer o-- BookData
+    BKRenderer ..> Series : 聚合自 _zlSeries
+    BKRenderer ..> Book : 渲染卡片
+    BookData o-- Book
+    BookData o-- Series
+
+    note for BKRenderer "翻转对照(旧→新):\n_getCategories → _getSeriesList (L1:分类→系列)\n_getCategorySeries(cat,prefix) → _getSeriesCategories(seriesId) (L2)\n_getSeriesBooksInCategory → _getBooksInSeriesCategory (L3,逻辑等价)\n_renderCitySeriesList(cat) → _renderCityCategoryList(seriesId)\n_cityBackToCategories → _cityBackToSeries (→L1)\n新增 _cityBackToCategories (→L2)\n新增 _enterSeries (单分类跳过 L2)"

@@ -79,15 +79,24 @@ Thumbs.db
 # Temporary files
 __review_*.tmp
 run*_*.png
+.temp/
 
 # Test screenshots
 test_*.png
 verify_*.png
 audit_*.png
 
-# Temp review/search files
+# Temp review/search/diff files
 review_diff.txt
 _search.*
+__diff*.txt
+__review*.txt
+*_diff.txt
+*_review.txt
+debug_dump.js
+preview-*.html
+import-*.png
+hs_err_*.log
 
 # Logs
 *.log

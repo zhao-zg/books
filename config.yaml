@@ -12,6 +12,11 @@ resource_base_dir: "resource"
 template_dir: "src/templates"
 static_dir: "src/static"
 
+# 伪装/访问控制：是否开启「请下载APK」伪装页
+# false（默认）= 关闭，普通浏览器直接可用；true = 开启（非 App/PWA 访问显示伪装页）
+# 也可通过 URL 参数 ?disguise=1 临时开启自测，覆盖此配置
+disguise_enabled: false
+
 # 默认书籍配置（可选，仅当无法从文件夹名自动识别时使用）
 # 程序会自动从文件夹名称提取书名和作者信息
 default_book:
@@ -35,3 +40,36 @@ remote_servers:
   ip_apis:
     - https://myip.ipip.net
     - https://ipinfo.io/json
+
+# WebDAV 预置服务器（可选，由 config.yaml 配置，随构建产物下发；用户不可删除）
+# 用途：让打包者内置常用 WebDAV 服务器，普通用户开箱即用，无需手动填写。
+# 字段说明：
+#   name     ：服务器显示名称（必填）
+#   url      ：WebDAV 地址（必填，如 https://server/dav）；多域名可改用下方 urls
+#   urls     ：多域名列表（可选），连接时并发探测、自动选最快可达节点。
+#             配置 urls 后 url 可省略（取 urls[0]）；二者都给时以 urls 为准。
+#   username ：登录用户名（可选）
+#   password ：登录密码（可选；明文写入产物，建议仅在私有/可信构建中使用）
+#   note     ：备注说明，会显示在导入界面服务器选择器下方（可选）
+#   authType ：认证类型，basic（默认）/ token（Bearer）；digest 预留
+# 注：url/username/password 会在产物中经 base64 编码，note 为明文展示文本。
+webdav:
+  presets:
+    - name: "2期追求"
+      urls:
+         - "https://webdav2.11891189.xyz/dav"
+         - "https://webdav.zhf.dpdns.org/dav"
+         - "https://webdav.11891189.xyz/dav"
+      username: "1189"
+      password: "1189"
+      note: "个人维护书籍，请勿滥用"
+      authType: basic
+    # 示例：多域名（自动选最快节点）
+    # - name: "多节点书库"
+    #   urls:
+    #     - "https://node-a.example.com/dav"
+    #     - "https://node-b.example.com/dav"
+    #   username: "user"
+    #   password: "pass"
+    #   note: "境内外多节点，自动择优"
+    #   authType: basic

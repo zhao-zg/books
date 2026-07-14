@@ -10,8 +10,27 @@
     <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#FAF8F4':(t==='dark'?'#1A1917':'#F5F4F1'));}})();</script>
     <!-- 防止阅读字号闪烁：在渲染前设置 --reading-font-size -->
     <script>(function(){try{var s=localStorage.getItem('globalFontSize');if(s){var v=parseFloat(s);if(v>=10&&v<=30)document.documentElement.style.setProperty('--reading-font-size',v+'px');}}catch(e){}})();</script>
-    <!-- 伪装检测 -->
-    <script>(function(){var ok=false;try{if(sessionStorage.getItem('bk_access')==='ok')ok=true;}catch(e){}if(!ok&&window.location.search.indexOf('zzg')!==-1){try{sessionStorage.setItem('bk_access','ok');}catch(e){}ok=true;}if(!ok&&window.location.hash&&window.location.hash.length>2){ok=true;}if(!ok){var isCap=window.Capacitor!==undefined||window.location.protocol==='capacitor:'||window.location.hostname==='localhost';var isPwa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!isCap&&!isPwa)document.documentElement.classList.add('bk-disguise');}})();</script>
+    <!-- 伪装/访问控制：可配置，默认关闭（普通浏览器直接可用） -->
+    <script>
+    (function(){
+      // 应用配置（前端同步可读；构建时可由 config.yaml 注入覆盖 window.BK_CONFIG）
+      window.BK_CONFIG = window.BK_CONFIG || { disguiseEnabled: false };
+      // 是否启用伪装：默认关闭；URL 带 ?disguise=1 可临时开启自测
+      var ENABLED = window.BK_CONFIG.disguiseEnabled === true
+        || window.location.search.indexOf('disguise=1') !== -1;
+      if (!ENABLED) return; // 默认不启用伪装，保留代码以备将来开启
+
+      var ok=false;
+      try{if(sessionStorage.getItem('bk_access')==='ok')ok=true;}catch(e){}
+      if(!ok&&window.location.search.indexOf('zzg')!==-1){try{sessionStorage.setItem('bk_access','ok');}catch(e){}ok=true;}
+      if(!ok&&window.location.hash&&window.location.hash.length>2){ok=true;}
+      if(!ok){
+        var isCap=window.Capacitor!==undefined||window.location.protocol==='capacitor:'||window.location.hostname==='localhost';
+        var isPwa=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);
+        if(!isCap&&!isPwa)document.documentElement.classList.add('bk-disguise');
+      }
+    })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -183,6 +202,7 @@
     <!-- ⚠ defer 脚本在 DOM 解析后执行，内联脚本中仅可在事件回调/路由处理器中引用其 API -->
     <script src="vendor/localforage.min.js"></script>
     <script src="js/remote-config.js"></script>
+    <script src="js/webdav-presets.js"></script>
     <script src="js/data-manager.js"></script>
     <script src="js/dev-console.js" defer></script>
     <script src="js/theme-toggle.js"></script>
@@ -205,6 +225,7 @@
     <script src="js/bottom-tab-bar.js" defer></script>
     <script src="js/pwa-banner.js" defer></script>
     <script src="vendor/marked.min.js" defer></script>
+    <script src="vendor/pdf.min.js" defer></script>
     <script src="js/import-manager.js" defer></script>
     <script src="js/webdav-manager.js" defer></script>
 
@@ -234,13 +255,22 @@
         './js/scripture-popup.js',
         './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
         './js/resource-pack.js','./js/data-manager.js',
-        './js/font-control.js','./js/remote-config.js','./js/import-manager.js',
+        './js/remote-config.js','./js/webdav-presets.js','./js/import-manager.js',
         './js/webdav-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
-        './icons/icon-192.png','./icons/icon-512.png',
-        'https://books-data.pages.dev/zl-data/books-index.json',
-        'https://books-data.pages.dev/zl-data/manifest.json'
+        './vendor/pdf.min.js','./vendor/pdf.worker.min.js',
+        './icons/icon-192.png','./icons/icon-512.png'
     ];
+    // 远程 zl-data 校验项：从配置注入的 cloudflare 节点动态拼接，不在源码写死域名。
+    // 配置（config.yaml → output/js/remote-config.js → window.BK_SERVERS.cloudflare）缺失时则不追加，
+    // 彻底消除「绕开配置表的硬编码外部地址」。
+    (function () {
+        var cf0 = (window.BK_SERVERS && window.BK_SERVERS.cloudflare && window.BK_SERVERS.cloudflare[0] || '').replace(/\/+$/, '');
+        if (cf0) {
+            window.__bkCoreUrls.push(cf0 + '/zl-data/books-index.json');
+            window.__bkCoreUrls.push(cf0 + '/zl-data/manifest.json');
+        }
+    })();
 
     // ── 环境检测 ──────────────────────────────────────────────────────────
     var BK_ENV = (function(){

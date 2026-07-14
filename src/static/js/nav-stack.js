@@ -49,18 +49,6 @@
         }
     }
 
-    function initContentPage() {
-        setupBackHandler(function() {
-            window.location.replace('./index.html');
-        });
-    }
-
-    function initDirectoryPage() {
-        setupBackHandler(function() {
-            window.location.replace('../index.html');
-        });
-    }
-
     // 主页回退
     function initHomePage() {
         if (isCapacitor()) {
@@ -121,8 +109,6 @@
     }
 
     window.BKNavStack = {
-        initContentPage: initContentPage,
-        initDirectoryPage: initDirectoryPage,
         initHomePage: initHomePage
     };
 })();
@@ -135,16 +121,34 @@
     var _bottomEl = null;   // 底部浮动栏
     var _ttsEl = null;
     var _timer = null;
-    var HIDE_DELAY = 5000;
+    var HIDE_DELAY = 7000;
     var _ttsSyncCleanup = null;
     var _ttsBarVisible = false;   // 浮动朗读栏当前是否显示
     var _ttsActive = false;       // 朗读栏是否已激活（用户开启过朗读，需随底栏出现）
 
     // 检测当前页面类型：reading | catalog | null
+    // 注意：仅书籍阅读 / 章节目录页才返回非 null；App 顶层页（书架/书城/我的/书签/设置）
+    // 以及 #/series/<id> 系列列表页都有自身的顶栏与底栏，不应显示阅读浮动导航。
+    var _APP_ROUTES = ['shelf', 'city', 'my', 'me', 'bookmarks'];
+
     function getPageType() {
         var hash = window.location.hash || '';
-        if (/^#\/[^\/]+\/\d+/.test(hash)) return 'reading';
-        if (/^#\/[^\/]+\/?$/.test(hash)) return 'catalog';
+        var m = hash.match(/^#\/([^\/]+)(?:\/([^\/]+))?/);
+        if (!m) return null;
+        var seg0 = m[1];
+        var seg1 = m[2];
+
+        // #/series/<id> 是书城系列书籍列表，不是阅读视图
+        if (seg0 === 'series') return null;
+
+        // 两段路由且第二段为纯数字 → 阅读视图
+        if (seg1 != null && /^\d+$/.test(seg1)) return 'reading';
+
+        // 单段路由：可能是书籍目录，也可能是 App 顶层页
+        if (seg1 == null) {
+            if (_APP_ROUTES.indexOf(seg0) !== -1) return null;
+            return 'catalog';
+        }
         return null;
     }
 
@@ -154,7 +158,7 @@
         if (!_el) {
             _el = document.createElement('div');
             _el.className = 'bk-float-nav';
-            _el.setAttribute('aria-label', '快捷导航');
+            _el.setAttribute('aria-label', '阅读顶栏');
             document.body.appendChild(_el);
 
             _el.addEventListener('click', function(e) {
@@ -246,17 +250,14 @@
         var bookId = m ? m[1] : '';
         var html = '<div class="bk-float-bottom-inner">';
 
+        // 目录（最左侧）
+        html += '<button type="button" class="bk-float-bottom-btn" data-toc-drawer="1" data-book-id="' + bookId + '" title="目录"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>';
+
         // 书签
         html += '<button type="button" class="bk-float-bottom-btn" data-float-bookmark="1" title="书签"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg></button>';
 
         // 朗读
         html += '<button type="button" class="bk-float-bottom-btn bk-float-bottom-tts-btn" data-tts-toggle="1" title="朗读"><svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>';
-
-        // 字号
-        html += '<button type="button" class="bk-float-bottom-btn" data-float-fontsize="1" title="字号"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></button>';
-
-        // 目录
-        html += '<button type="button" class="bk-float-bottom-btn" data-toc-drawer="1" data-book-id="' + bookId + '" title="目录"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>';
 
         // 设置
         html += '<button type="button" class="bk-float-bottom-btn" data-float-settings="1" title="设置"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
@@ -298,12 +299,6 @@
                 if (t.hasAttribute && t.hasAttribute('data-float-bookmark')) {
                     e.preventDefault();
                     if (window.BKBookmark && window.BKBookmark.showList) window.BKBookmark.showList();
-                    return;
-                }
-                // 字号按钮 → 打开字号选择器弹窗
-                if (t.hasAttribute && t.hasAttribute('data-float-fontsize')) {
-                    e.preventDefault();
-                    if (window._openFontSizeDialog) window._openFontSizeDialog();
                     return;
                 }
                 // 设置按钮
@@ -354,6 +349,8 @@
             // 隐藏浮动 TTS 栏
             if (_ttsEl) _ttsEl.classList.remove('show');
             _ttsBarVisible = false;
+            // 停止克隆进度条轮询，避免悬挂的定时器持续写已分离的节点
+            if (_ttsSyncCleanup) { _ttsSyncCleanup(); _ttsSyncCleanup = null; }
 
             // 收起嵌入式 TTS 面板
             var ttsPanel = document.getElementById('bottomControlBar');
@@ -425,11 +422,14 @@
         var isSeekingClone = false;
 
         var observers = [];
+        var intervals = [];
         if (origProgress && cloneProgress) {
-            observers.push(new MutationObserver(function() {
-                if (!isSeekingClone) cloneProgress.value = origProgress.value;
-            }));
-            observers[observers.length - 1].observe(origProgress, { attributes: true, attributeFilter: ['value'] });
+          // 修复：input[type=range] 的 .value 属性赋值不会触发 attribute 变更，
+          // 原 MutationObserver 捕获不到 → 改用轮询把原进度条的值同步到可见克隆，否则进度条不动
+          var progPoll = setInterval(function () {
+            if (!isSeekingClone) cloneProgress.value = origProgress.value;
+          }, 200);
+          intervals.push(progPoll);
         }
         if (origTime && cloneTime) {
             var timeIdx = observers.length;
@@ -458,7 +458,8 @@
             observers[ppIdx].observe(origPlayPause, { childList: true, subtree: true });
         }
         _ttsSyncCleanup = function() {
-            for (var j = 0; j < observers.length; j++) observers[j].disconnect();
+          for (var j = 0; j < observers.length; j++) observers[j].disconnect();
+          for (var k = 0; k < intervals.length; k++) clearInterval(intervals[k]);
         };
 
         if (cloneProgress && origProgress) {

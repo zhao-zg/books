@@ -6,7 +6,6 @@
  *   #/{book-id}/{chapter} → 阅读视图
  *   #/my                  → 我的（个人中心，手机）
  *   #/me                  → 我的（个人中心，平板）
- *   #/settings            → 设置（全部设置项展开）
  *   #/bookmarks           → 书签列表
  *
  * 暴露：window.BKRouter
@@ -38,18 +37,26 @@
     if (!R) { console.warn('[Router] BKRenderer 未就绪，dispatch 中止'); return; }
     win.scrollTo(0, 0);
     if (parts.length === 0) {
-      R.renderHome();
+      // 决策④：首屏落地书架（#/shelf）。归一到 #/shelf 让底栏 hash 显隐逻辑一致。
+      if (win.BKRouter && win.BKRouter.navigateReplace) {
+        win.BKRouter.navigateReplace('shelf');
+      } else {
+        R.renderShelfPage();
+      }
     } else if (parts.length === 1 && (parts[0] === 'me' || parts[0] === 'my')) {
       // me=平板(双栏) / my=手机(单栏)，都是 renderMyPage
       R.renderMyPage();
-    } else if (parts.length === 1 && parts[0] === 'settings') {
-      R.renderFullSettingsPage();
-    } else if (parts.length === 1 && parts[0] === 'bookmarks') {
-      R.renderBookmarksPage();
     } else if (parts.length === 1 && parts[0] === 'shelf') {
       R.renderShelfPage();
+    } else if (parts.length === 1 && parts[0] === 'city') {
+      // 决策①：书城入口（分类→系列→书籍 三级下钻，#/city 单路由 + 模块状态机）
+      R.renderCityPage();
     } else if (parts.length === 1) {
       R.renderChapterList(parts[0]);
+    } else if (parts.length === 2 && parts[0] === 'series') {
+      // 决策：#/series/<id> 为系列书籍列表（书城三级下钻的独立深链，来自搜索「热门系列」）。
+      // 必须早于通用 2 段路由（否则会被当成 书籍/<章节> 阅读视图 → loadBook 失败）。
+      R.renderSeriesPage(parts[1]);
     } else if (parts.length === 2) {
       R.renderReadingView(parts[0], parseInt(parts[1], 10));
     } else {

@@ -598,6 +598,10 @@
         if (win.BKRenderer && win.BKRenderer._coverHTML) {
           html += win.BKRenderer._coverHTML(r, { size: 'sm', seriesTitle: r.seriesTitle });
         }
+        // 与书城同款右上角 sage 小已读标记：仅当该书在书架中已读时显示（复用 .bk-city-read-marker）
+        if (win.BKShelf && typeof win.BKShelf.isRead === 'function' && win.BKShelf.isRead(r.bookId)) {
+          html += '<span class="bk-city-read-marker is-read-mark" aria-label="已读" role="img">✓</span>';
+        }
         html += '<div class="bk-search-item-body">';
         html += '<div class="bk-search-item-meta">';
         html += typeLabel;

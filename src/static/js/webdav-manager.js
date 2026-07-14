@@ -23,8 +23,7 @@
 
   // ── 常量 ──────────────────────────────────────────────────────────────
   var TIMEOUT_MS = 30000;                 // 单文件/请求超时
-  var IMPORTABLE_EXT = ['.txt', '.epub', '.md', '.markdown']; // 可导入扩展名
-  var AUTH_TYPE = ['basic', 'digest', 'token'];               // 认证类型枚举（v1 仅 basic 生效）
+  var IMPORTABLE_EXT = ['.txt', '.epub', '.md', '.markdown', '.pdf']; // 可导入扩展名
 
   // 错误类型枚举
   var ERROR = {
@@ -40,7 +39,9 @@
   var MESSAGES = {
     AUTH_FAIL: '认证失败：用户名或密码错误',
     AUTH_FORBIDDEN: '服务器拒绝访问（账号正确但无权限）',
-    CORS_WEB: '当前为 Web 端，需服务端开启 CORS；建议改用「书报 App」',
+    // DEV-1（设计偏差修复）：原文案定论为 CORS 会误报（服务器宕机/网络不可达同样产生
+    // 不透明 TypeError）。改为软化表述，仅提示「可能」为跨域；错误 type 字段保持 CORS 不变。
+    CORS_WEB: '可能为跨域(CORS)限制（Web 端服务器宕机或网络不可达时同样会出现此提示）；建议改用 App 版本（原生安卓无此限制），或请在服务器端开启 CORS',
     NETWORK: '网络未连接，请检查网络',
     TIMEOUT: '超时（30s），请重试',
     SERVER: '服务器返回错误（HTTP ',          // 拼接状态码
@@ -57,6 +58,37 @@
   // localStorage 键
   var CFG_KEY = 'bk_webdav_configs';
   var ACTIVE_KEY = 'bk_webdav_active';
+
+  // DEV-2（设计偏差修复）：模块内缓存当前激活的 config 对象（含 connect 但未 save 的）。
+  // getActiveConfig 优先返回此缓存，fallback 到按存储 id 查找，保证「刚 connect 未保存」也能读到。
+  var _activeConfigCache = null;
+
+  // ── 预置服务器（由 config.yaml 经 main.py 生成 webdav-presets.js 注入）──
+  // 预置服务器随包下发，用户不可删除；其凭据以 base64(JSON) 编码，运行时解码。
+  function decodePresets() {
+    var raw = win.BK_WEBDAV_PRESETS || [];
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var p = raw[i] || {};
+      var secret = {};
+      try { secret = JSON.parse(atob(p.secret || '{}')) || {}; } catch (e) { secret = {}; }
+      var pUrls = (secret.urls && secret.urls.length) ? secret.urls.slice() : null;
+      var pUrl = pUrls ? pUrls[0] : (secret.url || '');
+      out.push({
+        id: p.id || ('preset-' + i),
+        name: p.name || pUrl || ('预置服务器 ' + (i + 1)),
+        url: pUrl,
+        urls: pUrls,                // 多域名候选（可空）
+        username: secret.username || '',
+        password: secret.password || '',
+        authType: secret.authType || 'basic',
+        note: p.note || '',         // 明文备注（展示用）
+        preset: true                // 标记为预置，禁止删除/覆盖
+      });
+    }
+    return out;
+  }
+  var _presets = decodePresets();
 
   // PROPFIND 请求体
   var PROPFIND_XML = '<?xml version="1.0" encoding="utf-8"?>' +
@@ -130,6 +162,7 @@
   function mimeForExt(path) {
     var ext = (path.split('.').pop() || '').toLowerCase();
     if (ext === 'epub') return 'application/epub+zip';
+    if (ext === 'pdf') return 'application/pdf';
     if (ext === 'md' || ext === 'markdown') return 'text/markdown';
     return 'text/plain';
   }
@@ -199,9 +232,9 @@
   }
 
   // ── PROPFIND 请求（返回 {resp, text}）──────────────────────────────────
-  function propfind(url, config, depth) {
+  function propfind(url, config, depth, timeoutMs) {
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || TIMEOUT_MS);
     var headers = buildHeaders(config, {
       'Depth': depth || '1',
       'Content-Type': 'application/xml; charset=utf-8'
@@ -243,9 +276,13 @@
       var typeEl = firstByLocalName(r, 'getcontenttype');
       var mime = typeEl ? textOf(typeEl) : '';
       var nameEl = firstByLocalName(r, 'displayname');
+      // DEV-3（设计偏差修复）：目录缺 <displayname> 且 href 带尾斜杠时，
+      // 旧逻辑 split('/').pop() 为空 → 回退为原始相对 href（如 /dav/sub/，不美观）。
+      // 改为取最后一个非空路径段；仍为空才回退「未命名」。对绝对/相对 href 均正确。
+      var fallbackName = hrefUrl.split('/').filter(Boolean).pop() || '未命名';
       var name = nameEl && textOf(nameEl)
         ? textOf(nameEl)
-        : decodeURIComponent(hrefUrl.split('/').pop() || rawHref);
+        : decodeURIComponent(fallbackName);
 
       entries.push({
         href: hrefUrl,
@@ -283,27 +320,40 @@
     });
   }
 
-  // ── 测试连接（PROPFIND Depth:0）───────────────────────────────────────
+  // ── 测试连接（PROPFIND Depth:0，多域名时选最快可达）────────────────────
   function testConnection(config) {
-    var url = buildDirUrl(config.url, '');
-    return propfind(url, config, '0').then(function (result) {
-      var resp = result.resp;
-      if (!resp.ok) throw wrapError(null, resp);
-      return { ok: true, status: resp.status };
+    var base = normalizeConfig(config);
+    return pickFastestUrl(base).then(function (picked) {
+      return { ok: true, status: picked.status || 200, url: picked.url, ms: picked.ms, single: !!picked.single };
     }).catch(function (err) {
-      if (err.type) throw err;
-      throw wrapError(err, err.resp);
+      if (err && err.type) throw err;
+      throw wrapError(err, err && err.resp);
     });
   }
 
-  // ── 连接：保存（可选）+ 设为激活 + 列根目录 ───────────────────────────
+  // ── 连接：保存（可选）+ 设为激活 + 列根目录（多域名选最快节点）──────────
   function connect(cfg, opts) {
     opts = opts || {};
-    var config = normalizeConfig(cfg);
-    if (opts.save) saveConfig(config);
-    setActiveConfig(config.id);
-    return listDir(config, '').then(function (entries) {
-      return { config: config, entries: entries };
+    var base = normalizeConfig(cfg);
+    return pickFastestUrl(base).then(function (picked) {
+      // 以最快节点 url 作为本次连接地址；保留 urls 供记录/重连
+      var config = Object.assign({}, base, {
+        url: picked.url,
+        connectedUrl: picked.url,
+        connectMs: picked.ms,
+        multiNode: candidateUrls(base).length > 1
+      });
+      if (opts.save) saveConfig(config);
+      setActiveConfig(config.id);
+      // DEV-2：缓存当前激活 config（含未保存），保证 getActiveConfig 对「刚 connect 未保存」也返回。
+      _activeConfigCache = config;
+      return listDir(config, '').then(function (entries) {
+        return { config: config, entries: entries, picked: picked };
+      });
+    }).catch(function (err) {
+      // 探测/连接失败：若多域名则给出明确提示
+      if (err && err.type) throw err;
+      throw wrapError(err, err && err.resp);
     });
   }
 
@@ -360,7 +410,7 @@
 
       // 退化：无流式 reader，一次性读取
       clearTimeout(timer);
-      if (ext === 'epub') {
+      if (ext === 'epub' || ext === 'pdf') {
         return resp.arrayBuffer().then(function (buf) {
           return assemble([new Uint8Array(buf)], buf.byteLength, ext, entry, url);
         });
@@ -388,6 +438,11 @@
     if (ext === 'epub') {
       base.mime = entry.mime || 'application/epub+zip';
       base.arrayBuffer = full.buffer; // Uint8Array 恰好按 received 分配，buffer 等长
+      return base;
+    }
+    if (ext === 'pdf') {
+      base.mime = entry.mime || 'application/pdf';
+      base.arrayBuffer = full.buffer;
       return base;
     }
     base.mime = entry.mime || 'text/plain';
@@ -418,16 +473,78 @@
     });
   }
 
+  // ── 多域名：候选 URL 解析 ──────────────────────────────────────────────
+  // 合并 cfg.urls（数组）与 cfg.url（单值），去重、去尾斜杠，返回候选列表。
+  function candidateUrls(cfg) {
+    cfg = cfg || {};
+    var raw = [];
+    if (cfg.urls && cfg.urls.length) {
+      for (var i = 0; i < cfg.urls.length; i++) {
+        var u = trimSlash((cfg.urls[i] || '').trim());
+        if (u) raw.push(u);
+      }
+    }
+    var single = trimSlash((cfg.url || '').trim());
+    if (single && raw.indexOf(single) === -1) raw.push(single);
+    var seen = {}, out = [];
+    for (var j = 0; j < raw.length; j++) {
+      if (!seen[raw[j]]) { seen[raw[j]] = 1; out.push(raw[j]); }
+    }
+    return out;
+  }
+
+  // 探测单个 URL 是否可达（PROPFIND Depth:0），成功返回 {url, ms, status}
+  function probeUrl(cfg, url, timeoutMs) {
+    var t0 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
+    return propfind(buildDirUrl(url, ''), cfg, '0', timeoutMs || 5000).then(function (result) {
+      var resp = result.resp;
+      if (!resp.ok) throw wrapError(null, resp);
+      var t1 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
+      return { url: url, ms: Math.round(t1 - t0), status: resp.status };
+    });
+  }
+
+  // 竞速：取第一个成功结果（即最快可达节点）；全部失败才 reject
+  function firstSuccess(promises) {
+    return new Promise(function (resolve, reject) {
+      var n = promises.length;
+      if (n === 0) { reject(new Error('未配置 URL')); return; }
+      var errors = [], pending = n;
+      promises.forEach(function (p, i) {
+        Promise.resolve(p).then(function (val) {
+          resolve(val); // 首个成功者胜出（并发下即最快节点）
+        }, function (err) {
+          errors[i] = err;
+          pending--;
+          if (pending === 0) reject(errors.filter(Boolean)[0] || new Error('所有节点均不可达'));
+        });
+      });
+    });
+  }
+
+  // 选择最快可达节点：单域名直接探测；多域名并发探测取最快成功者
+  function pickFastestUrl(cfg, timeoutMs) {
+    var urls = candidateUrls(cfg);
+    if (urls.length === 0) return Promise.reject(new Error('未配置 WebDAV 地址'));
+    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || 5000);
+    var probes = urls.map(function (u) { return probeUrl(cfg, u, timeoutMs || 5000); });
+    return firstSuccess(probes);
+  }
+
   // ── 配置管理（localStorage）───────────────────────────────────────────
   function normalizeConfig(cfg) {
     cfg = cfg || {};
+    var urls = (cfg.urls && cfg.urls.length) ? cfg.urls.slice() : null;
     return {
       id: cfg.id || ('wd_' + Date.now()),
       name: cfg.name || (cfg.url ? trimSlash(cfg.url) : 'WebDAV'),
       url: trimSlash(cfg.url || ''),
+      urls: urls,                       // 多域名候选（可空）
       username: cfg.username || '',
       password: cfg.password || '',          // 明文存储（设计决策①）
-      authType: cfg.authType || 'basic'
+      authType: cfg.authType || 'basic',
+      note: cfg.note || '',
+      preset: !!cfg.preset
     };
   }
 
@@ -452,6 +569,10 @@
   }
 
   function getConfigById(id) {
+    // 先查预置（持久，随包下发）
+    for (var k = 0; k < _presets.length; k++) {
+      if (_presets[k].id === id) return Promise.resolve(_presets[k]);
+    }
     var configs = getConfigs();
     for (var i = 0; i < configs.length; i++) {
       if (configs[i].id === id) return Promise.resolve(configs[i]);
@@ -459,12 +580,9 @@
     return Promise.resolve(null);
   }
 
-  function deleteConfig(id) {
-    var configs = getConfigs().filter(function (c) { return c.id !== id; });
-    try { win.localStorage.setItem(CFG_KEY, JSON.stringify(configs)); } catch (e) {}
-    var active = getActiveConfig();
-    if (active && active.id === id) setActiveConfig(null);
-    return configs;
+  // 全部可用配置：预置（在前）+ 用户已保存（在后）
+  function getAllConfigs() {
+    return _presets.concat(getConfigs());
   }
 
   function setActiveConfig(id) {
@@ -472,12 +590,28 @@
       if (id) win.localStorage.setItem(ACTIVE_KEY, id);
       else win.localStorage.removeItem(ACTIVE_KEY);
     } catch (e) {}
+    // DEV-2：按 id 在存储中查找并缓存激活 config（未保存的 config 由 connect 直接写 _activeConfigCache）。
+    if (!id) {
+      _activeConfigCache = null;
+      return;
+    }
+    var configs = getConfigs();
+    for (var i = 0; i < configs.length; i++) {
+      if (configs[i].id === id) { _activeConfigCache = configs[i]; break; }
+    }
   }
 
   function getActiveConfig() {
+    // DEV-2：优先返回模块内缓存（含 connect 但未保存的 config）
+    if (_activeConfigCache) return _activeConfigCache;
     var id = null;
     try { id = win.localStorage.getItem(ACTIVE_KEY); } catch (e) {}
     if (!id) return null;
+    // 预置（持久）
+    for (var k = 0; k < _presets.length; k++) {
+      if (_presets[k].id === id) return _presets[k];
+    }
+    // 已保存
     var configs = getConfigs();
     for (var i = 0; i < configs.length; i++) {
       if (configs[i].id === id) return configs[i];
@@ -487,8 +621,6 @@
 
   // ── 暴露 ────────────────────────────────────────────────────────────────
   win.WebDavManager = {
-    isNative: isNative,
-    classifyError: classifyError,
     testConnection: testConnection,
     connect: connect,
     listDir: listDir,
@@ -497,15 +629,17 @@
     saveConfig: saveConfig,
     getConfigs: getConfigs,
     getConfigById: getConfigById,
-    deleteConfig: deleteConfig,
+    getAllConfigs: getAllConfigs,
     getActiveConfig: getActiveConfig,
     setActiveConfig: setActiveConfig,
+    // 多域名 / 最快节点（供 UI 与测试）
+    candidateUrls: candidateUrls,
+    pickFastestUrl: pickFastestUrl,
     // 常量（UI / QA 只读）
     ERROR: ERROR,
     MESSAGES: MESSAGES,
     TIMEOUT_MS: TIMEOUT_MS,
-    IMPORTABLE_EXT: IMPORTABLE_EXT,
-    AUTH_TYPE: AUTH_TYPE
+    IMPORTABLE_EXT: IMPORTABLE_EXT
   };
 
 }(window));

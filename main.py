@@ -5,6 +5,7 @@
 从 resource/ysz/ 转换书籍数据，生成静态站点和配置文件。
 """
 import os
+import re
 import sys
 import json
 import shutil
@@ -127,6 +128,118 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
         f.write(js_content)
 
     print("✓ js/remote-config.js 已生成（URL 已 base64 编码）")
+
+
+def generate_webdav_presets(config: dict, output_dir: str = 'output'):
+    """根据 config.yaml 中的 webdav.presets 生成 webdav-presets.js。
+
+    凭据（url/username/password）以 base64(JSON) 编码，运行时解码还原；
+    note 为明文备注，直接展示。预置服务器随包下发，用户不可删除。
+    """
+    webdav = config.get('webdav') or {}
+    presets_raw = webdav.get('presets')
+    if not presets_raw:
+        print("⚠ config.yaml 中未找到 webdav.presets 配置，跳过 webdav-presets.js 生成")
+        return
+
+    presets = []
+    for i, p in enumerate(presets_raw):
+        if not isinstance(p, dict):
+            continue
+        raw_urls = p.get('urls')
+        if isinstance(raw_urls, list):
+            raw_urls = [u for u in raw_urls if isinstance(u, str) and u.strip()]
+        url = p.get('url') or (raw_urls[0] if raw_urls else '')
+        name = p.get('name') or (url or f'预置服务器 {i + 1}')
+        note = p.get('note') or ''
+        secret = {
+            'url': url,
+            'urls': raw_urls if raw_urls else None,
+            'username': p.get('username') or '',
+            'password': p.get('password') or '',
+            'authType': p.get('authType') or 'basic',
+        }
+        secret_b64 = base64.b64encode(
+            json.dumps(secret, ensure_ascii=False).encode('utf-8')
+        ).decode('utf-8')
+        presets.append({
+            'id': p.get('id') or f'preset-{i}',
+            'name': name,
+            'note': note,
+            'secret': secret_b64,
+        })
+
+    js_content = f"""\
+/**
+ * WebDAV 预置服务器配置（自动生成，请勿手动修改）
+ * 由 main.py generate_webdav_presets() 生成
+ * 凭据已 base64(JSON) 编码，运行时通过 atob(JSON.parse()) 解码还原
+ */
+(function() {{
+  window.BK_WEBDAV_PRESETS = {json.dumps(presets, ensure_ascii=False)};
+}})();
+"""
+
+    js_dir = os.path.join(output_dir, 'js')
+    os.makedirs(js_dir, exist_ok=True)
+    js_path = os.path.join(js_dir, 'webdav-presets.js')
+    with open(js_path, 'w', encoding='utf-8') as f:
+        f.write(js_content)
+
+    print(f"✓ js/webdav-presets.js 已生成（{len(presets)} 个预置服务器）")
+
+
+def inject_disguise_config(config: dict, output_dir: str = 'output'):
+    """根据 config.yaml 的 disguise_enabled 注入 window.BK_CONFIG.disguiseEnabled。
+
+    在 generate_all 之后调用：覆盖 output/index.html（及 Android 副本）中
+    `window.BK_CONFIG = window.BK_CONFIG || { disguiseEnabled: ... }` 的默认值，
+    使构建产物真正受 config.yaml 控制，而非写死在源码里。
+
+    默认 false（普通浏览器直接可用）；设为 true 则开启伪装/访问控制。
+    """
+    enabled = bool(config.get('disguise_enabled', False))
+    val_str = 'true' if enabled else 'false'
+
+    pattern = re.compile(
+        r"window\.BK_CONFIG = window\.BK_CONFIG \|\| \{ disguiseEnabled: (?:true|false) \};"
+    )
+    replacement = f"window.BK_CONFIG = window.BK_CONFIG || {{ disguiseEnabled: {val_str} }};"
+
+    targets = []
+    out_index = os.path.join(output_dir, 'index.html')
+    if os.path.exists(out_index):
+        targets.append(out_index)
+    # Android 包内副本（由 cap sync 从 output 同步；此处构建时一并更新，确保一致性）
+    android_index = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        'android', 'app', 'src', 'main', 'assets', 'public', 'index.html'
+    )
+    if os.path.exists(android_index):
+        targets.append(android_index)
+
+    if not targets:
+        print("⚠ 未找到 index.html，跳过 disguise 配置注入")
+        return
+
+    count = 0
+    for path in targets:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            new_content, n = pattern.subn(replacement, content)
+            if n == 0:
+                print(f"  ⚠ {path} 未找到 BK_CONFIG 伪装配置行，跳过")
+                continue
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            count += 1
+            print(f"  ✓ {path}: disguiseEnabled = {val_str}")
+        except Exception as e:
+            print(f"  ⚠ 注入 {path} 失败: {e}")
+
+    if count:
+        print(f"✓ 伪装配置已注入（disguise_enabled={val_str}，共 {count} 个文件）")
 
 
 def main():
@@ -259,6 +372,12 @@ def main():
 
     # 生成 remote-config.js（base64 编码 URL）
     generate_remote_config(config, output_dir)
+
+    # 生成 webdav-presets.js（config.yaml 预置 WebDAV 服务器，base64 编码凭据）
+    generate_webdav_presets(config, output_dir)
+
+    # 注入伪装/访问控制配置（由 config.yaml 的 disguise_enabled 控制，默认关闭）
+    inject_disguise_config(config, output_dir)
 
     # 复制 changelog.json 到 output/（供前端 fetchChangelog 使用）
     changelog_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'changelog.json')

@@ -58,34 +58,6 @@
     return t;
   }
 
-  // ── 内容归一化：将不同格式的 content 统一为文本字符串 ───────────────
-  // content 可能是：
-  //   - 字符串（zl-html 纯文本，\n 分隔段落）→ 直接使用
-  //   - 数组 [{type:'paragraph',text:'...'}, ...] → 拼接所有 text
-  //   - 其他 → 返回空字符串
-  function normalizeContent(content) {
-    if (!content) return '';
-
-    // 字符串：直接返回（zl-html 格式）
-    if (typeof content === 'string') return content;
-
-    // 数组：结构化 content
-    if (Array.isArray(content)) {
-      var parts = [];
-      for (var i = 0; i < content.length; i++) {
-        var item = content[i];
-        if (typeof item === 'string') {
-          parts.push(item);
-        } else if (item && typeof item === 'object' && item.text) {
-          parts.push(item.text);
-        }
-      }
-      return parts.join('\n');
-    }
-
-    return String(content);
-  }
-
   // Bible reference expansion
   var _BN = {
     '创': '创世记', '出': '出埃及记', '利': '利未记', '民': '民数记',
@@ -190,6 +162,12 @@
       try { window.BKSpeech.cancel(); } catch(e) {}
     }
 
+    // 防止重复初始化：同一 #playPauseBtn 只绑定一次事件。
+    // renderer.js（每次渲染章节）与 nav-stack.js（每次打开朗读栏）都会调用 init，
+    // 不拦截会叠加多个 click 监听 → 一次点击触发多次 startSpeakingFromPercent → 同一句读两遍。
+    var _guardPP = byId('playPauseBtn');
+    if (_guardPP && _guardPP.__bkSpeechBound) return;
+
     var _sentenceMarkData = [];
 
     function restoreElement(injected) {
@@ -254,6 +232,8 @@
     var progressBar  = byId('progressBar');
 
     if (!playPauseBtn || !rateSelect || !speechTime || !progressBar || !controlsDiv) return;
+    // 标记已绑定，配合 init 顶部的 __bkSpeechBound 守卫，避免重复绑定
+    playPauseBtn.__bkSpeechBound = true;
 
     // -- Engine detection ---------------------------------------------------
 
@@ -686,7 +666,6 @@
     if (bottomPlay) bottomPlay.classList.remove('bk-playing');
   }
 
-  // 导出 normalizeContent 供外部（如章节级 TTS）使用
-  window.BKSpeech = { init: init, cancel: cancel, normalizeContent: normalizeContent };
+  window.BKSpeech = { init: init, cancel: cancel };
 
 })();

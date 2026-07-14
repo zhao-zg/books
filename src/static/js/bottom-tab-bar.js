@@ -11,11 +11,11 @@
  * 进入阅读 / 目录（#app 显示）或任何 overlay 打开时自动隐藏。
  * 显隐逻辑完全自管理（与 nav-stack.js 的浮动栏同样模式），不依赖其他模块调用。
  *
- * 4 个 Tab：
- *   书架  → window._bkShowHome() + BKRouter.navigateReplace('')（保持 hash 为 '#/'）
+ * 4 个 Tab（书签已从底栏移除，改由「我的 › 我的书签」进入）：
+ *   书架  → window.BKRouter.navigate('shelf')（首屏默认，排在左一）
+ *   书城  → window.BKRouter.navigate('city')
  *   搜索  → window.BKSearch.open()
- *   书签  → window.BKBookmark.showList()
- *   我的  → window.toggleThemePanel()
+ *   我的  → #/me（平板双栏）或 #/my（手机单栏）
  *
  * 视觉：白色胶囊，border-radius:31px，1px solid var(--border)，无 box-shadow，
  *       仅使用 Soft Nordic 设计令牌（无蓝 / 靛蓝）。
@@ -25,7 +25,7 @@
   'use strict';
 
   var BAR_ID = 'bkBottomTabBar';
-  var ACTIVE_TAB = 'city'; // 默认高亮：书城（首页）
+  var ACTIVE_TAB = 'shelf'; // 决策④：首屏为书架，默认高亮 shelf
 
   // 内联 SVG 图标（currentColor，随 active / inactive 自动变色）
   var ICONS = {
@@ -36,13 +36,10 @@
     search:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',
-    bookmark:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>',
     mine:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      '<circle cx="12" cy="12" r="3"/>' +
-      '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
+      '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>' +
+      '<circle cx="12" cy="7" r="4"/></svg>',
     shelf:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M3 4h18"/><path d="M3 12h18"/><path d="M3 20h18"/>' +
@@ -50,11 +47,10 @@
   };
 
   var TABS = [
+    { key: 'shelf', label: '书架' },
     { key: 'city', label: '书城' },
     { key: 'search', label: '搜索' },
-    { key: 'bookmark', label: '书签' },
-    { key: 'mine', label: '我的' },
-    { key: 'shelf', label: '书架' }
+    { key: 'mine', label: '我的' }
   ];
 
   var _bar = null;
@@ -109,12 +105,9 @@
   function handleTab(tab) {
     switch (tab) {
       case 'city':
-        // 回到浏览顶层（书城 = 原「书架」指向的系列分组首页）：显示 homeView 并将 hash 归位为 '#/'
-        if (typeof win._bkShowHome === 'function') win._bkShowHome();
-        if (win.BKRouter && typeof win.BKRouter.navigateReplace === 'function') {
-          win.BKRouter.navigateReplace('');
-        } else if (win.BKRouter && typeof win.BKRouter.navigate === 'function') {
-          win.BKRouter.navigate('');
+        // 决策①：进入书城（#/city 单路由，三级下钻走模块状态机）
+        if (win.BKRouter && typeof win.BKRouter.navigate === 'function') {
+          win.BKRouter.navigate('city');
         }
         break;
       case 'shelf':
@@ -123,9 +116,6 @@
         break;
       case 'search':
         if (win.BKSearch && typeof win.BKSearch.open === 'function') win.BKSearch.open();
-        break;
-      case 'bookmark':
-        if (win.BKBookmark && typeof win.BKBookmark.showList === 'function') win.BKBookmark.showList();
         break;
       case 'mine':
         // 路由到 #/me（平板双栏）或 #/my（手机单栏）
@@ -151,8 +141,9 @@
   function anyOverlayOpen() {
     // 通用对话框遮罩（书签、管理面板、各类子对话框等，均经 BK.openDialog 创建）
     if (doc.querySelector('.bk-dialog-mask')) return true;
-    // 搜索浮层
-    if (doc.querySelector('.bk-search-overlay')) return true;
+    // 搜索浮层（close 时仅 display:none，需检查可见性）
+    var searchOverlay = doc.querySelector('.bk-search-overlay');
+    if (searchOverlay && win.getComputedStyle(searchOverlay).display !== 'none') return true;
     // 主题 / 设置面板
     var tp = doc.getElementById('themePanel');
     if (tp && tp.classList.contains('show')) return true;
@@ -179,11 +170,12 @@
       return win.getComputedStyle(home).display !== 'none' &&
              win.getComputedStyle(app).display === 'none';
     }
-    // 我的整页（#/my 手机 / #/me 平板）、书签整页（#/bookmarks）、书架整页（#/shelf）→ 浏览顶层，显示底栏
-    if (hash === '#/my' || hash === '#/me' || hash === '#/bookmarks' || hash === '#/shelf') {
+    // 我的整页（#/my 手机 / #/me 平板）、书架整页（#/shelf）、
+    // 书城整页（#/city，含三级下钻子页，均同 hash）→ 浏览顶层，显示底栏
+    if (hash === '#/my' || hash === '#/me' || hash === '#/shelf' || hash === '#/city') {
       return true;
     }
-    // 设置整页（#/settings）→ 子级页面，隐藏底栏
+    // 其他子级页面（#/bookmarks、阅读视图等）→ 隐藏底栏
     return false;
   }
 
@@ -197,9 +189,9 @@
         // 根据 hash 高亮 Tab
         var hash = win.location.hash || '';
         if (hash === '#/me' || hash === '#/my') setActive('mine');
-        else if (hash === '#/bookmarks') setActive('bookmark');
         else if (hash === '#/shelf') setActive('shelf');
-        else setActive('city');
+        else if (hash === '#/city') setActive('city');
+        else setActive(ACTIVE_TAB);
       } else {
         _bar.classList.remove('is-visible');
       }

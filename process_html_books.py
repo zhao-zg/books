@@ -38,7 +38,6 @@ SERIES_MAP = {
 # 敏感词替换规则
 SENSITIVE_REPLACEMENTS = [
     ("李常受文集", "李文集"),
-    ("生命读经", "LS"),
 ]
 
 # 系列标题映射
@@ -48,7 +47,7 @@ SERIES_TITLE_MAP = {
     'cxxl': '初信喂养',
     'lee8': '李文集',
     'nee': '倪柝声文集',
-    'smdj8': 'LS',
+    'smdj8': '生命读经',
     'zsrm365': '圣经真理365',
     'books': '职事书报',
 }

@@ -433,39 +433,38 @@
         '</div>' +
         '<div class="bk-drawer-divider"></div>' +
         '<div class="bk-import-body">' +
-          '<div class="bk-label-muted">选择来源</div>' +
-          '<div class="bk-pill-row">' +
-            '<button class="bk-pill" data-source="file">从文件</button>' +
-            '<button class="bk-pill" data-source="clipboard">从剪贴板</button>' +
-            '<button class="bk-pill" data-source="webdav">WebDAV</button>' +
+          // 来源选择卡片
+          '<div class="bk-source-row">' +
+            '<button class="bk-source-card active" data-source="file">' +
+              '<span class="bk-source-card-icon">📂</span>' +
+              '<span class="bk-source-card-label">本地文件</span>' +
+            '</button>' +
+            '<button class="bk-source-card" data-source="webdav">' +
+              '<span class="bk-source-card-icon">☁️</span>' +
+              '<span class="bk-source-card-label">WebDAV</span>' +
+            '</button>' +
           '</div>' +
-          // 从文件
-          '<div id="bkImportFileView" style="display:none">' +
-            '<div class="bk-list-card" id="bkImportFileCard">' +
-              '<div class="bk-list-card-info">' +
-                '<div class="bk-list-card-title" id="bkImportFileName">灵修笔记.txt</div>' +
-                '<div class="bk-list-card-sub" id="bkImportFileMeta">24 KB</div>' +
-              '</div>' +
-              '<div class="bk-list-card-action bk-status-danger" style="font-weight:600">✓</div>' +
+          // 本地文件视图
+          '<div id="bkImportFileView" style="margin-top:16px">' +
+            '<button class="bk-import-action-primary" data-action="pick-files">📂 选择文件</button>' +
+            '<div class="bk-import-secondary-row">' +
+              '<button class="bk-import-scan-btn" data-action="scan-dir">🔍 扫描文件夹</button>' +
+              '<label class="bk-checkbox">' +
+                '<input type="checkbox" id="bkScanRecursive">' +
+                '<span class="bk-checkbox-mark"></span>' +
+                '包含子目录' +
+              '</label>' +
             '</div>' +
-            '<div class="bk-label-muted" id="bkImportStatus" style="margin-top:12px">点击「从文件」或下方「导入」选择本地文件</div>' +
-          '</div>' +
-          // 从剪贴板
-          '<div id="bkImportClipboardView" style="display:none">' +
-            '<div class="bk-list-card" id="bkImportClipboardCard">' +
-              '<div class="bk-list-card-info">' +
-                '<div class="bk-list-card-title">剪贴板内容.txt</div>' +
-                '<div class="bk-list-card-sub" id="bkImportClipboardMeta">等待读取</div>' +
-              '</div>' +
-              '<div class="bk-list-card-action bk-status-danger" style="font-weight:600">✓</div>' +
-            '</div>' +
-            '<div class="bk-label-muted" style="margin-top:12px">点击「从剪贴板」读取剪贴板文本并导入</div>' +
+            '<div class="bk-import-divider"></div>' +
+            '<div id="bkImportFileList"></div>' +
+            '<div class="bk-label-muted" id="bkImportStatus" style="margin-top:8px"></div>' +
           '</div>' +
           // WebDAV（动态渲染）
           '<div id="bkImportWebdavView" style="display:none"></div>' +
         '</div>' +
-        '<div class="bk-drawer-actions">' +
-          '<button class="bk-btn bk-btn-primary bk-btn-block" id="bkImportConfirm" data-action="import">导入</button>' +
+        // 底部确认按钮（始终占位）
+        '<div class="bk-import-footer">' +
+          '<button class="bk-import-confirm-btn bk-import-confirm-idle" id="bkImportConfirm" data-action="import">选择文件开始导入</button>' +
         '</div>' +
         '</div>'
     });
@@ -477,7 +476,12 @@
 
     // 可导入扩展名（来自 WebDavManager，未加载时回退）
     var IMPORTABLE_EXT_ARR = (win.WebDavManager && win.WebDavManager.IMPORTABLE_EXT) ||
-      ['.txt', '.epub', '.md', '.markdown'];
+      ['.txt', '.epub', '.md', '.markdown', '.pdf'];
+
+    // 本地文件列表状态
+    var fileQueue = [];       // fileInfo[]
+    var fileChecked = {};     // index -> true
+    var importing = false;
 
     // WebDAV 局部状态
     var wd = {
@@ -489,15 +493,195 @@
       formatFilter: true,
       locked: false,
       _usingSavedId: null,
-      _progressBars: {}
+      _progressBars: {},
+      _downloadedSet: {}      // remotePath -> imported bookId（当前服务器已下载的文件）
     };
 
-    function doImport() {
-      if (win.ImportManager && win.ImportManager.pickAndImport) {
-        win.ImportManager.pickAndImport()
-          .then(function () { dlg.close(); })
-          .catch(function () {});
+    function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderFileList() {
+      var container = document.getElementById('bkImportFileList');
+      var status = document.getElementById('bkImportStatus');
+      var confirmBtn = document.getElementById('bkImportConfirm');
+      if (!container) return;
+
+      if (!fileQueue.length) {
+        container.innerHTML = '<div class="bk-import-empty">' +
+          '<span class="bk-import-empty-icon">📚</span>' +
+          '<span class="bk-import-empty-text">选择要导入的书籍<br/>支持 EPUB、PDF、TXT、Markdown</span>' +
+        '</div>';
+        if (confirmBtn) {
+          confirmBtn.className = 'bk-import-confirm-btn bk-import-confirm-idle';
+          confirmBtn.textContent = '选择文件开始导入';
+          confirmBtn.disabled = true;
+        }
+        if (status) status.textContent = '';
+        return;
       }
+
+      var html = '<div class="bk-import-list-header">' +
+        '<label class="bk-checkbox">' +
+          '<input type="checkbox" id="bkImportSelectAll" data-action="toggle-all">' +
+          '<span class="bk-checkbox-mark"></span>' +
+          '全选' +
+        '</label>' +
+        '<span style="font-size:var(--text-xs,.75rem);color:var(--text-muted,#9A958C)">' + fileQueue.length + ' 个文件</span>' +
+      '</div>';
+
+      var checkedCount = 0;
+      for (var i = 0; i < fileQueue.length; i++) {
+        var checked = !!fileChecked[i];
+        if (checked) checkedCount++;
+        var f = fileQueue[i];
+        var displayName = f.name;
+        var ext = (f.name || '').split('.').pop().toLowerCase();
+        var icon = ext === 'epub' ? '📕' : ext === 'pdf' ? '📄' : ext === 'md' ? '📝' : '📋';
+        html += '<div class="bk-import-file-card' + (checked ? ' checked' : '') + '">' +
+          '<label class="bk-checkbox" style="margin:0">' +
+            '<input type="checkbox" data-action="toggle-file" data-idx="' + i + '"' + (checked ? ' checked' : '') + '>' +
+            '<span class="bk-checkbox-mark"></span>' +
+          '</label>' +
+          '<span class="bk-import-file-icon">' + icon + '</span>' +
+          '<div class="bk-import-file-info">' +
+            '<div class="bk-import-file-name">' + _escHtml(displayName) + '</div>' +
+            (f.size ? '<div class="bk-import-file-size">' + formatSize(f.size) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }
+
+      container.innerHTML = html;
+
+      // 全选框状态同步
+      var allCb = document.getElementById('bkImportSelectAll');
+      if (allCb) allCb.checked = checkedCount === fileQueue.length;
+
+      // 确认按钮：始终占位，根据选中数切换状态
+      if (confirmBtn) {
+        if (checkedCount > 0) {
+          confirmBtn.className = 'bk-import-confirm-btn';
+          confirmBtn.textContent = '导入' + (checkedCount > 1 ? ' ' + checkedCount + ' 个文件' : '');
+          confirmBtn.disabled = false;
+        } else {
+          confirmBtn.className = 'bk-import-confirm-btn bk-import-confirm-idle';
+          confirmBtn.textContent = '选择要导入的文件';
+          confirmBtn.disabled = true;
+        }
+      }
+      if (status) status.textContent = checkedCount > 0 ? '已选 ' + checkedCount + ' / ' + fileQueue.length : '';
+    }
+
+    function _escHtml(s) {
+      return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // 选择文件（多选）
+    function doPickFiles() {
+      if (importing) return;
+      if (!win.ImportManager || !win.ImportManager.pickFiles) return;
+      win.ImportManager.pickFiles().then(function(files) {
+        if (!files || !files.length) return;
+        // 去重（按文件名）
+        var existNames = {};
+        for (var ei = 0; ei < fileQueue.length; ei++) existNames[fileQueue[ei].name] = true;
+        var added = 0;
+        for (var i = 0; i < files.length; i++) {
+          if (!existNames[files[i].name]) {
+            var idx = fileQueue.length;
+            fileQueue.push(files[i]);
+            fileChecked[idx] = true;
+            existNames[files[i].name] = true;
+            added++;
+          }
+        }
+        renderFileList();
+        var statusEl = document.getElementById('bkImportStatus');
+        if (statusEl) statusEl.textContent = added > 0 ? '已添加 ' + added + ' 个文件' : '文件已在列表中';
+      }).catch(function() {});
+    }
+
+    // 扫描文件夹
+    function doScanDir() {
+      if (importing) return;
+      if (!win.ImportManager || !win.ImportManager.scanDirectory) return;
+      var recursiveCb = document.getElementById('bkScanRecursive');
+      var recursive = recursiveCb ? recursiveCb.checked : false;
+      var statusEl = document.getElementById('bkImportStatus');
+      if (statusEl) statusEl.textContent = '正在扫描...';
+      win.ImportManager.scanDirectory({ recursive: recursive }).then(function(files) {
+        if (!files || !files.length) {
+          if (statusEl) statusEl.textContent = '未找到可导入的文件';
+          return;
+        }
+        var existNames = {};
+        for (var ei = 0; ei < fileQueue.length; ei++) existNames[fileQueue[ei].name] = true;
+        var added = 0;
+        for (var i = 0; i < files.length; i++) {
+          if (!existNames[files[i].name]) {
+            var idx = fileQueue.length;
+            fileQueue.push(files[i]);
+            fileChecked[idx] = true;
+            existNames[files[i].name] = true;
+            added++;
+          }
+        }
+        renderFileList();
+        if (statusEl) statusEl.textContent = '扫描完成，发现 ' + added + ' 个新文件' + (added < files.length ? '（' + (files.length - added) + ' 个已存在）' : '');
+      }).catch(function(err) {
+        if (statusEl) statusEl.textContent = err && err.name === 'AbortError' ? '' : '扫描失败';
+      });
+    }
+
+    // 批量导入选中的文件
+    function doImportSelected() {
+      if (importing) return;
+      var selected = [];
+      for (var i = 0; i < fileQueue.length; i++) {
+        if (fileChecked[i]) selected.push(fileQueue[i]);
+      }
+      if (!selected.length) return;
+      importing = true;
+      var confirmBtn = document.getElementById('bkImportConfirm');
+      var statusEl = document.getElementById('bkImportStatus');
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '导入中...'; }
+
+      win.ImportManager.importBatch(selected).then(function(results) {
+        importing = false;
+        var ok = 0, fail = 0;
+        for (var i = 0; i < results.length; i++) {
+          if (results[i].success) ok++; else fail++;
+        }
+        // 刷新书架
+        if (win.BKRenderer && win.BKRenderer.renderHome) {
+          try { win.BKRenderer.renderHome(); } catch (e) {}
+        }
+        if (fail === 0) {
+          dlg.close();
+        } else {
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '导入选中的文件'; }
+          if (statusEl) statusEl.textContent = '完成：成功 ' + ok + ' 个，失败 ' + fail + ' 个';
+          // 从队列中移除成功的
+          var newQueue = [], newChecked = {};
+          for (var j = 0; j < results.length; j++) {
+            if (!results[j].success) {
+              var nIdx = newQueue.length;
+              newQueue.push(selected[j]);
+              newChecked[nIdx] = true;
+            }
+          }
+          fileQueue = newQueue;
+          fileChecked = newChecked;
+          renderFileList();
+        }
+      }).catch(function(err) {
+        importing = false;
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '导入选中的文件'; }
+        if (statusEl) statusEl.textContent = '导入出错：' + (err && err.message || '未知错误');
+      });
     }
 
     // ── WebDAV 辅助 ────────────────────────────────────────────────
@@ -508,33 +692,75 @@
     function isImportable(name) { return IMPORTABLE_EXT_ARR.indexOf(extOf(name)) >= 0; }
 
     function findConfig(id) {
-      var configs = (win.WebDavManager && win.WebDavManager.getConfigs) ? win.WebDavManager.getConfigs() : [];
+      var configs = (win.WebDavManager && win.WebDavManager.getAllConfigs) ? win.WebDavManager.getAllConfigs() : [];
       for (var i = 0; i < configs.length; i++) if (configs[i].id === id) return configs[i];
       return null;
+    }
+    // 选中服务器时展示其备注（note）
+    function showConfigNote(cfg) {
+      var noteEl = dialogEl.querySelector('#wdNote');
+      if (!noteEl) return;
+      if (cfg && cfg.note) {
+        noteEl.textContent = '备注：' + cfg.note;
+        noteEl.style.display = 'block';
+      } else {
+        noteEl.style.display = 'none';
+      }
     }
     function findEntry(path) {
       for (var i = 0; i < wd.entries.length; i++) if (wd.entries[i].remotePath === path) return wd.entries[i];
       return null;
     }
+    // 刷新「当前服务器已下载文件」集合（供浏览器标记 + 下载去重）
+    function refreshDownloadedSet() {
+      wd._downloadedSet = wd._downloadedSet || {};
+      if (!wd.config || !win.ImportManager || !win.ImportManager.getImportedBooks) return Promise.resolve();
+      var serverId = wd.config.id;
+      return win.ImportManager.getImportedBooks().then(function (books) {
+        var map = {};
+        for (var i = 0; i < books.length; i++) {
+          var s = books[i].source;
+          if (s && s.type === 'webdav' && s.serverId === serverId && s.remotePath) {
+            map[s.remotePath] = books[i].id;
+          }
+        }
+        wd._downloadedSet = map;
+      }).catch(function () { wd._downloadedSet = {}; });
+    }
     function readConfigForm() {
       var url = dialogEl.querySelector('#wdUrl');
       var user = dialogEl.querySelector('#wdUser');
       var pass = dialogEl.querySelector('#wdPass');
+      var nameEl = dialogEl.querySelector('#wdName');
       return {
         url: url ? url.value.trim() : '',
         username: user ? user.value.trim() : '',
         password: pass ? pass.value : '',
         authType: 'basic',
-        name: ''
+        name: nameEl ? nameEl.value.trim() : ''
       };
+    }
+    // 解析 URL 输入：支持逗号 / 空格 / 换行 / 分号分隔的多个域名
+    function parseUrlInput(val) {
+      val = (val || '').trim();
+      if (!val) return { url: '', urls: null };
+      var parts = val.split(/[\s,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      var seen = {}, out = [];
+      for (var i = 0; i < parts.length; i++) {
+        if (!seen[parts[i]]) { seen[parts[i]] = 1; out.push(parts[i]); }
+      }
+      if (out.length <= 1) return { url: out[0] || '', urls: null };
+      return { url: out[0], urls: out };
     }
     function fillConfigForm(cfg) {
       var url = dialogEl.querySelector('#wdUrl');
       var user = dialogEl.querySelector('#wdUser');
       var pass = dialogEl.querySelector('#wdPass');
+      var nameEl = dialogEl.querySelector('#wdName');
       if (url) url.value = cfg.url || '';
       if (user) user.value = cfg.username || '';
       if (pass) pass.value = cfg.password || '';
+      if (nameEl) nameEl.value = cfg.name || '';
     }
     function readSaveChecked() {
       var c = dialogEl.querySelector('#wdSave');
@@ -543,20 +769,25 @@
     // 合并“已选配置”与“表单输入”，得到最终连接配置
     function currentConnectConfig() {
       var form = readConfigForm();
+      var parsed = parseUrlInput(form.url);
       if (wd._usingSavedId) {
         var saved = findConfig(wd._usingSavedId);
         if (saved) {
+          var urls = (parsed.urls && parsed.urls.length) ? parsed.urls : (saved.urls || null);
           return {
             id: saved.id,
             name: saved.name,
-            url: form.url || saved.url,
+            url: parsed.url || saved.url,
+            urls: urls,
             username: form.username || saved.username,
             password: form.password || saved.password,
-            authType: saved.authType || 'basic'
+            authType: saved.authType || 'basic',
+            note: saved.note || '',
+            preset: saved.preset || false
           };
         }
       }
-      return form;
+      return { url: parsed.url, urls: parsed.urls, username: form.username, password: form.password, authType: 'basic', name: '' };
     }
     function displayPath() {
       if (!wd.path) return '根目录';
@@ -587,6 +818,19 @@
       if (!el) return;
       el.style.display = 'block';
       el.textContent = msg;
+    }
+    // 连接成功后提示所选最快节点（仅多域名时）
+    function showConnectedNode(res) {
+      if (!res || !res.config) return;
+      var cfg = res.config;
+      if (cfg.multiNode && cfg.connectedUrl) {
+        var host = cfg.connectedUrl.replace(/^https?:\/\//, '').split('/')[0];
+        showStatus('已连接 · 最快节点：' + host + (cfg.connectMs ? '（' + cfg.connectMs + 'ms）' : ''));
+        setTimeout(function () {
+          var el = dialogEl.querySelector('#wdStatus');
+          if (el) el.style.display = 'none';
+        }, 4000);
+      }
     }
     function setItemProgress(remotePath, p, show) {
       var bar = wd._progressBars && wd._progressBars[remotePath];
@@ -619,10 +863,12 @@
       }
 
       if (wd.mode === 'disconnected') {
-        var configs = (win.WebDavManager && win.WebDavManager.getConfigs) ? win.WebDavManager.getConfigs() : [];
+        var configs = (win.WebDavManager && win.WebDavManager.getAllConfigs) ? win.WebDavManager.getAllConfigs() : [];
         var savedOptions = '';
         for (var ci = 0; ci < configs.length; ci++) {
-          savedOptions += '<option value="' + escAttr(configs[ci].id) + '">' + escHtml(configs[ci].name || configs[ci].url) + '</option>';
+          var optLabel = configs[ci].name || configs[ci].url;
+          if (configs[ci].preset) optLabel = '★ ' + optLabel; // 标记预置服务器
+          savedOptions += '<option value="' + escAttr(configs[ci].id) + '">' + escHtml(optLabel) + '</option>';
         }
         wdView.innerHTML =
           '<div class="bk-webdav-form">' +
@@ -630,13 +876,16 @@
             '<select class="bk-field bk-webdav-select" id="wdSavedSelect" data-action="wd-config-select">' +
               '<option value="">— 新建配置 —</option>' + savedOptions +
             '</select>' +
-            '<input class="bk-field" id="wdUrl" placeholder="WebDAV 地址（如 https://server/dav）" />' +
-            '<input class="bk-field" id="wdUser" placeholder="用户名（可选）" />' +
-            '<input class="bk-field" id="wdPass" type="password" placeholder="密码（可选）" />' +
-            '<label class="bk-webdav-save"><input type="checkbox" id="wdSave" checked /> 保存此配置到本机</label>' +
+            '<div class="bk-webdav-note" id="wdNote" style="display:none"></div>' +
+            '<div id="wdCredFields">' +
+              '<input class="bk-field" id="wdUrl" placeholder="WebDAV 地址（多个用逗号/空格分隔，自动选最快）" />' +
+              '<input class="bk-field" id="wdUser" placeholder="用户名（可选）" />' +
+              '<input class="bk-field" id="wdPass" type="password" placeholder="密码（可选）" />' +
+              '<input class="bk-field" id="wdName" placeholder="备注 / 名称（选填，推荐填写，显示在书籍来源）" />' +
+              '<label class="bk-webdav-save" id="wdSaveRow"><input type="checkbox" id="wdSave" checked /> 保存此配置到本机</label>' +
+            '</div>' +
             '<div class="bk-webdav-error" id="wdError" style="display:none"></div>' +
             '<div class="bk-webdav-actions">' +
-              '<button class="bk-btn bk-btn-secondary" data-action="wd-test">测试连接</button>' +
               '<button class="bk-btn bk-btn-primary" data-action="wd-connect">连接</button>' +
             '</div>' +
           '</div>';
@@ -658,11 +907,16 @@
               '</div>';
           } else {
             var selected = !!wd.selected[en.remotePath];
-            listHtml += '<div class="bk-webdav-file' + (selected ? ' selected' : '') + '">' +
+            var doneId = (wd._downloadedSet && wd._downloadedSet[en.remotePath]) || null;
+            var doneCls = doneId ? ' done' : '';
+            var dlLabel = doneId ? '重新下载' : '下载';
+            var doneTag = doneId ? '<span class="bk-webdav-done-tag">已下载 ✓</span>' : '';
+            listHtml += '<div class="bk-webdav-file' + (selected ? ' selected' : '') + doneCls + '">' +
               '<label class="bk-webdav-check"><input type="checkbox" data-action="wd-check" data-path="' + escAttr(en.remotePath) + '"' + (selected ? ' checked' : '') + ' /></label>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
+              doneTag +
               '<span class="bk-webdav-size">' + fmtSize(en.size) + '</span>' +
-              '<button class="bk-webdav-dl" data-action="wd-download" data-path="' + escAttr(en.remotePath) + '">下载</button>' +
+              '<button class="bk-webdav-dl" data-action="wd-download" data-path="' + escAttr(en.remotePath) + '">' + dlLabel + '</button>' +
               '<div class="bk-webdav-progress" data-path="' + escAttr(en.remotePath) + '" style="display:none"><div class="bk-webdav-progress-bar"></div></div>' +
               '</div>';
           }
@@ -697,7 +951,7 @@
         renderWebdav();
         win.WebDavManager.listDir(active, '').then(function (entries) {
           wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
-          renderWebdav();
+          refreshDownloadedSet().then(function () { renderWebdav(); });
         }).catch(function (err) {
           wd.mode = 'disconnected'; wd.config = null;
           renderWebdav();
@@ -709,41 +963,24 @@
       }
     }
 
-    function wdTest() {
-      var cfg = currentConnectConfig();
-      if (!cfg.url) { setWdError({ hint: '请填写 WebDAV 地址' }); return; }
-      setWdError(null);
-      var btn = dialogEl.querySelector('[data-action="wd-test"]');
-      if (btn) { btn.disabled = true; btn.textContent = '测试中…'; }
-      win.WebDavManager.testConnection(cfg).then(function () {
-        if (btn) { btn.disabled = false; btn.textContent = '测试连接'; }
-        setWdError({ type: 'OK', hint: (win.WebDavManager.MESSAGES && win.WebDavManager.MESSAGES.TEST_OK) || '连接成功 ✓' });
-      }).catch(function (err) {
-        if (btn) { btn.disabled = false; btn.textContent = '测试连接'; }
-        setWdError(err);
-      });
-    }
-
     function wdConnect() {
       var cfg = currentConnectConfig();
       if (!cfg.url) { setWdError({ hint: '请填写 WebDAV 地址' }); return; }
       setWdError(null);
+      // 预置服务器无需再保存到本机（已随包下发）
+      var isPreset = cfg.preset === true;
       wd.locked = true;
       var connBtn = dialogEl.querySelector('[data-action="wd-connect"]');
-      var testBtn = dialogEl.querySelector('[data-action="wd-test"]');
       if (connBtn) { connBtn.disabled = true; connBtn.textContent = '连接中…'; }
-      if (testBtn) testBtn.disabled = true;
-      win.WebDavManager.connect(cfg, { save: readSaveChecked() }).then(function (res) {
+      win.WebDavManager.connect(cfg, { save: readSaveChecked() && !isPreset }).then(function (res) {
         wd.locked = false;
         if (connBtn) { connBtn.disabled = false; connBtn.textContent = '连接'; }
-        if (testBtn) testBtn.disabled = false;
         wd.config = res.config; wd.path = ''; wd.entries = res.entries; wd.selected = {}; wd.mode = 'browsing';
         wd._usingSavedId = res.config.id;
-        renderWebdav();
+        refreshDownloadedSet().then(function () { renderWebdav(); showConnectedNode(res); });
       }).catch(function (err) {
         wd.locked = false;
         if (connBtn) { connBtn.disabled = false; connBtn.textContent = '连接'; }
-        if (testBtn) testBtn.disabled = false;
         setWdError(err);
       });
     }
@@ -753,7 +990,7 @@
       wd.locked = true;
       win.WebDavManager.listDir(wd.config, path).then(function (entries) {
         wd.path = path; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing'; wd.locked = false;
-        renderWebdav();
+        refreshDownloadedSet().then(function () { renderWebdav(); });
       }).catch(function (err) {
         wd.locked = false; setWdError(err);
       });
@@ -773,47 +1010,57 @@
     function downloadAndImport(entries) {
       if (!wd.config || !entries.length || wd.locked) return;
       wd.locked = true;
-      var done = 0, failed = 0;
-      function next(i) {
-        if (i >= entries.length) {
-          wd.locked = false;
-          var msg = '导入完成：成功 ' + done + ' 本' + (failed ? '，失败 ' + failed + ' 本' : '');
-          showStatus(msg);
-          setTimeout(function () {
-            var el = dialogEl.querySelector('#wdStatus');
-            if (el) el.style.display = 'none';
-          }, 3000);
-          // 刷新书城（合并 imported 书籍）
-          if (win.BKRenderer && win.BKRenderer.renderHome) {
-            try { win.BKRenderer.renderHome(); } catch (e) {}
+      // 下载前先刷新「已下载集合」，保证去重判断基于最新记录
+      refreshDownloadedSet().then(function () {
+        var done = 0, updated = 0, failed = 0;
+        function next(i) {
+          if (i >= entries.length) {
+            wd.locked = false;
+            wd.selected = {};   // 清空选择
+            var parts = ['导入完成：新导入 ' + done + ' 本'];
+            if (updated) parts.push('更新 ' + updated + ' 本');
+            if (failed) parts.push('失败 ' + failed + ' 本');
+            showStatus(parts.join('，'));
+            setTimeout(function () {
+              var el = dialogEl.querySelector('#wdStatus');
+              if (el) el.style.display = 'none';
+            }, 4000);
+            // 刷新书城/书架（导入已入架，renderHome 即书架）
+            if (win.BKRenderer && win.BKRenderer.renderHome) {
+              try { win.BKRenderer.renderHome(); } catch (e) {}
+            }
+            // 重渲染浏览器：更新「已下载」标记
+            refreshDownloadedSet().then(function () { renderWebdav(); });
+            return;
           }
-          return;
+          var entry = entries[i];
+          var existingId = (wd._downloadedSet && wd._downloadedSet[entry.remotePath]) || null;
+          showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name + (existingId ? '（已存在，更新中）' : ''));
+          setItemProgress(entry.remotePath, 0, true);
+          win.WebDavManager.downloadFile(wd.config, entry, function (p) {
+            if (p >= 0) setItemProgress(entry.remotePath, p, true);
+          }).then(function (fileInfo) {
+            var source = {
+              type: 'webdav',
+              serverId: wd.config.id,
+              remotePath: entry.remotePath,
+              serverName: wd.config.name || wd.config.url
+            };
+            // 已下载过则复用原 id（resync/覆盖写），避免重复书
+            return win.ImportManager.importFromBuffer(fileInfo, { source: source, bookId: existingId || undefined });
+          }).then(function () {
+            if (existingId) updated++; else done++;
+            setItemProgress(entry.remotePath, 1, false);
+            next(i + 1);
+          }).catch(function (err) {
+            failed++;
+            setItemProgress(entry.remotePath, -1, false);
+            showStatus('失败：' + entry.name + ' — ' + (err && err.message ? err.message : String(err)));
+            next(i + 1);
+          });
         }
-        var entry = entries[i];
-        showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name);
-        setItemProgress(entry.remotePath, 0, true);
-        win.WebDavManager.downloadFile(wd.config, entry, function (p) {
-          if (p >= 0) setItemProgress(entry.remotePath, p, true);
-        }).then(function (fileInfo) {
-          var source = {
-            type: 'webdav',
-            serverId: wd.config.id,
-            remotePath: entry.remotePath,
-            serverName: wd.config.name
-          };
-          return win.ImportManager.importFromBuffer(fileInfo, { source: source });
-        }).then(function () {
-          done++;
-          setItemProgress(entry.remotePath, 1, false);
-          next(i + 1);
-        }).catch(function (err) {
-          failed++;
-          setItemProgress(entry.remotePath, -1, false);
-          showStatus('失败：' + entry.name + ' — ' + (err && err.message ? err.message : String(err)));
-          next(i + 1);
-        });
-      }
-      next(0);
+        next(0);
+      });
     }
 
     function wdDownloadOne(path) {
@@ -829,7 +1076,6 @@
       if (wd.locked) return; // 下载中禁止其它操作
       switch (action) {
         case 'wd-config-select': return; // change 事件处理
-        case 'wd-test': wdTest(); return;
         case 'wd-connect': wdConnect(); return;
         case 'wd-nav-up': wdNavUp(); return;
         case 'wd-disconnect': wdDisconnect(); return;
@@ -844,40 +1090,21 @@
 
     // ── 来源切换 ───────────────────────────────────────────────────
     function showSource(source) {
-      var pills = dialogEl.querySelectorAll('.bk-pill');
-      for (var i = 0; i < pills.length; i++) {
-        pills[i].classList.toggle('active', pills[i].getAttribute('data-source') === source);
+      var cards = dialogEl.querySelectorAll('.bk-source-card');
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].classList.toggle('active', cards[i].getAttribute('data-source') === source);
       }
       var fileView = document.getElementById('bkImportFileView');
-      var clipView = document.getElementById('bkImportClipboardView');
       var wdView = document.getElementById('bkImportWebdavView');
       var confirmBtn = document.getElementById('bkImportConfirm');
-      var status = document.getElementById('bkImportStatus');
       if (fileView) fileView.style.display = (source === 'file') ? 'block' : 'none';
-      if (clipView) clipView.style.display = (source === 'clipboard') ? 'block' : 'none';
       if (wdView) wdView.style.display = (source === 'webdav') ? 'block' : 'none';
-      if (confirmBtn) confirmBtn.style.display = (source === 'webdav') ? 'none' : 'flex';
-      if (status) status.style.display = (source === 'webdav') ? 'none' : 'block';
-    }
-
-    function readClipboard() {
-      var status = document.getElementById('bkImportStatus');
-      var card = document.getElementById('bkImportClipboardCard');
-      var meta = document.getElementById('bkImportClipboardMeta');
-      if (status) status.textContent = '解析中...';
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        navigator.clipboard.readText().then(function (txt) {
-          var bytes = txt ? txt.length * 2 : 0;
-          var size = bytes >= 1024 ? (bytes / 1024).toFixed(0) + ' KB' : bytes + ' B';
-          if (card) card.style.display = 'flex';
-          if (meta) meta.textContent = size;
-          if (status) status.textContent = '解析中...';
-        }).catch(function () {
-          var st2 = document.getElementById('bkImportStatus');
-          if (st2) st2.textContent = '无法读取剪贴板，请改用「从文件」';
-        });
+      if (source === 'file') {
+        if (confirmBtn) confirmBtn.style.display = '';
+        renderFileList();
       } else {
-        if (status) status.textContent = '当前环境不支持读取剪贴板';
+        // WebDAV 有自己的批量操作栏，隐藏底部确认按钮
+        if (confirmBtn) confirmBtn.style.display = 'none';
       }
     }
 
@@ -886,19 +1113,31 @@
       var t = e.target;
       if (t.getAttribute && t.getAttribute('data-action') === 'close') { dlg.close(); return; }
 
-      var pill = t.closest ? t.closest('.bk-pill') : null;
-      if (pill) {
-        var source = pill.getAttribute('data-source');
-        showSource(source); // 仅切换展示
-        // 点击 pill 才执行对应动作（避免打开弹窗即触发文件选择器）
-        if (source === 'file') doImport();
-        else if (source === 'clipboard') readClipboard();
-        else if (source === 'webdav') initWebdav();
+      // 来源卡片切换
+      var card = t.closest ? t.closest('.bk-source-card') : null;
+      if (card) {
+        var source = card.getAttribute('data-source');
+        showSource(source);
+        if (source === 'webdav') initWebdav();
         return;
       }
 
       var actionAttr = t.getAttribute && t.getAttribute('data-action');
-      if (actionAttr === 'import') { doImport(); return; }
+      if (actionAttr === 'pick-files') { doPickFiles(); return; }
+      if (actionAttr === 'scan-dir') { doScanDir(); return; }
+      if (actionAttr === 'import') { doImportSelected(); return; }
+      if (actionAttr === 'toggle-all') {
+        var allCb2 = document.getElementById('bkImportSelectAll');
+        var isChecked = allCb2 ? allCb2.checked : false;
+        for (var ai = 0; ai < fileQueue.length; ai++) fileChecked[ai] = isChecked;
+        renderFileList();
+        return;
+      }
+      if (actionAttr === 'toggle-file') {
+        var idx = parseInt(t.getAttribute('data-idx'), 10);
+        if (!isNaN(idx)) { fileChecked[idx] = t.checked; renderFileList(); }
+        return;
+      }
 
       // WebDAV 动作（data-action 以 wd- 开头）
       if (actionAttr && actionAttr.indexOf('wd-') === 0) {
@@ -914,9 +1153,29 @@
       if (actionAttr === 'wd-config-select') {
         var id = t.value;
         wd._usingSavedId = id || null;
+        var credFields = dialogEl.querySelector('#wdCredFields');
+        var saveRow = dialogEl.querySelector('#wdSaveRow');
         if (id) {
           var cfg = findConfig(id);
-          if (cfg) fillConfigForm(cfg);
+          if (cfg) {
+            showConfigNote(cfg);
+            if (cfg.preset) {
+              // 预置服务器：仅显示名称+备注，隐藏地址/账号/密码等凭据字段
+              if (credFields) credFields.style.display = 'none';
+              fillConfigForm({ url: '', username: '', password: '' });
+            } else {
+              // 用户自建配置：显示并回填可编辑的凭据字段
+              if (credFields) credFields.style.display = 'block';
+              fillConfigForm(cfg);
+              if (saveRow) saveRow.style.display = 'flex';
+            }
+          }
+        } else {
+          // 新建配置：显示空白可编辑字段
+          showConfigNote(null);
+          if (credFields) credFields.style.display = 'block';
+          fillConfigForm({ url: '', username: '', password: '' });
+          if (saveRow) saveRow.style.display = 'flex';
         }
         return;
       }

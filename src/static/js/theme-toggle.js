@@ -62,7 +62,6 @@
     }
     
     function initDevConsole()  { window.BKDevConsole && window.BKDevConsole.init(); }
-    function destroyDevConsole() { window.BKDevConsole && window.BKDevConsole.destroy(); }
 
     function initThemeToggle() {
         // 内页启动缓存检测
@@ -130,76 +129,6 @@
                     <span class="font-size-value" id="fontSizeDisplay">${fontSizes[currentSizeIndex]}px</span>
                 </div>
             </div>
-            <div class="theme-section" id="settingsActionsSection" style="display:none">
-                <div class="theme-section-title">内容与数据</div>
-                <div class="actions-grid">
-                    <button class="action-btn" id="bookmarkListBtn">
-                        <span class="cache-icon">📑</span><span class="cache-text">我的书签</span>
-                    </button>
-                    <button class="action-btn danger" id="clearDataBtn" style="display:none">
-                        <span class="cache-icon">🧹</span><span class="cache-text">清理数据</span>
-                    </button>
-                </div>
-                <div class="theme-section-title" style="margin-top:14px">应用</div>
-                <div class="actions-grid">
-                    <button class="action-btn" id="installBtn" style="display:none">
-                        <span class="cache-icon">📲</span><span class="cache-text">发送桌面</span>
-                    </button>
-                    <button class="action-btn" id="androidApkBtn" style="display:none">
-                        <span class="cache-icon">📱</span><span class="cache-text">安卓APK</span>
-                    </button>
-                    <button class="action-btn" id="checkUpdateBtn" style="display:none">
-                        <span class="cache-icon">🔄</span><span class="cache-text">检查更新</span>
-                    </button>
-                    <button class="action-btn" id="guideBtn">
-                        <span class="cache-icon">📖</span><span class="cache-text">使用说明</span>
-                    </button>
-                    <button class="action-btn feedback" id="feedbackBtn">
-                        <span class="cache-icon">💬</span><span class="cache-text">问题反馈</span>
-                    </button>
-                </div>
-                <div class="cache-status" id="actionStatus"></div>
-            </div>
-            <div class="theme-section" id="resourceManageSection" style="display:none">
-                <div class="theme-section-title">资源管理</div>
-                <div class="actions-grid">
-                    <button class="action-btn" id="dlMgrBtn">
-                        <span class="cache-icon">📥</span><span class="cache-text">下载管理</span>
-                    </button>
-                    <button class="action-btn" id="manageBooksBtn">
-                        <span class="cache-icon">🗑️</span><span class="cache-text">管理书籍</span>
-                    </button>
-                    <button class="action-btn" id="importBtn">
-                        <span class="cache-icon">📂</span><span class="cache-text">导入</span>
-                    </button>
-                </div>
-            </div>
-            <div class="theme-section" id="autoCheckSection" style="display:none">
-                <div class="theme-section-title">偏好设置</div>
-                <div class="pref-row">
-                    <div class="pref-label-wrap">
-                        <span class="pref-title">自动检查更新</span>
-                        <span class="pref-desc">启动时自动检查是否有新版本</span>
-                    </div>
-                    <label class="pref-toggle">
-                        <input type="checkbox" id="autoCheckUpdateToggle">
-                        <span class="pref-toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-            <div class="theme-section" id="devModeSection">
-                <div class="theme-section-title">开发者</div>
-                <div class="pref-row">
-                    <div class="pref-label-wrap">
-                        <span class="pref-title">开发者模式</span>
-                        <span class="pref-desc">在页面底部显示调试日志控制台</span>
-                    </div>
-                    <label class="pref-toggle">
-                        <input type="checkbox" id="devModeToggle">
-                        <span class="pref-toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
         `;
         document.body.appendChild(panel);
 
@@ -255,7 +184,9 @@
             }
         });
 
-        initSettingsActions();
+        // 应用级操作已移至「我的」页面，设置面板仅保留阅读模式 + 字体大小
+        // 但保留全局函数注册（downloadApk / showGuideDialog / showFeedbackDialog）
+        initGlobalActions();
 
         // 记录首次使用时间
         try {
@@ -283,234 +214,58 @@
         }
     }
 
-    function initSettingsActions() {
+    /**
+     * 初始化全局函数注册（供「我的」页面等外部调用）
+     * 设置面板已精简为仅阅读模式 + 字体大小，不再挂载应用级按钮
+     */
+    function initGlobalActions() {
         window.BK = window.BK || {};
-        var section = document.getElementById('settingsActionsSection');
-        if (section) section.style.display = 'block';
-        var statusEl = document.getElementById('actionStatus');
 
-        // 使用说明
-        (function() {
-            var guideBtn = document.getElementById('guideBtn');
-            if (guideBtn) {
-                guideBtn.addEventListener('click', showGuideDialog);
-            }
-        })();
-
-        // 反馈问题
-        (function() {
-            var feedbackBtn = document.getElementById('feedbackBtn');
-            if (feedbackBtn) {
-                feedbackBtn.addEventListener('click', showFeedbackDialog);
-            }
-        })();
-
-        // 我的书签
-        (function() {
-            var bmListBtn = document.getElementById('bookmarkListBtn');
-            if (bmListBtn) {
-                bmListBtn.addEventListener('click', function() {
-                    if (typeof window.toggleThemePanel === 'function') window.toggleThemePanel();
-                    setTimeout(function() {
-                        if (window.BKBookmark && window.BKBookmark.showList) {
-                            window.BKBookmark.showList();
-                        }
-                    }, 300);
+        // 安卓 APK 下载函数（被「我的」页面通过 window.BKDownloadApk 调用）
+        function downloadApk(statusEl) {
+            var root = window.BK_ROOT || './';
+            if (statusEl) { statusEl.textContent = '正在获取最新版本...'; statusEl.className = 'cache-status'; }
+            fetch(root + 'version.json?t=' + Date.now(), { cache: 'no-cache' })
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function(v) {
+                    var f = v.apk_file || ('Books-v' + (v.apk_version || v.version) + '.apk');
+                    var sz = v.apk_size ? ' (' + (v.apk_size / 1024 / 1024).toFixed(1) + ' MB)' : '';
+                    var apkUrl;
+                    if (v.apk_url && v.apk_url.indexOf('/') === 0) {
+                        apkUrl = window.location.origin + v.apk_url;
+                    } else if (v.apk_url) {
+                        apkUrl = v.apk_url;
+                    } else {
+                        apkUrl = 'https://github.com/zhao-zg/books/releases/download/v' + (v.apk_version || v.version) + '/' + f;
+                    }
+                    if (statusEl) { statusEl.textContent = '正在下载 v' + (v.apk_version || v.version) + sz + '...'; statusEl.className = 'cache-status success'; }
+                    window.open(apkUrl, '_blank');
+                })
+                .catch(function(e) {
+                    if (statusEl) { statusEl.textContent = '获取失败: ' + e.message; statusEl.className = 'cache-status error'; }
                 });
-            }
-        })();
+        }
+        window.BKDownloadApk = downloadApk;
 
-        var ua = navigator.userAgent;
-        var isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform &&
-                             window.Capacitor.isNativePlatform());
-        var isAndroid = /Android/i.test(ua);
-        var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-        var isStandalone = (window.navigator.standalone === true) ||
-                           window.matchMedia('(display-mode: standalone)').matches;
-
-        // 清理数据
-        var clearBtn = document.getElementById('clearDataBtn');
-        if (clearBtn) {
-            clearBtn.style.display = 'inline-flex';
-            clearBtn.addEventListener('click', function() {
-                if (window.BK.clearData) { window.BK.clearData(); }
-                else { showClearDialog(); }
+        // 安装到桌面（被「我的」页面调用）
+        window.BK.installPWA = window.BK.installPWA || function() {
+            var p = window._pwaInstallPrompt;
+            if (!p) return;
+            window._pwaInstallPrompt = null;
+            p.prompt();
+            p.userChoice.then(function() {
+                var installBtn = document.getElementById('meInstallBtn');
+                if (installBtn) installBtn.style.display = 'none';
             });
-        }
+        };
 
-        // 资源管理
-        (function() {
-            var section = document.getElementById('resourceManageSection');
-            if (!section) return;
-
-            var dlMgrBtn = document.getElementById('dlMgrBtn');
-            var manageBtn = document.getElementById('manageBooksBtn');
-            var importBtn = document.getElementById('importBtn');
-
-            if (dlMgrBtn || manageBtn || importBtn) {
-                section.style.display = 'block';
-            }
-
-            if (dlMgrBtn) {
-                dlMgrBtn.addEventListener('click', function() {
-                    if (window.BKRenderer && window.BKRenderer.openDownloadManager) {
-                        window.BKRenderer.openDownloadManager();
-                    }
-                });
-            }
-
-            if (importBtn) {
-                importBtn.addEventListener('click', function() {
-                    if (window.BKResourcePack && window.BKResourcePack.showImportDialog) {
-                        window.BKResourcePack.showImportDialog();
-                    } else if (window.BKRenderer && window.BKRenderer.pickAndImport) {
-                        window.BKRenderer.pickAndImport();
-                    }
-                });
-            }
-
-            if (manageBtn) {
-                // 更新按钮文字以反映当前管理模式状态
-                function updateManageLabel() {
-                    var label = manageBtn.querySelector('.cache-text');
-                    if (label) {
-                        label.textContent = (window.BKRenderer && window.BKRenderer.isManageMode && window.BKRenderer.isManageMode()) ? '完成管理' : '管理书籍';
-                    }
-                    var icon = manageBtn.querySelector('.cache-icon');
-                    if (icon) {
-                        icon.textContent = (window.BKRenderer && window.BKRenderer.isManageMode && window.BKRenderer.isManageMode()) ? '✅' : '🗑️';
-                    }
-                }
-
-                // 每次设置面板打开时刷新状态
-                var observer = new MutationObserver(function() {
-                    var panel = document.getElementById('themePanel');
-                    if (panel && panel.classList.contains('show')) updateManageLabel();
-                });
-                var panel = document.getElementById('themePanel');
-                if (panel) observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
-
-                manageBtn.addEventListener('click', function() {
-                    if (window.BKRenderer && window.BKRenderer.toggleManageMode) {
-                        window.BKRenderer.toggleManageMode();
-                    }
-                });
-            }
-        })();
-
-        // 检查更新
-        var updateBtn = document.getElementById('checkUpdateBtn');
-        if (isCapacitor) {
-            if (updateBtn) {
-                updateBtn.style.display = 'inline-flex';
-                updateBtn.addEventListener('click', function() {
-                    if (window.AppUpdate && window.AppUpdate.showCloudflareUpdateDialog) {
-                        window.AppUpdate.showCloudflareUpdateDialog();
-                    }
-                });
-            }
-        } else if (isStandalone && ('caches' in window)) {
-            if (updateBtn) {
-                updateBtn.style.display = 'inline-flex';
-                updateBtn.addEventListener('click', function() {
-                    var root = window.BK_ROOT || './';
-                    if (window.AppUpdate && window.AppUpdate.showPwaUpdateDialog) {
-                        window.AppUpdate.showPwaUpdateDialog({ root: root, statusEl: statusEl });
-                    }
-                });
-            }
-        }
-
-        // 自动检查更新
-        if (isCapacitor || (isStandalone && ('caches' in window))) {
-            var autoCheckSection = document.getElementById('autoCheckSection');
-            var autoCheckToggle  = document.getElementById('autoCheckUpdateToggle');
-            if (autoCheckSection) autoCheckSection.style.display = '';
-            if (autoCheckToggle) {
-                try { autoCheckToggle.checked = localStorage.getItem('bk_auto_check_update') === '1'; } catch(e) {}
-                autoCheckToggle.addEventListener('change', function() {
-                    try {
-                        if (this.checked) localStorage.setItem('bk_auto_check_update', '1');
-                        else localStorage.removeItem('bk_auto_check_update');
-                    } catch(e) {}
-                });
-            }
-        }
-
-        // 开发者模式
-        (function() {
-            var devToggle = document.getElementById('devModeToggle');
-            if (devToggle) {
-                try { devToggle.checked = localStorage.getItem('bk_dev_mode') === '1'; } catch(e) {}
-                devToggle.addEventListener('change', function() {
-                    var on = this.checked;
-                    try { localStorage.setItem('bk_dev_mode', on ? '1' : '0'); } catch(e) {}
-                    if (on && window.BKDevConsole) window.BKDevConsole.init();
-                    else if (!on && window.BKDevConsole) window.BKDevConsole.destroy();
-                });
-            }
-        })();
-
-        // 安卓 APK
-        var apkBtn = document.getElementById('androidApkBtn');
-        if (isAndroid && !isCapacitor) {
-            if (apkBtn) {
-                apkBtn.style.display = 'inline-flex';
-                apkBtn.addEventListener('click', function() {
-                    var root = window.BK_ROOT || './';
-                    if (statusEl) { statusEl.textContent = '正在获取最新版本...'; statusEl.className = 'cache-status'; }
-                    fetch(root + 'version.json?t=' + Date.now(), { cache: 'no-cache' })
-                        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                        .then(function(v) {
-                            var f = v.apk_file || ('Books-v' + (v.apk_version || v.version) + '.apk');
-                            var sz = v.apk_size ? ' (' + (v.apk_size / 1024 / 1024).toFixed(1) + ' MB)' : '';
-                            // APK 从 Cloudflare Pages 下载（已随站点部署）
-                            var apkUrl;
-                            if (v.apk_url && v.apk_url.indexOf('/') === 0) {
-                                // 相对路径，用当前站点地址拼接
-                                apkUrl = window.location.origin + v.apk_url;
-                            } else if (v.apk_url) {
-                                apkUrl = v.apk_url;
-                            } else {
-                                // 兜底：GitHub Release
-                                apkUrl = 'https://github.com/zhao-zg/books/releases/download/v' + (v.apk_version || v.version) + '/' + f;
-                            }
-                            if (statusEl) { statusEl.textContent = '正在下载 v' + (v.apk_version || v.version) + sz + '...'; statusEl.className = 'cache-status success'; }
-                            window.open(apkUrl, '_blank');
-                        })
-                        .catch(function(e) {
-                            if (statusEl) { statusEl.textContent = '获取失败: ' + e.message; statusEl.className = 'cache-status error'; }
-                        });
-                });
-            }
-        }
-
-        // 安装到桌面
-        var installBtn = document.getElementById('installBtn');
-        if (installBtn) {
-            if (isIOS && !isStandalone) {
-                installBtn.style.display = 'inline-flex';
-                installBtn.addEventListener('click', function() {
-                    if (statusEl) {
-                        statusEl.innerHTML = '请点击浏览器底部 <strong>分享按钮 ↑</strong>，然后选择 <strong>"添加到主屏幕"</strong>';
-                        statusEl.className = 'cache-status';
-                    }
-                });
-            } else {
-                window.addEventListener('beforeinstallprompt', function(e) {
-                    e.preventDefault();
-                    window._pwaInstallPrompt = e;
-                    installBtn.style.display = 'inline-flex';
-                });
-                installBtn.addEventListener('click', function() {
-                    if (window.BK.installPWA) { window.BK.installPWA(); return; }
-                    var p = window._pwaInstallPrompt;
-                    if (!p) return;
-                    window._pwaInstallPrompt = null;
-                    p.prompt();
-                    p.userChoice.then(function() { installBtn.style.display = 'none'; });
-                });
-            }
+        // PWA 安装提示拦截（全局只注册一次）
+        if (!window._pwaPromptCaptured) {
+            window._pwaPromptCaptured = true;
+            window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window._pwaInstallPrompt = e;
+            });
         }
     }
 
@@ -567,7 +322,6 @@
             if (t.getAttribute('data-action') === 'cancel') { dlg.close(); return; }
             if (t.getAttribute('data-action') === 'confirm') {
                 dlg.close();
-                var statusEl = document.getElementById('actionStatus');
                 if (onConfirm) { onConfirm(selected); return; }
                 // 默认实现
                 if (selected === 'notes') {
@@ -646,6 +400,7 @@
         var closeBtn = document.getElementById('bkGuideClose');
         if (closeBtn) closeBtn.addEventListener('click', dlg.close);
     }
+    window.showGuideDialog = showGuideDialog;
 
     // 反馈问题对话框
     function showFeedbackDialog() {
@@ -743,6 +498,7 @@
             });
         }
     }
+    window.showFeedbackDialog = showFeedbackDialog;
 
     function closeThemePanelInternal(panel, overlay) {
         panel.classList.remove('show');
@@ -784,6 +540,7 @@
             }
         });
     }
+    window.updateThemeUI = updateThemeUI;
     
     function applyFontSize(size) {
         // 通过 CSS 变量控制阅读区字号，UI 元素保持 16px 基准不变

@@ -1,24 +1,53 @@
 sequenceDiagram
-  actor U as 用户
-  participant R as _renderZlHome
-  participant E as _renderEnhancedHome
-  participant CL as _renderContinueList
-  participant SG as _renderShelfGrid
-  participant B as _bindZlEvents
-  participant RT as BKRouter(hash)
+    autonumber
+    actor U as 用户
+    participant R as BKRouter
+    participant RD as BKRenderer
+    participant DM as DataManager(数据)
+    participant IO as IntersectionObserver
 
-  U->>R: 打开首页(homeView)
-  R->>E: _renderEnhancedHome(homeView)
-  E->>E: 拼装 头部 + 继续阅读/书架区头 + 锚点(#bkContinueListAnchor, #bkShelfAnchor)
-  E->>CL: _renderContinueList(homeView)
-  CL->>CL: _getContinueList(limit): 扫 _zlBooks + getReadingProgress
-  CL-->>E: 注入续读卡(封面+进度条+箭头) 到 #bkContinueListAnchor\n(空则注入引导卡)
-  E->>SG: _renderShelfGrid(homeView)
-  SG->>SG: 遍历 _zlBooks 调 _buildBookCard
-  SG-->>E: 注入 .book-grid 到 #bkShelfAnchor
-  E->>B: _bindZlEvents(homeView)
-  B-->>E: 绑定 #bk-search-btn / #bk-continue-viewall / .book-link / .bk-continue-card
-  U->>B: 点搜索图标
-  B->>B: win.BKSearch.open()
-  U->>RT: 点续读卡/书架卡(hash #/bookId/chapter)
-  RT->>RT: navigate(bookId/chapter)
+    Note over U,RD: ① 进入书城(#/city) → L1 系列网格
+    U->>R: navigate('city')
+    R->>RD: renderCityPage()
+    RD->>RD: _renderCityHome(homeView)
+    RD->>DM: _getSeriesList() → 36 系列(books 置顶,count 降序)
+    RD->>RD: .series-catalog-grid + .series-catalog-card[data-series]
+    Note right of RD: 一级无面包屑
+
+    Note over U,RD: ② 点系列卡 → _enterSeries
+    U->>RD: 点 .series-catalog-card[data-series]
+    RD->>RD: _enterSeries(seriesId)
+    alt 单分类系列(35 个)
+        RD->>DM: _getSeriesCategories(id) → 仅 1 个分类
+        RD->>RD: 跳过 L2 → _renderCityBookList(隐式选定唯一分类, implicit=true)
+        Note right of RD: L3 面包屑「系列名」(to-series)
+    else 多分类系列(books 唯 1)
+        RD->>DM: _getSeriesCategories('books') → 7 分类
+        RD->>RD: _renderCityCategoryList(seriesId)
+        Note right of RD: L2 面包屑「‹ 系列名」(to-series)
+    end
+
+    Note over U,RD: ③ 多分类系列: 点分类卡 → L3
+    U->>RD: 点 .category-card[data-category][data-category-prefix]
+    RD->>RD: _renderCityBookList(seriesId, cat, prefix, false)
+    RD->>DM: _getBooksInSeriesCategory(seriesId,cat,prefix)
+    RD->>RD: 首批 24 + #bkCitySentinel + 面包屑「系列名 › 分类名」
+
+    Note over U,IO: ④ 滚动到底 → 无限加载(24/批,不变)
+    U->>RD: 滚动至哨兵
+    IO->>RD: onIntersect → _cityLoadMore()
+    RD->>RD: 追加下一批(更新 _cityBookOffset)
+    alt 还有更多
+        RD->>RD: 渲染骨架→追加卡片
+    else 到底
+        RD->>RD: 显示「已经到底了」
+    end
+
+    Note over U,RD: ⑤ 面包屑回退(语义重映射)
+    U->>RD: 点面包屑 to-category (仅 L3 多分类出现)
+    RD->>RD: _cityBackToCategories() → L2 分类列表
+    U->>RD: 点面包屑 to-series (L2/L3 任意)
+    RD->>RD: _cityBackToSeries() → L1 系列网格
+
+    Note over U,RD: ⑥ 点书卡 → 阅读(不变)
+    U->>RD: 点 .book-link → BKShelf.add + navigate('bookId/chapter')

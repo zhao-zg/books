@@ -66,5 +66,4 @@
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onAppInstalled);
   });
-  window.BKPwaBanner = { show: show, hide: hide, dismiss: dismiss };
 })();

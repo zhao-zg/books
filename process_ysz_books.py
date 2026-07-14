@@ -30,13 +30,12 @@ SKIP_FILES = {'Zo.txt', 'CJ.txt', 'Y11.txt', 'DE.txt'}
 # 敏感词替换规则
 SENSITIVE_REPLACEMENTS = [
     ("李常受文集", "李文集"),
-    ("生命读经", "LS"),
 ]
 
 # 系列标题映射
 SERIES_TITLE_MAP = {
     'books': '职事书报',
-    'smdj8': 'LS',
+    'smdj8': '生命读经',
     'nee': '倪柝声文集',
     'lee8': '李文集',
     'sy_auto': '信息拾遗',

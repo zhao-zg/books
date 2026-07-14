@@ -16,6 +16,8 @@
 
     // ─── 存储层 ─────────────────────────────────────────────────────────────
     var _store = null;
+    var _cache = null;        // 内存缓存：已加载的书签数组（null 表示尚未加载完成）
+    var _initPromise = null;  // 首次加载 Promise（去重，避免并发重复读）
 
     function _initStore() {
         if (_store) return;
@@ -44,25 +46,55 @@
         });
     }
 
-    function _load() {
+    /** 真实数据加载完成时通知 UI（如「我的」页书签统计） */
+    function _notifyLoaded() {
+        try {
+            win.dispatchEvent(new CustomEvent('bk:bookmarks-loaded', { detail: { count: (_cache || []).length } }));
+        } catch (e) {}
+    }
+
+    /**
+     * 真实加载（写入 _cache，完成后派发 bk:bookmarks-loaded 事件供 UI 刷新）。
+     * 使用单一 Promise（_initPromise）去重，避免并发重复读。
+     */
+    function _ensureLoaded() {
+        if (_initPromise) return _initPromise;
         _initStore();
-        var storePromise = _store.getItem(STORAGE_KEY).then(function (arr) {
-            return Array.isArray(arr) ? arr : [];
+        _initPromise = _store.getItem(STORAGE_KEY).then(function (arr) {
+            // 仅首次填充：避免覆盖「加载过程中已写入」的缓存（add/remove 在超时窗口内先落库）
+            if (_cache === null) _cache = Array.isArray(arr) ? arr : [];
+            _notifyLoaded();
+            return _cache;
         }).catch(function (e) {
-            console.warn('[书签] 读取失败:', e);
-            return [];
+            console.warn('[书签] 读取失败，降级为空列表:', e);
+            if (_cache === null) _cache = [];
+            _notifyLoaded();
+            return _cache;
         });
+        return _initPromise;
+    }
+
+    function _load() {
+        // 已加载：直接返回内存缓存（快路径，瞬间）
+        if (_cache) return Promise.resolve(_cache);
+        // 首次加载：storePromise 始终写 _cache 并派发事件；
+        // 3s 超时仅作首屏防卡死，超时先返回空，真实数据到达后通过 bk:bookmarks-loaded 事件刷新。
+        var storePromise = _ensureLoaded();
         var timeoutPromise = new Promise(function (resolve) {
             setTimeout(function () {
-                console.warn('[书签] 读取超时(3s)，降级为空列表');
-                resolve([]);
+                console.warn('[书签] 读取超时(3s)，本次先返回空列表（后台加载真实数据后将自动刷新）');
+                resolve(null);
             }, 3000);
         });
-        return Promise.race([storePromise, timeoutPromise]);
+        return Promise.race([storePromise, timeoutPromise]).then(function (val) {
+            if (val === null) return _cache || [];
+            return val;
+        });
     }
 
     function _save(arr) {
         _initStore();
+        _cache = arr;   // 内存缓存始终与持久化保持一致
         return _store.setItem(STORAGE_KEY, arr).catch(function (e) {
             console.error('[书签] 保存失败:', e);
         });
@@ -351,10 +383,10 @@
                 }
 
                 var addBtnHtml = isContentPage
-                    ? '<button class="bk-dialog-confirm" data-action="add" style="color:var(--brand);font-weight:600">添加当前页</button>'
+                    ? '<button class="bk-dialog-confirm" data-action="add">添加当前页</button>'
                     : '';
                 var clearBtnHtml = arr.length
-                    ? '<button class="bk-dialog-confirm" data-action="clear" style="color:var(--danger-text)">清空全部</button>'
+                    ? '<button class="bk-dialog-cancel bk-dialog-danger" data-action="clear">清空全部</button>'
                     : '';
                 var footerHtml = '<div class="bk-dialog-actions">' +
                     '<button class="bk-dialog-cancel" data-action="close"' + (!addBtnHtml && !clearBtnHtml ? ' style="flex:1;border-right:none"' : '') + '>关闭</button>' +

@@ -120,7 +120,7 @@
         },
 
         // ─── 供外部在异步内容渲染后调用 ────────────────────────────
-        redoHighlights: function () {
+        rendoHighlights: function () {
             this.clearAllMarks();
             this.restoreHighlights();
         },
@@ -515,13 +515,6 @@
 
         removeNote: function (id) {
             this.saveNote(id, '');
-        },
-
-        clearAllHighlights: function () {
-            if (!confirm('确定要清除本页所有划线吗？')) return;
-            this.highlights = [];
-            this.clearAllMarks();
-            this.saveHighlights();
         },
 
         clearAllHighlightsForce: function () {
