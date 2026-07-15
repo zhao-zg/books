@@ -482,6 +482,28 @@
         try { localStorage.setItem('readingTheme', theme); } catch (e) {}
         updateThemeUI(theme);
         syncThemeColor(theme);
+        // 同步 highlight.js 主题样式表
+        var hljsLight = document.getElementById('hljs-light-theme');
+        var hljsDark = document.getElementById('hljs-dark-theme');
+        if (hljsLight && hljsDark) {
+            if (theme === 'dark') {
+                hljsLight.disabled = true;
+                hljsDark.disabled = false;
+            } else {
+                hljsLight.disabled = false;
+                hljsDark.disabled = true;
+            }
+        }
+        // 同步 mermaid 主题
+        if (window.mermaid && window.mermaid._bkInitialized) {
+            try {
+                window.mermaid.initialize({
+                    startOnLoad: false,
+                    theme: theme === 'dark' ? 'dark' : 'default',
+                    securityLevel: 'loose'
+                });
+            } catch (e) {}
+        }
     };
     
     function updateThemeUI(theme) {

@@ -34,6 +34,117 @@ def load_app_config(config_path='app_config.json'):
         return json.load(f)
 
 
+def copy_book_resources(resource_dir: str, output_dir: str):
+    """扫描 resource/books/ 下的系列目录，复制所有书籍资源到 output/books/，并生成 books-manifest.json。
+
+    目录结构约定：每个子目录 = 一个系列，里面混合 .epub/.md/.txt 文件。
+    构建产物 output/books/ 保持同样的系列目录结构，并在根目录生成 books-manifest.json，
+    前端启动时 fetch 此 manifest，按系列和格式分别解析（EPUB → importFromBuffer，
+    MD → parseMd，TXT → parseTxt）后合并到书城。
+
+    示例：
+      resource/books/
+      ├── 内置书库/
+      │   ├── 阅读的艺术.md
+      │   ├── 祷读神的话.md
+      │   └── classic-tales.txt
+      └── MDC/
+          └── 2026-3-MDC.epub
+
+    → 生成 output/books/（同结构） + output/books/books-manifest.json:
+      {
+        "series": [
+          {
+            "id": "内置书库",
+            "name": "内置书库",
+            "files": [
+              {"file": "内置书库/阅读的艺术.md", "format": "md", "size": 3631, "title": "阅读的艺术"},
+              {"file": "内置书库/祷读神的话.md", "format": "md", "size": 5697, "title": "祷读神的话"},
+              {"file": "内置书库/classic-tales.txt", "format": "txt", "size": 2852, "title": "经典民间故事"}
+            ]
+          },
+          {
+            "id": "MDC",
+            "name": "MDC",
+            "files": [
+              {"file": "MDC/2026-3-MDC.epub", "format": "epub", "size": 1643307, "title": "2026-3-MDC"}
+            ]
+          }
+        ]
+      }
+    """
+    books_src_dir = os.path.join(resource_dir, 'books')
+    if not os.path.isdir(books_src_dir):
+        print("⚠ resource/books/ 不存在，跳过书籍资源复制")
+        return
+
+    SUPPORTED_EXTS = {'.epub': 'epub', '.md': 'md', '.markdown': 'md', '.txt': 'txt'}
+
+    # 扫描系列目录
+    series_list = []
+    total_files = 0
+    for entry in sorted(os.listdir(books_src_dir)):
+        entry_path = os.path.join(books_src_dir, entry)
+        if not os.path.isdir(entry_path):
+            continue  # 跳过 README.md 等
+
+        series_files = []
+        for root, dirs, files in os.walk(entry_path):
+            for f in sorted(files):
+                ext = os.path.splitext(f)[1].lower()
+                fmt = SUPPORTED_EXTS.get(ext)
+                if not fmt:
+                    continue  # 跳过不支持的格式
+                full_path = os.path.join(root, f)
+                rel_path = os.path.relpath(full_path, books_src_dir).replace('\\', '/')
+                stem = os.path.splitext(f)[0]  # 文件名去扩展名，作为默认 title
+                series_files.append({
+                    'file': rel_path,
+                    'format': fmt,
+                    'size': os.path.getsize(full_path),
+                    'title': stem,
+                })
+
+        if not series_files:
+            continue
+
+        series_list.append({
+            'id': entry,
+            'name': entry,
+            'files': series_files,
+        })
+        total_files += len(series_files)
+
+    if not series_list:
+        print("⚠ resource/books/ 中没有可用的书籍文件，跳过")
+        return
+
+    # 复制到 output/books/，保持系列目录结构
+    dst_dir = os.path.join(output_dir, 'books')
+    if os.path.exists(dst_dir):
+        shutil.rmtree(dst_dir)
+    shutil.copytree(books_src_dir, dst_dir)
+
+    # 删除 output/books/README.md（不需要随构建下发）
+    readme_dst = os.path.join(dst_dir, 'README.md')
+    if os.path.exists(readme_dst):
+        os.remove(readme_dst)
+
+    # 生成 manifest
+    manifest_path = os.path.join(dst_dir, 'books-manifest.json')
+    with open(manifest_path, 'w', encoding='utf-8') as f:
+        json.dump({'series': series_list}, f, ensure_ascii=False, indent=2)
+
+    print(f"✓ 书籍资源已复制（{len(series_list)} 个系列，{total_files} 本书）")
+    for s in series_list:
+        formats = {}
+        for sf in s['files']:
+            formats[sf['format']] = formats.get(sf['format'], 0) + 1
+        fmt_str = ', '.join(f"{k} {v}本" for k, v in sorted(formats.items()))
+        print(f"  - {s['name']}（{fmt_str}）")
+    print(f"  清单: {manifest_path}")
+
+
 def copy_zl_merged_data(resource_dir: str, output_dir: str):
     """将 resource/zl-merged/ 完整复制到 output/zl-data/（含索引+书籍数据）。
 
@@ -389,6 +500,9 @@ def main():
 
     # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
     copy_zl_merged_data(resource_dir, output_dir)
+
+    # 复制 resource/books/ 下的书籍资源到 output/books/（供前端自动导入，支持 EPUB/MD/TXT）
+    copy_book_resources(resource_dir, output_dir)
 
     print(f"\n{'=' * 60}")
     print(f" 构建完成!")

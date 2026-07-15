@@ -537,7 +537,7 @@
     var urls = (cfg.urls && cfg.urls.length) ? cfg.urls.slice() : null;
     return {
       id: cfg.id || ('wd_' + Date.now()),
-      name: cfg.name || (cfg.url ? trimSlash(cfg.url) : 'WebDAV'),
+      name: cfg.name || 'WebDAV',
       url: trimSlash(cfg.url || ''),
       urls: urls,                       // 多域名候选（可空）
       username: cfg.username || '',

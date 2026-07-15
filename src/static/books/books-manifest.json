@@ -1,0 +1,40 @@
+{
+  "series": [
+    {
+      "name": "内置书库",
+      "id": "内置书库",
+      "files": [
+        {
+          "file": "内置书库/阅读的艺术.md",
+          "format": "md",
+          "size": 4002,
+          "title": "阅读的艺术"
+        },
+        {
+          "file": "内置书库/祷读神的话.md",
+          "format": "md",
+          "size": 5697,
+          "title": "祷读神的话"
+        },
+        {
+          "file": "内置书库/classic-tales.txt",
+          "format": "txt",
+          "size": 13615,
+          "title": "经典民间故事"
+        }
+      ]
+    },
+    {
+      "name": "MDC",
+      "id": "MDC",
+      "files": [
+        {
+          "file": "MDC/2026-3-MDC.epub",
+          "format": "epub",
+          "size": 1643307,
+          "title": "2026-3-MDC"
+        }
+      ]
+    }
+  ]
+}

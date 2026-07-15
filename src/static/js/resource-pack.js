@@ -791,13 +791,10 @@
     }
     function displayPath() {
       if (!wd.path) return '根目录';
-      try {
-        var u = new URL(wd.path);
-        var p = u.pathname.replace(/^\/+/, '');
-        return p || '根目录';
-      } catch (e) {
-        return wd.path.split('/').pop() || wd.path;
-      }
+      // 不显示完整 URL 路径，只取最后一段目录名
+      var parts = wd.path.replace(/\/+$/, '').split('/');
+      var last = parts[parts.length - 1];
+      return last || '根目录';
     }
     function parentUrl(url) {
       var u = (url || '').replace(/\/+$/, '');
@@ -817,15 +814,36 @@
       var el = dialogEl.querySelector('#wdStatus');
       if (!el) return;
       el.style.display = 'block';
-      el.textContent = msg;
+      // 支持包含 HTML（如取消按钮），但也兼容纯文本
+      if (msg.indexOf('<') >= 0) { el.innerHTML = msg; }
+      else { el.textContent = msg; }
+    }
+    function hideStatusAfter(ms) {
+      setTimeout(function () {
+        var el = dialogEl.querySelector('#wdStatus');
+        if (el) el.style.display = 'none';
+      }, ms);
+    }
+    // 中文数字标识：根据 URL 在配置中的索引返回「节点一/二/三…」，仅多域名时有意义
+    var CN_NUMS = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+    function nodeLabel(cfg, url) {
+      if (!cfg) return '';
+      var urls = cfg.urls && cfg.urls.length ? cfg.urls : (cfg.url ? [cfg.url] : []);
+      if (urls.length <= 1) return '';  // 单域名不需要标识
+      var idx = -1;
+      for (var i = 0; i < urls.length; i++) {
+        if (urls[i] === url) { idx = i; break; }
+      }
+      if (idx < 0) return '';
+      return '节点' + (CN_NUMS[idx] || (idx + 1));
     }
     // 连接成功后提示所选最快节点（仅多域名时）
     function showConnectedNode(res) {
       if (!res || !res.config) return;
       var cfg = res.config;
       if (cfg.multiNode && cfg.connectedUrl) {
-        var host = cfg.connectedUrl.replace(/^https?:\/\//, '').split('/')[0];
-        showStatus('已连接 · 最快节点：' + host + (cfg.connectMs ? '（' + cfg.connectMs + 'ms）' : ''));
+        var label = nodeLabel(cfg, cfg.connectedUrl) || '最快节点';
+        showStatus('已连接 · ' + label + (cfg.connectMs ? '（' + cfg.connectMs + 'ms）' : ''));
         setTimeout(function () {
           var el = dialogEl.querySelector('#wdStatus');
           if (el) el.style.display = 'none';
@@ -858,7 +876,7 @@
       wd._progressBars = {};
 
       if (wd.mode === 'connecting') {
-        wdView.innerHTML = '<div class="bk-webdav-connecting"><div class="bk-spinner"></div>连接中…</div>';
+        wdView.innerHTML = '<div class="bk-webdav-connecting"><div class="bk-spinner"></div>连接中…<button class="bk-webdav-cancel-btn" data-action="wd-cancel-connect">取消</button></div>';
         return;
       }
 
@@ -926,7 +944,7 @@
       wdView.innerHTML =
         '<div class="bk-webdav-breadcrumb">' +
           '<button class="bk-webdav-up" data-action="wd-nav-up"' + (wd.path === '' ? ' disabled' : '') + '>← 上级</button>' +
-          '<span class="bk-webdav-path">' + escHtml(displayPath()) + '</span>' +
+          '<span class="bk-webdav-path">' + escHtml((nodeLabel(wd.config, wd.config && wd.config.connectedUrl) ? nodeLabel(wd.config, wd.config.connectedUrl) + ' · ' : '') + displayPath()) + '</span>' +
           '<button class="bk-webdav-disconnect" data-action="wd-disconnect">断开</button>' +
         '</div>' +
         '<label class="bk-webdav-filter"><input type="checkbox" data-action="wd-filter"' + (wd.formatFilter ? ' checked' : '') + ' /> 仅显示可导入格式</label>' +
@@ -949,10 +967,16 @@
         wd.mode = 'connecting';
         wd._usingSavedId = active.id;
         renderWebdav();
+        var cancelled = false;
+        // 点击取消时立即回到断开态
+        var cancelBtn = dialogEl.querySelector('[data-action="wd-cancel-connect"]');
+        if (cancelBtn) cancelBtn.onclick = function () { cancelled = true; wd.mode = 'disconnected'; wd.config = null; renderWebdav(); };
         win.WebDavManager.listDir(active, '').then(function (entries) {
+          if (cancelled) return;
           wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
           refreshDownloadedSet().then(function () { renderWebdav(); });
         }).catch(function (err) {
+          if (cancelled) return;
           wd.mode = 'disconnected'; wd.config = null;
           renderWebdav();
           setWdError(err);
@@ -970,17 +994,22 @@
       // 预置服务器无需再保存到本机（已随包下发）
       var isPreset = cfg.preset === true;
       wd.locked = true;
-      var connBtn = dialogEl.querySelector('[data-action="wd-connect"]');
-      if (connBtn) { connBtn.disabled = true; connBtn.textContent = '连接中…'; }
+      wd.mode = 'connecting';
+      renderWebdav();
+      var cancelled = false;
+      var cancelBtn = dialogEl.querySelector('[data-action="wd-cancel-connect"]');
+      if (cancelBtn) cancelBtn.onclick = function () { cancelled = true; wd.locked = false; wd.mode = 'disconnected'; wd.config = null; renderWebdav(); };
       win.WebDavManager.connect(cfg, { save: readSaveChecked() && !isPreset }).then(function (res) {
+        if (cancelled) return;
         wd.locked = false;
-        if (connBtn) { connBtn.disabled = false; connBtn.textContent = '连接'; }
         wd.config = res.config; wd.path = ''; wd.entries = res.entries; wd.selected = {}; wd.mode = 'browsing';
         wd._usingSavedId = res.config.id;
         refreshDownloadedSet().then(function () { renderWebdav(); showConnectedNode(res); });
       }).catch(function (err) {
+        if (cancelled) return;
         wd.locked = false;
-        if (connBtn) { connBtn.disabled = false; connBtn.textContent = '连接'; }
+        wd.mode = 'disconnected';
+        renderWebdav();
         setWdError(err);
       });
     }
@@ -1010,10 +1039,26 @@
     function downloadAndImport(entries) {
       if (!wd.config || !entries.length || wd.locked) return;
       wd.locked = true;
+      wd._downloadCancelled = false;
       // 下载前先刷新「已下载集合」，保证去重判断基于最新记录
       refreshDownloadedSet().then(function () {
-        var done = 0, updated = 0, failed = 0;
+        var done = 0, updated = 0, failed = 0, skipped = 0;
         function next(i) {
+          // 检查取消标志
+          if (wd._downloadCancelled) {
+            skipped = entries.length - i;
+            wd.locked = false;
+            wd._downloadCancelled = false;
+            wd.selected = {};
+            var parts = ['已取消：新导入 ' + done + ' 本'];
+            if (updated) parts.push('更新 ' + updated + ' 本');
+            if (failed) parts.push('失败 ' + failed + ' 本');
+            if (skipped) parts.push('跳过 ' + skipped + ' 本');
+            showStatus(parts.join('，'));
+            hideStatusAfter(4000);
+            refreshDownloadedSet().then(function () { renderWebdav(); });
+            return;
+          }
           if (i >= entries.length) {
             wd.locked = false;
             wd.selected = {};   // 清空选择
@@ -1021,10 +1066,7 @@
             if (updated) parts.push('更新 ' + updated + ' 本');
             if (failed) parts.push('失败 ' + failed + ' 本');
             showStatus(parts.join('，'));
-            setTimeout(function () {
-              var el = dialogEl.querySelector('#wdStatus');
-              if (el) el.style.display = 'none';
-            }, 4000);
+            hideStatusAfter(4000);
             // 刷新书城/书架（导入已入架，renderHome 即书架）
             if (win.BKRenderer && win.BKRenderer.renderHome) {
               try { win.BKRenderer.renderHome(); } catch (e) {}
@@ -1035,16 +1077,18 @@
           }
           var entry = entries[i];
           var existingId = (wd._downloadedSet && wd._downloadedSet[entry.remotePath]) || null;
-          showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name + (existingId ? '（已存在，更新中）' : ''));
+          showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name + (existingId ? '（已存在，更新中）' : '') + ' <button class="bk-webdav-cancel-btn" data-action="wd-cancel-download">取消</button>');
           setItemProgress(entry.remotePath, 0, true);
           win.WebDavManager.downloadFile(wd.config, entry, function (p) {
             if (p >= 0) setItemProgress(entry.remotePath, p, true);
           }).then(function (fileInfo) {
+            // 下载完成后再次检查取消（下载期间用户可能点了取消）
+            if (wd._downloadCancelled) { skipped++; next(i + 1); return; }
             var source = {
               type: 'webdav',
               serverId: wd.config.id,
               remotePath: entry.remotePath,
-              serverName: wd.config.name || wd.config.url
+              serverName: (wd.config.name && wd.config.name.indexOf('://') < 0) ? wd.config.name : (nodeLabel(wd.config, wd.config.connectedUrl) || 'WebDAV')
             };
             // 已下载过则复用原 id（resync/覆盖写），避免重复书
             return win.ImportManager.importFromBuffer(fileInfo, { source: source, bookId: existingId || undefined });
@@ -1073,7 +1117,19 @@
     }
 
     function handleWdAction(action, el) {
-      if (wd.locked) return; // 下载中禁止其它操作
+      if (wd.locked) {
+        // 下载中仍允许断开和浏览（目录导航），仅阻止新的下载/选择操作
+        if (action === 'wd-disconnect') { wdDisconnect(); return; }
+        if (action === 'wd-nav-up') { wdNavUp(); return; }
+        if (action === 'wd-open-dir') { wdOpenDir(el.getAttribute('data-path')); return; }
+        if (action === 'wd-cancel-download') { wd._downloadCancelled = true; showStatus('正在取消…'); return; }
+        // 其他操作给提示
+        if (action === 'wd-download' || action === 'wd-download-selected') {
+          showStatus('正在下载中，请等待完成…');
+          hideStatusAfter(2000);
+        }
+        return;
+      }
       switch (action) {
         case 'wd-config-select': return; // change 事件处理
         case 'wd-connect': wdConnect(); return;
@@ -1147,9 +1203,12 @@
     });
 
     dialogEl.addEventListener('change', function (e) {
-      if (wd.locked) return;
       var t = e.target;
       var actionAttr = t.getAttribute && t.getAttribute('data-action');
+      if (wd.locked) {
+        // 下载中仍允许勾选/取消勾选文件和切换格式过滤
+        if (actionAttr !== 'wd-check' && actionAttr !== 'wd-filter') return;
+      }
       if (actionAttr === 'wd-config-select') {
         var id = t.value;
         wd._usingSavedId = id || null;

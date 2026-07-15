@@ -141,6 +141,10 @@
   function anyOverlayOpen() {
     // 通用对话框遮罩（书签、管理面板、各类子对话框等，均经 BK.openDialog 创建）
     if (doc.querySelector('.bk-dialog-mask')) return true;
+    // 书架长按操作菜单（底部 sheet）：打开时隐藏底部 Tab 栏，避免遮挡内容
+    if (doc.querySelector('.bk-shelf-quick-mask')) return true;
+    // 书架编辑（多选）态：底部编辑工具条接管，隐藏 Tab 栏
+    if (doc.querySelector('.bk-shelf-page.is-editing')) return true;
     // 搜索浮层（close 时仅 display:none，需检查可见性）
     var searchOverlay = doc.querySelector('.bk-search-overlay');
     if (searchOverlay && win.getComputedStyle(searchOverlay).display !== 'none') return true;

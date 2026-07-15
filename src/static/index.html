@@ -225,6 +225,12 @@
     <script src="js/bottom-tab-bar.js" defer></script>
     <script src="js/pwa-banner.js" defer></script>
     <script src="vendor/marked.min.js" defer></script>
+    <script src="vendor/highlight.min.js" defer></script>
+    <script src="vendor/mermaid.min.js" defer></script>
+    <script src="vendor/katex.min.js" defer></script>
+    <link rel="stylesheet" href="vendor/katex.min.css">
+    <link rel="stylesheet" href="vendor/highlight-github.css" id="hljs-light-theme">
+    <link rel="stylesheet" href="vendor/highlight-github-dark.css" id="hljs-dark-theme" disabled>
     <script src="vendor/pdf.min.js" defer></script>
     <script src="js/import-manager.js" defer></script>
     <script src="js/webdav-manager.js" defer></script>
@@ -258,7 +264,16 @@
         './js/remote-config.js','./js/webdav-presets.js','./js/import-manager.js',
         './js/webdav-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
+        './vendor/highlight.min.js','./vendor/mermaid.min.js','./vendor/katex.min.js','./vendor/katex.min.css',
+        './vendor/highlight-github.css','./vendor/highlight-github-dark.css',
         './vendor/pdf.min.js','./vendor/pdf.worker.min.js',
+        './vendor/fonts/KaTeX_Main-Regular.woff2','./vendor/fonts/KaTeX_Main-Bold.woff2',
+        './vendor/fonts/KaTeX_Math-Italic.woff2','./vendor/fonts/KaTeX_Math-BoldItalic.woff2',
+        './vendor/fonts/KaTeX_Size1-Regular.woff2','./vendor/fonts/KaTeX_Size2-Regular.woff2',
+        './vendor/fonts/KaTeX_Size3-Regular.woff2','./vendor/fonts/KaTeX_Size4-Regular.woff2',
+        './vendor/fonts/KaTeX_AMS-Regular.woff2',
+        './vendor/fonts/KaTeX_Main-Regular.woff','./vendor/fonts/KaTeX_Math-Italic.woff',
+        './vendor/fonts/KaTeX_Size2-Regular.woff',
         './icons/icon-192.png','./icons/icon-512.png'
     ];
     // 远程 zl-data 校验项：从配置注入的 cloudflare 节点动态拼接，不在源码写死域名。

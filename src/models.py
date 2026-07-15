@@ -107,8 +107,10 @@ def slugify(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# HTML → Content 列表转换（EPUB 与 Markdown 解析器共享）
+# HTML → Content 列表转换（Markdown 解析器使用）
 # ---------------------------------------------------------------------------
+# 注意：EPUB 解析由前端 import-manager.js::htmlToContents() 负责执行，
+# 后端不做 EPUB 解析，避免维护两份相同逻辑的代码。
 
 def _extract_text(el) -> str:
     """提取元素的纯文本，去除多余空白"""
@@ -117,12 +119,11 @@ def _extract_text(el) -> str:
     return re.sub(r'\s+', ' ', text).strip()
 
 
-def html_to_contents(html: str, images_base: str = "") -> List[Content]:
-    """将 HTML 片段解析为 Content 对象列表。
+def html_to_contents(html: str) -> List[Content]:
+    """将 HTML 片段解析为 Content 对象列表（用于 Markdown 解析器）。
 
-    Args:
-        html: HTML 字符串
-        images_base: 图片路径前缀（如 'images/'）
+    EPUB 解析由前端 import-manager.js::htmlToContents() 负责，
+    后端仅处理 Markdown 生成的 HTML，不需要 EPUB 专属逻辑。
 
     Returns:
         Content 列表
@@ -131,7 +132,6 @@ def html_to_contents(html: str, images_base: str = "") -> List[Content]:
 
     soup = BeautifulSoup(html, 'html.parser')
     contents: List[Content] = []
-    footnotes: List[str] = []
 
     def _process_element(el: Tag):
         """递归处理 HTML 元素"""
@@ -164,7 +164,6 @@ def html_to_contents(html: str, images_base: str = "") -> List[Content]:
                 return
             text = _extract_text(el)
             if text:
-                # 检查段落内是否有图片
                 for img in imgs:
                     src = img.get('src', '')
                     if src:
@@ -238,19 +237,11 @@ def html_to_contents(html: str, images_base: str = "") -> List[Content]:
                 contents.append(Content(type='paragraph', text='\n'.join(rows)))
             return
 
-        # footnotes (common pattern: <aside epub:type="footnote"> or class="footnote")
-        if tag == 'aside' or (tag == 'div' and 'footnote' in el.get('class', [])):
-            text = _extract_text(el)
-            if text:
-                footnotes.append(text)
-                contents.append(Content(type='footnote', text=text))
-            return
-
-        # For container tags (div, section, article, body, html, etc.), recurse
+        # 容器标签：递归子元素
         if tag in ('div', 'section', 'article', 'main', 'body', 'html',
                     'header', 'footer', 'nav', 'figure', 'figcaption',
-                    'span', 'a', 'em', 'strong', 'b', 'i', 'u', 'sup', 'sub',
-                    'br', '[document]'):
+                    'aside', 'span', 'a', 'em', 'strong', 'b', 'i', 'u',
+                    'sup', 'sub', 'br', '[document]'):
             for child in el.children:
                 if isinstance(child, Tag):
                     _process_element(child)
@@ -270,14 +261,3 @@ def html_to_contents(html: str, images_base: str = "") -> List[Content]:
 
     return contents
 
-
-def extract_images_from_html(html: str) -> List[str]:
-    """从 HTML 中提取所有图片 src"""
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, 'html.parser')
-    srcs = []
-    for img in soup.find_all('img'):
-        src = img.get('src', '')
-        if src:
-            srcs.append(src)
-    return srcs

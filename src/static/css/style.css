@@ -122,6 +122,8 @@
   /* Surface RGB for glassmorphism */
   --surface-rgb: 26,25,23;
   --glass-bg: rgba(26,25,23,0.78);
+  /* Code block background for dark theme */
+  --code-bg: #1b1b1b;
 }
 
 /* ── 深色模式：EPUB 内联颜色安全网（覆盖已导入书籍中残留的硬编码颜色）── */
@@ -240,7 +242,7 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .category-card .bk-cover,
 .series-catalog-card .bk-cover {
   width: 100%;
-  aspect-ratio: 5 / 6;
+  aspect-ratio: 1 / 1;
   font-size: 15px;
   border-radius: 0;
   box-shadow: none;
@@ -912,6 +914,346 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
   color: var(--brand, #3D8A5A);
   font-weight: 600;
   flex-shrink: 0;
+}
+.bk-fn-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+}
+.bk-fn-ref a {
+  color: var(--brand, #3D8A5A);
+  text-decoration: none;
+  font-weight: 600;
+}
+.bk-fn-ref a:hover {
+  text-decoration: underline;
+}
+.bk-fn-text a {
+  color: var(--brand, #3D8A5A);
+}
+
+/* ── EPUB 脚注引用（duokan-footnote 行内标记）── */
+.bk-epub-fn-ref {
+  color: var(--brand, #3D8A5A);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+  text-decoration: none;
+  margin: 0 1px;
+}
+.bk-epub-fn-ref:hover {
+  text-decoration: underline;
+}
+
+/* EPUB 脚注弹窗 */
+.bk-epub-fn-popup {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  max-width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  padding: 14px 16px;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.bk-epub-fn-popup-active {
+  display: block;
+}
+.bk-epub-fn-popup-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: var(--text-muted, #999);
+  line-height: 1;
+}
+.bk-epub-fn-popup-close:hover {
+  color: var(--text, #333);
+}
+.bk-epub-fn-popup-content {
+  color: var(--text, #333);
+}
+.bk-epub-fn-popup-content p {
+  margin: 0.3em 0;
+  line-height: 1.5;
+}
+[data-theme="dark"] .bk-epub-fn-popup {
+  background: #2a2a2a;
+  border-color: #444;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ── EPUB 大纲层级样式 ────────────────────────────────────── */
+/* 大点 壹贰叁 — 加粗、楷体、稍大 */
+.bk-epub-dadian {
+  font-weight: bold;
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  text-indent: 0;
+}
+/* 中点 一二三 — 正常粗细 */
+.bk-epub-zhongdian {
+  font-weight: normal;
+  text-indent: 1em;
+}
+/* 小点 1 2 3 — 更缩进 */
+.bk-epub-xiaodian {
+  font-weight: normal;
+  text-indent: 2em;
+}
+/* 字母点 a b c */
+.bk-epub-zimudian {
+  font-weight: normal;
+  text-indent: 3em;
+  font-size: 0.95em;
+}
+/* 括号点 */
+.bk-epub-kuohaodian {
+  font-weight: normal;
+  text-indent: 3.5em;
+  font-size: 0.95em;
+}
+
+/* ── EPUB 晨兴/信息喂养样式 ────────────────────────────────── */
+/* 晨兴喂养背景框 */
+.bk-epub-chenxing_box {
+  background-color: rgba(var(--brand-rgb, 61,138,90), 0.06);
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90), 0.15);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+/* 周几导航标签 */
+.bk-epub-gangmu_wn {
+  font-weight: bold;
+  color: var(--brand, #3D8A5A);
+  text-indent: 0;
+}
+/* 晨兴周几标签（红字标题） */
+.bk-heading.bk-epub-chenxing_wn {
+  color: #c0392b;
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  text-align: center;
+  text-indent: 0;
+}
+/* 晨兴喂养/信息选读标题 */
+.bk-heading.bk-epub-chenxing_wyxd {
+  font-weight: bold;
+  color: var(--brand, #3D8A5A);
+  font-family: 'STHeiti', 'SimHei', '黑体', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+  text-align: center;
+  text-indent: 0;
+}
+/* 禱读经文（引用块） */
+.bk-quote.bk-epub-chenxing_verse {
+  font-weight: bold;
+  border-left-color: #c0392b;
+}
+.bk-quote.bk-epub-chenxing_verse .bk-quote-content {
+  font-style: normal;
+  font-family: 'FZXiaoBiaoSong-B05S', 'STSong', '宋体', 'SimSun', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+}
+/* 晨兴正文 */
+.bk-epub-chenxing_content {
+  text-indent: 1em;
+}
+/* 读经行 */
+.bk-epub-verse_text {
+  font-size: 0.9em;
+  text-indent: 0;
+}
+/* 经文内容（脚注中的经文段落） */
+.bk-epub-verse {
+  color: var(--text-muted);
+  margin-left: 1em;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+/* 总题 */
+.bk-heading.bk-epub-zongti {
+  color: var(--text-muted);
+  text-align: center;
+}
+/* 篇题 */
+.bk-heading.bk-epub-content_title {
+  color: var(--brand, #3D8A5A);
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  font-size: 1.3em;
+  text-align: center;
+}
+
+/* ── EPUB <br> linebreak ─────────────────────────────────── */
+br.bk-linebreak {
+  display: block;
+  content: '';
+  margin-top: 0.3em;
+}
+
+/* ── 代码块高亮增强 ──────────────────────────────────────── */
+pre.bk-code {
+  border-radius: 8px;
+  overflow-x: auto;
+  position: relative;
+}
+pre.bk-code.hljs {
+  background: var(--code-bg, #f6f8fa);
+}
+pre.bk-code code {
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: var(--text-sm, 15px);
+  line-height: 1.6;
+  tab-size: 4;
+}
+
+/* ── 任务列表 Checkbox ─────────────────────────────────────── */
+.bk-list li {
+  position: relative;
+}
+.bk-task-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-muted, #999);
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 6px;
+  position: relative;
+  cursor: default;
+  flex-shrink: 0;
+}
+.bk-task-checkbox:checked {
+  background: var(--brand, #3D8A5A);
+  border-color: var(--brand, #3D8A5A);
+}
+.bk-task-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.bk-list li:has(.bk-task-checkbox:checked) {
+  color: var(--text-muted, #999);
+  text-decoration: line-through;
+}
+
+/* ── Mermaid 图表 ──────────────────────────────────────────── */
+.bk-mermaid {
+  margin: 1em auto;
+  text-align: center;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.bk-mermaid pre.mermaid {
+  display: flex;
+  justify-content: center;
+}
+.bk-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── KaTeX 数学公式 ───────────────────────────────────────── */
+.bk-math {
+  display: block;
+  margin: 0.8em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bk-math .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+/* ── 缩进标记（Tab 缩进转换） ── */
+.bk-indent {
+  display: inline;
+  white-space: pre;
+}
+.bk-indent-1 { }
+.bk-indent-2 { }
+
+/* ── 大纲层级缩进（中文编号层级） ── */
+.bk-outline-indent {
+  display: inline;
+  white-space: pre;
+}
+.bk-outline-2 { }
+.bk-outline-3 { }
+.bk-outline-4 { }
+
+/* ── mark 高亮（++text++ 格式） ── */
+mark.bk-mark-highlight {
+  background: rgba(255, 214, 0, 0.25);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+[data-theme="dark"] mark.bk-mark-highlight {
+  background: rgba(255, 214, 0, 0.35);
+  color: inherit;
+}
+
+/* ── 图片 Lightbox ────────────────────────────────────────── */
+.bk-lightbox-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  justify-content: center;
+  align-items: center;
+}
+.bk-lightbox-overlay.bk-lightbox-active {
+  display: flex;
+}
+.bk-lightbox-container {
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+}
+.bk-lightbox-img {
+  max-width: 95vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.bk-lightbox-close {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+  opacity: 0.7;
+  line-height: 1;
+  padding: 4px 8px;
+}
+.bk-lightbox-close:hover {
+  opacity: 1;
+}
+figure.bk-figure img {
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+figure.bk-figure img:hover {
+  transform: scale(1.02);
 }
 
 /* ── 表格 ─────────────────────────────────────────────────── */
@@ -1827,32 +2169,6 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   border: 1px solid var(--brand, #3D8A5A);
 }
 
-/* ── 书城卡片：角落小已读标记（极简 sage 对勾，仅视觉，不挡点击） ─────────── */
-.bk-city-read-marker {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--brand, #3D8A5A);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  z-index: 6;            /* 高于封面，但 pointer-events:none 不拦截点击 */
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(0.6);
-  transition: opacity 0.15s var(--ease-out, ease), transform 0.15s var(--ease-out, ease);
-}
-.bk-city-read-marker.is-read-mark {
-  opacity: 1;
-  transform: scale(1);
-}
 /* 书架行操作按钮：图标 + 文字，语义明确（替代原歧义圆形 ✓ / 裸「取消」） */
 .bk-shelf-markread,
 .bk-shelf-unread {
@@ -1983,6 +2299,7 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   color: #fff;
 }
 .bk-shelf-tab-empty {
+  grid-column: 1 / -1;
   padding: 48px 16px;
   text-align: center;
   color: var(--text-muted, #9A958C);
@@ -2026,14 +2343,14 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
 .bk-shelf-row-cover { width: 100%; }
 .bk-shelf-row-cover .bk-cover {
   width: 100%;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 1 / 1;
   border-radius: 0;
   font-size: 15px;
   box-shadow: none;
 }
 .bk-shelf-row-cover .bk-cover-inner { padding: 14% 13%; }
-.bk-shelf-row .bk-cover-series { font-size: .8em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
-.bk-shelf-row .bk-cover-title { font-size: 1.5em; font-weight: 600; line-height: 1.2; }
+.bk-shelf-row .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
+.bk-shelf-row .bk-cover-title { font-size: 1.6em; font-weight: 600; line-height: 1.2; }
 .bk-shelf-row .bk-cover-rule,
 .bk-shelf-row .bk-cover-foot { display: none; }
 
@@ -2065,7 +2382,7 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
 .bk-shelf-remove-btn:active { transform: scale(.97); color: var(--danger-text, #C8553D); border-color: var(--danger-border, #EAD9D2); }
 [data-theme="dark"] .bk-shelf-remove-btn { color: var(--text-muted); border-color: var(--border); }
 [data-theme="dark"] .bk-shelf-remove-btn:active { color: var(--danger-text); border-color: var(--danger-border); }
-.bk-shelf-empty { text-align: center; padding: 48px 24px; }
+.bk-shelf-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 48px 24px; }
 .bk-shelf-empty-icon { font-size: 40px; margin-bottom: 12px; }
 .bk-shelf-empty-title { font-size: 15px; margin-bottom: 16px; color: var(--text, #1A1918); }
 .bk-shelf-empty-cta {
@@ -2175,23 +2492,67 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   background: rgba(0, 0, 0, 0);
   transition: background .2s ease;
 }
-.bk-shelf-quick-mask.is-open { background: rgba(0, 0, 0, .4); }
+.bk-shelf-quick-mask.is-open { background: rgba(0, 0, 0, .42); }
+
 .bk-shelf-quick-menu {
   width: 100%;
-  max-width: 480px;
+  max-width: 460px;
   background: var(--card-bg, #fff);
-  border-radius: 16px 16px 0 0;
+  border-radius: 20px 20px 0 0;
   padding: 8px;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 32px rgba(26, 25, 23, .18);
   transform: translateY(100%);
-  transition: transform .25s var(--ease-out, ease);
+  transition: transform .28s var(--ease-out, cubic-bezier(.2, .8, .2, 1));
 }
 .bk-shelf-quick-mask.is-open .bk-shelf-quick-menu { transform: translateY(0); }
+
+.bk-shelf-quick-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border, #E5E2DD);
+  margin-bottom: 6px;
+}
+.bk-shelf-quick-cover {
+  width: 40px;
+  height: 54px;
+  flex: 0 0 40px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .16);
+}
+.bk-shelf-quick-headtext { min-width: 0; }
+.bk-shelf-quick-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text, #1A1918);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-shelf-quick-author {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text-muted, #9A958C);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bk-shelf-quick-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 14px;
   width: 100%;
-  text-align: center;
-  padding: 14px;
+  text-align: left;
+  padding: 13px 14px;
   font: inherit;
   font-size: 16px;
   font-weight: 500;
@@ -2202,10 +2563,67 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.bk-shelf-quick-item:active { background: var(--nav-hover); }
+.bk-shelf-quick-item .qi-ico {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand, #3D8A5A);
+}
+.bk-shelf-quick-item .qi-ico svg { width: 20px; height: 20px; display: block; }
+.bk-shelf-quick-item .qi-label { flex: 1; min-width: 0; }
+.bk-shelf-quick-item .qi-trail { margin-left: auto; color: var(--brand, #3D8A5A); font-size: 13px; font-weight: 600; }
+.bk-shelf-quick-item:active { background: var(--nav-hover, rgba(0, 0, 0, .05)); }
 .bk-shelf-quick-item.is-danger { color: var(--danger-text, #C8553D); }
-.bk-shelf-quick-cancel { color: var(--text-muted, #9A958C); border-top: 1px solid var(--border, #E5E2DD); margin-top: 4px; }
+.bk-shelf-quick-item.is-danger .qi-ico { color: var(--danger-text, #C8553D); }
+.bk-shelf-quick-cancel {
+  justify-content: center;
+  font-weight: 600;
+  color: var(--text-muted, #9A958C);
+  border-top: 1px solid var(--border, #E5E2DD);
+  margin-top: 6px;
+}
+.bk-shelf-quick-cancel .qi-ico { display: none; }
 [data-theme="dark"] .bk-shelf-quick-menu { background: var(--card-bg, #201F1D); }
+
+/* 书架卡片置顶角标（左上，与右上已读角标对称） */
+.bk-shelf-pin-mark {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 14px;
+  line-height: 1;
+  z-index: 6;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
+}
+
+/* 书籍详情弹窗 */
+.bk-book-detail { max-width: 440px; }
+.bk-detail-head { display: flex; align-items: center; gap: 14px; padding: 4px 2px 14px; }
+.bk-detail-cover {
+  width: 52px;
+  height: 70px;
+  flex: 0 0 52px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .18);
+}
+.bk-detail-name { font-size: 17px; font-weight: 600; color: var(--text, #1A1918); line-height: 1.35; }
+.bk-detail-row { display: flex; gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--border, #E5E2DD); }
+.bk-detail-row:last-child { border-bottom: none; }
+.bk-detail-label { flex: 0 0 60px; color: var(--text-muted, #9A958C); font-size: 14px; }
+.bk-detail-value { flex: 1; min-width: 0; color: var(--text, #1A1918); font-size: 14px; line-height: 1.5; word-break: break-word; }
+.bk-detail-row-block { flex-direction: column; gap: 6px; }
+.bk-detail-empty { padding: 12px 2px; color: var(--text-muted, #9A958C); font-size: 14px; }
+[data-theme="dark"] .bk-book-detail .bk-detail-value { color: var(--text); }
 
 /* 书架顶部「编辑」按钮 */
 .bk-shelf-edit-btn {
@@ -2525,6 +2943,10 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
 /* 连接中 */
 .bk-webdav-connecting { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 32px 0;
   color: var(--text-muted, #9A958C); font-size: var(--text-sm, .8125rem); }
+.bk-webdav-cancel-btn { border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; color: var(--text, #1A1918);
+  border-radius: 8px; padding: 4px 14px; font: inherit; font-size: var(--text-sm, .8125rem); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; margin-left: 6px; }
+.bk-webdav-cancel-btn:active { background: var(--surface-alt, #EDEAE4); }
 
 /* 面包屑 / 路径 */
 .bk-webdav-breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -2724,7 +3146,7 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   /* 3 列小屏：收敛封面基准字号，海报文字在 ~88–106px 窄卡内完整可读不溢出 */
   .category-card .bk-cover,
   .series-catalog-card .bk-cover,
-  .bk-city-book-grid .bk-cover { font-size: 12px; }
+  div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover { font-size: 12px; }
 }
 
 /* ── 全局交互反馈增强 ──────────────────────────────────────────── */
@@ -2772,7 +3194,7 @@ button:active { transition-duration: 0.05s; }
   .bk-city-book-grid { gap: 10px; padding: 4px 12px 12px; }
   .category-card .bk-cover,
   .series-catalog-card .bk-cover,
-  .bk-city-book-grid .bk-cover { font-size: 12px; }
+  div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover { font-size: 12px; }
   .collection-caption .series-catalog-card-title,
   .collection-caption .category-card-title { font-size: 15px; }
   .bk-reading-chapter-title { font-size: var(--text-lg); }
@@ -3199,7 +3621,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 }
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover {
   width: 100%;
-  aspect-ratio: 5 / 6;
+  aspect-ratio: 1 / 1;
   font-size: 15px;
   border-radius: 0;            /* 卡顶 16px 圆角由 .zl-book-card 的 overflow:hidden 裁切 */
 }

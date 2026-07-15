@@ -22,7 +22,9 @@
 
   function getPath() {
     var h = win.location.hash || '#/';
-    return h.replace(/^#\/?/, '');
+    var raw = h.replace(/^#\/?/, '');
+    // ★ decode 解码 URL 编码的中文 bookId（如 bundle-内置书库::阅读的艺术）
+    try { return decodeURIComponent(raw); } catch (e) { return raw; }
   }
 
   function dispatch(path) {

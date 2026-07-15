@@ -153,7 +153,8 @@
   }
 
   /**
-   * 扫描所有 bk_shelf: 前缀键，返回记录数组（按 addedAtTs 倒序——最近加入的在最上面）。
+   * 扫描所有 bk_shelf: 前缀键，返回记录数组。
+   * 排序键 = max(入架时间 addedAtTs, 最近阅读时间 bk_lastread_ts) 倒序——最近加入或最近阅读的在最上面。
    * @returns {Array<Object>}
    */
   function all() {
@@ -173,16 +174,36 @@
     }
 
     records.sort(function (a, b) {
-      // 主排序：入架时间戳倒序——最近加入的在最上面（不受「标记已读」影响）。
+      // 1) 置顶优先：pinned 书永远排在最前
+      var pa = (a.pinned === true) ? 1 : 0;
+      var pb = (b.pinned === true) ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      // 同为置顶：按 pinnedTs 倒序（先置顶的在前）
+      if (pa && pb) {
+        var pta = a.pinnedTs || 0, ptb = b.pinnedTs || 0;
+        if (pta !== ptb) return ptb - pta;
+      }
+      // 2) 其余：最近加入 / 最近阅读 中更近者（ms 时间戳），倒序——最新的在最上面。
       var ta = (typeof a.addedAtTs === 'number') ? a.addedAtTs : 0;
       var tb = (typeof b.addedAtTs === 'number') ? b.addedAtTs : 0;
-      if (ta !== tb) return tb - ta;
-      // 兜底：旧记录无时间戳，按 addedAt 日期字符串倒序。
-      var ka = a.addedAt || '';
-      var kb = b.addedAt || '';
-      return kb.localeCompare(ka);
+      var ka = Math.max(ta, _lastReadTs(a.bookId));
+      var kb = Math.max(tb, _lastReadTs(b.bookId));
+      if (ka !== kb) return kb - ka;
+      // 兜底：同键（多为旧记录无时间戳），按 addedAt 日期字符串倒序。
+      var sa = a.addedAt || '';
+      var sb = b.addedAt || '';
+      return sb.localeCompare(sa);
     });
     return records;
+  }
+
+  // 读取某本书的「最近阅读」时间戳（ms）；无记录返回 0。
+  // 存储键 bk_lastread_ts:<bookId> 由阅读页写入（saveReadingProgress / 打开章节时）。
+  function _lastReadTs(bookId) {
+    try {
+      var v = parseInt(win.localStorage.getItem('bk_lastread_ts:' + bookId) || '0', 10);
+      return isNaN(v) ? 0 : v;
+    } catch (e) { return 0; }
   }
 
   /**
@@ -204,6 +225,42 @@
    */
   function isCollected(bookId) {
     return _safeGet(_key(bookId)) !== null;
+  }
+
+  /**
+   * 置顶 / 取消置顶书籍。
+   * 置顶写 pinned:true + pinnedTs；取消置顶删除该字段。
+   * 列表主排序优先置顶（见 all()）。
+   * @param {string} bookId
+   * @param {boolean} pinned
+   */
+  function setPinned(bookId, pinned) {
+    if (!bookId) return;
+    var rec = get(bookId);
+    if (!rec) {
+      // 书不在架的极端情况：先入架再置顶
+      rec = { bookId: bookId, addedAt: _today(), addedAtTs: Date.now(), note: null, rating: null, status: STATUS };
+    }
+    if (pinned) {
+      rec.pinned = true;
+      rec.pinnedTs = Date.now();
+    } else {
+      delete rec.pinned;
+      delete rec.pinnedTs;
+    }
+    if (!rec.status) rec.status = STATUS;
+    _safeSet(_key(bookId), JSON.stringify(rec));
+    emitChanged(bookId, pinned ? 'pin' : 'unpin');
+  }
+
+  /**
+   * 判定书籍是否置顶。
+   * @param {string} bookId
+   * @returns {boolean}
+   */
+  function isPinned(bookId) {
+    var rec = get(bookId);
+    return !!(rec && rec.pinned === true);
   }
 
   /**
@@ -253,6 +310,8 @@
     finish: markRead,        // 别名：语义等价（标记已读）
     isRead: isRead,
     isCollected: isCollected,
+    setPinned: setPinned,
+    isPinned: isPinned,
     all: all,
     stats: stats,
     emitChanged: emitChanged

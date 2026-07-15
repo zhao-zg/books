@@ -34,6 +34,15 @@
             .replace(/'/g, '&#39;');
   }
 
+  function escAttr(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;')
+                     .replace(/</g, '&lt;')
+                     .replace(/>/g, '&gt;')
+                     .replace(/"/g, '&quot;')
+                     .replace(/'/g, '&#39;');
+  }
+
   // ── 章节分割正则（移植自 txt_parser.py）──
   var chapterPatterns = [
     /^第[零一二三四五六七八九十百千\d]+[章节回部篇集卷]\s*(.*)$/,
@@ -522,12 +531,53 @@
     var lines = text.split(/\r?\n/);
     if (!lines.length) throw new Error('TXT 文件为空');
 
+    // ★ 清理 AIGC 水印行和零宽字符行（开发环境自动注入）
+    // 1. 移除仅含零宽字符/不可见字符的行
+    // 2. 移除 "> AI生成" 等标记行
+    // 3. 移除纯元数据行（作者、来源等）——仅清理首部出现的
+    for (var ci = 0; ci < lines.length; ci++) {
+      var cl = lines[ci].trim();
+      // 零宽字符行（整行无可见字符）
+      if (cl && !cl.replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\u00AD]/g, '')) {
+        lines[ci] = '';
+        continue;
+      }
+      // 首部元数据行（作者、来源等）
+      if (/^(作者|author|来源|source|整理|编者)\s*[：:]/i.test(cl)) {
+        lines[ci] = '';
+        continue;
+      }
+      // AIGC 水印行（首部）
+      if (/^\s*>?\s*AI\s*生[成成]/i.test(cl)) {
+        lines[ci] = '';
+        continue;
+      }
+      // 遇到第一个非空非元数据行，停止首部清理
+      if (cl) break;
+    }
+    // 清除尾部 AIGC 水印（"AI生成"、"AI 生成"等）
+    for (var ci2 = lines.length - 1; ci2 >= 0; ci2--) {
+      var cl2 = lines[ci2].trim();
+      if (/^\s*>?\s*AI\s*生[成成]/i.test(cl2)) {
+        lines[ci2] = '';
+      } else if (cl2) {
+        break;
+      }
+    }
+
     // 书名检测：前 5 行中短行（<50字符、无标点结尾）
+    // ★ 排除「作者/Autor」开头的元数据行，避免把"作者：XXX"当成书名
     var bookTitle = fileName.replace(/\.txt$/i, '');
     var titleLineIdx = -1;
     for (var i = 0; i < Math.min(5, lines.length); i++) {
       var s = lines[i].trim();
-      if (s && s.length <= 50 && !/[。！？.!?,，;；:：]$/.test(s)) {
+      if (!s) continue;
+      // ★ 跳过元数据行（作者、来源等）
+      if (/^(作者|author|来源|source|整理|编者)\s*[：:]/i.test(s)) continue;
+      // ★ 跳过章节标题行（如"第一章 愚公移山"、"Chapter 1"等），不应作为书名
+      if (/^第[一二三四五六七八九十百千\d]+[章节回卷篇]/.test(s)) continue;
+      if (/^chapter\s+\d+/i.test(s)) continue;
+      if (s.length <= 50 && !/[。！？.!?,，;；:：]$/.test(s)) {
         var puncCount = 0;
         for (var ci = 0; ci < s.length; ci++) {
           if ('，。！？,.!?;；:：、'.indexOf(s[ci]) >= 0) puncCount++;
@@ -541,6 +591,28 @@
     }
 
     var contentLines = titleLineIdx >= 0 ? lines.slice(titleLineIdx + 1) : lines;
+
+    // ★ 如果没有检测到书名行，跳过第一个章节标题之前的所有前导行
+    // （可能是 AIGC 水印、元数据等，不应成为独立章节）
+    if (titleLineIdx < 0) {
+      var firstHeadingIdx = -1;
+      for (var fhi = 0; fhi < contentLines.length; fhi++) {
+        if (matchChapterHeading(contentLines[fhi])) {
+          firstHeadingIdx = fhi;
+          break;
+        }
+      }
+      // 只在有2个以上章节标题时才跳过前导行（避免把无章节结构的整本书截断）
+      if (firstHeadingIdx > 0) {
+        var headingCount = 0;
+        for (var hci = firstHeadingIdx; hci < contentLines.length; hci++) {
+          if (matchChapterHeading(contentLines[hci])) headingCount++;
+        }
+        if (headingCount >= 2) {
+          contentLines = contentLines.slice(firstHeadingIdx);
+        }
+      }
+    }
 
     // 按章节标题、分隔线、双空行依次尝试分割
     var segments = splitByHeading(contentLines);
@@ -1185,12 +1257,18 @@
           var inner = extractInlineHtml(child, cssMap);
           if (tag === 'a') {
             var href = child.getAttribute('href') || '';
-            // Detect cross-chapter links (e.g., "chapter-1.xhtml" or "chapter-1.xhtml#anchor")
-            var chapterMatch = href.match(/chapter-(\d+)\.xhtml/i);
-            if (chapterMatch) {
-              result += '<a href="#" data-chapter-link="' + escHtml(chapterMatch[1]) + '">' + inner + '</a>';
+            // EPUB duokan-footnote 行内引用：渲染为 <sup> 而非 <a>
+            if (child.classList && child.classList.contains('duokan-footnote')) {
+              var fnRefId = href.replace(/^#/, '') || '';
+              result += '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">†</sup>';
             } else {
-              result += '<a href="' + escHtml(href) + '">' + inner + '</a>';
+              // Detect cross-chapter links (e.g., "chapter-1.xhtml" or "chapter-1.xhtml#anchor")
+              var chapterMatch = href.match(/chapter-(\d+)\.xhtml/i);
+              if (chapterMatch) {
+                result += '<a href="#" data-chapter-link="' + escHtml(chapterMatch[1]) + '">' + inner + '</a>';
+              } else {
+                result += '<a href="' + escHtml(href) + '">' + inner + '</a>';
+              }
             }
           } else if (tag === 'span') {
             var cls = child.getAttribute('class') || '';
@@ -1202,8 +1280,20 @@
             } else {
               result += '<span>' + inner + '</span>';
             }
+          } else if (tag === 'mark') {
+            var mkCls = child.getAttribute('class') || '';
+            if (mkCls) {
+              result += '<mark class="' + escHtml(mkCls) + '">' + inner + '</mark>';
+            } else {
+              result += '<mark>' + inner + '</mark>';
+            }
           } else {
-            result += '<' + tag + '>' + inner + '</' + tag + '>';
+            var genericCls = child.getAttribute('class') || '';
+            if (genericCls) {
+              result += '<' + tag + ' class="' + escHtml(genericCls) + '">' + inner + '</' + tag + '>';
+            } else {
+              result += '<' + tag + '>' + inner + '</' + tag + '>';
+            }
           }
         } else {
           result += extractInlineHtml(child, cssMap);
@@ -1257,11 +1347,43 @@
     var doc = parser.parseFromString('<div>' + fragmentHtml + '</div>', 'text/html');
     var root = doc.body.firstChild || doc.body;
     var contents = [];
+    // EPUB duokan-footnote 收集数组：<aside epub:type="footnote"> 提取后暂存于此，
+    // walk 完成后统一追加为章节脚注区域
+    var epubFootnotes = [];
+    var epubFnCounter = 0;
+    // 标记是否在 aside footnote 内部：此时 ol/li 不做列表聚合，递归子节点以保留 p 结构
+    var insideEpubFootnote = false;
 
     function getNodeStyle(node) {
       if (!cssMap) return '';
       var cls = node.getAttribute('class') || '';
       return cls ? lookupCssStyle(cssMap, cls) : '';
+    }
+
+    // 从节点的 class 列表中检测 EPUB 特殊语义类（calibre_* 系列），
+    // 返回语义标签（如 'dadian','zhongdian' 等）或空字符串
+    function detectEpubClass(node) {
+      var cls = (node.getAttribute('class') || '').split(/\s+/);
+      for (var i = 0; i < cls.length; i++) {
+        switch (cls[i]) {
+          case 'calibre_text_dadian':    return 'dadian';      // 大点 壹贰叁
+          case 'calibre_text_zhongdian': return 'zhongdian';   // 中点 一二三
+          case 'calibre_text_xiaodian':  return 'xiaodian';    // 小点 1 2 3
+          case 'calibre_text_zimudian':  return 'zimudian';    // 字母点 a b c
+          case 'calibre_text_kuohaodian': return 'kuohaodian'; // 括号点
+          case 'calibre_text_gangmu_wn': return 'gangmu_wn';   // 周几导航标签
+          case 'calibre_text_chenxing_content_wn':  return 'chenxing_wn';  // 晨兴周几标签
+          case 'calibre_text_chenxing_content_wyxd': return 'chenxing_wyxd'; // 晨兴喂养/信息选读标题
+          case 'calibre_text_chenxing_verse': return 'chenxing_verse'; // 禱读经文
+          case 'calibre_text_chenxing_content': return 'chenxing_content'; // 晨兴正文
+          case 'calibre_verse': return 'verse';          // 脚注经文内容
+          case 'calibre_text_verse': return 'verse_text';     // 读经行
+          case 'calibre_zongti': return 'zongti';             // 总题
+          case 'calibre_content_title': return 'content_title'; // 篇题
+          case 'calibre7': return 'chenxing_box';              // 晨兴喂养背景框
+        }
+      }
+      return '';
     }
 
     function walk(node) {
@@ -1283,23 +1405,90 @@
           break;
         case 'p':
           var img = node.querySelector('img');
+          // 判断 img 是否只是装饰性图标（如 EPUB 脚注引用图标）而非段落主内容
+          var imgIsDecorative = false;
           if (img) {
+            // 脚注引用图标通常嵌套在 <a epub:type="noteref"> 或 <a class="duokan-footnote"> 内，
+            // 且常有 class="footnote_img" 或 alt="note"
+            var imgParent = img.parentElement;
+            if (imgParent && imgParent.tagName && imgParent.tagName.toLowerCase() === 'a') {
+              var aRel = imgParent.getAttribute('epub:type') || '';
+              var aCls = imgParent.className || '';
+              if (aRel === 'noteref' || /\bduokan-footnote\b/.test(aCls)) {
+                imgIsDecorative = true;
+              }
+            }
+            // 也检查 img 自身的 class/alt
+            var imgCls = img.className || '';
+            var imgAlt = (img.getAttribute('alt') || '').toLowerCase();
+            if (/\bfootnote_img\b/.test(imgCls) || imgAlt === 'note') {
+              imgIsDecorative = true;
+            }
+          }
+          if (img && !imgIsDecorative) {
             contents.push({
               type: 'image',
               src: img.getAttribute('src') || '',
               attrs: { alt: img.getAttribute('alt') || '' }
             });
           } else {
-            var pText = (node.textContent || '').trim();
-            var pHtml = extractInlineHtml(node, cssMap).trim();
-            var pStyle = getNodeStyle(node);
-            if (pText) contents.push({ type: 'paragraph', text: pText, html: pHtml, style: pStyle });
+            // 检查是否为纯 KaTeX display math 段落
+            // 仅当段落只包含 .katex-display 元素时，才作为 math 类型
+            // 行内公式（.katex 非 .katex-display）与文字混合时作为普通段落
+            var katexDisplay = node.querySelector('.katex-display');
+            var isPureMath = false;
+            if (katexDisplay) {
+              // 检查段落是否几乎全是公式（只有空白/换行文字）
+              var plainText = (node.textContent || '').replace(/[\s\n\r]/g, '');
+              // 如果去掉空白后文字很短（display math 通常只有很少的纯文本），视为纯公式
+              // 更可靠的方式：检查直接子节点是否只有 .katex-display
+              var childNodes = node.childNodes;
+              var hasSignificantText = false;
+              for (var ci = 0; ci < childNodes.length; ci++) {
+                var cn = childNodes[ci];
+                if (cn.nodeType === 3 && cn.textContent.trim().length > 0) {
+                  hasSignificantText = true;
+                  break;
+                }
+              }
+              isPureMath = !hasSignificantText;
+            }
+            if (isPureMath) {
+              var mathHtml = extractInlineHtml(node, cssMap).trim();
+              if (mathHtml) contents.push({ type: 'math', html: mathHtml });
+            } else {
+              var pText = (node.textContent || '').trim();
+              var pHtml = extractInlineHtml(node, cssMap).trim();
+              var pStyle = getNodeStyle(node);
+              // 检测 EPUB 特殊 CSS 类，语义化映射
+              var epubCls = detectEpubClass(node);
+              if (pText) {
+                var pItem = { type: 'paragraph', text: pText, html: pHtml, style: pStyle };
+                if (epubCls) pItem.epubClass = epubCls;
+                // 语义类型提升：特定 EPUB 类映射到更合适的 Content 类型
+                if (epubCls === 'zongti' || epubCls === 'content_title') {
+                  pItem.type = 'heading';
+                  pItem.level = epubCls === 'zongti' ? 2 : 3;
+                } else if (epubCls === 'chenxing_wyxd') {
+                  pItem.type = 'heading';
+                  pItem.level = 3;
+                } else if (epubCls === 'chenxing_wn' || epubCls === 'gangmu_wn') {
+                  pItem.type = 'heading';
+                  pItem.level = 4;
+                } else if (epubCls === 'chenxing_verse') {
+                  pItem.type = 'quote';
+                }
+                contents.push(pItem);
+              }
+            }
           }
           break;
         case 'div':
         case 'span':
           var dsText = (node.textContent || '').trim();
           if (dsText) {
+            // 检测 EPUB 特殊语义类（如 calibre7 晨兴喂养背景框）
+            var dsEpubCls = detectEpubClass(node);
             // div/span 可能只是容器，递归子节点
             var hasBlock = false;
             for (var ci = 0; ci < node.children.length; ci++) {
@@ -1309,10 +1498,22 @@
               }
             }
             if (hasBlock) {
-              for (var ci2 = 0; ci2 < node.childNodes.length; ci2++) walk(node.childNodes[ci2]);
+              // 晨兴喂养背景框：标记容器边界，子项继承 epubClass
+              if (dsEpubCls === 'chenxing_box') {
+                var boxStart = contents.length;
+                for (var ci2 = 0; ci2 < node.childNodes.length; ci2++) walk(node.childNodes[ci2]);
+                // 为 box 内的子项添加背景框标记
+                for (var bi = boxStart; bi < contents.length; bi++) {
+                  if (!contents[bi].epubClass) contents[bi].epubClass = 'chenxing_box';
+                }
+              } else {
+                for (var ci2 = 0; ci2 < node.childNodes.length; ci2++) walk(node.childNodes[ci2]);
+              }
             } else {
               var dsStyle = getNodeStyle(node);
-              contents.push({ type: 'paragraph', text: dsText, html: extractInlineHtml(node, cssMap).trim(), style: dsStyle });
+              var dsItem = { type: 'paragraph', text: dsText, html: extractInlineHtml(node, cssMap).trim(), style: dsStyle };
+              if (dsEpubCls) dsItem.epubClass = dsEpubCls;
+              contents.push(dsItem);
             }
           }
           break;
@@ -1331,25 +1532,56 @@
           break;
         case 'ul':
         case 'ol':
+          // 在 EPUB 脚注内部，ol/li 直接递归子节点，不做列表聚合
+          // （脚注内容是 <ol><li><p> 结构，需要保留 p 的段落结构）
+          if (insideEpubFootnote) {
+            for (var oli = 0; oli < node.childNodes.length; oli++) walk(node.childNodes[oli]);
+            break;
+          }
           var items = [];
           var itemHtmls = [];
+          var checkboxes = null; // 任务列表 checkbox 状态
           // 检查 ol 是否带有 list-style:none（如 duokan-footnote-content），有则视为无序
           var olStyle = (node.getAttribute('style') || '').toLowerCase();
           var forceUnordered = tag === 'ol' && /\blist-style\s*:\s*none\b/.test(olStyle);
           var lis = node.querySelectorAll('li');
           for (var li = 0; li < lis.length; li++) {
+            // 任务列表：检测 <input type="checkbox">
+            var cbInput = lis[li].querySelector('input[type="checkbox"]');
+            if (cbInput) {
+              if (!checkboxes) checkboxes = [];
+              checkboxes.push(!!cbInput.checked);
+            }
             var liText = (lis[li].textContent || '').trim();
             var liHtml = extractInlineHtml(lis[li], cssMap).trim();
             if (liText) { items.push(liText); itemHtmls.push(liHtml); }
           }
           if (items.length) {
-            contents.push({ type: 'list', items: items, itemHtmls: itemHtmls, attrs: { ordered: tag === 'ol' && !forceUnordered } });
+            var listItem = { type: 'list', items: items, itemHtmls: itemHtmls, attrs: { ordered: tag === 'ol' && !forceUnordered } };
+            if (checkboxes && checkboxes.length === items.length) listItem.checkboxes = checkboxes;
+            contents.push(listItem);
           }
           break;
         case 'pre':
           var codeEl = node.querySelector('code');
           var codeText = codeEl ? (codeEl.textContent || '') : (node.textContent || '');
-          contents.push({ type: 'code', text: codeText.trim(), attrs: { language: '' } });
+          // 提取语言类名 (language-xxx)
+          var codeLang = '';
+          if (codeEl) {
+            var codeClasses = (codeEl.getAttribute('class') || '').split(/\s+/);
+            for (var cli = 0; cli < codeClasses.length; cli++) {
+              var clm = codeClasses[cli].match(/^language-(.+)$/);
+              if (clm) { codeLang = clm[1]; break; }
+            }
+          }
+          // Mermaid 图表：创建 mermaid 内容项，延迟渲染
+          if (codeLang === 'mermaid') {
+            contents.push({ type: 'mermaid', text: codeText.trim() });
+            break;
+          }
+          // 保留 hljs 高亮后的 innerHTML（如果有的话）
+          var codeHtml = (codeEl && codeEl.innerHTML) ? codeEl.innerHTML : '';
+          contents.push({ type: 'code', text: codeText.trim(), html: codeHtml, attrs: { language: codeLang } });
           break;
         case 'code':
           // 不在 pre 内的 inline code
@@ -1385,7 +1617,103 @@
           }
           break;
         case 'br':
-          // 忽略 br
+          // 保留换行：追加 linebreak 内容项
+          // 如果前一项是 paragraph，可直接在其 html 末尾追加 <br>
+          var brLast = contents.length ? contents[contents.length - 1] : null;
+          if (brLast && brLast.type === 'paragraph' && brLast.html) {
+            brLast.html += '<br>';
+          } else {
+            contents.push({ type: 'linebreak' });
+          }
+          break;
+        case 'aside':
+          // EPUB duokan-footnote：<aside epub:type="footnote"> 或 class 含 duokan-footnote
+          var isEpubFn = (node.getAttribute('epub:type') === 'footnote') ||
+                         (node.classList && node.classList.contains('duokan-footnote'));
+          if (isEpubFn) {
+            epubFnCounter++;
+            var fnId = node.getAttribute('id') || ('epubfn' + epubFnCounter);
+            // 提取脚注内容：将子节点递归为 Content 项
+            var fnContents = [];
+            var savedContents = contents;
+            var savedInsideFn = insideEpubFootnote;
+            contents = fnContents;
+            insideEpubFootnote = true;
+            for (var afi = 0; afi < node.childNodes.length; afi++) {
+              walk(node.childNodes[afi]);
+            }
+            contents = savedContents;
+            insideEpubFootnote = savedInsideFn;
+            epubFootnotes.push({ id: fnId, content: fnContents });
+            break;
+          }
+          // 非 duokan-footnote 的 aside，递归子节点
+          for (var asi = 0; asi < node.childNodes.length; asi++) walk(node.childNodes[asi]);
+          break;
+        case 'section':
+          // 脚注区域 (.bk-footnotes-section)
+          if (node.classList && node.classList.contains('bk-footnotes-section')) {
+            var fnHtml = extractInlineHtml(node, cssMap).trim();
+            if (fnHtml) {
+              contents.push({ type: 'footnotes_section', html: fnHtml });
+            }
+            break;
+          }
+          // 其他 section 递归子节点
+          for (var si = 0; si < node.childNodes.length; si++) walk(node.childNodes[si]);
+          break;
+        case 'sup':
+          // 脚注引用 (.bk-fn-ref)
+          if (node.classList && node.classList.contains('bk-fn-ref')) {
+            var fnRefHtml = extractInlineHtml(node, cssMap).trim();
+            contents.push({ type: 'footnote_ref', html: fnRefHtml });
+            break;
+          }
+          // 其他 sup 递归
+          for (var supi = 0; supi < node.childNodes.length; supi++) walk(node.childNodes[supi]);
+          break;
+        case 'a':
+          // EPUB duokan-footnote 行内引用：<a class="duokan-footnote" href="#fn1">
+          var isDuokanFnRef = node.classList && node.classList.contains('duokan-footnote');
+          if (isDuokanFnRef) {
+            var fnRefHref = node.getAttribute('href') || '';
+            var fnRefId = fnRefHref.replace(/^#/, '') || '';
+            var fnRefText = (node.textContent || '').trim();
+            contents.push({
+              type: 'footnote_ref',
+              footnoteId: fnRefId,
+              text: fnRefText,
+              html: '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">' + escHtml(fnRefText) + '</sup>'
+            });
+            break;
+          }
+          // 普通 <a> 链接：保留行内 HTML（含 href），作为段落内联内容
+          var aText = (node.textContent || '').trim();
+          if (aText) {
+            var aHtml = extractInlineHtml(node, cssMap).trim();
+            // 如果已有前一个 paragraph 项，尝试追加到其 html 末尾
+            var lastItem = contents.length ? contents[contents.length - 1] : null;
+            if (lastItem && lastItem.type === 'paragraph' && lastItem.html) {
+              lastItem.html += ' ' + aHtml;
+              lastItem.text += ' ' + aText;
+            } else {
+              contents.push({ type: 'paragraph', text: aText, html: aHtml, style: '' });
+            }
+          }
+          break;
+        case 'span':
+          // KaTeX 渲染后的 .katex 元素
+          if (node.classList && node.classList.contains('katex')) {
+            var katexHtml = extractInlineHtml(node, cssMap).trim();
+            if (katexHtml) contents.push({ type: 'math', html: katexHtml });
+            break;
+          }
+          // 其他 span 走通用 div/span 逻辑
+          var spText = (node.textContent || '').trim();
+          if (spText) {
+            var spStyle = getNodeStyle(node);
+            contents.push({ type: 'paragraph', text: spText, html: extractInlineHtml(node, cssMap).trim(), style: spStyle });
+          }
           break;
         case 'script':
         case 'style':
@@ -1405,16 +1733,76 @@
       walk(root.childNodes[i]);
     }
 
+    // EPUB duokan-footnote 收尾：将收集的脚注作为章节脚注区域追加
+    // 关联行内 footnote_ref 的 footnoteId 与 epubFootnotes 的 id
+    if (epubFootnotes.length) {
+      var fnItems = [];
+      for (var fi = 0; fi < epubFootnotes.length; fi++) {
+        var efn = epubFootnotes[fi];
+        // 将脚注子内容渲染为 HTML 片段
+        var efnHtml = '';
+        for (var eci = 0; eci < efn.content.length; eci++) {
+          var ecItem = efn.content[eci];
+          if (ecItem.type === 'paragraph') {
+            // 段落用 <p> 包裹，保留 epubClass
+            var pCls = ecItem.epubClass ? ' class="bk-epub-' + ecItem.epubClass + '"' : '';
+            efnHtml += '<p' + pCls + '>' + (ecItem.html || ecItem.text || '') + '</p>';
+          } else if (ecItem.type === 'heading') {
+            efnHtml += '<strong>' + (ecItem.html || ecItem.text || '') + '</strong><br>';
+          } else if (ecItem.type === 'linebreak') {
+            efnHtml += '<br>';
+          } else if (ecItem.html) {
+            efnHtml += ecItem.html;
+          } else if (ecItem.text) {
+            efnHtml += ecItem.text;
+          }
+        }
+        var efnFallbackText = efn.content.map(function(c) { return c.text || ''; }).join(' ');
+        if (efnHtml || efn.content.length) {
+          fnItems.push({
+            type: 'footnote',
+            attrs: { id: efn.id },
+            text: efnFallbackText,
+            html: efnHtml || efnFallbackText
+          });
+        }
+      }
+      if (fnItems.length) {
+        contents.push({ type: 'footnotes_section', footnoteRefs: fnItems });
+      }
+      // 为行内 footnote_ref 关联脚注编号（用于渲染时对应）
+      var fnIdMap = {};
+      for (var fmi = 0; fmi < epubFootnotes.length; fmi++) {
+        fnIdMap[epubFootnotes[fmi].id] = fmi + 1;
+      }
+      for (var ci6 = 0; ci6 < contents.length; ci6++) {
+        if (contents[ci6].type === 'footnote_ref' && contents[ci6].footnoteId) {
+          var fnNum = fnIdMap[contents[ci6].footnoteId];
+          if (fnNum) {
+            contents[ci6].html = '<sup class="bk-epub-fn-ref" data-fn-id="' +
+              escAttr(contents[ci6].footnoteId) + '">' + fnNum + '</sup>';
+          }
+        }
+        // 替换段落 HTML 中的 † 占位符为递增编号
+        if (contents[ci6].type === 'paragraph' && contents[ci6].html) {
+          contents[ci6].html = contents[ci6].html.replace(/<sup class="bk-epub-fn-ref" data-fn-id="([^"]+)">†<\/sup>/g, function(m, fnId) {
+            var num = fnIdMap[fnId];
+            return '<sup class="bk-epub-fn-ref" data-fn-id="' + fnId + '">' + (num || '') + '</sup>';
+          });
+        }
+      }
+    }
+
     return contents;
   }
 
   // ── Markdown 解析 ──
   function parseMd(text, fileName) {
-    // 提取 YAML frontmatter
+    // 提取 YAML frontmatter（循环剥离多个连续的 ---...--- 块，含 AIGC 水印等）
     var meta = {};
     var mdContent = text;
-    var fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-    if (fmMatch) {
+    var fmMatch;
+    while ((fmMatch = mdContent.match(/^\s*---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/))) {
       // 简单解析 YAML key: value
       var yamlLines = fmMatch[1].split(/\r?\n/);
       for (var yi = 0; yi < yamlLines.length; yi++) {
@@ -1424,6 +1812,10 @@
       mdContent = fmMatch[2];
     }
 
+    // 清理尾部 AIGC 水印引用块（如 "> AI生成"、"> AI 生成"、"?> AI生成内容" 等）
+    // 全局清除所有 AIGC 水印行（可能在文档中多处出现）
+    mdContent = mdContent.replace(/^\s*>+\s*AI\s*生[成成].*$/gim, '');
+
     var bookTitle = meta.title || fileName.replace(/\.md$/i, '');
     var author = meta.author || '';
     var description = meta.description || '';
@@ -1431,9 +1823,147 @@
     // 用 marked 转 HTML
     var html = '';
     if (win.marked) {
-      html = typeof win.marked.parse === 'function'
-        ? win.marked.parse(mdContent)
-        : win.marked(mdContent);
+      // ── KaTeX 预处理：在 marked 之前保护 $...$ 和 $$...$$ ──
+      var mathSpans = [];
+      var mathProtected = mdContent.replace(/\$\$([\s\S]+?)\$\$/g, function(m) {
+        mathSpans.push({ display: true, expr: m.slice(2, -2) });
+        return '%%MATH' + (mathSpans.length - 1) + '%%';
+      });
+      mathProtected = mathProtected.replace(/\$([^\$\n]+?)\$/g, function(m, p1) {
+        mathSpans.push({ display: false, expr: p1 });
+        return '%%MATH' + (mathSpans.length - 1) + '%%';
+      });
+
+      // ── 脚注预处理：两遍扫描 ──
+      // 第一遍：提取所有脚注定义 [^label]: content，并替换为空行
+      var footnotes = {};
+      var fnIndex = 0;
+      var fnReplaced = mathProtected.replace(/^\[\^([^\]]+)\]\:\s*(.+)$/gm, function(m, label, text) {
+        if (!footnotes[label]) {
+          footnotes[label] = { id: ++fnIndex, text: text.trim() };
+        }
+        return '';  // 定义行移除，不留痕迹
+      });
+
+      // 第二遍：将 [^label] 引用替换为带标记的 HTML（在 marked 之前处理）
+      fnReplaced = fnReplaced.replace(/\[\^([^\]]+)\]/g, function(m, label) {
+        if (footnotes[label]) {
+          var fid = footnotes[label].id;
+          return '<sup class="bk-fn-ref"><a href="#fn-' + fid + '">' + fid + '</a></sup>';
+        }
+        return m;  // 未定义的脚注保持原样
+      });
+
+      // ── Tab 缩进预处理：防止行首 \t 被 marked 误判为代码块 ──
+      // 策略：保护已有的 fenced code block，将非代码块中的行首 \t 替换为缩进标记
+      var fencedBlocks = [];
+      var tabSafe = fnReplaced.replace(/```[\s\S]*?```/g, function(m) {
+        fencedBlocks.push(m);
+        return '%%FENCED' + (fencedBlocks.length - 1) + '%%';
+      });
+      // 将行首的 \t 替换为缩进标记（保留缩进层级信息）
+      tabSafe = tabSafe.replace(/^(\t+)(.+)$/gm, function(m, tabs, content) {
+        var level = tabs.length;
+        return '%%INDENT' + level + '%%' + content;
+      });
+      // 恢复 fenced code blocks
+      for (var fbi = 0; fbi < fencedBlocks.length; fbi++) {
+        tabSafe = tabSafe.replace('%%FENCED' + fbi + '%%', fencedBlocks[fbi]);
+      }
+
+      // ── ++text++ 特殊格式预处理：转为 <mark> 标签 ──
+      var markProcessed = tabSafe.replace(/\+\+(.+?)\+\+/g, '<mark class="bk-mark-highlight">$1</mark>');
+
+      // ── 中文大纲编号预处理：为中文编号行添加层级缩进标记 ──
+      // 检测常见的中文大纲编号模式：壹/贰/叁/肆(1级)、一/二/三/四(2级)、1/2/3/4(3级)、a/b/c(4级)
+      var outlineProcessed = markProcessed.replace(/^((?:壹|貳|叁|肆|伍|陸|柒|捌|玖|拾|壹|贰|叁|肆|伍|陆|柒|捌|玖|拾)[\s、．\.].+)$/gm, function(m) {
+        return '%%OUTLINE1%%' + m;
+      });
+      outlineProcessed = outlineProcessed.replace(/^((?:一|二|三|四|五|六|七|八|九|十)[\s、．\.].+)$/gm, function(m) {
+        return '%%OUTLINE2%%' + m;
+      });
+      outlineProcessed = outlineProcessed.replace(/^(\d+[\s、．\.].+)$/gm, function(m) {
+        return '%%OUTLINE3%%' + m;
+      });
+      outlineProcessed = outlineProcessed.replace(/^([a-z][\s、．\.].+)$/gm, function(m) {
+        return '%%OUTLINE4%%' + m;
+      });
+
+      // ── 配置 marked.use()：代码高亮 ──
+      var markedOpts = {
+        gfm: true,
+        breaks: true   // 单个换行符产生 <br>，避免连续行被合并为一个段落
+      };
+
+      // 代码高亮：调用 highlight.js
+      if (win.hljs) {
+        markedOpts.highlight = function(code, lang) {
+          if (lang && win.hljs.getLanguage(lang)) {
+            try { return win.hljs.highlight(code, { language: lang }).value; } catch (e) {}
+          }
+          try { return win.hljs.highlightAuto(code).value; } catch (e) {}
+          return code;
+        };
+      }
+
+      try {
+        win.marked.use(markedOpts);
+      } catch (e) {
+        // marked.use 失败时降级
+      }
+
+      var parsedHtml = typeof win.marked.parse === 'function'
+        ? win.marked.parse(outlineProcessed)
+        : win.marked(outlineProcessed);
+
+      // ── KaTeX 后处理：将 %%MATHN%% 替换为渲染后的 HTML ──
+      if (win.katex && mathSpans.length) {
+        parsedHtml = parsedHtml.replace(/%%MATH(\d+)%%/g, function(m, idx) {
+          var span = mathSpans[parseInt(idx, 10)];
+          if (!span) return m;
+          try {
+            return win.katex.renderToString(span.expr, {
+              displayMode: span.display,
+              throwOnError: false
+            });
+          } catch (e) {
+            return (span.display ? '$$' + span.expr + '$$' : '$' + span.expr + '$').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          }
+        });
+      }
+
+      // ── 缩进后处理：将 %%INDENTN%% 替换为缩进 HTML 元素 ──
+      parsedHtml = parsedHtml.replace(/%%INDENT(\d+)%%/g, function(m, level) {
+        var lvl = parseInt(level, 10);
+        var indent = '';
+        for (var ii = 0; ii < lvl; ii++) indent += '\u2003';  // em space (U+2003)
+        return '<span class="bk-indent bk-indent-' + lvl + '">' + indent + '</span>';
+      });
+
+      // ── 大纲层级后处理：将 %%OUTLINEN%% 替换为层级缩进 ──
+      parsedHtml = parsedHtml.replace(/%%OUTLINE(\d)%%/g, function(m, level) {
+        var lvl = parseInt(level, 10);
+        // 层级缩进：1级不缩进，2级1em，3级2em，4级3em
+        if (lvl <= 1) return '';
+        var indent = '';
+        for (var oi = 1; oi < lvl; oi++) indent += '\u2003';  // em space
+        return '<span class="bk-outline-indent bk-outline-' + lvl + '">' + indent + '</span>';
+      });
+
+      // ── 脚注后处理：附加脚注区域 ──
+      var fnKeys = Object.keys(footnotes);
+      if (fnKeys.length) {
+        parsedHtml += '<section class="bk-footnotes-section"><h3 class="bk-footnotes-title">脚注</h3>';
+        for (var fki = 0; fki < fnKeys.length; fki++) {
+          var fk = fnKeys[fki];
+          parsedHtml += '<div class="bk-footnote" id="fn-' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">' +
+            '<span class="bk-fn-number">' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>' +
+            '<span class="bk-fn-text">' + footnotes[fk].text + '</span></div>';
+        }
+        parsedHtml += '</section>';
+      }
+
+      html = parsedHtml;
     } else {
       // marked 不可用时的降级：简单转 HTML
       html = mdContent.split(/\r?\n/).map(function(line) {
@@ -1448,7 +1978,7 @@
     // HTML → Content
     var allContents = htmlToContents(html);
 
-    // 按 h1/h2 分割章节（与 md_parser.py 的 _split_by_headings 一致）
+    // 按 h1/h2 分割章节
     var splitLevel = 0;
     var headingLevels = {};
     for (var hi = 0; hi < allContents.length; hi++) {
@@ -1745,6 +2275,12 @@
     if (opts.bookId) book.id = opts.bookId;
     // 持久化来源信息（如 WebDAV：{type, serverId, remotePath, serverName}）
     if (opts.source) book.source = opts.source;
+    // 持久化额外字段（如 series, _bundled 等，用于内置 EPUB 资源标记）
+    if (opts.extra) {
+      for (var k in opts.extra) {
+        if (opts.extra.hasOwnProperty(k)) book[k] = opts.extra[k];
+      }
+    }
     return importStore.setItem(KEY_PREFIX + book.id, book).then(function() {
       return importStore.getItem(KEY_IDS).then(function(ids) {
         ids = ids || [];
@@ -1892,6 +2428,211 @@
     }
   }
 
+  // ── 内置书籍资源加载 ──────────────────────────────────────────────────
+  // 从 resource/books/ 构建产物加载内置书籍，解析后合并到书城展示
+  // 每个子目录 = 一个系列，可混合 .epub/.md/.txt 文件
+  // 与 importBooks 不同：bundled MD/TXT books 不写入 IndexedDB，每次启动重新加载
+  // EPUB 则走 importFromBuffer 持久化路径（已有的 loadEpubResources 机制）
+  var _bundledBooksCache = null;
+
+  /**
+   * 加载 books-manifest.json，返回 {series: [...]} 结构
+   * 每个系列包含 {id, name, files: [{file, format, size}]}
+   */
+  function _fetchBooksManifest() {
+    return fetch('books/books-manifest.json').then(function (resp) {
+      if (!resp.ok) throw new Error('books-manifest.json 加载失败: ' + resp.status);
+      return resp.json();
+    }).then(function (data) {
+      if (!data || !data.series || !data.series.length) return null;
+      return data;
+    }).catch(function (err) {
+      console.warn('[ImportManager] books-manifest.json 加载失败:', err.message);
+      return null;
+    });
+  }
+
+  /**
+   * 生成内置书籍稳定 ID
+   * 格式：bundle-{seriesId}/{filenameWithoutExt}
+   * 例如：bundle-内置书库/阅读的艺术
+   */
+  function _bundleBookId(seriesId, filePath) {
+    var fileName = filePath.split('/').pop();
+    var stem = fileName.replace(/\.(md|markdown|txt|epub)$/i, '');
+    // ★ 使用 :: 分隔 seriesId 和 stem，避免 / 与 URL 路由冲突
+    return 'bundle-' + seriesId + '::' + stem;
+  }
+
+  function loadBundledBooks() {
+    if (_bundledBooksCache) return Promise.resolve(_bundledBooksCache);
+    return _fetchBooksManifest().then(function (data) {
+      if (!data) return { books: [], seriesMap: {} };
+
+      var allBooks = [];
+      var seriesMap = {};  // seriesId → {id, name, type, bookCount}
+
+      // 收集所有非 EPUB 的文件条目（MD + TXT），逐个 fetch + parse
+      var promises = [];
+      for (var si = 0; si < data.series.length; si++) {
+        var series = data.series[si];
+        seriesMap[series.id] = { id: series.id, name: series.name, type: 'bundle', bookCount: 0 };
+
+        for (var fi = 0; fi < series.files.length; fi++) {
+          (function (entry, seriesId) {
+            // EPUB 跳过，由 loadEpubResources 单独处理
+            if (entry.format === 'epub') return;
+
+            var fileUrl = 'books/' + entry.file.split('/').map(encodeURIComponent).join('/');
+            var fileName = entry.file.split('/').pop();
+            var bookId = _bundleBookId(seriesId, entry.file);
+
+            promises.push(fetch(fileUrl).then(function (resp) {
+              if (!resp.ok) throw new Error('加载 ' + entry.file + ' 失败: ' + resp.status);
+              return resp.text();
+            }).then(function (textContent) {
+              var book;
+              if (entry.format === 'md' || entry.format === 'markdown') {
+                book = parseMd(textContent, fileName);
+              } else {
+                // txt 及其他格式默认用 parseTxt
+                book = parseTxt(textContent, fileName);
+              }
+              book.id = bookId;
+              book.series = seriesId;
+              book._bundled = true;
+              // ★ 如果 manifest 中指定了 title，优先使用（覆盖解析器自动检测的标题）
+              if (entry.title) book.title = entry.title;
+              seriesMap[seriesId].bookCount++;
+              return book;
+            }).catch(function (err) {
+              console.warn('[ImportManager] 加载内置资源失败:', entry.file, err.message);
+              return null;
+            }));
+          })(series.files[fi], series.id);
+        }
+      }
+
+      return Promise.all(promises).then(function (results) {
+        var books = results.filter(function (b) { return b != null; });
+        var result = { books: books, seriesMap: seriesMap };
+        _bundledBooksCache = result;
+        return result;
+      });
+    });
+  }
+
+  /**
+   * 获取单本内置书籍数据（供 renderer.loadBook 调用）
+   * bookId 前缀为 'bundle-' 时命中；返回 Promise<book|null>
+   */
+  function getBundledBook(bookId) {
+    if (!bookId || bookId.indexOf('bundle-') !== 0) return Promise.resolve(null);
+    return loadBundledBooks().then(function (result) {
+      if (!result || !result.books) return null;
+      for (var i = 0; i < result.books.length; i++) {
+        if (result.books[i].id === bookId) return result.books[i];
+      }
+      return null;
+    });
+  }
+
+  // ── EPUB 资源自动导入 ────────────────────────────────────────────────
+  // 从 books-manifest.json 中发现 EPUB 条目，
+  // 自动 fetch 二进制 → importFromBuffer() → 持久化到 IndexedDB。
+  // 幂等：已在 imported_ids 中的书籍自动跳过。
+  function loadEpubResources() {
+    return _fetchBooksManifest().then(function (data) {
+      if (!data) return [];
+
+      // 收集所有 EPUB 条目
+      var epubEntries = [];
+      for (var si = 0; si < data.series.length; si++) {
+        var series = data.series[si];
+        for (var fi = 0; fi < series.files.length; fi++) {
+          var entry = series.files[fi];
+          if (entry.format === 'epub') {
+            entry._seriesId = series.id;
+            epubEntries.push(entry);
+          }
+        }
+      }
+      if (!epubEntries.length) return [];
+
+      // 获取已导入书籍列表，用于幂等去重
+      return getImportedBooks().then(function (imported) {
+        var importedIds = {};
+        for (var i = 0; i < imported.length; i++) {
+          importedIds[imported[i].id] = true;
+        }
+
+        // 过滤掉已导入的 EPUB（按稳定 bookId 判断）
+        var toImport = [];
+        for (var k = 0; k < epubEntries.length; k++) {
+          var entry = epubEntries[k];
+          // 从文件路径提取文件名
+          var fileName = entry.file.split('/').pop();
+          // 稳定 ID：imported-epub-{seriesId}::{filenameWithoutExt}
+          // ★ 使用 :: 分隔，与 bundle bookId 保持一致，避免 / 与 URL 路由冲突
+          var stem = entry._seriesId + '::' + fileName.replace(/\.epub$/i, '');
+          var stableId = 'imported-epub-' + stem;
+          if (importedIds[stableId]) {
+            console.log('[EPUB资源] 已存在，跳过: ' + fileName + ' (id=' + stableId + ')');
+          } else {
+            entry._stableId = stableId;
+            entry._fileName = fileName;
+            toImport.push(entry);
+          }
+        }
+
+        if (!toImport.length) {
+          console.log('[EPUB资源] 均已导入，无需处理');
+          return [];
+        }
+
+        var promises = [];
+        for (var j = 0; j < toImport.length; j++) {
+          (function (entry) {
+            var fileUrl = 'books/' + entry.file.split('/').map(encodeURIComponent).join('/');
+            // ★ 通过 opts.extra 持久化 series、title、_bundled 到 IndexedDB
+            var extra = { _bundled: true };
+            if (entry._seriesId) extra.series = entry._seriesId;
+            if (entry.title) extra.title = entry.title;
+            promises.push(
+              fetch(fileUrl).then(function (resp) {
+                if (!resp.ok) throw new Error('下载 ' + entry._fileName + ' 失败: ' + resp.status);
+                return resp.arrayBuffer();
+              }).then(function (arrayBuffer) {
+                return importFromBuffer(
+                  { name: entry._fileName, arrayBuffer: arrayBuffer },
+                  { bookId: entry._stableId, source: { type: 'resource' }, extra: extra }
+                ).then(function (book) {
+                  console.log('[EPUB资源] 新导入: ' + book.title + ' (id=' + book.id + ', series=' + book.series + ')');
+                  return book;
+                });
+              }).catch(function (err) {
+                console.warn('[ImportManager] EPUB资源导入失败:', entry._fileName, err.message);
+                return null;
+              })
+            );
+          })(toImport[j]);
+        }
+
+        return Promise.all(promises).then(function (results) {
+          var imported = results.filter(function (r) { return r != null; });
+          if (imported.length > 0) {
+            console.log('[EPUB资源] 完成：' + imported.length + ' 本新导入');
+          }
+          return imported;
+        });
+      });
+    }).catch(function (err) {
+      if (err.message && err.message.indexOf('404') >= 0) return [];
+      console.warn('[ImportManager] EPUB资源加载失败:', err.message);
+      return [];
+    });
+  }
+
   // ── 暴露 ──
   win.ImportManager = {
     pickAndImport: pickAndImport,
@@ -1902,6 +2643,9 @@
     isImportableFile: isImportableFile,
     getImportedBook: getImportedBook,
     getImportedBooks: getImportedBooks,
-    getPdfDataStore: getPdfDataStore
+    getPdfDataStore: getPdfDataStore,
+    loadBundledBooks: loadBundledBooks,
+    getBundledBook: getBundledBook,
+    loadEpubResources: loadEpubResources
   };
 }(window));
