@@ -787,6 +787,26 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .bk-heading + .bk-paragraph { text-indent: 0; }
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
 .bk-paragraph + .bk-heading { margin-top: 2em; }
+/* 阅读区超链接样式（MD 行内链接、引用式链接、自动链接等） */
+.bk-paragraph a,
+.bk-list a,
+.bk-blockquote a {
+  color: var(--brand, #3D8A5A);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  word-break: break-all;
+}
+.bk-paragraph a:hover,
+.bk-list a:hover,
+.bk-blockquote a:hover {
+  text-decoration: underline;
+  border-bottom-color: transparent;
+}
+/* 图片链接里的 a 无下划线边框 */
+.bk-figure a {
+  border-bottom: none;
+  display: inline-block;
+}
 /* 跨章节导航链接 */
 [data-chapter-link] { cursor: pointer; color: var(--brand, #007aff); text-decoration: underline; }
 .bk-h1 { font-size: 1.6em; }

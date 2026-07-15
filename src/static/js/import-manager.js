@@ -807,6 +807,20 @@
             var chapters = [];
             var promises = [];
 
+            // 预建 spine href → 章节序号映射（basename → 1-based index），
+            // 用于解析跨章节链接时将文件名映射到正确的章节号
+            var spineHrefMap = {};
+            for (var si = 0; si < spineItems.length; si++) {
+              var _idref = spineItems[si].getAttribute('idref');
+              var _mItem = manifest[_idref];
+              if (_mItem) {
+                var _baseName = decodeURIComponent(_mItem.href.split('/').pop());
+                if (!spineHrefMap[_baseName]) {
+                  spineHrefMap[_baseName] = si + 1; // 1-based chapter number
+                }
+              }
+            }
+
             for (var si = 0; si < spineItems.length; si++) {
               var idref = spineItems[si].getAttribute('idref');
               var mItem = manifest[idref];
@@ -819,7 +833,8 @@
               (function(chapterIndex, fileHref) {
                 promises.push(
                   zipFile.async('string').then(function(html) {
-                    var contents = htmlToContents(html, cssMap);
+                    var hrefBasename = decodeURIComponent(fileHref.split('/').pop());
+                    var contents = htmlToContents(html, cssMap, spineHrefMap, hrefBasename);
                     // 处理图片：将 EPUB 内图片转为 base64 data URI
                     return processEpubImages(zip, contents, fileHref, opfDir).then(function(processedContents) {
                       // 章节标题：优先从 TOC 查找，其次从内容中的 h1/h2 提取
@@ -1243,7 +1258,7 @@
   // ── 内联HTML提取（保留加粗/斜体/下划线/链接等格式，应用 CSS 内联样式）──
   var INLINE_TAGS = { b:1, i:1, u:1, em:1, strong:1, a:1, sup:1, sub:1, span:1, mark:1, del:1, small:1, code:1, br:1 };
 
-  function extractInlineHtml(node, cssMap) {
+  function extractInlineHtml(node, cssMap, spineHrefMap, currentBasename) {
     var result = '';
     for (var i = 0; i < node.childNodes.length; i++) {
       var child = node.childNodes[i];
@@ -1254,7 +1269,7 @@
         if (tag === 'br') {
           result += '<br>';
         } else if (INLINE_TAGS[tag]) {
-          var inner = extractInlineHtml(child, cssMap);
+          var inner = extractInlineHtml(child, cssMap, spineHrefMap, currentBasename);
           if (tag === 'a') {
             var href = child.getAttribute('href') || '';
             // EPUB duokan-footnote 行内引用：渲染为 <sup> 而非 <a>
@@ -1262,10 +1277,24 @@
               var fnRefId = href.replace(/^#/, '') || '';
               result += '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">†</sup>';
             } else {
-              // Detect cross-chapter links (e.g., "chapter-1.xhtml" or "chapter-1.xhtml#anchor")
-              var chapterMatch = href.match(/chapter-(\d+)\.xhtml/i);
-              if (chapterMatch) {
-                result += '<a href="#" data-chapter-link="' + escHtml(chapterMatch[1]) + '">' + inner + '</a>';
+              // Detect cross-chapter links:
+              // 1. Use spineHrefMap (file basename → chapter number) for general EPUB links
+              // 2. Fallback: match "chapter-N.xhtml" pattern for legacy EPUBs
+              var linkedChapterNum = 0;
+              if (spineHrefMap && href && !href.startsWith('#') && !href.startsWith('http')) {
+                var linkFile = href.split('#')[0]; // strip fragment
+                var linkBasename = decodeURIComponent(linkFile.split('/').pop());
+                if (linkBasename && linkBasename !== currentBasename && spineHrefMap[linkBasename]) {
+                  linkedChapterNum = spineHrefMap[linkBasename];
+                }
+              }
+              if (!linkedChapterNum) {
+                // Legacy fallback: chapter-N.xhtml pattern
+                var chapterMatch = href.match(/chapter-(\d+)\.xhtml/i);
+                if (chapterMatch) linkedChapterNum = parseInt(chapterMatch[1], 10);
+              }
+              if (linkedChapterNum) {
+                result += '<a href="#" data-chapter-link="' + escHtml(String(linkedChapterNum)) + '">' + inner + '</a>';
               } else {
                 result += '<a href="' + escHtml(href) + '">' + inner + '</a>';
               }
@@ -1296,7 +1325,7 @@
             }
           }
         } else {
-          result += extractInlineHtml(child, cssMap);
+          result += extractInlineHtml(child, cssMap, spineHrefMap, currentBasename);
         }
       }
     }
@@ -1315,7 +1344,7 @@
   }
 
   // ── HTML→Content 转换（EPUB 和 MD 共用）──
-  function htmlToContents(htmlStr, cssMap) {
+  function htmlToContents(htmlStr, cssMap, spineHrefMap, currentBasename) {
     var parser = new DOMParser();
 
     // EPUB 章节可能是完整的 XHTML 文档（含 <?xml?> 声明、<html>/<head>/<body>），
@@ -1399,7 +1428,7 @@
         case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
           var level = parseInt(tag.charAt(1), 10);
           var hText = (node.textContent || '').trim();
-          var hHtml = extractInlineHtml(node, cssMap).trim();
+          var hHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
           var hStyle = getNodeStyle(node);
           if (hText) contents.push({ type: 'heading', text: hText, html: hHtml, level: level, style: hStyle });
           break;
@@ -1426,10 +1455,23 @@
             }
           }
           if (img && !imgIsDecorative) {
+            // 检查 img 是否被 <a> 包裹（如 MD 图片链接 [![alt](src)](href)）
+            var imgLinkUrl = '';
+            var imgParentA = img.parentElement;
+            if (imgParentA && imgParentA.tagName && imgParentA.tagName.toLowerCase() === 'a') {
+              var aHref = imgParentA.getAttribute('href') || '';
+              var aType = imgParentA.getAttribute('epub:type') || '';
+              var aCls = imgParentA.className || '';
+              // 排除脚注链接，只保留普通链接
+              if (aHref && aType !== 'noteref' && !/\bduokan-footnote\b/.test(aCls)) {
+                imgLinkUrl = aHref;
+              }
+            }
             contents.push({
               type: 'image',
               src: img.getAttribute('src') || '',
-              attrs: { alt: img.getAttribute('alt') || '' }
+              attrs: { alt: img.getAttribute('alt') || '' },
+              linkUrl: imgLinkUrl || undefined
             });
           } else {
             // 检查是否为纯 KaTeX display math 段落
@@ -1454,11 +1496,11 @@
               isPureMath = !hasSignificantText;
             }
             if (isPureMath) {
-              var mathHtml = extractInlineHtml(node, cssMap).trim();
+              var mathHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
               if (mathHtml) contents.push({ type: 'math', html: mathHtml });
             } else {
               var pText = (node.textContent || '').trim();
-              var pHtml = extractInlineHtml(node, cssMap).trim();
+              var pHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
               var pStyle = getNodeStyle(node);
               // 检测 EPUB 特殊 CSS 类，语义化映射
               var epubCls = detectEpubClass(node);
@@ -1511,7 +1553,7 @@
               }
             } else {
               var dsStyle = getNodeStyle(node);
-              var dsItem = { type: 'paragraph', text: dsText, html: extractInlineHtml(node, cssMap).trim(), style: dsStyle };
+              var dsItem = { type: 'paragraph', text: dsText, html: extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim(), style: dsStyle };
               if (dsEpubCls) dsItem.epubClass = dsEpubCls;
               contents.push(dsItem);
             }
@@ -1519,7 +1561,7 @@
           break;
         case 'blockquote':
           var qText = (node.textContent || '').trim();
-          var qHtml = extractInlineHtml(node, cssMap).trim();
+          var qHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
           var qStyle = getNodeStyle(node);
           if (qText) contents.push({ type: 'quote', text: qText, html: qHtml, style: qStyle });
           break;
@@ -1553,7 +1595,7 @@
               checkboxes.push(!!cbInput.checked);
             }
             var liText = (lis[li].textContent || '').trim();
-            var liHtml = extractInlineHtml(lis[li], cssMap).trim();
+            var liHtml = extractInlineHtml(lis[li], cssMap, spineHrefMap, currentBasename).trim();
             if (liText) { items.push(liText); itemHtmls.push(liHtml); }
           }
           if (items.length) {
@@ -1605,7 +1647,7 @@
               if (cellTag === 'th') rowIsHeader = true;
               rowData.push({
                 text: (cellEl.textContent || '').trim(),
-                html: extractInlineHtml(cellEl, cssMap).trim()
+                    html: extractInlineHtml(cellEl, cssMap, spineHrefMap, currentBasename).trim()
               });
             }
             if (rowData.length) {
@@ -1653,7 +1695,7 @@
         case 'section':
           // 脚注区域 (.bk-footnotes-section)
           if (node.classList && node.classList.contains('bk-footnotes-section')) {
-            var fnHtml = extractInlineHtml(node, cssMap).trim();
+            var fnHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
             if (fnHtml) {
               contents.push({ type: 'footnotes_section', html: fnHtml });
             }
@@ -1665,7 +1707,7 @@
         case 'sup':
           // 脚注引用 (.bk-fn-ref)
           if (node.classList && node.classList.contains('bk-fn-ref')) {
-            var fnRefHtml = extractInlineHtml(node, cssMap).trim();
+            var fnRefHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
             contents.push({ type: 'footnote_ref', html: fnRefHtml });
             break;
           }
@@ -1690,7 +1732,7 @@
           // 普通 <a> 链接：保留行内 HTML（含 href），作为段落内联内容
           var aText = (node.textContent || '').trim();
           if (aText) {
-            var aHtml = extractInlineHtml(node, cssMap).trim();
+            var aHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
             // 如果已有前一个 paragraph 项，尝试追加到其 html 末尾
             var lastItem = contents.length ? contents[contents.length - 1] : null;
             if (lastItem && lastItem.type === 'paragraph' && lastItem.html) {
@@ -1704,7 +1746,7 @@
         case 'span':
           // KaTeX 渲染后的 .katex 元素
           if (node.classList && node.classList.contains('katex')) {
-            var katexHtml = extractInlineHtml(node, cssMap).trim();
+            var katexHtml = extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim();
             if (katexHtml) contents.push({ type: 'math', html: katexHtml });
             break;
           }
@@ -1712,7 +1754,7 @@
           var spText = (node.textContent || '').trim();
           if (spText) {
             var spStyle = getNodeStyle(node);
-            contents.push({ type: 'paragraph', text: spText, html: extractInlineHtml(node, cssMap).trim(), style: spStyle });
+            contents.push({ type: 'paragraph', text: spText, html: extractInlineHtml(node, cssMap, spineHrefMap, currentBasename).trim(), style: spStyle });
           }
           break;
         case 'script':

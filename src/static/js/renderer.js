@@ -807,10 +807,13 @@
       case 'image':
         var src = item.src || '';
         var alt = item.attrs && item.attrs.alt || '';
+        // 图片链接：[![alt](img)](href) 模式，图片可点击跳转
+        var imgLinkUrl = item.linkUrl || '';
         // 预览页（carousel prev/next）需要立即加载图片，否则滑动时视口外图片因 lazy 未加载而显示空白
         var imgLoading = eager ? 'eager' : 'lazy';
+        var imgTag = '<img src="' + escAttr(src) + '" alt="' + escAttr(alt || text) + '" loading="' + imgLoading + '">';
         html = '<figure class="bk-figure">' +
-          '<img src="' + escAttr(src) + '" alt="' + escAttr(alt || text) + '" loading="' + imgLoading + '">' +
+          (imgLinkUrl ? '<a href="' + escAttr(imgLinkUrl) + '" target="_blank" rel="noopener noreferrer">' + imgTag + '</a>' : imgTag) +
           (text ? '<figcaption>' + escText(text) + '</figcaption>' : '') +
           '</figure>';
         break;
@@ -4105,7 +4108,6 @@
       var html = '<div class="bk-shelf-page">';
       html += '<div class="bk-city-header">';
       html += '<h1 class="bk-city-title">书架</h1>';
-      html += '<button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button>';
       html += '<button type="button" id="shelfImportBtn" class="bk-city-search-btn" aria-label="导入">📂</button>';
       html += '</div>';
       // 继续阅读模块（决策④：阅读进度归书架，首屏顶部续读）
@@ -4120,7 +4122,7 @@
       html += '<button type="button" class="bk-shelf-tab" data-tab="read" role="tab" aria-selected="false">已读 <span class="bk-shelf-tab-count" id="shelfCountRead">0</span></button>';
       html += '</div>';
       // 我的书架
-      html += '<div class="bk-section-header"><span class="bk-section-title-lg">我的书架</span></div>';
+      html += '<div class="bk-section-header"><span class="bk-section-title-lg">我的书架</span><button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button></div>';
       html += '<div class="bk-shelf-list" id="shelfList"></div>';
       // 编辑态底部批量操作条（默认隐藏，is-editing 时显示）
       html += '<div class="bk-shelf-editbar" id="shelfEditBar" role="toolbar" aria-label="批量操作">';
