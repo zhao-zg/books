@@ -280,8 +280,7 @@ class BooksGenerator:
         # 2. 搜索索引（在静态资源复制之后生成，避免被覆盖）
         self.generate_search_index()
 
-        # 3. 生成完整 CSS
-        self.generate_css()
+        # 3. CSS（split 后由 copy_static_assets 递归复制，无需独立步骤）
 
         # 4. PWA manifest 和 Service Worker（注入版本号）
         self.generate_manifest_and_sw(app_config)

@@ -1,0 +1,257 @@
+/* ── 独立目录页（后备路由） ─────────────────────────────────── */
+.bk-chapter-list-view { max-width: 600px; margin: 0 auto; }
+.bk-book-header {
+  padding: 24px 16px 16px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.bk-book-header-cover {
+  width: 80px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.bk-book-header-title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--heading);
+  margin-bottom: 6px;
+}
+.bk-book-header-author {
+  font-size: var(--text-base);
+  color: var(--brand);
+  margin-bottom: 4px;
+}
+.bk-book-header-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.bk-book-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.bk-stat {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.bk-cl-header {
+  display: none;
+}
+.bk-cl-header-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk-chapter-list {
+  display: flex;
+  flex-direction: column;
+}
+.bk-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: var(--text-base);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bk-chapter-item:active { background: var(--nav-hover); }
+.bk-chapter-item.bk-chapter-current {
+  background: var(--nav-hover);
+  color: var(--brand);
+  font-weight: 500;
+}
+.bk-chapter-item.bk-chapter-read {
+  color: var(--text-muted);
+}
+.bk-chapter-status {
+  font-size: var(--text-xs);
+  color: var(--success-text, #3D8A5A);
+  flex-shrink: 0;
+}
+.bk-chapter-num {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.bk-chapter-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+.bk-chapter-badge {
+  font-size: var(--text-xs);
+  background: var(--brand);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+
+/* ── 导入书籍删除按钮 ──────────────────────────────────────── */
+.imported-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(198, 40, 40, 0.08);
+  color: var(--danger-text, #c62828);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+  z-index: 2;
+}
+.imported-delete-btn:active { background: rgba(198, 40, 40, 0.18); }
+.zl-book-card { position: relative; }
+
+/* ── 触摸优化 ──────────────────────────────────────────────── */
+/* 消除 300ms 点击延迟 */
+a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .nav-link, .bk-toc-chapter-item {
+  touch-action: manipulation;
+}
+
+/* 优化触摸高亮反馈 */
+.book-link, .series-tab, .nav-link, .bk-toc-chapter-item, .action-btn, .control-btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 阅读视图过渡动画 ──────────────────────────────────────── */
+#app.bk-view-enter, #homeView.bk-view-enter {
+  opacity: 0;
+}
+#app.bk-view-enter-active, #homeView.bk-view-enter-active {
+  opacity: 1;
+  transition: opacity 150ms ease-out;
+  will-change: opacity;
+}
+
+/* ── 左右滑动手势翻页 ──────────────────────────────────────── */
+.reading-view {
+  touch-action: pan-y;   /* 允许纵向滚动，水平滑动由 JS 控制 */
+  overflow-x: hidden;
+}
+.reading-view.bk-swipe-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── 三页轮播（carousel swipe） ──────────────────────────────── */
+/* 关键：track 不能用 align-items: stretch，否则短章节页会被拉伸到与最长章节
+   同高，配合 justify-content: center 导致内容被垂直居中到不可见区域——
+   既会造成“纵向滑不动/顶部空白”，也会在左右滑动动画里让侧页顶部显示空白。
+   改为 flex-start，每页保持自身高度（短页=100vh，长页按内容增长），
+   短内容仍在本页内垂直居中（完全落在一屏内，滑动时可见），长内容从顶部排列可纵向滚动。 */
+.bk-carousel-track { display: flex; width: 300%; will-change: transform; align-items: flex-start; }
+/* 每页固定一屏高度、自身 overflow-y:auto 内部纵向滚动：
+   - 短内容垂直居中（safe center，完全落在一屏内，滑动时可见，不再顶部空白）；
+   - 长内容从顶部排列，在“本页内”纵向滚动，与文档/滚动锁无关，纵向必可滑；
+   - 用 100dvh 适配移动端动态地址栏，旧浏览器回退 100vh。 */
+.bk-carousel-page {
+  flex: 0 0 33.333%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* 亮色模式滚动条 */
+  scrollbar-color: rgba(0,0,0,.18) transparent;
+}
+.bk-carousel-page::-webkit-scrollbar { width: 6px; }
+.bk-carousel-page::-webkit-scrollbar-track { background: transparent; }
+.bk-carousel-page::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
+.bk-carousel-page::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.28); }
+
+/* 深色模式：阅读区暗色滚动条 */
+[data-theme="dark"] .bk-carousel-page { scrollbar-color: rgba(255,255,255,.22) transparent; }
+[data-theme="dark"] .bk-carousel-page::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); }
+[data-theme="dark"] .bk-carousel-page::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); }
+
+/* 深色模式：全局暗色滚动条（目录抽屉、搜索面板等可滚动区域） */
+[data-theme="dark"] .bk-toc-drawer,
+[data-theme="dark"] .bk-drawer-body,
+[data-theme="dark"] .bk-search-results,
+[data-theme="dark"] .bk-note-expanded-body,
+[data-theme="dark"] .bk-feedback-body,
+[data-theme="dark"] #bk-dev-console-body { scrollbar-color: rgba(255,255,255,.22) transparent; }
+[data-theme="dark"] .bk-toc-drawer::-webkit-scrollbar-thumb,
+[data-theme="dark"] .bk-drawer-body::-webkit-scrollbar-thumb,
+[data-theme="dark"] .bk-search-results::-webkit-scrollbar-thumb,
+[data-theme="dark"] .bk-note-expanded-body::-webkit-scrollbar-thumb,
+[data-theme="dark"] .bk-feedback-body::-webkit-scrollbar-thumb,
+[data-theme="dark"] #bk-dev-console-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 3px; }
+[data-theme="dark"] .bk-toc-drawer::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .bk-drawer-body::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .bk-search-results::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .bk-note-expanded-body::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .bk-feedback-body::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] #bk-dev-console-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); }
+
+/* ── 双栏阅读模式（平板/横屏）：TOC 常驻左栏 ────────────────── */
+/* 触发：min-width:768px 且阅读视图激活（JS 给 body 加 .bk-split-mode）。
+   手机横屏(max-height:500px)不双栏，保持单栏居中优化（见上 @media landscape）。
+   设计稿：10:115 横屏(844×390, 左200+右576) / 31:140 平板(834×1180, 左264+右570)。 */
+@media (min-width: 768px) {
+  body.bk-split-mode { display: flex; overflow: hidden; height: 100dvh; }
+  body.bk-split-mode #homeView,
+  body.bk-split-mode #bkSplash,
+  body.bk-split-mode #bkMaintenance,
+  body.bk-split-mode #bkOfflineBanner { display: none !important; }
+  body.bk-split-mode #app { flex: 1; min-width: 0; height: 100dvh; overflow: hidden; }
+  body.bk-split-mode #bkTocDrawer {
+    position: relative;
+    transform: none;
+    width: 264px;
+    max-width: none;
+    height: 100dvh;
+    flex-shrink: 0;
+    z-index: auto;
+    box-shadow: none;
+    border-right: 1px solid var(--border, #E5E2DD);
+  }
+  body.bk-split-mode #bkTocOverlay { display: none !important; }
+  body.bk-split-mode .bk-toc-drawer-close { display: none; }
+  /* 双栏下阅读区高度约束：carousel-page 不再 100dvh 全屏，填充 reading-view flex 子项 */
+  body.bk-split-mode .reading-view { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  body.bk-split-mode .bk-carousel-track { flex: 1; min-height: 0; }
+  body.bk-split-mode .bk-carousel-page { height: 100%; max-height: 100%; }
+}
+/* 平板横屏：TOC 收窄到 200px（设计稿 10:115） */
+@media (min-width: 768px) and (orientation: landscape) {
+  body.bk-split-mode #bkTocDrawer { width: 200px; }
+}
+

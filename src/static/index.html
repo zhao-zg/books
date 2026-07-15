@@ -43,7 +43,20 @@
     <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
     <title>书报</title>
     <!-- 字体使用系统自带，不下载 webfont -->
-    <link rel="stylesheet" href="css/style.css">
+    <!-- CSS（变量文件必须最先加载） -->
+    <link rel="stylesheet" href="css/style/css-variables.css">
+    <link rel="stylesheet" href="css/style/css-base.css">
+    <link rel="stylesheet" href="css/style/css-toc-drawer.css">
+    <link rel="stylesheet" href="css/style/css-settings.css">
+    <link rel="stylesheet" href="css/style/css-reader.css">
+    <link rel="stylesheet" href="css/style/css-epub.css">
+    <link rel="stylesheet" href="css/style/css-reader-views.css">
+    <link rel="stylesheet" href="css/style/css-highlight.css">
+    <link rel="stylesheet" href="css/style/css-popups.css">
+    <link rel="stylesheet" href="css/style/css-navigation.css">
+    <link rel="stylesheet" href="css/style/css-shelf.css">
+    <link rel="stylesheet" href="css/style/css-drawers.css">
+    <link rel="stylesheet" href="css/style/css-responsive.css">
     <style>
         body{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));padding-top:env(safe-area-inset-top, 0px)}
         .container{padding:0}
@@ -203,25 +216,54 @@
     <script src="vendor/localforage.min.js"></script>
     <script src="js/remote-config.js"></script>
     <script src="js/webdav-presets.js"></script>
-    <script src="js/data-manager.js"></script>
+    <script src="js/data-manager/dm-shared.js"></script>
+    <script src="js/data-manager/dm-storage.js"></script>
+    <script src="js/data-manager/dm-index.js"></script>
+    <script src="js/data-manager/dm-download.js"></script>
+    <script src="js/data-manager/dm-book-ops.js"></script>
+    <script src="js/data-manager/dm-api.js"></script>
     <script src="js/dev-console.js" defer></script>
     <script src="js/theme-toggle.js"></script>
     <script src="js/search.js" defer></script>
     <script src="vendor/jszip.min.js" defer></script>
-    <script src="js/resource-pack.js" defer></script>
+    <script src="js/resource-pack/rp-shared.js" defer></script>
+    <script src="js/resource-pack/rp-dialogs.js" defer></script>
+    <script src="js/resource-pack/rp-import.js" defer></script>
 
     <!-- SPA 核心 -->
     <script src="js/back-stack.js"></script>
     <script src="js/ref-detector.js"></script>
     <script src="js/shelf.js"></script>
     <script src="js/router.js"></script>
-    <script src="js/renderer.js"></script>
+    <!-- renderer 拆分（顺序敏感：shared 先，api 最后） -->
+    <script src="js/renderer/renderer-shared.js"></script>
+    <script src="js/renderer/renderer-utils.js"></script>
+    <script src="js/renderer/renderer-data.js"></script>
+    <script src="js/renderer/renderer-progress.js"></script>
+    <script src="js/renderer/renderer-content.js"></script>
+    <script src="js/renderer/renderer-carousel.js"></script>
+    <script src="js/renderer/renderer-city-helpers.js"></script>
+    <script src="js/renderer/renderer-toc-drawer.js"></script>
+    <script src="js/renderer/renderer-shelf.js"></script>
+    <script src="js/renderer/renderer-city.js"></script>
+    <script src="js/renderer/renderer-api.js"></script>
     <script src="js/speech.js"></script>
-    <script src="js/scripture-popup.js" defer></script>
+    <script src="js/scripture-popup/sp-shared.js" defer></script>
+    <script src="js/scripture-popup/sp-dom.js" defer></script>
+    <script src="js/scripture-popup/sp-render.js" defer></script>
+    <script src="js/scripture-popup/sp-events.js" defer></script>
+    <script src="js/scripture-popup/sp-annotate.js" defer></script>
+    <script src="js/scripture-popup/sp-init.js" defer></script>
     <script src="js/bible-dict.js" defer></script>
-    <script src="js/highlight.js" defer></script>
+    <script src="js/highlight/highlight-shared.js" defer></script>
+    <script src="js/highlight/highlight-core.js" defer></script>
+    <script src="js/highlight/highlight-apply.js" defer></script>
+    <script src="js/highlight/highlight-crud.js" defer></script>
+    <script src="js/highlight/highlight-ui.js" defer></script>
+    <script src="js/highlight/highlight-events.js" defer></script>
     <script src="js/bookmark.js" defer></script>
-    <script src="js/nav-stack.js"></script>
+    <script src="js/nav-stack/nav-back.js"></script>
+    <script src="js/nav-stack/nav-float-bar.js"></script>
     <script src="js/bottom-tab-bar.js" defer></script>
     <script src="js/pwa-banner.js" defer></script>
     <script src="vendor/marked.min.js" defer></script>
@@ -232,7 +274,17 @@
     <link rel="stylesheet" href="vendor/highlight-github.css" id="hljs-light-theme">
     <link rel="stylesheet" href="vendor/highlight-github-dark.css" id="hljs-dark-theme" disabled>
     <script src="vendor/pdf.min.js" defer></script>
-    <script src="js/import-manager.js" defer></script>
+    <!-- import-manager 拆分（defer，顺序敏感：shared 先，orchestrator 最后） -->
+    <script src="js/import-manager/import-shared.js" defer></script>
+    <script src="js/import-manager/import-file-picker.js" defer></script>
+    <script src="js/import-manager/import-txt.js" defer></script>
+    <script src="js/import-manager/import-epub.js" defer></script>
+    <script src="js/import-manager/import-epub-style.js" defer></script>
+    <script src="js/import-manager/import-html-converter.js" defer></script>
+    <script src="js/import-manager/import-markdown.js" defer></script>
+    <script src="js/import-manager/import-pdf.js" defer></script>
+    <script src="js/import-manager/import-storage.js" defer></script>
+    <script src="js/import-manager/import-orchestrator.js" defer></script>
     <script src="js/webdav-manager.js" defer></script>
 
     <!-- APK 更新（仅在 APP / PWA 中加载） -->
@@ -241,7 +293,7 @@
         var isCapacitorScheme=window.location.protocol==='capacitor:'||window.location.hostname==='localhost';
         var isPwaStandalone=!!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||!!navigator.standalone;
         if(isCapacitor||isCapacitorScheme||isPwaStandalone){
-            var s=document.createElement('script');s.src='js/app-update.js';document.head.appendChild(s);
+            ['js/app-update/au-utils.js','js/app-update/au-core.js','js/app-update/au-ui.js','js/app-update/au-changelog.js','js/app-update/au-init.js'].forEach(function(src){var s=document.createElement('script');s.src=src;s.async=false;document.head.appendChild(s);});
         }
     })();</script>
 
@@ -254,14 +306,27 @@
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
         './','./manifest.json','./sw.js',
-        './css/style.css',
-        './js/app-update.js',
-        './js/back-stack.js','./js/ref-detector.js','./js/router.js','./js/renderer.js','./js/shelf.js',
+        './css/style/css-variables.css','./css/style/css-base.css','./css/style/css-toc-drawer.css',
+        './css/style/css-settings.css','./css/style/css-reader.css','./css/style/css-epub.css',
+        './css/style/css-reader-views.css','./css/style/css-highlight.css','./css/style/css-popups.css',
+        './css/style/css-navigation.css','./css/style/css-shelf.css','./css/style/css-drawers.css',
+        './css/style/css-responsive.css',
+        './js/app-update/au-utils.js','./js/app-update/au-core.js','./js/app-update/au-ui.js','./js/app-update/au-changelog.js','./js/app-update/au-init.js',
+        './js/back-stack.js','./js/ref-detector.js','./js/router.js',
+        './js/renderer/renderer-shared.js','./js/renderer/renderer-utils.js','./js/renderer/renderer-data.js',
+        './js/renderer/renderer-progress.js','./js/renderer/renderer-content.js','./js/renderer/renderer-carousel.js',
+        './js/renderer/renderer-city-helpers.js','./js/renderer/renderer-toc-drawer.js','./js/renderer/renderer-shelf.js',
+        './js/renderer/renderer-city.js','./js/renderer/renderer-api.js',
+        './js/shelf.js',
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
-        './js/scripture-popup.js',
-        './js/nav-stack.js','./js/bible-dict.js','./js/highlight.js','./js/bookmark.js',
-        './js/resource-pack.js','./js/data-manager.js',
-        './js/remote-config.js','./js/webdav-presets.js','./js/import-manager.js',
+        './js/scripture-popup/sp-shared.js','./js/scripture-popup/sp-dom.js','./js/scripture-popup/sp-render.js','./js/scripture-popup/sp-events.js','./js/scripture-popup/sp-annotate.js','./js/scripture-popup/sp-init.js',
+        './js/nav-stack/nav-back.js','./js/nav-stack/nav-float-bar.js','./js/bible-dict.js','./js/highlight/highlight-shared.js','./js/highlight/highlight-core.js','./js/highlight/highlight-apply.js','./js/highlight/highlight-crud.js','./js/highlight/highlight-ui.js','./js/highlight/highlight-events.js','./js/bookmark.js',
+        './js/resource-pack/rp-shared.js','./js/resource-pack/rp-dialogs.js','./js/resource-pack/rp-import.js','./js/data-manager/dm-shared.js','./js/data-manager/dm-storage.js','./js/data-manager/dm-index.js','./js/data-manager/dm-download.js','./js/data-manager/dm-book-ops.js','./js/data-manager/dm-api.js',
+        './js/remote-config.js','./js/webdav-presets.js',
+        './js/import-manager/import-shared.js','./js/import-manager/import-file-picker.js','./js/import-manager/import-txt.js',
+        './js/import-manager/import-epub.js','./js/import-manager/import-epub-style.js','./js/import-manager/import-html-converter.js',
+        './js/import-manager/import-markdown.js','./js/import-manager/import-pdf.js','./js/import-manager/import-storage.js',
+        './js/import-manager/import-orchestrator.js',
         './js/webdav-manager.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/marked.min.js',
         './vendor/highlight.min.js','./vendor/mermaid.min.js','./vendor/katex.min.js','./vendor/katex.min.css',
