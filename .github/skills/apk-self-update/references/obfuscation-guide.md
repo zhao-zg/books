@@ -1,6 +1,43 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'a9236388-3770-49fe-9d7b-cdc0782f87a3'
+  PropagateID: 'a9236388-3770-49fe-9d7b-cdc0782f87a3'
+  ReservedCode1: 'e25f2304-e47f-4d82-b808-63d95c828ea3'
+  ReservedCode2: 'e25f2304-e47f-4d82-b808-63d95c828ea3'
+---
+
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'fda0ae86-7c31-4668-9798-194910d18f34'
+  PropagateID: 'fda0ae86-7c31-4668-9798-194910d18f34'
+  ReservedCode1: '859e070a-06f3-4244-b497-a7f538c8d737'
+  ReservedCode2: '859e070a-06f3-4244-b497-a7f538c8d737'
+---
+
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '5f34cc7c-28b4-4c5e-9ab4-bb7e6d3a505a'
+  PropagateID: '5f34cc7c-28b4-4c5e-9ab4-bb7e6d3a505a'
+  ReservedCode1: 'c67fc239-1103-42f2-8e9b-181d2df1edd4'
+  ReservedCode2: 'c67fc239-1103-42f2-8e9b-181d2df1edd4'
+---
+
 # JavaScript Obfuscation Guide
 
-Protect sensitive URLs (download mirrors, API endpoints) in app-update.js.
+Protect sensitive URLs (download mirrors, API endpoints) in app-update JS files.
+
+> **Note:** `app-update.js` has been split into 5 sub-files under `output/js/app-update/`.
+> Each sub-file is obfuscated independently. Global `var`/`function` declarations are
+> preserved because `javascript-obfuscator` defaults to `--renameGlobals false`.
 
 ## Using javascript-obfuscator
 
@@ -57,34 +94,46 @@ def obfuscate_file(input_file, output_file=None):
         return False
 
 if __name__ == '__main__':
-    obfuscate_file('output/js/app-update.js')
+    import glob
+    # Obfuscate each app-update sub-file independently
+    for f in glob.glob('output/js/app-update/*.js'):
+        obfuscate_file(f)
 ```
 
 ### CI/CD Integration
 
+The CI workflow (`android-release-offline.yml`) obfuscates `remote-config.js`,
+`theme-toggle.js`, and each file in `output/js/app-update/*.js` independently:
+
 ```yaml
-- name: Obfuscate app-update.js
+- name: 🔐 执行 JS 混淆
   run: |
-    npm install -g javascript-obfuscator
-    python encrypt_app_update.py
-    
-    # Verify obfuscation (check for hexadecimal identifiers)
-    if grep -q "_0x" output/js/app-update.js; then
-      echo "Obfuscation verified"
-    else
-      echo "Obfuscation may have failed"
-      exit 1
-    fi
-    
-    # Remove backup to prevent leaking source
-    rm -f app-update.js.backup
+    # Single-file JS
+    for f in remote-config.js theme-toggle.js; do
+      npx javascript-obfuscator "output/js/$f" --output "output/js/$f" ...
+    done
+    # app-update sub-files (split into multi-file directory)
+    for f in output/js/app-update/*.js; do
+      npx javascript-obfuscator "$f" --output "$f" ...
+    done
+
+- name: 🔐 验证混淆结果
+  run: |
+    # Verify single-file JS
+    for f in remote-config.js theme-toggle.js; do
+      grep -q "_0x" output/js/$f || exit 1
+    done
+    # Verify app-update sub-files
+    for f in output/js/app-update/*.js; do
+      grep -q "_0x" "$f" || exit 1
+    done
 ```
 
-### Web Deploy: Remove app-update.js
+### Web Deploy: app-update files
 
-For web (PWA) deployment, `app-update.js` is not needed:
+For web (PWA) deployment, app-update sub-files are not needed (APK-only feature):
 
 ```yaml
 - name: Remove APK-only files
-  run: rm -f output/js/app-update.js
+  run: rm -rf output/js/app-update/
 ```

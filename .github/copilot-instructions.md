@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'd5cd875f-c3a6-4174-89ce-f8223d404350'
+  PropagateID: 'd5cd875f-c3a6-4174-89ce-f8223d404350'
+  ReservedCode1: '34eaeb78-b0f5-4787-9e85-3c45b500147d'
+  ReservedCode2: '34eaeb78-b0f5-4787-9e85-3c45b500147d'
+---
+
 # Copilot Instructions
 
 ## 项目概述
@@ -61,7 +72,7 @@ config.yaml           # 配置
 | `speech.js` | TTS 朗读（Web Speech API + Capacitor NativeTTS），状态机 `idle/playing/paused` |
 | `router.js` | SPA 路由 |
 | `nav-stack.js` | 页面翻页 & 返回栈（PWA/Capacitor） |
-| `app-update.js` | APK 自动更新（GitHub Releases + 镜像回退） |
+| `app-update/` | APK 自动更新（GitHub Releases + 镜像回退），已拆分为 5 个子文件 |
 | `resource-pack.js` | 资源包管理对话框 |
 | `renderer.js` | 各页面类型渲染逻辑 |
 

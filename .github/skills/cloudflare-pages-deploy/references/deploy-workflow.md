@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'd5cc5185-572f-40ae-a523-cc00775d50fc'
+  PropagateID: 'd5cc5185-572f-40ae-a523-cc00775d50fc'
+  ReservedCode1: '69ed02fd-1196-49a2-9ff1-dd1454d8d173'
+  ReservedCode2: '69ed02fd-1196-49a2-9ff1-dd1454d8d173'
+---
+
 # Deploy Workflow Template
 
 Complete GitHub Actions workflow for deploying to Cloudflare Pages + GitHub Pages.
@@ -45,8 +56,8 @@ jobs:
 
       - name: Remove APK-only files (web deploy)
         run: |
-          # app-update.js is only needed in APK, not web
-          rm -f output/js/app-update.js
+          # app-update sub-files are only needed in APK, not web
+          rm -rf output/js/app-update/
 
       - name: Download APK from GitHub Release
         run: |

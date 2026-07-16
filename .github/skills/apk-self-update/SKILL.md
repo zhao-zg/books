@@ -46,7 +46,7 @@ This skill implements a complete in-app update flow:
 
 ### Step 1.5: Verify `ApkInstaller` Native Integration
 
-Before wiring `app-update.js`, confirm Android native plugin wiring is complete:
+Before wiring app-update files, confirm Android native plugin wiring is complete:
 
 1. `ApkInstallerPlugin.java` exists under your real package path, e.g. `android/app/src/main/java/com/books/app/ApkInstallerPlugin.java`
 2. `MainActivity.java` registers plugin before `super.onCreate(...)`:
@@ -74,9 +74,9 @@ If you prefer copy-and-edit instead of manual wiring, use:
 - `./assets/starter/file_paths.xml.template`
 - `./assets/starter/ci-restore-custom-files.snippet.yml`
 
-### Step 2: Create app-update.js
+### Step 2: Create app-update module
 
-Create the update JavaScript module following the [app-update template](./references/app-update-template.md).
+Create the app-update JavaScript module as multiple sub-files under `js/app-update/` following the [app-update template](./references/app-update-template.md). The module is split into 5 files: `au-utils.js`, `au-core.js`, `au-ui.js`, `au-changelog.js`, `au-init.js`.
 
 Key capabilities:
 - Version comparison against remote `version.json`
@@ -91,9 +91,7 @@ Key capabilities:
 <!-- Only load in Capacitor (native) environment -->
 <script>
 if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-    var script = document.createElement('script');
-    script.src = './js/app-update.js';
-    document.head.appendChild(script);
+    ['js/app-update/au-utils.js','js/app-update/au-core.js','js/app-update/au-ui.js','js/app-update/au-changelog.js','js/app-update/au-init.js'].forEach(function(src){var s=document.createElement('script');s.src=src;s.async=false;document.head.appendChild(s);});
 }
 </script>
 ```
@@ -109,24 +107,26 @@ if (window.AppUpdate) {
 
 ### Step 5: Obfuscate Sensitive URLs (Optional)
 
-If the APK download URLs contain sensitive information, obfuscate app-update.js:
+If the APK download URLs contain sensitive information, obfuscate each app-update sub-file:
 
 ```bash
-npx javascript-obfuscator output/js/app-update.js \
-  --output output/js/app-update.js \
-  --compact true \
-  --control-flow-flattening true \
-  --string-array true \
-  --string-array-encoding rc4
+for f in output/js/app-update/*.js; do
+  npx javascript-obfuscator "$f" \
+    --output "$f" \
+    --compact true \
+    --control-flow-flattening true \
+    --string-array true \
+    --string-array-encoding rc4
+done
 ```
 
 ### Step 6: CI/CD Integration
 
-In GitHub Actions, delete `app-update.js` for web deployments (only needed in APK):
+In GitHub Actions, delete app-update sub-files for web deployments (only needed in APK):
 
 ```yaml
 - name: Remove APK-only files for web deploy
-  run: rm -f output/js/app-update.js
+  run: rm -rf output/js/app-update/
 ```
 
 ## References

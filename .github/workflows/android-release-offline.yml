@@ -106,7 +106,8 @@ jobs:
     - name: 🔐 执行 JS 混淆
       run: |
         echo "=== 混淆 JS 文件 ==="
-        for f in remote-config.js app-update.js theme-toggle.js; do
+        # 混淆单文件 JS（remote-config.js, theme-toggle.js）
+        for f in remote-config.js theme-toggle.js; do
           if [ -f "output/js/$f" ]; then
             echo "混淆 $f ..."
             npx javascript-obfuscator "output/js/$f" \
@@ -122,11 +123,29 @@ jobs:
             echo "⚠️ $f 不存在，跳过"
           fi
         done
+        # 混淆 app-update 子文件（已拆分为多文件目录）
+        echo "混淆 app-update 子文件..."
+        for f in output/js/app-update/*.js; do
+          if [ -f "$f" ]; then
+            fname=$(basename "$f")
+            echo "混淆 app-update/$fname ..."
+            npx javascript-obfuscator "$f" \
+              --output "$f" \
+              --compact true \
+              --control-flow-flattening true \
+              --dead-code-injection true \
+              --string-array true \
+              --string-array-encoding base64 \
+              --self-defending false
+            echo "✓ app-update/$fname 已混淆"
+          fi
+        done
     
     - name: 🔐 验证混淆结果
       run: |
         echo "=== 验证混淆结果 ==="
-        for f in remote-config.js app-update.js theme-toggle.js; do
+        # 验证单文件 JS
+        for f in remote-config.js theme-toggle.js; do
           if grep -q "_0x" output/js/$f; then
             echo "✅ $f 混淆验证通过"
             ls -lh output/js/$f
@@ -135,8 +154,20 @@ jobs:
             exit 1
           fi
         done
+        # 验证 app-update 子文件
+        for f in output/js/app-update/*.js; do
+          fname=$(basename "$f")
+          if grep -q "_0x" "$f"; then
+            echo "✅ app-update/$fname 混淆验证通过"
+            ls -lh "$f"
+          else
+            echo "❌ app-update/$fname 混淆可能失败"
+            exit 1
+          fi
+        done
         # 删除备份文件（如有）
         rm -f app-update.js.backup
+        rm -f output/js/app-update/*.backup
         
     - name: 添加 Android 平台
       run: |
