@@ -452,7 +452,8 @@
     var isPinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(bookId) : false;
     var title = book.title || bookId;
     var author = book.author || '';
-    var initial = title.replace(/^[《「]/, '').charAt(0) || '?';
+    // 头像首字母：去掉前导编号（如"1210-神赐…"取"神"而非"1"）和书名号
+    var initial = title.replace(/^[\d]+\s*[-–—:：·.\s]+/, '').replace(/^[《「]/, '').charAt(0) || '?';
 
     var mask = document.createElement('div');
     mask.className = 'bk-shelf-quick-mask';

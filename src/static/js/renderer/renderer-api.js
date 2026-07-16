@@ -813,7 +813,6 @@
 
   // 暴露版式封面生成器（供 search.js 搜索结果复用）
   win.BKRenderer._coverHTML = _coverHTML;
-  win.BKRenderer._cleanBookTitle = _cleanBookTitle;
 
   // 测试钩子（仅供单元测试直接调用，不影响运行时行为）：重同步事件分支与查书工具
   win.BKRenderer.__test = {

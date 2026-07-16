@@ -445,16 +445,16 @@
         titleBookIds[titleResults[t].bookId] = true;
       }
       var bookMatchCount = {};
-      for (var c = 0; c < contentIndexResults.length; c++) {
-        var bid = contentIndexResults[c].bookId;
+      for (var ci = 0; ci < contentIndexResults.length; ci++) {
+        var bid = contentIndexResults[ci].bookId;
         bookMatchCount[bid] = (bookMatchCount[bid] || 0) + 1;
       }
 
       // 如果某书已在书名结果中出现，且搜索索引中只有1条匹配，则跳过
       // （1条章节匹配不比书名匹配提供更多价值；多条则保留，提供具体章节入口）
       var filteredContentIndex = [];
-      for (var c = 0; c < contentIndexResults.length; c++) {
-        var result = contentIndexResults[c];
+      for (var cf = 0; cf < contentIndexResults.length; cf++) {
+        var result = contentIndexResults[cf];
         if (titleBookIds[result.bookId] && bookMatchCount[result.bookId] <= 1) continue;
         filteredContentIndex.push(result);
       }
@@ -546,6 +546,7 @@
 
           var elapsed = Date.now() - startTime;
           self._updateCount(elapsed);
+          self._addSearchHistory(query);
         });
       }, 50);
     },

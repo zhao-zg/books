@@ -214,10 +214,11 @@
 /* 信息条：与书城 L3 .book-caption 结构一致（书名单行 + 单行元数据） */
 .bk-shelf-row-info { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px 10px; min-width: 0; }
 .bk-shelf-row-title { font-size: 14px; font-weight: 600; line-height: 1.28; color: var(--text, #1A1918); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bk-shelf-row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; font-size: 11px; color: var(--text-muted, #9A958C); }
+.bk-shelf-row-meta { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow: hidden; font-size: 11px; color: var(--text-muted, #9A958C); }
 .bk-shelf-row-no { background: var(--tag-bg, rgba(var(--brand-rgb, 61, 138, 90), .08)); color: var(--brand, #3D8A5A); border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 500; line-height: 1.5; flex-shrink: 0; }
 .bk-shelf-row-progress { font-size: 11px; color: var(--text-muted, #9A958C); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
-.bk-shelf-row-meta .book-source-badge { flex-shrink: 0; }
+/* 书架卡片内来源徽标：精简为紧凑小图标，去掉 pill 背景和内边距，给日期文本留足空间 */
+.bk-shelf-row-meta .book-source-badge { flex-shrink: 0; padding: 0; background: none; font-size: 11px; line-height: 1; border-radius: 0; }
 
 /* 隐藏操作区：保留测试契约（.bk-shelf-markread/.bk-shelf-unread/.bk-shelf-remove-btn），
    平时不可见；长按菜单 / 编辑态批量操作经 .click() 复用这些处理器 */

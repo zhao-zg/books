@@ -616,7 +616,9 @@
     var DIR_CACHE_TTL = 300000;  // 300 秒
 
     function wdOpenDir(path) {
-      if (!wd.config || !path) return;
+      if (!wd.config) return;
+      path = path || '';  // 空字符串 = 根目录（与 initWebdav / wdConnect 一致）
+      if (wd._dirLoading) return;  // 防止并发列目录（双击/快速点击时丢弃后续请求）
       // OPT-P2：命中缓存时直接使用，不发 PROPFIND
       var cacheKey = wd.config.id + ':' + path;
       var cached = _dirCache[cacheKey];
@@ -626,25 +628,37 @@
         refreshDownloadedSet(false).then(function () { renderWebdav(); });
         return;
       }
+      // 保存当前锁定状态（可能正在下载），列目录完成后恢复，避免误解锁
+      var prevLocked = wd.locked;
+      wd._dirLoading = true;
       wd.locked = true;
       win.WebDavManager.listDir(wd.config, path).then(function (entries) {
-        wd.path = path; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing'; wd.locked = false;
+        wd.path = path; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
+        wd._dirLoading = false; wd.locked = prevLocked;
         // OPT-P2：写入缓存
         _dirCache[cacheKey] = { entries: entries, ts: Date.now() };
         // OPT-P1：浏览新目录，非强制刷新（内存中已有数据即复用）
         refreshDownloadedSet(false).then(function () { renderWebdav(); });
       }).catch(function (err) {
-        wd.locked = false; setWdError(err);
+        wd._dirLoading = false; wd.locked = prevLocked; setWdError(err);
       });
     }
 
     function wdNavUp() {
       if (!wd.config || wd.path === '') return;
-      wdOpenDir(parentUrl(wd.path));
+      var parent = parentUrl(wd.path);
+      // 导航回根目录时统一用空字符串，匹配缓存键 configId: 和初始状态
+      var configUrl = (wd.config.url || '').replace(/\/+$/, '');
+      if (parent === configUrl) parent = '';
+      wdOpenDir(parent);
     }
 
     function wdDisconnect() {
+      // 仅重置 UI 状态，保留 _dirCache 和 activeConfig，
+      // 下次打开弹窗时 initWebdav() 命中缓存即可秒开，无需再次 PROPFIND。
+      // 缓存通过 TTL（300s）自动过期，无需主动清理。
       wd.mode = 'disconnected'; wd.config = null; wd.path = ''; wd.entries = []; wd.selected = {}; wd._usingSavedId = null;
+      wd._dirLoading = false; wd.locked = false;
       renderWebdav();
     }
 
@@ -784,9 +798,8 @@
     // ── 事件委托 ───────────────────────────────────────────────────
     dialogEl.addEventListener('click', function (e) {
       var t = e.target;
-      if (t.getAttribute && t.getAttribute('data-action') === 'close') { dlg.close(); return; }
 
-      // 来源卡片切换
+      // 来源卡片切换（data-source）
       var card = t.closest ? t.closest('.bk-source-card') : null;
       if (card) {
         var source = card.getAttribute('data-source');
@@ -795,7 +808,11 @@
         return;
       }
 
-      var actionAttr = t.getAttribute && t.getAttribute('data-action');
+      // 向上查找最近的 [data-action] 元素（兼容点击子元素如 span/icon）
+      var actionEl = (t.closest && t.closest('[data-action]')) || t;
+      var actionAttr = actionEl.getAttribute ? actionEl.getAttribute('data-action') : null;
+
+      if (actionAttr === 'close') { dlg.close(); return; }
       if (actionAttr === 'pick-files') { doPickFiles(); return; }
       if (actionAttr === 'scan-dir') { doScanDir(); return; }
       if (actionAttr === 'import') { doImportSelected(); return; }
@@ -807,14 +824,14 @@
         return;
       }
       if (actionAttr === 'toggle-file') {
-        var idx = parseInt(t.getAttribute('data-idx'), 10);
-        if (!isNaN(idx)) { fileChecked[idx] = t.checked; renderFileList(); }
+        var idx = parseInt(actionEl.getAttribute('data-idx'), 10);
+        if (!isNaN(idx)) { fileChecked[idx] = actionEl.checked; renderFileList(); }
         return;
       }
 
       // WebDAV 动作（data-action 以 wd- 开头）
       if (actionAttr && actionAttr.indexOf('wd-') === 0) {
-        handleWdAction(actionAttr, t);
+        handleWdAction(actionAttr, actionEl);
         return;
       }
     });

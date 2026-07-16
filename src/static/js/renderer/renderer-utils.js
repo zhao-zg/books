@@ -61,20 +61,6 @@
     return _seriesColorMap[seriesId];
   }
 
-  // 书名清洗：去掉前导编号（如 "1210-神赐给人类最好的礼物" -> "神赐给人类最好的礼物"）
-  function _cleanBookTitle(t) {
-    if (!t) return '';
-    return String(t).replace(/^[\d]+\s*[-–—:：·.\s]+/, '').replace(/\s+$/, '');
-  }
-
-  // 书号提取：取书名前导编号（与 _cleanBookTitle 对应）。如 "1210-神赐…" -> "1210"；无编号返回 ''。
-  // 真实书报数据中部分书名带前导编号、部分不带，故书号在书城三级为可选渲染。
-  function _extractBookNo(t) {
-    if (!t) return '';
-    var m = String(t).match(/^(\d+)\s*[-–—:：·.\s]+/);
-    return m ? m[1] : '';
-  }
-
   // 来源徽标：区分书籍的导入渠道，均仅显示图标以节省宽度。
   // - local    -> 「📁」
   // - webdav   -> 「☁」（服务器名称保留在 title 属性供 hover 查看）
