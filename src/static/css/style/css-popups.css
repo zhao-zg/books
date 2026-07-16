@@ -164,6 +164,34 @@
 .bk-search-hl { background-color: #ffe082; color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 500; box-shadow: 0 0 0 1px rgba(255,179,71,0.3); }
 [data-theme="dark"] .bk-search-hl { background-color: rgba(255,179,71,0.35); box-shadow: none; }
 
+/* ── 搜索骨架屏 ───────────────────────────────────────────────── */
+.bk-search-skeleton { padding: 16px; }
+.bk-skeleton-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+.bk-skeleton-bar { height: 14px; border-radius: 6px; background: var(--surface-alt, #f0f0f0); animation: bk-skeleton-pulse 1.5s ease-in-out infinite; }
+[data-theme="dark"] .bk-skeleton-bar { background: rgba(255,255,255,0.08); }
+.bk-skeleton-w30 { width: 30%; }
+.bk-skeleton-w40 { width: 40%; }
+.bk-skeleton-w50 { width: 50%; }
+.bk-skeleton-w60 { width: 60%; }
+.bk-skeleton-w70 { width: 70%; }
+.bk-skeleton-w80 { width: 80%; }
+@keyframes bk-skeleton-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* ── 搜索历史 ─────────────────────────────────────────────────── */
+.bk-search-history { padding: 0 16px 12px; }
+.bk-search-history-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); padding: 10px 0 6px; display: flex; align-items: center; justify-content: space-between; }
+.bk-search-history-clear { background: none; border: none; font-size: var(--text-xs); color: var(--text-soft); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.bk-search-history-clear:active { background: var(--nav-hover); }
+.bk-search-history-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.bk-search-history-item { display: inline-block; padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface-alt); font-size: var(--text-sm); color: var(--text); text-decoration: none; cursor: pointer; transition: background 0.15s; -webkit-tap-highlight-color: transparent; }
+.bk-search-history-item:hover { background: var(--nav-hover); }
+.bk-search-history-item:active { transform: scale(0.97); }
+
+/* ── 搜索范围切换提示 ─────────────────────────────────────────── */
+.bk-search-scope-hint { padding: 10px 16px; margin-top: 4px; text-align: center; font-size: var(--text-sm); color: var(--brand, #3D8A5A); cursor: pointer; border-radius: 8px; transition: background 0.15s; }
+.bk-search-scope-hint:hover { background: var(--nav-hover); }
+.bk-search-scope-hint:active { transform: scale(0.98); }
+
 /* ── 搜索模态框与结果样式 ──────────────────────────────────────── */
 .bk-search-overlay { position: fixed; inset: 0; background: var(--overlay-strong, rgba(0,0,0,.45)); z-index: 500; display: flex; align-items: flex-start; justify-content: center; padding: 16px; animation: bkSearchOverlayIn 0.2s var(--ease-out, ease); }
 @keyframes bkSearchOverlayIn { from { opacity: 0; } to { opacity: 1; } }

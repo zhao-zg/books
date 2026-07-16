@@ -546,6 +546,15 @@
     function initWebdav() {
       var active = (win.WebDavManager && win.WebDavManager.getActiveConfig) ? win.WebDavManager.getActiveConfig() : null;
       if (active) {
+        // OPT-P2：重连时先检查缓存，命中则跳过 PROPFIND 直接进入浏览
+        var cacheKey = active.id + ':';
+        var cached = _dirCache[cacheKey];
+        if (cached && Date.now() - cached.ts < DIR_CACHE_TTL) {
+          wd.config = active; wd.path = ''; wd.entries = cached.entries; wd.selected = {}; wd.mode = 'browsing';
+          wd._usingSavedId = active.id;
+          refreshDownloadedSet(false).then(function () { renderWebdav(); });
+          return;
+        }
         wd.mode = 'connecting';
         wd._usingSavedId = active.id;
         renderWebdav();
@@ -556,6 +565,8 @@
         win.WebDavManager.listDir(active, '').then(function (entries) {
           if (cancelled) return;
           wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
+          // OPT-P2：写入缓存，供后续重连复用
+          _dirCache[cacheKey] = { entries: entries, ts: Date.now() };
           // OPT-P1：初始化首次加载，强制全量刷新
           refreshDownloadedSet(true).then(function () { renderWebdav(); });
         }).catch(function (err) {
@@ -587,6 +598,8 @@
         wd.locked = false;
         wd.config = res.config; wd.path = ''; wd.entries = res.entries; wd.selected = {}; wd.mode = 'browsing';
         wd._usingSavedId = res.config.id;
+        // OPT-P2：新连接拿到根目录后写入缓存，供后续重连/浏览复用
+        _dirCache[res.config.id + ':'] = { entries: res.entries, ts: Date.now() };
         // OPT-P1：新连接时强制全量刷新
         refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
       }).catch(function (err) {

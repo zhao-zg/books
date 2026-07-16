@@ -124,7 +124,7 @@
     var series = b.series || '';
     var color = _getSeriesColor(series);
     var rawTitle = b.title || b.bookTitle || b.id || '';
-    var title = _cleanBookTitle(rawTitle);
+    var title = rawTitle;
     var seriesTitle = opts.seriesTitle || '';
     var sizeCls = opts.size ? ' bk-cover--' + opts.size : '';
     var html = '<div class="bk-cover' + sizeCls + '" style="--cover-color:' + color + '" role="img" aria-label="' + escAttr(title + ' 封面') + '">';

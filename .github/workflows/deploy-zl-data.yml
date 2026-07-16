@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'resource/ysz/**'
+      - 'resource/books/**'
+      - 'src/**'
       - 'process_ysz_books.py'
       - 'merge_zl_data.py'
       - '.github/workflows/deploy-zl-data.yml'
@@ -31,6 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+          npm install
           npm install -g wrangler
 
       - name: Regenerate zl-merged from ysz

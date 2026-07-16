@@ -33,6 +33,11 @@
     // 搜索范围：'title' 仅书名 | 'all' 书名+内容
     _scope: 'title',
 
+    // 搜索历史（localStorage, 最多 10 条）
+    _historyKey: 'bk_search_history',
+    _maxHistory: 10,
+    _scrollObserver: null,
+
     /**
      * 检查书籍是否有上次阅读进度
      */
@@ -195,10 +200,36 @@
                 }
 
                 if (matched) {
-                  // 提取匹配上下文（前后各 20 字）
+                  // 提取匹配上下文：找到包含最多关键词的最佳位置
                   var ctxStart = contentLower.indexOf(terms[0]);
+                  if (terms.length > 1 && ctxStart !== -1) {
+                    var winRadius = 20;
+                    var bestPos = ctxStart;
+                    var bestScore = 0;
+                    // 在各个关键词出现位置附近采样，选覆盖最多词的窗口
+                    var candidates = [ctxStart];
+                    for (var ct = 1; ct < terms.length; ct++) {
+                      var cp = contentLower.indexOf(terms[ct]);
+                      if (cp !== -1 && candidates.indexOf(cp) === -1) candidates.push(cp);
+                    }
+                    for (var ci = 0; ci < candidates.length; ci++) {
+                      var sample = contentLower.substring(
+                        Math.max(0, candidates[ci] - winRadius),
+                        candidates[ci] + winRadius
+                      );
+                      var score = 0;
+                      for (var cs = 0; cs < terms.length; cs++) {
+                        if (sample.indexOf(terms[cs]) !== -1) score++;
+                      }
+                      if (score > bestScore) {
+                        bestScore = score;
+                        bestPos = candidates[ci];
+                      }
+                    }
+                    ctxStart = bestPos;
+                  }
                   var ctxFrom = Math.max(0, ctxStart - 20);
-                  var ctxTo = Math.min(content.length, ctxStart + terms[0].length + 20);
+                  var ctxTo = Math.min(content.length, ctxStart + 20);
                   var context = (ctxFrom > 0 ? '…' : '') +
                     content.substring(ctxFrom, ctxTo) +
                     (ctxTo < content.length ? '…' : '');
@@ -266,22 +297,23 @@
           var ch = book.chapters[c];
           var hayTitle = (ch.t || '').toLowerCase();
           var haySummary = (ch.s || '').toLowerCase();
+          var hayCombined = hayTitle + ' ' + haySummary;
 
-          // Check title match
-          var titleMatch = false;
+          // AND 逻辑：所有关键词必须在标题或摘要中至少出现一次
+          var allMatch = true;
           for (var j = 0; j < terms.length; j++) {
-            if (hayTitle.indexOf(terms[j]) !== -1) { titleMatch = true; break; }
-          }
-
-          // Check summary match
-          var summaryMatch = false;
-          if (!titleMatch) {
-            for (var k = 0; k < terms.length; k++) {
-              if (haySummary.indexOf(terms[k]) !== -1) { summaryMatch = true; break; }
+            if (hayCombined.indexOf(terms[j]) === -1) {
+              allMatch = false;
+              break;
             }
           }
 
-          if (titleMatch || summaryMatch) {
+          if (allMatch) {
+            // 评分：标题匹配加分
+            var titleMatch = false;
+            for (var j = 0; j < terms.length; j++) {
+              if (hayTitle.indexOf(terms[j]) !== -1) { titleMatch = true; break; }
+            }
             var score = titleMatch ? 2 : 1;
             results.push({
               type: 'content-index',
@@ -338,12 +370,18 @@
       self._isLoading = true;
       var startTime = Date.now();
 
-      // 显示搜索中状态
+      // 显示搜索中状态（骨架屏）
       if (self._countEl) {
         self._countEl.textContent = '搜索中...';
       }
       if (self._resultsEl) {
-        self._resultsEl.innerHTML = '<div class="bk-search-loading">正在搜索...</div>';
+        var skeletonHtml = '<div class="bk-search-skeleton">' +
+          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w60"></div><div class="bk-skeleton-bar bk-skeleton-w40"></div></div>' +
+          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w80"></div></div>' +
+          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w50"></div><div class="bk-skeleton-bar bk-skeleton-w30"></div></div>' +
+          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w70"></div></div>' +
+          '</div>';
+        self._resultsEl.innerHTML = skeletonHtml;
       }
 
       // 1. 书名搜索（同步，即时完成）
@@ -388,6 +426,7 @@
         self._isLoading = false;
         self._renderPage();
         self._updateCount(elapsed);
+        self._addSearchHistory(query);
       }
     },
 
@@ -400,16 +439,24 @@
       // 阶段 2：搜索索引搜索
       var contentIndexResults = self._searchContentIndex(query);
 
-      // 去重：排除已在书名结果中出现的 bookId
+      // 去重：统计每本书在搜索索引中的匹配数
       var titleBookIds = {};
       for (var t = 0; t < titleResults.length; t++) {
         titleBookIds[titleResults[t].bookId] = true;
       }
+      var bookMatchCount = {};
+      for (var c = 0; c < contentIndexResults.length; c++) {
+        var bid = contentIndexResults[c].bookId;
+        bookMatchCount[bid] = (bookMatchCount[bid] || 0) + 1;
+      }
 
-      // 过滤掉与书名结果重复的 bookId（仅当该书只有 1 个匹配时）
+      // 如果某书已在书名结果中出现，且搜索索引中只有1条匹配，则跳过
+      // （1条章节匹配不比书名匹配提供更多价值；多条则保留，提供具体章节入口）
       var filteredContentIndex = [];
       for (var c = 0; c < contentIndexResults.length; c++) {
-        filteredContentIndex.push(contentIndexResults[c]);
+        var result = contentIndexResults[c];
+        if (titleBookIds[result.bookId] && bookMatchCount[result.bookId] <= 1) continue;
+        filteredContentIndex.push(result);
       }
 
       // 合并：书名结果 → 内容索引结果
@@ -459,6 +506,7 @@
 
           var elapsed3 = Date.now() - startTime;
           self._updateCount(elapsed3);
+          self._addSearchHistory(query);
         });
       }, 50);
     },
@@ -536,9 +584,28 @@
 
       if (!results.length && !self._isLoading) {
         if (!append) {
-          self._resultsEl.innerHTML = query.trim()
-            ? '<div class="bk-search-empty">未找到相关内容</div>'
-            : '<div class="bk-search-hint">输入关键词开始搜索</div>';
+          if (query.trim()) {
+            var emptyHtml = '<div class="bk-search-empty">未找到相关内容</div>';
+            // 仅书名模式下无结果时，提示切换到全文搜索
+            if (self._scope === 'title') {
+              emptyHtml += '<div class="bk-search-scope-hint">试试切换到「书名+内容」模式搜索更多结果</div>';
+            }
+            self._resultsEl.innerHTML = emptyHtml;
+            // 绑定提示点击事件，自动切换到 all 模式
+            var hintEl = self._resultsEl.querySelector('.bk-search-scope-hint');
+            if (hintEl) {
+              hintEl.addEventListener('click', function () {
+                self._scope = 'all';
+                var radios = self._modal ? self._modal.querySelectorAll('.bk-scope-radio') : [];
+                for (var ri = 0; ri < radios.length; ri++) {
+                  radios[ri].checked = (radios[ri].value === 'all');
+                }
+                self._renderResults(query);
+              });
+            }
+          } else {
+            self._resultsEl.innerHTML = '<div class="bk-search-hint">输入关键词开始搜索</div>';
+          }
         }
         return;
       }
@@ -632,10 +699,10 @@
 
       self._displayedCount = endIdx;
 
-      // 显示"加载更多"按钮
+      // 显示"加载更多"按钮 或 使用无限滚动
       if (endIdx < results.length) {
         var remaining = results.length - endIdx;
-        var loadMoreHtml = '<div class="bk-search-load-more">' +
+        var loadMoreHtml = '<div class="bk-search-load-more" data-remaining="' + remaining + '">' +
           '<button class="bk-search-load-btn">加载更多（还有 ' + remaining + ' 条）</button>' +
           '</div>';
         self._resultsEl.insertAdjacentHTML('beforeend', loadMoreHtml);
@@ -646,6 +713,9 @@
             self._renderPage(true);
           });
         }
+
+        // 移动端：IntersectionObserver 无限滚动
+        self._setupInfiniteScroll();
       }
 
       // 如果内容搜索还在进行中，显示提示
@@ -801,32 +871,72 @@
       if (!this._resultsEl) return;
       if (this._countEl) this._countEl.textContent = '输入关键词搜索';
 
+      var self = this;
+      var html = '';
+
+      // 搜索历史
+      var history = self._getSearchHistory();
+      if (history.length) {
+        html += '<div class="bk-search-history">';
+        html += '<div class="bk-search-history-title">搜索历史 <button class="bk-search-history-clear">清除</button></div>';
+        html += '<div class="bk-search-history-list">';
+        for (var h = 0; h < history.length; h++) {
+          html += '<a class="bk-search-history-item" href="javascript:void(0)" data-query="' + esc(history[h]) + '">' + esc(history[h]) + '</a>';
+        }
+        html += '</div></div>';
+      }
+
+      // 热门系列推荐
       var DM = win.DataManager;
       var index = DM ? DM.getCachedIndex() : null;
       var seriesList = (index && index.series) || [];
 
-      if (!seriesList.length) {
-        this._resultsEl.innerHTML = '<div class="bk-search-hint">输入关键词开始搜索</div>';
-        return;
+      if (seriesList.length) {
+        html += '<div class="bk-search-popular">';
+        html += '<div class="bk-search-popular-title">热门系列</div>';
+        html += '<div class="bk-search-series-list">';
+        for (var i = 0; i < seriesList.length; i++) {
+          var s = seriesList[i];
+          html += '<a class="bk-search-series-card" href="#series/' + esc(s.id) + '" data-series="' + esc(s.id) + '">';
+          html += '<div class="bk-search-series-name">' + esc(s.title) + '</div>';
+          html += '<div class="bk-search-series-count">' + (s.count || 0) + ' 本</div>';
+          html += '</a>';
+        }
+        html += '</div></div>';
       }
 
-      var html = '<div class="bk-search-popular">';
-      html += '<div class="bk-search-popular-title">热门系列</div>';
-      html += '<div class="bk-search-series-list">';
-      for (var i = 0; i < seriesList.length; i++) {
-        var s = seriesList[i];
-        html += '<a class="bk-search-series-card" href="#series/' + esc(s.id) + '" data-series="' + esc(s.id) + '">';
-        html += '<div class="bk-search-series-name">' + esc(s.title) + '</div>';
-        html += '<div class="bk-search-series-count">' + (s.count || 0) + ' 本</div>';
-        html += '</a>';
+      if (!html) {
+        html = '<div class="bk-search-hint">输入关键词开始搜索</div>';
       }
-      html += '</div></div>';
 
       this._resultsEl.innerHTML = html;
 
+      // 绑定搜索历史点击
+      if (history.length) {
+        var historyItems = this._resultsEl.querySelectorAll('.bk-search-history-item');
+        for (var hi = 0; hi < historyItems.length; hi++) {
+          (function (item) {
+            item.addEventListener('click', function (e) {
+              e.preventDefault();
+              var q = item.getAttribute('data-query');
+              if (self._input) {
+                self._input.value = q;
+                self._renderResults(q);
+              }
+            });
+          })(historyItems[hi]);
+        }
+        var clearBtn = this._resultsEl.querySelector('.bk-search-history-clear');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', function () {
+            self._clearSearchHistory();
+            self._renderEmpty();
+          });
+        }
+      }
+
       // 绑定系列卡片点击
       var cards = this._resultsEl.querySelectorAll('.bk-search-series-card');
-      var self = this;
       for (var c = 0; c < cards.length; c++) {
         (function (card) {
           card.addEventListener('click', function (e) {
@@ -839,6 +949,30 @@
           });
         })(cards[c]);
       }
+    },
+
+    // ── 搜索历史管理 ────────────────────────────────────────────────
+
+    _getSearchHistory: function () {
+      try {
+        var raw = localStorage.getItem(this._historyKey);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    },
+
+    _addSearchHistory: function (query) {
+      if (!query.trim()) return;
+      var history = this._getSearchHistory();
+      // 去重并移到最前
+      var idx = history.indexOf(query);
+      if (idx !== -1) history.splice(idx, 1);
+      history.unshift(query);
+      if (history.length > this._maxHistory) history = history.slice(0, this._maxHistory);
+      try { localStorage.setItem(this._historyKey, JSON.stringify(history)); } catch (e) {}
+    },
+
+    _clearSearchHistory: function () {
+      try { localStorage.removeItem(this._historyKey); } catch (e) {}
     },
 
     // ── 渲染搜索结果入口（兼容旧调用）────────────────────────────────────
@@ -906,7 +1040,11 @@
         clearTimeout(self._debounceTimer);
         var q = self._input.value;
         self._debounceTimer = setTimeout(function () {
-          self._renderResults(q);
+          if (!q.trim()) {
+            self._renderEmpty();
+          } else {
+            self._renderResults(q);
+          }
         }, 300);
       });
 
@@ -957,6 +1095,11 @@
         clearTimeout(this._contentTimer);
         this._contentTimer = null;
       }
+      // 清理无限滚动 observer
+      if (this._scrollObserver) {
+        this._scrollObserver.disconnect();
+        this._scrollObserver = null;
+      }
       if (this._lockCleanup) {
         this._lockCleanup();
         this._lockCleanup = null;
@@ -965,6 +1108,38 @@
         win.BK.backStack.discard();
       }
       this._inBackStack = false;
+    },
+
+    // ── 移动端无限滚动 ─────────────────────────────────────────────
+
+    _setupInfiniteScroll: function () {
+      var self = this;
+      if (self._scrollObserver) {
+        self._scrollObserver.disconnect();
+      }
+
+      var loadMore = self._resultsEl.querySelector('.bk-search-load-more');
+      if (!loadMore) return;
+
+      // 移动端使用 IntersectionObserver 自动加载
+      if (!('IntersectionObserver' in win)) return;
+
+      self._scrollObserver = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) {
+            self._scrollObserver.disconnect();
+            self._scrollObserver = null;
+            self._renderPage(true);
+            break;
+          }
+        }
+      }, {
+        root: self._resultsEl,
+        rootMargin: '200px',
+        threshold: 0
+      });
+
+      self._scrollObserver.observe(loadMore);
     }
   };
 

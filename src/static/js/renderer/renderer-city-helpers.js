@@ -121,7 +121,7 @@
       html += '<a class="bk-continue-card" href="#/' + escAttr(b.id) + '/' + (it.progress || 1) + '">';
       html += '<div class="bk-continue-cover">' + _coverHTML(b, { size: 'sm' }) + '</div>';
       html += '<div class="bk-continue-info">';
-      html += '<div class="bk-continue-title">' + escText(_cleanBookTitle(b.title)) + '</div>';
+      html += '<div class="bk-continue-title">' + escText(b.title) + '</div>';
       html += '<div class="bk-continue-chapter">第' + it.progress + '章 / 共' + it.chapterCount + '章</div>';
       html += '<div class="reading-progress"><div class="reading-progress-fill" style="width:' + it.progressPct + '%"></div></div>';
       html += '</div>';
@@ -192,14 +192,11 @@
     var coverSize = cityBook ? null : 'md';
     html += _coverHTML(book, { size: coverSize, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
     if (cityBook) {
-      // 书城三级：封面海报 + 下方精简信息条（书名 + 书号(可选) + 章节数）
-      var bookNo = _extractBookNo(book.title);
+      // 书城三级：封面海报 + 下方精简信息条（完整书名 + 章节数）
+      // 不单独显示书号行，书名中包含书号则保留完整书名
       html += '<div class="book-caption">';
-      html += '<div class="book-caption-title">' + escText(_cleanBookTitle(book.title)) + '</div>';
+      html += '<div class="book-caption-title">' + escText(book.title || '') + '</div>';
       html += '<div class="book-caption-meta">';
-      if (bookNo) {
-        html += '<span class="book-caption-no">书号 ' + escText(bookNo) + '</span>';
-      }
       html += '<span class="book-caption-chapters">共 ' + chapterCount + ' 章</span>';
       var srcBadge = _sourceBadgeHTML(book);
       if (srcBadge) html += srcBadge;
@@ -644,6 +641,8 @@
     }).then(function (imported) {
       // 按来源类型分系列：本地导入 / WebDAV 导入
       var hasLocal = false, hasWebdav = false;
+      // 使用 cacheBook 持久化导入书的已下载状态（与内置书统一处理）
+      var cachePromises = [];
       for (var ii = 0; ii < imported.length; ii++) {
         var ib = imported[ii];
         // ★ 内置资源 EPUB 已在 loadEpubResources 中设置 series，不覆盖
@@ -675,11 +674,17 @@
         } else {
           _zlBooks.push(ib);
         }
-        var inDl = false;
-        for (var di = 0; di < _zlDownloadedIds.length; di++) {
-          if (_zlDownloadedIds[di] === ib.id) { inDl = true; break; }
+        // 通过 cacheBook 持久化到 DataManager 的已下载列表（刷新后不丢失）
+        if (win.DataManager && win.DataManager.cacheBook) {
+          cachePromises.push(win.DataManager.cacheBook(ib.id, ib));
+        } else {
+          // DataManager 不可用时退回内存操作
+          var inDl = false;
+          for (var di = 0; di < _zlDownloadedIds.length; di++) {
+            if (_zlDownloadedIds[di] === ib.id) { inDl = true; break; }
+          }
+          if (!inDl) _zlDownloadedIds.push(ib.id);
         }
-        if (!inDl) _zlDownloadedIds.push(ib.id);
         if (!win.__bkBooks) win.__bkBooks = [];
         var exists = false;
         for (var bj = 0; bj < win.__bkBooks.length; bj++) {
@@ -704,6 +709,17 @@
 
       // 系列数据已变更，失效合并缓存（与 _mergeBundledBooks 一致）
       _invalidateMergedSeriesCache();
+
+      // 等待所有 cacheBook 完成后刷新内存中的下载 ID 列表
+      if (cachePromises.length > 0) {
+        return Promise.all(cachePromises).then(function () {
+          if (win.DataManager && win.DataManager.getDownloadedBookIds) {
+            return win.DataManager.getDownloadedBookIds().then(function (ids) {
+              _zlDownloadedIds = ids || [];
+            });
+          }
+        });
+      }
     });
   }
 

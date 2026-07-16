@@ -146,7 +146,7 @@
     for (var i = 0; i < bucket.length; i++) {
       var rec = bucket[i];
       var book = _findBookById(rec.bookId) || { id: rec.bookId, title: rec.bookId, series: '' };
-      var title = book.title ? _cleanBookTitle(book.title) : (rec.bookId || '未知书籍');
+      var title = book.title || (rec.bookId || '未知书籍');
       // 作者：优先真实作者→系列名；来源信息统一由 source 徽标承担，不再降级到 author 行
       var author = book.author || _getSeriesTitle(book.series) || '';
       // 海报封面：复用 .bk-cover，填满卡顶（由 .bk-shelf-row overflow:hidden 裁切 16px 圆角）
@@ -179,13 +179,9 @@
       html += '<div class="bk-shelf-row-cover">' + cover + '</div>';
       html += pinMark;
       html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
-      // 书号提取（与书城 L3 一致）
-      var bookNo = _extractBookNo(book.title);
-      // 书号拼入书名：1001-到底有没有神
-      var displayTitle = bookNo ? bookNo + '-' + title : title;
-
+      // 书架：显示完整书名（不切割书号）
       html += '<div class="bk-shelf-row-info">';
-      html += '<div class="bk-shelf-row-title">' + escText(displayTitle) + '</div>';
+      html += '<div class="bk-shelf-row-title">' + escText(title) + '</div>';
       // 单行元数据：进度/已读日期 + 来源徽标，对齐书城 L3 的 .book-caption-meta 结构
       html += '<div class="bk-shelf-row-meta">';
       html += '<span class="bk-shelf-row-progress">' + escText(subText) + escText(metaExtra) + '</span>';
@@ -235,7 +231,7 @@
           var id = btn.getAttribute('data-book-id');
           if (!id) return;
           var b = _findBookById(id);
-          var name = b ? _cleanBookTitle(b.title || id) : id;
+          var name = b ? (b.title || id) : id;
           if (win.confirm && !win.confirm('确定将《' + name + '》移出书架？')) return;
           if (win.BKShelf && win.BKShelf.remove) win.BKShelf.remove(id);
           // 移除后由 bk-shelf-changed 监听整体重渲染（含统计与空状态）
@@ -367,7 +363,7 @@
   // 书籍详情弹窗（BK.openDialog 统一管理：自动注册返回键 + 隐藏底部 Tab 栏）
   function _openBookDetail(book) {
     if (!book) return;
-    var title = _cleanBookTitle(book.title) || book.id || '未知书籍';
+    var title = book.title || book.id || '未知书籍';
     var rows = [];
     function addRow(label, value) {
       if (value === null || value === undefined || value === '') return;
@@ -426,7 +422,7 @@
   // 添加到桌面快捷方式：复制本书深链 + 唤起 PWA 安装（可用时）；否则提示手动添加
   function _addBookToDesktop(book) {
     if (!book) return;
-    var name = _cleanBookTitle(book.title) || '本书';
+    var name = book.title || '本书';
     var link = (win.location.origin || '') + (win.location.pathname || '/') + '#/' + book.id;
     var copied = false;
     try {
@@ -454,7 +450,7 @@
     var book = _findBookById(bookId) || { id: bookId };
     var isRead = (win.BKShelf && win.BKShelf.isRead) ? win.BKShelf.isRead(bookId) : false;
     var isPinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(bookId) : false;
-    var title = _cleanBookTitle(book.title) || bookId;
+    var title = book.title || bookId;
     var author = book.author || '';
     var initial = title.replace(/^[《「]/, '').charAt(0) || '?';
 
