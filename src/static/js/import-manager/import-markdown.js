@@ -80,18 +80,63 @@
 
       // ── 中文大纲编号预处理：为中文编号行添加层级缩进标记 ──
       // 检测常见的中文大纲编号模式：壹/贰/叁/肆(1级)、一/二/三/四(2级)、1/2/3/4(3级)、a/b/c(4级)
-      var outlineProcessed = markProcessed.replace(/^((?:壹|貳|叁|肆|伍|陸|柒|捌|玖|拾|壹|贰|叁|肆|伍|陆|柒|捌|玖|拾)[\s、．\.].+)$/gm, function(m) {
-        return '%%OUTLINE1%%' + m;
-      });
-      outlineProcessed = outlineProcessed.replace(/^((?:一|二|三|四|五|六|七|八|九|十)[\s、．\.].+)$/gm, function(m) {
-        return '%%OUTLINE2%%' + m;
-      });
-      outlineProcessed = outlineProcessed.replace(/^(\d+[\s、．\.].+)$/gm, function(m) {
-        return '%%OUTLINE3%%' + m;
-      });
-      outlineProcessed = outlineProcessed.replace(/^([a-z][\s、．\.].+)$/gm, function(m) {
-        return '%%OUTLINE4%%' + m;
-      });
+      //
+      // 关键：必须排除 Markdown 有序列表（连续的 "1. " "2. " 行），
+      // 否则 %%OUTLINE%% 前缀会破坏 marked.js 的列表识别，导致缩进异常。
+      //
+      // 区分策略：
+      //   - Markdown 有序列表：数字 + "." + 空格（CommonMark 规范），如 "1. 参考权威书单"
+      //   - 中文大纲编号：数字 + 顿号/全角点/无空格紧跟，如 "1、祂是活水" "1.申言乃是"
+      //   - 中文大纲编号也包含数字+空格的孤立行（前后无同模式邻居），如 "1 祂是活水"
+      //
+      // 因此，只对同时满足以下两个条件的行跳过大纲标记：
+      //   1. 匹配 Markdown 有序列表格式：^\d+\.\s（数字+点+空格）
+      //   2. 前后行中有同类 Markdown 有序列表邻居（连续出现 = 列表）
+
+      var outlineLines = markProcessed.split('\n');
+      // Markdown 有序列表的检测正则（CommonMark: 数字 + "." + 至少一个空格）
+      var mdListRe = /^\d+\.\s/;
+      // 大纲编号的检测正则（中文编号 + 阿拉伯数字编号 + 字母编号）
+      var outlinePatterns = [
+        { level: 1, re: /^(?:壹|貳|叁|肆|伍|陸|柒|捌|玖|拾|壹|贰|叁|肆|伍|陆|柒|捌|玖|拾)[\s、．\.]/ },
+        { level: 2, re: /^(?:一|二|三|四|五|六|七|八|九|十)[\s、．\.]/ },
+        { level: 3, re: /^\d+[\s、．\.]/ },
+        { level: 4, re: /^[a-z][\s、．\.]/ }
+      ];
+
+      for (var oli = 0; oli < outlineLines.length; oli++) {
+        var line = outlineLines[oli];
+        var matchedLevel = 0;
+        for (var opi = 0; opi < outlinePatterns.length; opi++) {
+          if (outlinePatterns[opi].re.test(line)) {
+            matchedLevel = outlinePatterns[opi].level;
+            break;
+          }
+        }
+        if (!matchedLevel) continue;
+
+        // 特殊处理 level 3（阿拉伯数字）：如果同时匹配 Markdown 有序列表格式
+        // 且前后行也有 Markdown 有序列表邻居，则跳过（让 marked.js 处理）
+        if (matchedLevel === 3 && mdListRe.test(line)) {
+          var hasListNeighbor = false;
+          // 检查前后行（跳过空行）
+          for (var di = -1; di <= 1; di += 2) {
+            var ni = oli + di;
+            while (ni >= 0 && ni < outlineLines.length && /^\s*$/.test(outlineLines[ni])) {
+              ni += di;
+            }
+            if (ni >= 0 && ni < outlineLines.length && mdListRe.test(outlineLines[ni])) {
+              hasListNeighbor = true;
+              break;
+            }
+          }
+          if (hasListNeighbor) continue;  // 属于 Markdown 有序列表，跳过
+        }
+
+        // 添加大纲标记
+        outlineLines[oli] = '%%OUTLINE' + matchedLevel + '%%' + line;
+      }
+      var outlineProcessed = outlineLines.join('\n');
 
       // ── 配置 marked.use()：代码高亮 ──
       var markedOpts = {

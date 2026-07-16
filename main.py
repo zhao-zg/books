@@ -439,6 +439,55 @@ def main():
             pass  # 检查失败则正常执行数据准备
 
     if _need_data_prep:
+        # Step 0-pre: 检查 Node.js 环境（merge_zl_data.py 内置书转换依赖 Node.js）
+        _node_ok = False
+        try:
+            _r = subprocess.run(['node', '--version'], capture_output=True, text=True, timeout=5)
+            if _r.returncode == 0:
+                _ver = _r.stdout.strip()
+                print(f"✓ Node.js {_ver} 已安装")
+                _node_ok = True
+            else:
+                print("⚠ Node.js 不可用，内置书籍转换将被跳过")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            print("⚠ Node.js 未安装或不在 PATH 中，内置书籍转换将被跳过")
+            print("  提示: 内置书（MD/EPUB/TXT）需要 Node.js 解析，请安装 Node.js 20+")
+
+        if _node_ok:
+            # 检查关键 npm 依赖是否存在
+            _script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'convert-bundled.js')
+            if os.path.exists(_script):
+                _check_deps = False
+                try:
+                    _r2 = subprocess.run(
+                        ['node', '-e', 'require("jsdom"); require("jszip"); console.log("deps-ok")'],
+                        capture_output=True, text=True, timeout=10,
+                        cwd=os.path.dirname(os.path.abspath(__file__)),
+                    )
+                    if _r2.returncode == 0 and 'deps-ok' in _r2.stdout:
+                        _check_deps = True
+                except Exception:
+                    pass
+
+                if not _check_deps:
+                    print("⚠ npm 依赖缺失（jsdom/jszip），尝试自动安装...")
+                    try:
+                        _r3 = subprocess.run(
+                            ['npm', 'install', '--production'],
+                            capture_output=True, text=True, timeout=120,
+                            cwd=os.path.dirname(os.path.abspath(__file__)),
+                        )
+                        if _r3.returncode == 0:
+                            print("✓ npm 依赖安装成功")
+                        else:
+                            print(f"⚠ npm install 失败 (exit={_r3.returncode})")
+                            if _r3.stderr:
+                                print(f"  {_r3.stderr[:200]}")
+                    except Exception as e:
+                        print(f"⚠ npm install 异常: {e}")
+            else:
+                print("⚠ 内置书转换脚本不存在: src/convert-bundled.js")
+
         # Step 0a: 执行 process_ysz_books.py（ysz → zl-ysz）
         try:
             print("▶ 处理 YSZ 数据 (ysz → zl-ysz) ...")
@@ -501,8 +550,13 @@ def main():
     # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
     copy_zl_merged_data(resource_dir, output_dir)
 
-    # 复制 resource/books/ 下的书籍资源到 output/books/（供前端自动导入，支持 EPUB/MD/TXT）
-    copy_book_resources(resource_dir, output_dir)
+    # 复制 resource/books/ 下的书籍资源到 output/books/（可选，默认跳过）
+    # 内置书已由 merge_zl_data.py 生成 ysz 格式 JSON 到 zl-merged/，随 zl-data 一起下发 CDN
+    # 此开关仅用于本地调试/测试时需要直接访问原始文件（EPUB/MD/TXT）的场景
+    if config.get('copy_book_resources', False):
+        copy_book_resources(resource_dir, output_dir)
+    else:
+        print("⏭ 内置书籍资源复制已跳过（内置书已走 CDN，如需本地副本请在 config.yaml 设置 copy_book_resources: true）")
 
     print(f"\n{'=' * 60}")
     print(f" 构建完成!")

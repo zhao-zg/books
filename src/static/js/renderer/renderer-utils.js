@@ -75,34 +75,40 @@
     return m ? m[1] : '';
   }
 
-  // 来源徽标：区分书籍的导入渠道（本地文件 / WebDAV）。
-  // - local  -> 「📁 本地」
-  // - webdav -> 「☁ {服务器名称}」，服务器名称缺失时回退显示地址（serverName 已在导入时写入 name||url）。
+  // 来源徽标：区分书籍的导入渠道，均仅显示图标以节省宽度。
+  // - local    -> 「📁」
+  // - webdav   -> 「☁」（服务器名称保留在 title 属性供 hover 查看）
+  // - resource -> 「📦」（内置 EPUB 资源导入）
   // 无 source（书城目录书）不渲染徽标。
   function _sourceBadgeHTML(book) {
     var s = book && book.source;
     if (!s || !s.type) return '';
     if (s.type === 'local') {
-      return '<span class="book-source-badge book-source-local">📁 本地</span>';
+      return '<span class="book-source-badge book-source-local">📁</span>';
     }
     if (s.type === 'webdav') {
-      var label = (s.serverName && s.serverName.indexOf('://') < 0) ? s.serverName : 'WebDAV';
-      return '<span class="book-source-badge book-source-webdav" title="' + escAttr(label) + '">☁ ' + escText(label) + '</span>';
+      var label = (s.serverName && s.serverName.indexOf('://') < 0) ? s.serverName : 'WebDAV导入';
+      return '<span class="book-source-badge book-source-webdav" title="' + escAttr(label) + '">☁</span>';
+    }
+    if (s.type === 'resource') {
+      return '<span class="book-source-badge book-source-resource" title="内置资源">📦</span>';
     }
     return '';
   }
 
   /**
    * 导入来源的人类可读标签（用于书架副标题 / 封面系列位，替代泄漏的 series='imported' 字面量）。
-   *  - webdav -> 服务器名称（缺省回退 'WebDAV'）
+   *  - webdav -> 服务器名称（缺省回退 'WebDAV导入'）
    *  - local  -> '本地导入'
+   *  - resource -> '内置资源'
    * 无 source（书城目录书）返回 ''（交给 series 兜底）。
    */
   function _sourceLabel(book) {
     var s = book && book.source;
     if (!s || !s.type) return '';
-    if (s.type === 'webdav') return (s.serverName && s.serverName.indexOf('://') < 0) ? s.serverName : 'WebDAV';
+    if (s.type === 'webdav') return (s.serverName && s.serverName.indexOf('://') < 0) ? s.serverName : 'WebDAV导入';
     if (s.type === 'local') return '本地导入';
+    if (s.type === 'resource') return '内置资源';
     return '';
   }
 

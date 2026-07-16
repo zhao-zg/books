@@ -50,6 +50,22 @@
     return getDownloadedIdsList();
   }
 
+  /**
+   * 将书籍数据写入本地缓存（IndexedDB + 已下载列表）
+   * 用于内置书籍、导入书籍等已有数据的本地化，使其与普通下载书籍统一管理
+   * @param {string} bookId
+   * @param {object} bookData  转换后的书籍数据
+   */
+  function cacheBook(bookId, bookData) {
+    console.log('[DataManager] 缓存书籍到本地: ' + bookId);
+    return storeSet(KEY_BOOK_PREFIX + bookId, bookData)
+      .then(function () { return addDownloadedId(bookId); })
+      .then(function () {
+        console.log('[DataManager] 书籍缓存完成: ' + bookId);
+        return bookData;
+      });
+  }
+
   // ── 存储管理 ─────────────────────────────────────────────────────────
 
   /**

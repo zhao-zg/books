@@ -136,6 +136,39 @@ class BooksGenerator:
     # 搜索索引
     # ------------------------------------------------------------------
 
+    def _generate_bundled_search_entries(self, project_root):
+        """为内置资源（resource/books/）生成最小搜索条目（仅标题）。
+
+        内置资源没有章节 JSON 文件，无法像 YSZ 书籍那样提取章节摘要，
+        但至少应让书名可被搜索到。
+        """
+        books_dir = os.path.join(project_root, 'resource', 'books')
+        if not os.path.isdir(books_dir):
+            return []
+
+        SUPPORTED_EXTS = {'.epub': 'epub', '.md': 'md', '.markdown': 'md', '.txt': 'txt'}
+        entries = []
+
+        for entry in sorted(os.listdir(books_dir)):
+            entry_path = os.path.join(books_dir, entry)
+            if not os.path.isdir(entry_path):
+                continue
+            for f in sorted(os.listdir(entry_path)):
+                ext = os.path.splitext(f)[1].lower()
+                if ext not in SUPPORTED_EXTS:
+                    continue
+                stem = os.path.splitext(f)[0]
+                entries.append({
+                    'id': f'bundle-{entry}__{stem}',
+                    'title': stem,
+                    'series': entry,
+                    'chapters': [],
+                })
+
+        if entries:
+            print(f"  内置资源搜索条目: {len(entries)} 本")
+        return entries
+
     def generate_search_index(self):
         """生成搜索索引文件 output/books/search-index.json
 
@@ -249,6 +282,8 @@ class BooksGenerator:
 
                 book_count += 1
                 chapter_count += len(chapters_output)
+
+        # 内置书已在 zl-merged/ 中生成 ysz 格式 JSON，上面的遍历已自动包含，无需额外追加
 
         # 输出到 output/books/search-index.json
         books_dir = os.path.join(self.output_dir, 'books')

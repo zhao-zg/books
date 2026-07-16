@@ -260,15 +260,16 @@
       };
     }
 
-    function showUnsupported(message) {
-      playPauseBtn.style.display = 'none';
-      progressBar.style.display  = 'none';
-      rateSelect.style.display   = 'none';
-      speechTime.textContent     = message;
-      speechTime.style.color     = 'var(--text-muted)';
-      speechTime.style.fontSize  = '11px';
-      speechTime.style.textAlign = 'center';
-    }
+      function showUnsupported(message) {
+        playPauseBtn.style.display = 'none';
+        progressBar.style.display  = 'none';
+        progressBar.style.background = '';
+        rateSelect.style.display   = 'none';
+        speechTime.textContent     = message;
+        speechTime.style.color     = 'var(--text-muted)';
+        speechTime.style.fontSize  = '11px';
+        speechTime.style.textAlign = 'center';
+      }
 
     controlsDiv.style.display = 'flex';
 
@@ -454,15 +455,27 @@
       }
 
       function updateProgressUI() {
-        if (!totalDuration) { progressBar.value = '0'; speechTime.textContent = '00:00 / 00:00'; return; }
+        if (!totalDuration) { progressBar.value = '0'; speechTime.textContent = '00:00 / 00:00'; _updateProgressFill(0); return; }
         var elapsed = currentElapsedSeconds();
-        progressBar.value = String(clamp((elapsed / totalDuration) * 100, 0, 100));
+        var pct = clamp((elapsed / totalDuration) * 100, 0, 100);
+        progressBar.value = String(pct);
+        _updateProgressFill(pct);
         speechTime.textContent = formatTime(elapsed) + ' / ' + formatTime(totalDuration);
         if (_segmentMap.length && fullText) {
           var ratio = clamp(elapsed / totalDuration, 0, 1);
           var charPos = Math.floor(ratio * fullText.length);
           setTTSHighlight(findSegmentAt(charPos));
         }
+      }
+
+      // ── 进度条填充色同步 ─────────────────────────────────────
+      // input[type=range] 的 .value 赋值在 WebKit/Blink 下不自动更新轨道填充色
+      // 必须通过内联 background gradient 模拟左侧填充进度
+      function _updateProgressFill(pct) {
+        var p = Math.max(0, Math.min(100, pct || 0));
+        var fill = 'var(--brand, #3D8A5A)';
+        var track = 'var(--border, #E5E2DD)';
+        progressBar.style.background = 'linear-gradient(to right, ' + fill + ' 0%, ' + fill + ' ' + p + '%, ' + track + ' ' + p + '%, ' + track + ' 100%)';
       }
 
       function startProgressUpdate() {
@@ -486,6 +499,7 @@
         fullText = '';
         elapsedOffset = 0; startTime = 0; totalDuration = 0;
         progressBar.value = '0';
+        _updateProgressFill(0);
         speechTime.textContent = '00:00 / 00:00';
         setState('idle');
       }
@@ -566,11 +580,28 @@
         if (useNativeTTS) {
           // NativeTTS — 将完整文本传递给原生插件
           var NativeTTS = getNativeTTS();
+          // 设置 startTime 使估算进度在播放期间推进
+          startTime = Date.now();
+          // 监听原生插件进度回调，修正进度条位置
+          var nativeProgressHandler = null;
+          try {
+            nativeProgressHandler = NativeTTS.addListener && NativeTTS.addListener('ttsProgress', function (data) {
+              if (speakGeneration !== gen) return;
+              if (data && data.total > 0) {
+                var nativePct = clamp((data.done / data.total) * 100, 0, 100);
+                var nativeElapsed = (nativePct / 100) * totalDuration;
+                elapsedOffset = nativeElapsed;
+                startTime = Date.now();
+              }
+            });
+          } catch(e) {}
           if (NativeTTS) {
             try {
               await NativeTTS.speak({ text: fullText, rate: rate, lang: lang });
             } catch(e) {}
           }
+          // 清理原生进度监听
+          if (nativeProgressHandler) { try { nativeProgressHandler.remove(); } catch(e) {} }
           resetState();
         } else {
           // Web Speech - 分段朗读
@@ -609,12 +640,18 @@
         } else if (state === 'playing') {
           elapsedOffset = currentElapsedSeconds();
           startTime = 0;
-          if (useWebSpeech) { try { window.speechSynthesis.pause(); } catch(e) {} }
+          if (useNativeTTS) {
+            try { getNativeTTS().pause(); } catch(e) {}
+          } else if (useWebSpeech) {
+            try { window.speechSynthesis.pause(); } catch(e) {}
+          }
           setState('paused');
           stopProgressUpdate();
         } else if (state === 'paused') {
           startTime = Date.now();
-          if (useWebSpeech) {
+          if (useNativeTTS) {
+            try { getNativeTTS().resume(); } catch(e) {}
+          } else if (useWebSpeech) {
             try { window.speechSynthesis.resume(); } catch(e) {}
           }
           setState('playing');
@@ -640,11 +677,16 @@
       progressBar.addEventListener('change', function () {
         isSeeking = false;
         var pct = Number(progressBar.value) || 0;
+        _updateProgressFill(pct);
         if (state !== 'idle') {
           resetState();
           startSpeakingFromPercent(pct);
         }
       });
+
+      // 兜底：鼠标/触摸释放时确保 isSeeking 重置，避免进度条卡住
+      progressBar.addEventListener('mouseup', function () { isSeeking = false; });
+      progressBar.addEventListener('touchend', function () { isSeeking = false; });
 
     } // end startInit
 
@@ -654,6 +696,7 @@
 
   function cancel() {
     try { window.speechSynthesis.cancel(); } catch(e) {}
+    try { var nTTS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeTTS; if (nTTS && nTTS.stop) nTTS.stop(); } catch(e) {}
     var playPauseBtn = byId('playPauseBtn');
     if (playPauseBtn) {
       var playIcon = playPauseBtn.querySelector('.play-icon');
@@ -661,9 +704,17 @@
       if (playIcon) playIcon.style.display = 'inline';
       if (pauseIcon) pauseIcon.style.display = 'none';
     }
+    // 重置进度条
+    var progressBar = byId('progressBar');
+    if (progressBar) { progressBar.value = '0'; progressBar.style.background = ''; }
+    var speechTime = byId('speechTime');
+    if (speechTime) speechTime.textContent = '00:00 / 00:00';
     // 重置浮动栏播放按钮
     var bottomPlay = document.querySelector('.bk-float-play-btn');
     if (bottomPlay) bottomPlay.classList.remove('bk-playing');
+    // 清理内嵌 TTS 控制面板
+    var ttsPanel = byId('bottomControlBar');
+    if (ttsPanel) ttsPanel.style.display = 'none';
   }
 
   window.BKSpeech = { init: init, cancel: cancel };

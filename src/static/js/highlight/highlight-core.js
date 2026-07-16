@@ -20,6 +20,8 @@ Object.assign(BKHighlight, {
         getPageKey: function () {
             var hash = window.location.hash.replace(/^#\/?/, '');
             if (hash) {
+                // ★ decode URL 编码的中文 bookId，确保存储键与路由解码后一致
+                try { hash = decodeURIComponent(hash); } catch (e) {}
                 var parts = hash.split('/').filter(Boolean);
                 if (parts.length >= 2) {
                     return '/' + parts[0] + '/' + parts[1];

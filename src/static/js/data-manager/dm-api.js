@@ -183,6 +183,7 @@
     getBook: getBook,
     isBookDownloaded: isBookDownloaded,
     getDownloadedBookIds: getDownloadedBookIds,
+    cacheBook: cacheBook,
     deleteBook: deleteBook,
     getStorageStats: getStorageStats,
     checkResources: checkResources,

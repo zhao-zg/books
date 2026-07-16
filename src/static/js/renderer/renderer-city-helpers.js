@@ -21,8 +21,10 @@
    * 根据 series ID 获取系列标题
    */
   function _getSeriesTitle(seriesId) {
-    // 'imported' 是内部标记，不应泄漏到 UI；来源信息由 _sourceLabel / _sourceBadgeHTML 承担
+    // 'imported' 是旧版内部标记，不应泄漏到 UI
     if (seriesId === 'imported') return '';
+    if (seriesId === 'imported-local') return '本地导入';
+    if (seriesId === 'imported-webdav') return 'WebDAV导入';
     for (var i = 0; i < _zlSeries.length; i++) {
       if (_zlSeries[i].id === seriesId) return _displaySeriesTitle(_zlSeries[i].title);
     }
@@ -120,10 +122,9 @@
       html += '<div class="bk-continue-cover">' + _coverHTML(b, { size: 'sm' }) + '</div>';
       html += '<div class="bk-continue-info">';
       html += '<div class="bk-continue-title">' + escText(_cleanBookTitle(b.title)) + '</div>';
-      html += '<div class="bk-continue-chapter">读到第' + it.progress + '章 / 共' + it.chapterCount + '章</div>';
-      html += '</div>';
+      html += '<div class="bk-continue-chapter">第' + it.progress + '章 / 共' + it.chapterCount + '章</div>';
       html += '<div class="reading-progress"><div class="reading-progress-fill" style="width:' + it.progressPct + '%"></div></div>';
-      html += '<div class="bk-continue-arrow">›</div>';
+      html += '</div>';
       html += '</a>';
     }
     anchor.innerHTML = html;
@@ -131,16 +132,14 @@
   // 系列合并：书籍数 < MIN_SERIES_BOOKS 的系列归入拾遗
   var _MIN_SERIES_BOOKS = 3;
   var _PICKUP_SERIES_ID = 'sy_auto';
-  var _PROTECTED_SERIES = { 'books': true, 'sy_auto': true, 'md-bundle': true, 'bundle': true, 'MDC': true }; // 不参与合并的系列（含 _bundled 的系列还会被动态保护）
+  var _PROTECTED_SERIES = { 'books': true, 'sy_auto': true, 'md-bundle': true, 'bundle': true, 'MDC': true, 'imported-local': true, 'imported-webdav': true }; // 不参与合并的系列
 
   function _getMergedSeries() {
-    // 计算每个系列的真实书籍数，同时检测含 _bundled 书籍的系列
+    // 计算每个系列的真实书籍数
     var seriesBookCount = {};
-    var seriesHasBundled = {};
     for (var i = 0; i < _zlBooks.length; i++) {
       var sid = _zlBooks[i].series;
       seriesBookCount[sid] = (seriesBookCount[sid] || 0) + 1;
-      if (_zlBooks[i]._bundled) seriesHasBundled[sid] = true;
     }
 
     var visibleSeries = [];
@@ -151,8 +150,7 @@
     for (var i = 0; i < _zlSeries.length; i++) {
       var s = _zlSeries[i];
       var count = seriesBookCount[s.id] || 0;
-      // 包含 _bundled 书籍的系列动态保护，不受最低书籍数限制
-      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id] && !seriesHasBundled[s.id]) {
+      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
         mergedCount += count;
         mergedIds[s.id] = true;
       } else {
@@ -644,20 +642,39 @@
     return Promise.resolve().then(function () {
       return win.ImportManager.getImportedBooks();
     }).then(function (imported) {
+      // 按来源类型分系列：本地导入 / WebDAV 导入
+      var hasLocal = false, hasWebdav = false;
       for (var ii = 0; ii < imported.length; ii++) {
         var ib = imported[ii];
-        // ★ 内置资源 EPUB 已在 loadEpubResources 中设置 series，不覆盖为 'imported'
-        if (!ib._bundled) ib.series = 'imported';
+        // ★ 内置资源 EPUB 已在 loadEpubResources 中设置 series，不覆盖
+        if (!ib._bundled) {
+          var st = (ib.source && ib.source.type) || '';
+          if (st === 'webdav') {
+            ib.series = 'imported-webdav';
+            hasWebdav = true;
+          } else if (st === 'local') {
+            ib.series = 'imported-local';
+            hasLocal = true;
+          } else {
+            ib.series = 'imported';
+          }
+        }
         // 补齐 chapter_count（书城卡片用此字段显示章节数）
         if (!ib.chapter_count && ib.chapters && ib.chapters.length) {
           ib.chapter_count = ib.chapters.length;
         }
         // 幂等：避免重复渲染（导入后调用 renderHome 刷新书城时不产生重复卡片）
-        var inBooks = false;
+        var existingIdx = -1;
         for (var bi = 0; bi < _zlBooks.length; bi++) {
-          if (_zlBooks[bi].id === ib.id) { inBooks = true; break; }
+          if (_zlBooks[bi].id === ib.id) { existingIdx = bi; break; }
         }
-        if (!inBooks) _zlBooks.push(ib);
+        if (existingIdx >= 0) {
+          // 已有条目：更新 series 和 source（处理从旧 'imported' 迁移到新分组的情况）
+          _zlBooks[existingIdx].series = ib.series;
+          if (ib.source) _zlBooks[existingIdx].source = ib.source;
+        } else {
+          _zlBooks.push(ib);
+        }
         var inDl = false;
         for (var di = 0; di < _zlDownloadedIds.length; di++) {
           if (_zlDownloadedIds[di] === ib.id) { inDl = true; break; }
@@ -670,78 +687,33 @@
         }
         if (!exists) win.__bkBooks.push(ib);
       }
-    });
-  }
 
-  /**
-   * 合并内置 MD 资源书籍到首页列表
-   * 机制与 _mergeImportedBooks 平行，但 bundled books 不走 IndexedDB
-   */
-  function _mergeBundledBooks() {
-    if (!win.ImportManager || !win.ImportManager.loadBundledBooks) {
-      return Promise.resolve();
-    }
-    return win.ImportManager.loadBundledBooks().then(function (result) {
-      if (!result || !result.books || !result.books.length) return;
-      var bundled = result.books;
-      var seriesMap = result.seriesMap || {};
-
-      // 注入 series 到 _zlSeries（从 manifest 自动发现多个系列）
+      // 注入系列条目到 _zlSeries（与 _mergeBundledBooks 模式一致）
       var existingSeries = {};
       for (var si = 0; si < _zlSeries.length; si++) {
         existingSeries[_zlSeries[si].id || _zlSeries[si].name] = true;
       }
-      for (var sId in seriesMap) {
-        if (!seriesMap.hasOwnProperty(sId)) continue;
-        if (!existingSeries[sId]) {
-          var meta = seriesMap[sId];
-          _zlSeries.push({
-            id: meta.id,
-            name: meta.name,
-            title: meta.name,
-            type: 'bundle'
-          });
-          existingSeries[sId] = true;
-        }
+      if (hasLocal && !existingSeries['imported-local']) {
+        _zlSeries.push({ id: 'imported-local', name: '本地导入', title: '本地导入', type: 'import' });
+        existingSeries['imported-local'] = true;
+      }
+      if (hasWebdav && !existingSeries['imported-webdav']) {
+        _zlSeries.push({ id: 'imported-webdav', name: 'WebDAV导入', title: 'WebDAV导入', type: 'import' });
+        existingSeries['imported-webdav'] = true;
       }
 
-      // 幂等合并到 _zlBooks、_zlDownloadedIds、__bkBooks
-      for (var ii = 0; ii < bundled.length; ii++) {
-        var bb = bundled[ii];
-        // 补齐 chapter_count（书城卡片用此字段显示章节数）
-        if (!bb.chapter_count && bb.chapters && bb.chapters.length) {
-          bb.chapter_count = bb.chapters.length;
-        }
-        var inBooks = false;
-        for (var bj = 0; bj < _zlBooks.length; bj++) {
-          if (_zlBooks[bj].id === bb.id) { inBooks = true; break; }
-        }
-        if (!inBooks) _zlBooks.push(bb);
-
-        var inDl = false;
-        for (var di = 0; di < _zlDownloadedIds.length; di++) {
-          if (_zlDownloadedIds[di] === bb.id) { inDl = true; break; }
-        }
-        if (!inDl) _zlDownloadedIds.push(bb.id);
-
-        if (!win.__bkBooks) win.__bkBooks = [];
-        var exists = false;
-        for (var bk = 0; bk < win.__bkBooks.length; bk++) {
-          if (win.__bkBooks[bk].id === bb.id) { exists = true; break; }
-        }
-        if (!exists) win.__bkBooks.push(bb);
-      }
+      // 系列数据已变更，失效合并缓存（与 _mergeBundledBooks 一致）
       _invalidateMergedSeriesCache();
-
-      // 合并后若当前书城/书架可见则就地重渲染
-      var appEl = document.getElementById('app');
-      if (appEl && appEl.style.display !== 'none') {
-        if (win.location.hash.indexOf('city') !== -1) {
-          if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
-        } else if (BKRenderer.renderShelfPage) {
-          BKRenderer.renderShelfPage();
-        }
-      }
     });
+  }
+
+  /**
+   * [已废弃] 合并内置 MD 资源书籍到首页列表
+   * 内置书已由构建侧生成 ysz 格式 JSON，随 zl-data/ 一起下发 CDN，
+   * 通过 DataManager 统一加载，不再需要从前端 manifest 合并。
+   * 保留空桩避免 renderer-data.js 中引用报错。
+   */
+  function _mergeBundledBooks() {
+    return Promise.resolve();
   }
 

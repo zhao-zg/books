@@ -173,19 +173,25 @@
       if (rec.rating) metaExtra += ' ★' + rec.rating;
       if (rec.note) metaExtra += ' · 有笔记';
 
-      // 海报卡：封面(卡顶) + 信息条(书名/作者/进度) + 角落已读角标 + 编辑圈 + 隐藏操作区(长按/编辑复用)
+      // 海报卡：封面(卡顶) + 信息条(书名 + 单行元数据)，结构与书城 L3 一致
       html += '<div class="bk-shelf-row" data-book-id="' + escAttr(rec.bookId) + '" role="button" tabindex="0" aria-label="打开 ' + escAttr(title) + '">';
       var pinMark = pinned ? '<span class="bk-shelf-pin-mark" aria-label="已置顶" role="img">📌</span>' : '';
       html += '<div class="bk-shelf-row-cover">' + cover + '</div>';
       html += pinMark;
       html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
+      // 书号提取（与书城 L3 一致）
+      var bookNo = _extractBookNo(book.title);
+      // 书号拼入书名：1001-到底有没有神
+      var displayTitle = bookNo ? bookNo + '-' + title : title;
+
       html += '<div class="bk-shelf-row-info">';
-      html += '<div class="bk-shelf-row-title">' + escText(title) + '</div>';
-      if (author) html += '<div class="bk-shelf-row-author">' + escText(author) + '</div>';
-      // 导入来源徽标（本地 / WebDAV）：仅导入书含 source，目录书不渲染
+      html += '<div class="bk-shelf-row-title">' + escText(displayTitle) + '</div>';
+      // 单行元数据：进度/已读日期 + 来源徽标，对齐书城 L3 的 .book-caption-meta 结构
+      html += '<div class="bk-shelf-row-meta">';
+      html += '<span class="bk-shelf-row-progress">' + escText(subText) + escText(metaExtra) + '</span>';
       var srcBadge = _sourceBadgeHTML(book);
-      if (srcBadge) html += '<div class="bk-shelf-row-source">' + srcBadge + '</div>';
-      html += '<div class="bk-shelf-row-date">' + escText(subText) + escText(metaExtra) + '</div>';
+      if (srcBadge) html += srcBadge;
+      html += '</div>';
       html += '</div>';
       // 隐藏操作区：保留测试契约（.bk-shelf-markread/.bk-shelf-unread/.bk-shelf-remove-btn），
       // 平时不可见；长按菜单 / 编辑态批量操作经 .click() 复用这些处理器。
@@ -346,13 +352,14 @@
     if (!book) return '';
     var s = book.source;
     if (s && s.type === 'webdav') {
-      var label = _sourceLabel(book) || 'WebDAV';
+      var label = _sourceLabel(book) || 'WebDAV导入';
       var rawPath = s.remotePath || '';
       // 只取最后一段路径，避免泄漏完整 URL 路径
       var path = rawPath.split('/').filter(Boolean).pop() || '';
       return label + (path ? (' · ' + path) : '');
     }
     if (s && s.type === 'local') return '本地导入';
+    if (s && s.type === 'resource') return '内置资源';
     if (book.series) return (_sourceLabel(book) || '书报目录');
     return '';
   }

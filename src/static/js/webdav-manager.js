@@ -332,10 +332,11 @@
   }
 
   // ── 连接：保存（可选）+ 设为激活 + 列根目录（多域名选最快节点）──────────
+  // OPT-1：用 Depth:1 竞速，首个成功节点同时拿到目录内容，省去后续 listDir 重复请求
   function connect(cfg, opts) {
     opts = opts || {};
     var base = normalizeConfig(cfg);
-    return pickFastestUrl(base).then(function (picked) {
+    return pickFastestUrl(base, null, '1').then(function (picked) {
       // 以最快节点 url 作为本次连接地址；保留 urls 供记录/重连
       var config = Object.assign({}, base, {
         url: picked.url,
@@ -347,9 +348,16 @@
       setActiveConfig(config.id);
       // DEV-2：缓存当前激活 config（含未保存），保证 getActiveConfig 对「刚 connect 未保存」也返回。
       _activeConfigCache = config;
-      return listDir(config, '').then(function (entries) {
-        return { config: config, entries: entries, picked: picked };
+      // OPT-1：直接从竞速响应解析目录，不再发 listDir
+      var entries = parseMultistatus(picked.text, picked.dirUrl);
+      entries = entries.filter(function (en) {
+        return normalizeHref(en.href) !== normalizeHref(picked.dirUrl);
       });
+      entries.sort(function (a, b) {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        return a.name.localeCompare(b.name, 'zh');
+      });
+      return { config: config, entries: entries, picked: picked };
     }).catch(function (err) {
       // 探测/连接失败：若多域名则给出明确提示
       if (err && err.type) throw err;
@@ -493,14 +501,16 @@
     return out;
   }
 
-  // 探测单个 URL 是否可达（PROPFIND Depth:0），成功返回 {url, ms, status}
-  function probeUrl(cfg, url, timeoutMs) {
+  // 探测单个 URL 是否可达（PROPFIND），成功返回 {url, ms, status, text, dirUrl}
+  // OPT-1：增加 depth 参数（默认 '0'），返回 text + dirUrl 供调用方直接解析目录
+  function probeUrl(cfg, url, timeoutMs, depth) {
+    var dirUrl = buildDirUrl(url, '');
     var t0 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
-    return propfind(buildDirUrl(url, ''), cfg, '0', timeoutMs || 5000).then(function (result) {
+    return propfind(dirUrl, cfg, depth || '0', timeoutMs || 5000).then(function (result) {
       var resp = result.resp;
       if (!resp.ok) throw wrapError(null, resp);
       var t1 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
-      return { url: url, ms: Math.round(t1 - t0), status: resp.status };
+      return { url: url, ms: Math.round(t1 - t0), status: resp.status, text: result.text, dirUrl: dirUrl };
     });
   }
 
@@ -523,11 +533,12 @@
   }
 
   // 选择最快可达节点：单域名直接探测；多域名并发探测取最快成功者
-  function pickFastestUrl(cfg, timeoutMs) {
+  // OPT-1：增加 depth 参数，透传给 probeUrl，使竞速可同时获取目录内容
+  function pickFastestUrl(cfg, timeoutMs, depth) {
     var urls = candidateUrls(cfg);
     if (urls.length === 0) return Promise.reject(new Error('未配置 WebDAV 地址'));
-    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || 5000);
-    var probes = urls.map(function (u) { return probeUrl(cfg, u, timeoutMs || 5000); });
+    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || 5000, depth);
+    var probes = urls.map(function (u) { return probeUrl(cfg, u, timeoutMs || 5000, depth); });
     return firstSuccess(probes);
   }
 

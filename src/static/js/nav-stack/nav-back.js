@@ -62,7 +62,7 @@
                 handleBackCommon(function() {
                     var path = (typeof window.__bkCurrentPath === 'string')
                         ? window.__bkCurrentPath
-                        : window.location.hash.replace(/^#\/?/, '');
+                        : (function() { var r = window.location.hash.replace(/^#\/?/, ''); try { return decodeURIComponent(r); } catch(e) { return r; } })();
                     var parts = path.split('/').filter(Boolean);
                     // 主页内部路由：按返回键先尝试逐级回退（书城 L3→L2→L1），无法回退再 exitApp
                     var _HOME_SEGS = ['shelf', 'city', 'my', 'me', 'bookmarks'];
@@ -90,7 +90,7 @@
                     if (Date.now() - _loadedAt < _GRACE_MS) return;
                     var path = (typeof window.__bkCurrentPath === 'string')
                         ? window.__bkCurrentPath
-                        : window.location.hash.replace(/^#\/?/, '');
+                        : (function() { var r = window.location.hash.replace(/^#\/?/, ''); try { return decodeURIComponent(r); } catch(e) { return r; } })();
                     var parts = path.split('/').filter(Boolean);
                     console.log('[NavStack] PWA fallback from="' + path + '" parts=' + JSON.stringify(parts));
 

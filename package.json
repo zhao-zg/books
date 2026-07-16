@@ -29,6 +29,23 @@
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
     "javascript-obfuscator": "^4.1.0",
-    "jsdom": "^29.1.1"
-  }
+    "jsdom": "^25.0.1"
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhao-zg/books.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/zhao-zg/books/issues"
+  },
+  "homepage": "https://github.com/zhao-zg/books#readme"
 }

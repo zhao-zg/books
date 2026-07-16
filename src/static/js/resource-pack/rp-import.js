@@ -291,9 +291,12 @@
       return null;
     }
     // 刷新「当前服务器已下载文件」集合（供浏览器标记 + 下载去重）
-    function refreshDownloadedSet() {
+    // OPT-P1：增加 force 参数，force=false 且内存中已有数据时跳过全量扫描
+    function refreshDownloadedSet(force) {
       wd._downloadedSet = wd._downloadedSet || {};
       if (!wd.config || !win.ImportManager || !win.ImportManager.getImportedBooks) return Promise.resolve();
+      // OPT-P1：非强制刷新时，若内存中已有该服务器的去重数据，直接复用（省去遍历IndexedDB）
+      if (!force && Object.keys(wd._downloadedSet).length > 0) return Promise.resolve();
       var serverId = wd.config.id;
       return win.ImportManager.getImportedBooks().then(function (books) {
         var map = {};
@@ -553,7 +556,8 @@
         win.WebDavManager.listDir(active, '').then(function (entries) {
           if (cancelled) return;
           wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
-          refreshDownloadedSet().then(function () { renderWebdav(); });
+          // OPT-P1：初始化首次加载，强制全量刷新
+          refreshDownloadedSet(true).then(function () { renderWebdav(); });
         }).catch(function (err) {
           if (cancelled) return;
           wd.mode = 'disconnected'; wd.config = null;
@@ -583,7 +587,8 @@
         wd.locked = false;
         wd.config = res.config; wd.path = ''; wd.entries = res.entries; wd.selected = {}; wd.mode = 'browsing';
         wd._usingSavedId = res.config.id;
-        refreshDownloadedSet().then(function () { renderWebdav(); showConnectedNode(res); });
+        // OPT-P1：新连接时强制全量刷新
+        refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
       }).catch(function (err) {
         if (cancelled) return;
         wd.locked = false;
@@ -593,12 +598,28 @@
       });
     }
 
+    // OPT-P2：目录列表 LRU 缓存，重复浏览同目录时跳过 PROPFIND
+    var _dirCache = {};   // key: serverId:path → { entries, ts }
+    var DIR_CACHE_TTL = 300000;  // 300 秒
+
     function wdOpenDir(path) {
       if (!wd.config || !path) return;
+      // OPT-P2：命中缓存时直接使用，不发 PROPFIND
+      var cacheKey = wd.config.id + ':' + path;
+      var cached = _dirCache[cacheKey];
+      if (cached && Date.now() - cached.ts < DIR_CACHE_TTL) {
+        wd.path = path; wd.entries = cached.entries; wd.selected = {}; wd.mode = 'browsing';
+        // OPT-P1：浏览已有缓存目录，非强制刷新
+        refreshDownloadedSet(false).then(function () { renderWebdav(); });
+        return;
+      }
       wd.locked = true;
       win.WebDavManager.listDir(wd.config, path).then(function (entries) {
         wd.path = path; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing'; wd.locked = false;
-        refreshDownloadedSet().then(function () { renderWebdav(); });
+        // OPT-P2：写入缓存
+        _dirCache[cacheKey] = { entries: entries, ts: Date.now() };
+        // OPT-P1：浏览新目录，非强制刷新（内存中已有数据即复用）
+        refreshDownloadedSet(false).then(function () { renderWebdav(); });
       }).catch(function (err) {
         wd.locked = false; setWdError(err);
       });
@@ -619,8 +640,8 @@
       if (!wd.config || !entries.length || wd.locked) return;
       wd.locked = true;
       wd._downloadCancelled = false;
-      // 下载前先刷新「已下载集合」，保证去重判断基于最新记录
-      refreshDownloadedSet().then(function () {
+      // OPT-P1：下载前强制刷新一次「已下载集合」，保证去重判断基于最新记录
+      refreshDownloadedSet(true).then(function () {
         var done = 0, updated = 0, failed = 0, skipped = 0;
         function next(i) {
           // 检查取消标志
@@ -635,7 +656,8 @@
             if (skipped) parts.push('跳过 ' + skipped + ' 本');
             showStatus(parts.join('，'));
             hideStatusAfter(4000);
-            refreshDownloadedSet().then(function () { renderWebdav(); });
+            // OPT-P1：取消后不需要全量刷新，内存map已是最新
+            renderWebdav();
             return;
           }
           if (i >= entries.length) {
@@ -650,8 +672,8 @@
             if (win.BKRenderer && win.BKRenderer.renderHome) {
               try { win.BKRenderer.renderHome(); } catch (e) {}
             }
-            // 重渲染浏览器：更新「已下载」标记
-            refreshDownloadedSet().then(function () { renderWebdav(); });
+            // OPT-P1：下载完成后不需要全量刷新，内存map已通过增量更新保持最新
+            renderWebdav();
             return;
           }
           var entry = entries[i];
@@ -671,7 +693,10 @@
             };
             // 已下载过则复用原 id（resync/覆盖写），避免重复书
             return win.ImportManager.importFromBuffer(fileInfo, { source: source, bookId: existingId || undefined });
-          }).then(function () {
+          }).then(function (importResult) {
+            // OPT-P1：增量更新内存去重map，避免每本下载完都重扫IndexedDB
+            var newBookId = (importResult && importResult.id) ? importResult.id : (existingId || ('b_' + Date.now()));
+            wd._downloadedSet[entry.remotePath] = newBookId;
             if (existingId) updated++; else done++;
             setItemProgress(entry.remotePath, 1, false);
             next(i + 1);

@@ -294,13 +294,13 @@
       html += '<span class="bk-view-all" id="bk-continue-viewall" role="button" tabindex="0">查看全部</span>';
       html += '</div>';
       html += '<div id="bkContinueListAnchor"></div>';
-      // 书架分段切换（在读 / 已读；默认在读；收藏冗余已去除）
+      // 我的书架
+      html += '<div class="bk-section-header"><span class="bk-section-title-lg">我的书架</span><button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button></div>';
+      // 书架分段切换（在读 / 已读）— 归属于「我的书架」下，宽度收敛
       html += '<div class="bk-shelf-tabs" id="shelfTabs" role="tablist">';
       html += '<button type="button" class="bk-shelf-tab is-active" data-tab="reading" role="tab" aria-selected="true">在读 <span class="bk-shelf-tab-count" id="shelfCountReading">0</span></button>';
       html += '<button type="button" class="bk-shelf-tab" data-tab="read" role="tab" aria-selected="false">已读 <span class="bk-shelf-tab-count" id="shelfCountRead">0</span></button>';
       html += '</div>';
-      // 我的书架
-      html += '<div class="bk-section-header"><span class="bk-section-title-lg">我的书架</span><button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button></div>';
       html += '<div class="bk-shelf-list" id="shelfList"></div>';
       // 编辑态底部批量操作条（默认隐藏，is-editing 时显示）
       html += '<div class="bk-shelf-editbar" id="shelfEditBar" role="toolbar" aria-label="批量操作">';

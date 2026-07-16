@@ -100,31 +100,30 @@
   color: var(--heading, #1A1918);
   margin: 0;
 }
-/* 书架分段切换：在读 / 已读 */
+/* 书架分段切换：在读 / 已读 — 归属「我的书架」下，宽度收敛 */
 .bk-shelf-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding: 4px;
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 16px 12px;
+  padding: 3px;
   background: var(--interactive-soft-bg, rgba(61,138,90,.08));
-  border-radius: 14px;
+  border-radius: 12px;
 }
 .bk-shelf-tab {
-  flex: 1 1 0;
   appearance: none;
   border: none;
   background: transparent;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-muted, #9A958C);
-  padding: 9px 12px;
-  border-radius: 10px;
+  padding: 7px 16px;
+  border-radius: 9px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   -webkit-tap-highlight-color: transparent;
   transition: background .15s ease, color .15s ease, box-shadow .15s ease;
 }
@@ -212,12 +211,13 @@
 .bk-shelf-row .bk-cover-rule,
 .bk-shelf-row .bk-cover-foot { display: none; }
 
-/* 信息条 */
-.bk-shelf-row-info { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px 10px; min-width: 0; }
-.bk-shelf-row-title { font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--text, #1A1918); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.bk-shelf-row-author { font-size: 11px; color: var(--text-muted, #9A958C); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bk-shelf-row-date { font-size: 11px; color: var(--text-muted, #9A958C); }
-.bk-shelf-row-source { font-size: 11px; margin-top: 2px; }
+/* 信息条：与书城 L3 .book-caption 结构一致（书名单行 + 单行元数据） */
+.bk-shelf-row-info { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px 10px; min-width: 0; }
+.bk-shelf-row-title { font-size: 14px; font-weight: 600; line-height: 1.28; color: var(--text, #1A1918); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-shelf-row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden; font-size: 11px; color: var(--text-muted, #9A958C); }
+.bk-shelf-row-no { background: var(--tag-bg, rgba(var(--brand-rgb, 61, 138, 90), .08)); color: var(--brand, #3D8A5A); border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 500; line-height: 1.5; flex-shrink: 0; }
+.bk-shelf-row-progress { font-size: 11px; color: var(--text-muted, #9A958C); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+.bk-shelf-row-meta .book-source-badge { flex-shrink: 0; }
 
 /* 隐藏操作区：保留测试契约（.bk-shelf-markread/.bk-shelf-unread/.bk-shelf-remove-btn），
    平时不可见；长按菜单 / 编辑态批量操作经 .click() 复用这些处理器 */

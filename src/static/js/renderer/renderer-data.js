@@ -49,15 +49,6 @@
     var _cached = _bookCacheGet(bookId);
     if (_cached) return Promise.resolve(_cached);
 
-    // ★ 内置书籍（bundle-xxx 前缀）不依赖 DataManager / IndexedDB，优先加载
-    if (bookId && bookId.indexOf('bundle-') === 0
-        && win.ImportManager && win.ImportManager.getBundledBook) {
-      return win.ImportManager.getBundledBook(bookId).then(function (bd) {
-        if (bd) { _bookCacheSet(bookId, bd); return bd; }
-        return Promise.reject(new Error('内置书籍加载失败: ' + bookId));
-      });
-    }
-
     // ★ 确保 DataManager 已初始化（直接 URL 导航时可能尚未初始化）
     return _ensureDmInit().then(function () {
       // ★ 本地导入书籍（必须在 DataManager 之前，避免 imported-xxx 触发远程下载）
@@ -70,23 +61,7 @@
           if (bookId.indexOf('imported-') === 0) {
             throw new Error('导入书籍数据丢失，请重新导入该书。');
           }
-          // ★ 内置书籍（bundle-xxx 前缀，不走 IndexedDB / DataManager）
-          if (win.ImportManager && win.ImportManager.getBundledBook) {
-            return win.ImportManager.getBundledBook(bookId).then(function (bd) {
-              if (bd) { _bookCacheSet(bookId, bd); return bd; }
-              // 未命中内置资源，继续走 DataManager
-              if (_zlDmReady && win.DataManager) {
-                return win.DataManager.getBook(bookId)
-                  .then(function (d) { _bookCacheSet(bookId, d); return d; })
-                  .catch(function (dmErr) {
-                    console.warn('[Renderer] DataManager 加载失败: ' + bookId, dmErr.message);
-                    throw dmErr;
-                  });
-              }
-              return Promise.reject(new Error('DataManager 未初始化'));
-            });
-          }
-          // 未命中导入，继续走 DataManager
+          // 未命中导入，走 DataManager（内置书/ysz 书均走此路径）
           if (_zlDmReady && win.DataManager) {
             return win.DataManager.getBook(bookId)
               .then(function (d) { _bookCacheSet(bookId, d); return d; })
@@ -102,7 +77,7 @@
         });
       }
 
-      // 通过 DataManager 加载书籍
+      // 通过 DataManager 加载书籍（内置书/ysz 书均走此路径）
       if (_zlDmReady && win.DataManager) {
         return win.DataManager.getBook(bookId)
           .then(function (data) { _bookCacheSet(bookId, data); return data; })
@@ -115,7 +90,7 @@
           });
       }
 
-      // DataManager 不可用，检查导入管理器
+      // DataManager 不可用
       return Promise.reject(new Error('DataManager 未初始化'));
     });
   }
@@ -241,30 +216,57 @@
           if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
         }
       }
-      // 先触发 EPUB 资源自动导入（fetch + parse + 存 IndexedDB），
-      // 完成后 _mergeImportedBooks() 即可从 IndexedDB 读到新导入的书籍
-      var epubPromise = (win.ImportManager && win.ImportManager.loadEpubResources)
-        ? win.ImportManager.loadEpubResources()
-        : Promise.resolve([]);
-      return epubPromise.then(function () {
-        return _mergeImportedBooks();
-      }).then(function () {
-        return _mergeBundledBooks();
-      });
+      // 内置书已走 CDN（ysz 格式 JSON），不再需要 loadEpubResources
+      return _mergeImportedBooks();
+    }).then(function () {
+      // ★ 合并导入书籍后若当前视图可见则就地重渲染（修复时序：导入书籍含 source 属性，
+      //   需重渲染才能在书架卡片上显示来源徽标）
+      var _appEl = document.getElementById('app');
+      if (_appEl && _appEl.style.display !== 'none') {
+        if (win.location.hash.indexOf('city') !== -1) {
+          if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
+        } else if (BKRenderer.renderShelfPage) {
+          BKRenderer.renderShelfPage();
+        }
+      }
+      // _mergeBundledBooks 已废弃（内置书走 CDN），但保留调用避免报错
+      return _mergeBundledBooks();
     }).catch(function (err) {
       console.warn('[Renderer] DataManager 初始化失败:', err.message);
       _zlDmReady = false;
-      // DataManager 失败时仍尝试导入 EPUB 资源和合并内置书库（不依赖远程数据）
-      var epubPromise = (win.ImportManager && win.ImportManager.loadEpubResources)
-        ? win.ImportManager.loadEpubResources()
-        : Promise.resolve([]);
-      return epubPromise.then(function () {
-        return _mergeImportedBooks();
-      }).then(function () {
-        return _mergeBundledBooks();
-      }).catch(function (e) {
-        console.warn('[Renderer] 内置书库合并失败:', e.message);
-      });
+      // 内置书已走 CDN，不再需要 loadEpubResources
+      return _mergeImportedBooks();
+    }).then(function () {
+      // ★ 同 success 分支：合并导入书籍后重渲染
+      var _appEl2 = document.getElementById('app');
+      if (_appEl2 && _appEl2.style.display !== 'none') {
+        if (win.location.hash.indexOf('city') !== -1) {
+          if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
+        } else if (BKRenderer.renderShelfPage) {
+          BKRenderer.renderShelfPage();
+        }
+      }
+      // _mergeBundledBooks 已废弃（内置书走 CDN），但保留调用避免报错
+      return _mergeBundledBooks();
+    }).catch(function (err) {
+      console.warn('[Renderer] DataManager 初始化失败:', err.message);
+      _zlDmReady = false;
+      // 内置书已走 CDN，不再需要 loadEpubResources
+      return _mergeImportedBooks();
+    }).then(function () {
+      // ★ 同 success 分支：合并导入书籍后重渲染
+      var _appEl2 = document.getElementById('app');
+      if (_appEl2 && _appEl2.style.display !== 'none') {
+        if (win.location.hash.indexOf('city') !== -1) {
+          if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
+        } else if (BKRenderer.renderShelfPage) {
+          BKRenderer.renderShelfPage();
+        }
+      }
+      // _mergeBundledBooks 已废弃（内置书走 CDN），但保留调用避免报错
+      return _mergeBundledBooks();
+    }).catch(function (e) {
+      console.warn('[Renderer] 内置书库合并失败:', e.message);
     });
   }
 

@@ -70,7 +70,9 @@
 
         var m = hash.match(/^#\/([^\/]+)(?:\/(\d+))?/);
         if (!m) return false;
+        // ★ decode URL 编码的中文 bookId（location.hash 可能保留 % 编码）
         var bookId = m[1];
+        try { bookId = decodeURIComponent(bookId); } catch (e) {}
         var chapterNum = m[2] ? parseInt(m[2], 10) : null;
 
         // 获取书名
@@ -133,7 +135,9 @@
         var el = ensureBottomEl();
         var hash = window.location.hash || '';
         var m = hash.match(/^#\/([^\/]+)(?:\/(\d+))?/);
+        // ★ decode URL 编码的中文 bookId
         var bookId = m ? m[1] : '';
+        try { bookId = decodeURIComponent(bookId); } catch (e) {}
         var html = '<div class="bk-float-bottom-inner">';
 
         // 目录（最左侧）
@@ -311,8 +315,12 @@
         if (origProgress && cloneProgress) {
           // 修复：input[type=range] 的 .value 属性赋值不会触发 attribute 变更，
           // 原 MutationObserver 捕获不到 → 改用轮询把原进度条的值同步到可见克隆，否则进度条不动
+          // 同时同步 style.background（进度填充渐变色）
           var progPoll = setInterval(function () {
-            if (!isSeekingClone) cloneProgress.value = origProgress.value;
+            if (!isSeekingClone) {
+              cloneProgress.value = origProgress.value;
+              cloneProgress.style.background = origProgress.style.background;
+            }
           }, 200);
           intervals.push(progPoll);
         }
