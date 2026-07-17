@@ -155,11 +155,11 @@ Object.assign(BKHighlight, {
         },
 
         _insertNoteIcon: function (markEl, highlightId) {
-            if (document.querySelector('.bk-note-icon[data-highlight-id="' + highlightId + '"]')) return;
+            if (document.querySelector('.bk-hl-note-icon[data-highlight-id="' + highlightId + '"]')) return;
             var next = markEl.nextSibling;
-            if (next && next.classList && next.classList.contains('bk-note-icon')) return;
+            if (next && next.classList && next.classList.contains('bk-hl-note-icon')) return;
             var icon = document.createElement('span');
-            icon.className = 'bk-note-icon';
+            icon.className = 'bk-hl-note-icon';
             icon.textContent = '📝';
             icon.dataset.highlightId = highlightId;
             markEl.parentNode.insertBefore(icon, markEl.nextSibling);
@@ -204,7 +204,7 @@ Object.assign(BKHighlight, {
 
         // ─── 清除所有 DOM 标记 ────────────────────────────────────
         clearAllMarks: function () {
-            document.querySelectorAll('.bk-note-icon').forEach(function (el) { el.remove(); });
+            document.querySelectorAll('.bk-hl-note-icon').forEach(function (el) { el.remove(); });
             document.querySelectorAll('.bk-highlight').forEach(function (mark) {
                 var parent = mark.parentNode;
                 while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);

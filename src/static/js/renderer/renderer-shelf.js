@@ -626,7 +626,7 @@
         '<div class="bk-dialog-title">标记已读</div>' +
         '<div class="bk-dialog-body" style="padding:12px 16px">' +
           '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escShelfHtml(name) + '》</div>' +
-          '<textarea class="bk-note-textarea" id="bkShelfNoteTa" placeholder="添加读书笔记（可选）" rows="3" style="width:100%;box-sizing:border-box"></textarea>' +
+          '<textarea class="bk-bm-note-textarea" id="bkShelfNoteTa" placeholder="添加读书笔记（可选）" rows="3" style="width:100%;box-sizing:border-box"></textarea>' +
         '</div>' +
         '<div class="bk-dialog-actions">' +
           '<button class="bk-dialog-cancel" id="bkShelfNoteCancel">取消</button>' +

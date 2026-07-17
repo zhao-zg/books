@@ -57,27 +57,31 @@
 
     var shareBtn = document.createElement('button');
     shareBtn.className = 'bk-btn bk-btn-primary';
-    shareBtn.textContent = '分享到笔记';
+    shareBtn.textContent = '保存到笔记';
     shareBtn.addEventListener('click', function () {
       var txt = body.innerText || '';
-      if (window.BKBookmark && window.BKBookmark.add) {
-        /* 将经文内容保存为当前页书签的笔记 */
-        var path = window.__bkCurrentPath || '';
-        var scrollY = window.scrollY || 0;
-        var parts = path.split('/').filter(Boolean);
-        window.BKBookmark.add({
-          path: path,
-          scrollY: scrollY,
-          title: '经文笔记',
-          bookId: parts[0] || '',
-          chapterNum: parseInt(parts[1], 10) || 0,
-          note: txt
-        });
-        /* 提示用户已保存 */
-        if (window.BK && window.BK.toast) {
-          window.BK.toast('已保存到笔记');
+      if (!txt) return;
+      var path = window.__bkCurrentPath || '';
+      var parts = path.split('/').filter(Boolean);
+      var bookId = parts[0] || '';
+      /* 追加到书架笔记（非覆盖），避免多次保存丢失之前内容 */
+      if (win.BKShelf && win.BKShelf.updateNote) {
+        var existing = '';
+        try {
+          var rec = win.BKShelf.get && win.BKShelf.get(bookId);
+          if (rec && rec.note) existing = rec.note + '\n';
+        } catch (e) {}
+        win.BKShelf.updateNote(bookId, existing + txt);
+        if (win.BK && win.BK.toast) {
+          win.BK.toast('已追加到笔记');
+        }
+      } else if (win.BKStorage && win.BKStorage.saveShelfNote) {
+        win.BKStorage.saveShelfNote(bookId, chapterNum, txt);
+        if (win.BK && win.BK.toast) {
+          win.BK.toast('已保存到笔记');
         }
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        /* 降级：无法保存笔记时复制到剪贴板 */
         navigator.clipboard.writeText(txt).catch(function () {});
       }
     });

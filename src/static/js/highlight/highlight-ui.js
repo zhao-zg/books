@@ -132,20 +132,20 @@ Object.assign(BKHighlight, {
                 self.hideAllMenus();
                 if (!window.BK || !window.BK.openDialog) return;
                 var dlg = window.BK.openDialog({
-                    id: 'bk-note-expanded',
+                    id: 'bk-hl-note-expanded',
                     html:
-                        '<div class="bk-note-expanded-card">' +
-                            '<div class="bk-note-expanded-header">' +
-                                '<span class="bk-note-expanded-title">笔记</span>' +
-                                '<button class="bk-note-expanded-edit" id="bk-note-exp-edit">编辑</button>' +
+                        '<div class="bk-hl-note-expanded-card">' +
+                            '<div class="bk-hl-note-expanded-header">' +
+                                '<span class="bk-hl-note-expanded-title">笔记</span>' +
+                                '<button class="bk-hl-note-expanded-edit" id="bk-hl-note-exp-edit">编辑</button>' +
                             '</div>' +
-                            '<div class="bk-note-expanded-body"></div>' +
+                            '<div class="bk-hl-note-expanded-body"></div>' +
                         '</div>'
                 });
                 if (!dlg) return;
-                var body = dlg.mask.querySelector('.bk-note-expanded-body');
+                var body = dlg.mask.querySelector('.bk-hl-note-expanded-body');
                 body.textContent = h.note;
-                dlg.mask.querySelector('#bk-note-exp-edit').addEventListener('click', function (ev) {
+                dlg.mask.querySelector('#bk-hl-note-exp-edit').addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     dlg.close();
                     self.showNoteEditor(id);

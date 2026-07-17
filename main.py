@@ -461,22 +461,34 @@ def main():
     # 增量检查：如果 zl-merged 已是最新则跳过数据准备
     _merged_manifest = os.path.join(resource_dir, 'zl-merged', 'manifest.json')
     _ysz_dir = os.path.join(resource_dir, 'ysz')
+    _books_dir = os.path.join(resource_dir, 'books')
     _need_data_prep = True
     if os.path.exists(_merged_manifest):
         try:
             _manifest_mtime = os.path.getmtime(_merged_manifest)
-            # 检查 ysz 目录中是否有比 manifest 更新的文件
-            _ysz_latest = 0
-            if os.path.isdir(_ysz_dir):
-                for _f in os.listdir(_ysz_dir):
-                    _fp = os.path.join(_ysz_dir, _f)
-                    if os.path.isfile(_fp):
-                        _mt = os.path.getmtime(_fp)
-                        if _mt > _ysz_latest:
-                            _ysz_latest = _mt
-            if _ysz_latest <= _manifest_mtime:
+
+            def _latest_mtime_in_dir(path):
+                """递归获取目录下最新的文件修改时间（含子目录）。"""
+                latest = 0
+                if not os.path.isdir(path):
+                    return latest
+                for _root, _dirs, _files in os.walk(path):
+                    for _f in _files:
+                        _fp = os.path.join(_root, _f)
+                        if os.path.isfile(_fp):
+                            _mt = os.path.getmtime(_fp)
+                            if _mt > latest:
+                                latest = _mt
+                return latest
+
+            # 同时检查 ysz 源数据目录和 books 内置书目录
+            _ysz_latest = _latest_mtime_in_dir(_ysz_dir)
+            _books_latest = _latest_mtime_in_dir(_books_dir)
+            if max(_ysz_latest, _books_latest) <= _manifest_mtime:
                 _need_data_prep = False
                 print("✓ zl-merged 数据已是最新，跳过数据准备")
+            elif _books_latest > _manifest_mtime:
+                print("▶ 检测到 resource/books/ 有更新，重新执行数据准备")
         except Exception:
             pass  # 检查失败则正常执行数据准备
 

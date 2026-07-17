@@ -519,9 +519,20 @@
         // 只有一章时直接进入阅读视图，跳过目录页
         if (chapters.length <= 1) {
           var chNum = chapters.length === 1 ? (chapters[0].number || 1) : 1;
-          BKRenderer.renderReadingView(bookId, chNum);
+          // ★ 同步设置单章标记（renderReadingView 的 loadBook 回调会再次确认）
+          win.__bkIsSingleChapter = true;
+          // ★ 用 navigateReplace 更新 URL 为 2 段（#/{bookId}/{chNum}），
+          //   使 URL hash 与 renderReadingView 设置的 __bkCurrentPath 一致，
+          //   避免系统返回键"阅读视图→目录页→(自动跳回)阅读视图"的循环
+          if (win.BKRouter) {
+            win.BKRouter.navigateReplace(bookId + '/' + chNum);
+          } else {
+            BKRenderer.renderReadingView(bookId, chNum);
+          }
           return;
         }
+        // 多章书：重置单章标记，避免上一本书的残留
+        win.__bkIsSingleChapter = false;
         var progress = getReadingProgress(bookId);
 
         var html = '<div class="bk-chapter-list-view">';
@@ -662,6 +673,9 @@
 
         var pageKey = bookId + '/' + chapterNum;
         win.__bkCurrentPath = pageKey;
+        // ★ 单章书标记：供系统返回键跳过目录页直达书架
+        //   （单章书目录页会被 renderChapterList 自动跳进阅读视图，返回键回目录页=循环）
+        win.__bkIsSingleChapter = (uniqueChapters.length <= 1);
         try {
           localStorage.setItem('bk_last_read', bookId);
           // 记录「最近阅读」时间戳（供书架按 max(入架,阅读) 排序置顶）

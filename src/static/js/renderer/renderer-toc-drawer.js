@@ -165,8 +165,22 @@
               for (var i = 0; i < bms.length; i++) {
                 if (bms[i].note) count++;
               }
-              var el = document.getElementById('meStatNotes');
-              if (el) el.textContent = count;
+              // 加上书架读书笔记
+              if (win.BKShelf && win.BKShelf.getAll) {
+                win.BKShelf.getAll().then(function (shelfItems) {
+                  for (var s = 0; s < shelfItems.length; s++) {
+                    if (shelfItems[s].note) count++;
+                  }
+                  var el = document.getElementById('meStatNotes');
+                  if (el) el.textContent = count;
+                }).catch(function () {
+                  var el = document.getElementById('meStatNotes');
+                  if (el) el.textContent = count;
+                });
+              } else {
+                var el = document.getElementById('meStatNotes');
+                if (el) el.textContent = count;
+              }
             }).catch(function () {
               var el = document.getElementById('meStatNotes');
               if (el) el.textContent = count;

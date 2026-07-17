@@ -38,7 +38,7 @@ Object.assign(BKHighlight, {
             }, { passive: true });
 
             document.addEventListener('click', function (e) {
-                var ni = e.target.closest ? e.target.closest('.bk-note-icon') : null;
+                var ni = e.target.closest ? e.target.closest('.bk-hl-note-icon') : null;
                 var hl = e.target.closest ? e.target.closest('.bk-highlight') : null;
 
                 if (ni) {

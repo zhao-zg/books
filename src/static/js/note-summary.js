@@ -1,12 +1,13 @@
 /**
  * 笔记汇总模块
- * 汇总展示划线笔记 + 书签笔记，支持搜索、按书筛选和导出（txt / markdown）
+ * 汇总展示划线笔记 + 书签笔记 + 书架读书笔记，支持搜索、按书筛选和导出（txt / markdown）
  *
  * 依赖：
- *   - BKBookmark.getAll()    书签笔记
+ *   - BKBookmark.getAll()      书签笔记
  *   - BKStorage.getAllPages()  划线笔记
- *   - BK.openDialog()        弹窗系统
- *   - win.__bkBooks          书籍列表（用于按书分组）
+ *   - BKShelf.getAll()         书架读书笔记
+ *   - BK.openDialog()          弹窗系统
+ *   - win.__bkBooks            书籍列表（用于按书分组）
  */
 (function (win) {
     'use strict';
@@ -39,7 +40,7 @@
 
         // ─── 数据加载 ─────────────────────────────────────────────────
 
-        /** 加载所有书签笔记 + 划线笔记，合并为统一列表 */
+        /** 加载所有书签笔记 + 划线笔记 + 书架读书笔记，合并为统一列表 */
         _loadAll: function () {
             var promises = [];
             var self = this;
@@ -105,8 +106,35 @@
                 promises.push(Promise.resolve([]));
             }
 
+            // 书架读书笔记
+            if (win.BKShelf && win.BKShelf.getAll) {
+                promises.push(
+                    win.BKShelf.getAll().then(function (shelfItems) {
+                        var result = [];
+                        for (var s = 0; s < shelfItems.length; s++) {
+                            var item = shelfItems[s];
+                            if (item.note) {
+                                var bookName = _findBookNameById(item.bookId || item.id);
+                                result.push({
+                                    type: 'shelf',
+                                    bookId: item.bookId || item.id || '',
+                                    source: bookName || item.bookId || '未知书籍',
+                                    text: item.note,
+                                    highlightText: '',
+                                    timestamp: item.noteTimestamp || item.timestamp || 0,
+                                    id: 'shelf:' + (item.bookId || item.id)
+                                });
+                            }
+                        }
+                        return result;
+                    }).catch(function () { return []; })
+                );
+            } else {
+                promises.push(Promise.resolve([]));
+            }
+
             return Promise.all(promises).then(function (results) {
-                var all = (results[0] || []).concat(results[1] || []);
+                var all = (results[0] || []).concat(results[1] || []).concat(results[2] || []);
                 // 按时间倒序
                 all.sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
                 return all;
@@ -121,8 +149,10 @@
             var total = this._notes.length;
             var hlCount = 0;
             var bmCount = 0;
+            var shelfCount = 0;
             for (var i = 0; i < this._notes.length; i++) {
                 if (this._notes[i].type === 'highlight') hlCount++;
+                else if (this._notes[i].type === 'shelf') shelfCount++;
                 else bmCount++;
             }
 
@@ -136,11 +166,11 @@
             // 按书筛选Tab
             bodyHtml += this._renderTabBarHtml();
 
-            // 统计（含划线/书签分类）
+            // 统计（含划线/书签/书架分类）
             bodyHtml += '<div class="bk-ns-stats">';
             bodyHtml += '共 <strong>' + total + '</strong> 条笔记';
-            if (hlCount || bmCount) {
-                bodyHtml += '（<strong>' + hlCount + '</strong> 划线 · <strong>' + bmCount + '</strong> 书签）';
+            if (hlCount || bmCount || shelfCount) {
+                bodyHtml += '（<strong>' + hlCount + '</strong> 划线 · <strong>' + bmCount + '</strong> 书签 · <strong>' + shelfCount + '</strong> 书架）';
             }
             if (this._totalHighlights) {
                 bodyHtml += '，划线 <strong>' + this._totalHighlights + '</strong> 条';
@@ -208,13 +238,13 @@
                 bodyHtml += '<div class="bk-ns-group-title">' + _escHtml(bookName) + '</div>';
                 for (var i = 0; i < items.length; i++) {
                     var item = items[i];
-                    var typeLabel = item.type === 'bookmark' ? '📑 书签' : '✏️ 划线';
+                    var typeLabel = item.type === 'bookmark' ? '📑 书签' : item.type === 'shelf' ? '📚 书架' : '✏️ 划线';
                     var timeStr = item.timestamp ? _relativeTime(item.timestamp) : '';
 
                     bodyHtml += '<div class="bk-ns-item" data-type="' + item.type + '" data-id="' + _escAttr(item.id || '') + '"';
                     if (item.type === 'bookmark') {
                         bodyHtml += ' data-path="' + _escAttr(item.path || '') + '" data-scroll-y="' + (item.scrollY || 0) + '"';
-                    } else {
+                    } else if (item.type === 'highlight') {
                         bodyHtml += ' data-page-key="' + _escAttr(item.pageKey || '') + '"';
                     }
                     bodyHtml += '>';
@@ -246,7 +276,7 @@
                 if (this._query || this._activeBook) {
                     bodyHtml += '<div class="bk-ns-empty"><div class="bk-ns-empty-icon">🔍</div><div class="bk-ns-empty-text">没有匹配的笔记</div></div>';
                 } else {
-                    bodyHtml += '<div class="bk-ns-empty"><div class="bk-ns-empty-icon">📝</div><div class="bk-ns-empty-text">暂无笔记</div><div class="bk-ns-empty-hint">在阅读时选中文本添加划线笔记，或给书签添加笔记</div></div>';
+                    bodyHtml += '<div class="bk-ns-empty"><div class="bk-ns-empty-icon">📝</div><div class="bk-ns-empty-text">暂无笔记</div><div class="bk-ns-empty-hint">在阅读时选中文本添加划线笔记，给书签添加笔记，或在书架添加读书笔记</div></div>';
                 }
             }
 
@@ -342,18 +372,20 @@
             var total = this._notes.length;
             var hlCount = 0;
             var bmCount = 0;
+            var shelfCount = 0;
             for (var i = 0; i < this._notes.length; i++) {
                 if (this._notes[i].type === 'highlight') hlCount++;
+                else if (this._notes[i].type === 'shelf') shelfCount++;
                 else bmCount++;
             }
 
             var bodyHtml = '';
 
-            // 统计（含划线/书签分类）
+            // 统计（含划线/书签/书架分类）
             bodyHtml += '<div class="bk-ns-stats">';
             bodyHtml += '共 <strong>' + total + '</strong> 条笔记';
-            if (hlCount || bmCount) {
-                bodyHtml += '（<strong>' + hlCount + '</strong> 划线 · <strong>' + bmCount + '</strong> 书签）';
+            if (hlCount || bmCount || shelfCount) {
+                bodyHtml += '（<strong>' + hlCount + '</strong> 划线 · <strong>' + bmCount + '</strong> 书签 · <strong>' + shelfCount + '</strong> 书架）';
             }
             if (this._totalHighlights) {
                 bodyHtml += '，划线 <strong>' + this._totalHighlights + '</strong> 条';
@@ -447,6 +479,11 @@
                 if (win.BKRouter && win.BKRouter.navigate) {
                     win.BKRouter.navigate(item.pageKey);
                 }
+            } else if (item.type === 'shelf' && item.bookId) {
+                /* 书架笔记：跳转到书架页 */
+                if (win.BKRouter && win.BKRouter.navigate) {
+                    win.BKRouter.navigate('shelf');
+                }
             }
         },
 
@@ -460,8 +497,8 @@
             // 跳转原文
             html += '<button class="bk-ns-action-btn" data-action="goto"><span class="bk-row-icon">📍</span><span class="bk-row-label">跳转原文</span></button>';
 
-            // 编辑笔记（书签类型可直接编辑，划线类型需跳转页面）
-            if (item.type === 'bookmark') {
+            // 编辑笔记（书签和书架类型可直接编辑，划线类型需跳转页面）
+            if (item.type === 'bookmark' || item.type === 'shelf') {
                 html += '<button class="bk-ns-action-btn" data-action="edit"><span class="bk-row-icon">✏️</span><span class="bk-row-label">编辑笔记</span></button>';
             }
 
@@ -486,7 +523,11 @@
                             self._onItemTap(item);
                         } else if (act === 'edit') {
                             if (win.BK && win.BK.closeDialog) win.BK.closeDialog(dlg);
-                            self._editBookmarkNote(item);
+                            if (item.type === 'shelf') {
+                                self._editShelfNote(item);
+                            } else {
+                                self._editBookmarkNote(item);
+                            }
                         } else if (act === 'delete') {
                             self._deleteItemNote(item, dlg);
                         }
@@ -557,9 +598,19 @@
             var self = this;
 
             if (item.type === 'bookmark') {
-                if (win.BKBookmark && win.BKBookmark.updateNote) {
-                    win.BKBookmark.updateNote(item.id, '').then(function () {
+                /* 删除书签笔记时，同时删除书签本体（避免残留空书签） */
+                if (win.BKBookmark && win.BKBookmark.remove) {
+                    win.BKBookmark.remove(item.id).then(function () {
                         self._removeFromList(item.id, 'bookmark');
+                        if (win.BK && win.BK.closeDialog) win.BK.closeDialog(actionDlg);
+                    });
+                }
+            } else if (item.type === 'shelf') {
+                /* 删除书架笔记：清空 note 字段 */
+                var shelfBookId = item.bookId || '';
+                if (shelfBookId && win.BKShelf && win.BKShelf.removeNote) {
+                    win.BKShelf.removeNote(shelfBookId).then(function () {
+                        self._removeFromList(item.id, 'shelf');
                         if (win.BK && win.BK.closeDialog) win.BK.closeDialog(actionDlg);
                     });
                 }
@@ -642,6 +693,63 @@
             }
         },
 
+        /** 编辑书架笔记 */
+        _editShelfNote: function (item) {
+            var self = this;
+            var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px))">';
+            html += '<div class="bk-dialog-title">编辑书架笔记</div>';
+            html += '<div class="bk-dialog-body" style="padding:12px 16px">';
+            html += '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escHtml(item.source) + '》</div>';
+            html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入读书笔记…">' + _escHtml(item.text) + '</textarea>';
+            html += '</div>';
+            html += '<div class="bk-dialog-actions">';
+            html += '<button class="bk-dialog-cancel" data-action="cancel">取消</button>';
+            html += '<button class="bk-dialog-confirm" data-action="save">保存</button>';
+            html += '</div></div>';
+
+            var dlg = win.BK.openDialog({ id: 'bk-note-edit-shelf', html: html });
+            var textarea = dlg.querySelector('#bkNsEditNote');
+            if (textarea) {
+                setTimeout(function () { textarea.focus(); }, 100);
+            }
+
+            var btns = dlg.querySelectorAll('[data-action]');
+            for (var i = 0; i < btns.length; i++) {
+                (function (btn) {
+                    btn.addEventListener('click', function () {
+                        var act = btn.getAttribute('data-action');
+                        if (act === 'cancel') {
+                            if (win.BK && win.BK.closeDialog) win.BK.closeDialog(dlg);
+                        } else if (act === 'save') {
+                            var newText = textarea ? textarea.value.trim() : '';
+                            var shelfBookId = item.bookId || '';
+                            if (shelfBookId && win.BKShelf && win.BKShelf.updateNote) {
+                                win.BKShelf.updateNote(shelfBookId, newText || null).then(function () {
+                                    /* 更新本地数据 */
+                                    for (var j = 0; j < self._notes.length; j++) {
+                                        if (self._notes[j].id === item.id && self._notes[j].type === 'shelf') {
+                                            if (!newText) {
+                                                self._notes.splice(j, 1);
+                                            } else {
+                                                self._notes[j].text = newText;
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    self._filtered = self._filtered.filter(function (n) {
+                                        return newText ? true : !(n.id === item.id && n.type === 'shelf');
+                                    });
+                                    self._doFilter();
+                                    if (self._dlg) self._updateList(self._dlg);
+                                    if (win.BK && win.BK.closeDialog) win.BK.closeDialog(dlg);
+                                });
+                            }
+                        }
+                    });
+                })(btns[i]);
+            }
+        },
+
         _doExport: function (format, notes) {
             var content = '';
             var filename = '我的笔记.' + (format === 'md' ? 'md' : 'txt');
@@ -657,7 +765,7 @@
                     var items = groups[keys[g]];
                     for (var i = 0; i < items.length; i++) {
                         var item = items[i];
-                        var typeLabel = item.type === 'bookmark' ? '📑' : '✏️';
+                        var typeLabel = item.type === 'bookmark' ? '📑' : item.type === 'shelf' ? '📚' : '✏️';
                         if (item.highlightText) {
                             content += typeLabel + ' > ' + item.highlightText + '\n\n';
                         }
@@ -680,7 +788,7 @@
                     var items2 = groups2[keys2[g2]];
                     for (var j = 0; j < items2.length; j++) {
                         var item2 = items2[j];
-                        var typeL2 = item2.type === 'bookmark' ? '[书签]' : '[划线]';
+                        var typeL2 = item2.type === 'bookmark' ? '[书签]' : item2.type === 'shelf' ? '[书架]' : '[划线]';
                         if (item2.highlightText) {
                             content += typeL2 + ' 「' + item2.highlightText + '」\n';
                         } else {
@@ -729,6 +837,17 @@
             }
         }
         return bookId || pathKey || '未知来源';
+    }
+
+    /** 根据 bookId 查找书名（用于书架笔记） */
+    function _findBookNameById(bookId) {
+        var books = win.__bkBooks || [];
+        for (var i = 0; i < books.length; i++) {
+            if (books[i] && (books[i].id === bookId || books[i].bookId === bookId)) {
+                return books[i].title || books[i].name || bookId;
+            }
+        }
+        return bookId || '';
     }
 
     function _groupByBook(notes) {

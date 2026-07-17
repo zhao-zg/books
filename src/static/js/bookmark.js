@@ -579,13 +579,13 @@
         var titleVal = bookmark.title || bookmark.path || '';
 
         var html =
-            '<div class="bk-dialog bk-note-editor">' +
+            '<div class="bk-dialog bk-bm-note-editor">' +
                 '<div class="bk-dialog-header">' +
                     '<span class="bk-dialog-title">编辑书签名称</span>' +
                     '<button class="bk-dialog-close" id="bkTitleClose" aria-label="关闭">×</button>' +
                 '</div>' +
                 '<div class="bk-dialog-body" style="padding:16px">' +
-                    '<input class="bk-note-title-input" id="bkTitleInput" type="text" placeholder="书签名称" maxlength="100">' +
+                    '<input class="bk-bm-note-title-input" id="bkTitleInput" type="text" placeholder="书签名称" maxlength="100">' +
                 '</div>' +
                 '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:flex-end">' +
                     '<button class="bk-btn bk-btn-secondary" id="bkTitleCancel">取消</button>' +
@@ -593,9 +593,9 @@
                 '</div>' +
             '</div>';
 
-        var dlg = win.BK.openDialog({ id: 'bk-note-editor', html: html });
+        var dlg = win.BK.openDialog({ id: 'bk-bm-note-editor', html: html });
         if (!dlg) return;
-        var dialogEl = document.getElementById('bk-note-editor');
+        var dialogEl = document.getElementById('bk-bm-note-editor');
         if (!dialogEl) return;
 
         var titleInput = dialogEl.querySelector('#bkTitleInput');
@@ -639,27 +639,23 @@
         var noteVal = bookmark.note || '';
 
         var html =
-            '<div class="bk-dialog bk-note-editor">' +
+            '<div class="bk-dialog bk-bm-note-editor">' +
                 '<div class="bk-dialog-header">' +
-                    '<span class="bk-dialog-title">书签笔记</span>' +
-                    '<button class="bk-dialog-close" id="bkNoteClose" aria-label="关闭">×</button>' +
+                    '<span class="bk-dialog-title">编辑书签名称</span>' +
+                    '<button class="bk-dialog-close" id="bkTitleClose" aria-label="关闭">×</button>' +
                 '</div>' +
                 '<div class="bk-dialog-body" style="padding:16px">' +
-                    '<div class="bk-note-quote">' + _escHtml(quote) + '</div>' +
-                    '<textarea class="bk-note-textarea" id="bkNoteTextarea" placeholder="写下你的读书笔记..."></textarea>' +
+                    '<input class="bk-bm-note-title-input" id="bkTitleInput" type="text" placeholder="书签名称" maxlength="100">' +
                 '</div>' +
-                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:space-between">' +
-                    '<button class="bk-btn bk-btn-danger-ghost" id="bkNoteDelete">删除书签</button>' +
-                    '<div style="display:flex;gap:10px">' +
-                        '<button class="bk-btn bk-btn-secondary" id="bkNoteCancel">取消</button>' +
-                        '<button class="bk-btn bk-btn-primary" id="bkNoteSave">保存</button>' +
-                    '</div>' +
+                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:flex-end">' +
+                    '<button class="bk-btn bk-btn-secondary" id="bkTitleCancel">取消</button>' +
+                    '<button class="bk-btn bk-btn-primary" id="bkTitleSave">保存</button>' +
                 '</div>' +
             '</div>';
 
-        var dlg = win.BK.openDialog({ id: 'bk-note-editor', html: html });
+        var dlg = win.BK.openDialog({ id: 'bk-bm-note-editor', html: html });
         if (!dlg) return;
-        var dialogEl = document.getElementById('bk-note-editor');
+        var dialogEl = document.getElementById('bk-bm-note-editor');
         if (!dialogEl) return;
 
         var ta = dialogEl.querySelector('#bkNoteTextarea');
