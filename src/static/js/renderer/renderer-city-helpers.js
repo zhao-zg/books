@@ -150,7 +150,7 @@
     for (var i = 0; i < _zlSeries.length; i++) {
       var s = _zlSeries[i];
       var count = seriesBookCount[s.id] || 0;
-      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id]) {
+      if (count < _MIN_SERIES_BOOKS && !_PROTECTED_SERIES[s.id] && s.type !== 'bundle') {
         mergedCount += count;
         mergedIds[s.id] = true;
       } else {

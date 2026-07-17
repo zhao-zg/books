@@ -59,14 +59,6 @@ jobs:
           echo "📦 安装 Node.js 依赖..."
           npm install
           echo "✓ Node.js 依赖安装完成"
-      - name: 生成 zl-merged 数据（ysz → zl-ysz → zl-merged）
-        run: |
-          echo "=== 生成 zl-merged 数据 ==="
-          python process_ysz_books.py
-          python merge_zl_data.py --force
-          echo "✓ zl-merged 生成完成"
-          cat resource/zl-merged/manifest.json
-
       - name: 生成静态文件
         run: |
           echo "🔨 生成静态文件..."

@@ -82,10 +82,15 @@ def generate_manifest(
     merged_index: Dict[str, Any],
     total_chapters: int,
 ) -> Dict[str, Any]:
-    """生成 manifest.json 数据。"""
+    """生成 manifest.json 数据。
+
+    version 使用构建时间戳整数（YYYYMMDDHH 格式），确保每次构建都递增，
+    使 APP 端 _silentCheckUpdate() 能检测到数据变化并自动更新索引。
+    """
+    now = datetime.now(TZ_CN)
     return {
-        'version': 1,
-        'generated_at': datetime.now(TZ_CN).isoformat(),
+        'version': int(now.strftime('%Y%m%d%H')),
+        'generated_at': now.isoformat(),
         'total_books': len(merged_index['books']),
         'total_chapters': total_chapters,
     }

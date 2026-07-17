@@ -106,8 +106,16 @@
 
     var ratio = _getChapterScrollRatio();
     if (ratio >= _CHAPTER_READ_THRESHOLD) {
-      // 已达阈值，正常标记
-      _checkChapterScrollCompletion();
+      // ratio 达阈值，但需区分两种情况：
+      //   a) 用户确实滚动了足够距离（maxScroll > 0）→ 正常标记
+      //   b) maxScroll <= 0（_getChapterScrollRatio 返回 1）→ 内容可能尚未渲染，
+      //      不能立即标记；继续重试等渲染完成，重试用尽后确认为短内容
+      var _ms = (container.scrollHeight || 1) - (container.clientHeight || 1);
+      if (_ms <= 0 && count < _MAX_SCROLL_RETRIES) {
+        _scheduleRetry(count);
+      } else {
+        _checkChapterScrollCompletion();
+      }
       return;
     }
     // ratio 未达阈值：内容可能仍在渲染（图片/字体），需要重试

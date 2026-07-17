@@ -406,22 +406,26 @@
   -webkit-tap-highlight-color: transparent; cursor: pointer; flex-shrink: 0; padding: 0;
 }
 .scripture-popup-back:active { background: #E5E2DD; }
+.scripture-popup-copy {
+  width: 32px; height: 32px; border-radius: 16px; border: none; background: #F1F0ED;
+  color: #9A958C; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; cursor: pointer; flex-shrink: 0; padding: 0; margin-right: 4px;
+}
+.scripture-popup-copy:active { background: #E5E2DD; }
 .scripture-popup-close {
   width: 32px; height: 32px; border-radius: 16px; border: none; background: #F1F0ED;
   color: #9A958C; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center;
   -webkit-tap-highlight-color: transparent; cursor: pointer; flex-shrink: 0; padding: 0;
 }
 .scripture-popup-close:active { background: #E5E2DD; }
-.scripture-popup-body { padding: 16px 24px 20px; }
-.scripture-popup-verse { margin-bottom: 10px; }
+.scripture-popup-body { padding: 20px 24px 24px; }
+.scripture-popup-verse { margin-bottom: 14px; }
 .scripture-popup-text { font-size: var(--text-xl, 1.25rem); color: var(--text, #1A1918); }
 .scripture-popup-ref { color: var(--text-muted, #9A958C); font-weight: 600; }
 .scripture-popup-fn-body { font-size: var(--text-lg, 1.0625rem); color: var(--text, #1A1918); }
 /* 引用来源 muted + 引用检测 chip sage 半透 */
-.scripture-popup-source { font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C); margin-top: 6px; }
-.scripture-popup-actions { display: flex; gap: 12px; padding: 0 24px 24px; flex-shrink: 0; }
-.scripture-popup-actions .bk-btn { flex: 1; }
-.scripture-popup-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.scripture-popup-source { font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C); }
+.scripture-popup-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border, #E5E2DD); }
 /* 经文 overlay 遮罩对齐 Soft Nordic 暗色令牌 rgba(26,25,23,0.4) */
 .scripture-popup-overlay { background: rgba(26,25,23,0.4); }
 /* 清理数据：选项卡改为白底 r12 列表卡，选中态 sage */

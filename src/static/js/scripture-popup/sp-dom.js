@@ -30,8 +30,23 @@
     closeBtn.innerHTML = '&#10005;';
     closeBtn.addEventListener('click', closeModal);
 
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'scripture-popup-copy';
+    copyBtn.setAttribute('aria-label', '复制');
+    copyBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    copyBtn.addEventListener('click', function () {
+      var txt = body.innerText || '';
+      if (!txt) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () {
+          if (win.BK && win.BK.toast) win.BK.toast('已复制');
+        }).catch(function () {});
+      }
+    });
+
     header.appendChild(backBtn);
     header.appendChild(title);
+    header.appendChild(copyBtn);
     header.appendChild(closeBtn);
 
     var body = document.createElement('div');
@@ -40,55 +55,6 @@
 
     box.appendChild(header);
     box.appendChild(body);
-
-    /* 底部操作栏：复制 / 分享到笔记（Soft Nordic 抽屉风格） */
-    var actions = document.createElement('div');
-    actions.className = 'scripture-popup-actions';
-
-    var copyBtn = document.createElement('button');
-    copyBtn.className = 'bk-btn bk-btn-secondary';
-    copyBtn.textContent = '复制';
-    copyBtn.addEventListener('click', function () {
-      var txt = body.innerText || '';
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(txt).catch(function () {});
-      }
-    });
-
-    var shareBtn = document.createElement('button');
-    shareBtn.className = 'bk-btn bk-btn-primary';
-    shareBtn.textContent = '保存到笔记';
-    shareBtn.addEventListener('click', function () {
-      var txt = body.innerText || '';
-      if (!txt) return;
-      var path = window.__bkCurrentPath || '';
-      var parts = path.split('/').filter(Boolean);
-      var bookId = parts[0] || '';
-      /* 追加到书架笔记（非覆盖），避免多次保存丢失之前内容 */
-      if (win.BKShelf && win.BKShelf.updateNote) {
-        var existing = '';
-        try {
-          var rec = win.BKShelf.get && win.BKShelf.get(bookId);
-          if (rec && rec.note) existing = rec.note + '\n';
-        } catch (e) {}
-        win.BKShelf.updateNote(bookId, existing + txt);
-        if (win.BK && win.BK.toast) {
-          win.BK.toast('已追加到笔记');
-        }
-      } else if (win.BKStorage && win.BKStorage.saveShelfNote) {
-        win.BKStorage.saveShelfNote(bookId, chapterNum, txt);
-        if (win.BK && win.BK.toast) {
-          win.BK.toast('已保存到笔记');
-        }
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        /* 降级：无法保存笔记时复制到剪贴板 */
-        navigator.clipboard.writeText(txt).catch(function () {});
-      }
-    });
-
-    actions.appendChild(copyBtn);
-    actions.appendChild(shareBtn);
-    box.appendChild(actions);
 
     overlay.appendChild(box);
     document.body.appendChild(overlay);

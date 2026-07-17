@@ -301,7 +301,8 @@
           }
 
           // 新章节可能内容很短无需滚动即可完成，延迟检查
-          setTimeout(_checkChapterScrollCompletion, 500);
+          // 使用带重试的检查，防止内容尚未渲染时 maxScroll<=0 误判为已读满
+          setTimeout(function() { _retryCheckScrollCompletion(0); }, 500);
 
           // 不再调用 _installCarouselSwipe() 重新绑定事件（这会产生事件真空期，
           // 导致快速连续滑动时手势丢失）。共享状态 _carouselXxx 已在上方更新，

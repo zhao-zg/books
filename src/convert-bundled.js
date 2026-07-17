@@ -230,7 +230,27 @@ function extractInlineHtml(node, cssMap, spineHrefMap, currentBasename) {
 
 // ── htmlToContents（来自 import-html-converter.js）──
 function htmlToContents(htmlStr, cssMap, spineHrefMap, currentBasename) {
-  const dom = new JSDOM('<div>' + htmlStr + '</div>', { contentType: 'text/html' });
+  // EPUB 章节可能是完整的 XHTML 文档（含 <?xml?> 声明、<html>/<head>/<body>），
+  // 也可能是 HTML 片段。如果是完整文档，需要先提取 body 内容再解析，
+  // 否则直接包在 <div> 中用 text/html 解析会导致标签嵌套混乱，
+  // 尤其 <?xml?> 声明会被当作文本，<head> 中的 <title> 可能混入内容。
+  const isFullDoc = /^\s*<\?xml[\s>]/i.test(htmlStr) ||
+                    /^\s*<html[\s>]/i.test(htmlStr);
+  let fragmentHtml;
+  if (isFullDoc) {
+    const fullDom = new JSDOM(htmlStr, { contentType: 'application/xhtml+xml' });
+    const fullBody = fullDom.window.document.getElementsByTagName('body')[0];
+    if (fullBody) {
+      fragmentHtml = fullBody.innerHTML;
+    } else {
+      const bodyMatch = htmlStr.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      fragmentHtml = bodyMatch ? bodyMatch[1] : htmlStr;
+    }
+  } else {
+    fragmentHtml = htmlStr;
+  }
+
+  const dom = new JSDOM('<div>' + fragmentHtml + '</div>', { contentType: 'text/html' });
   const doc = dom.window.document;
   const root = doc.body.firstChild || doc.body;
   const contents = [];
@@ -610,9 +630,113 @@ function parseMdSimple(text, fileName) {
   const author = meta.author || '';
   const description = meta.description || '';
 
+  // ── 预处理：与前端 import-markdown.js 的 parseMd() 保持一致 ──
+
+  // 脚注预处理：两遍扫描
+  const footnotes = {};
+  let fnIndex = 0;
+  let fnReplaced = mdContent.replace(/^\[\^([^\]]+)\]\:\s*(.+)$/gm, (m, label, fnText) => {
+    if (!footnotes[label]) {
+      footnotes[label] = { id: ++fnIndex, text: fnText.trim() };
+    }
+    return '';
+  });
+  fnReplaced = fnReplaced.replace(/\[\^([^\]]+)\]/g, (m, label) => {
+    if (footnotes[label]) {
+      const fid = footnotes[label].id;
+      return '<sup class="bk-fn-ref"><a href="#fn-' + fid + '">' + fid + '</a></sup>';
+    }
+    return m;
+  });
+
+  // Tab 缩进预处理：防止行首 \t 被 marked 误判为代码块
+  const fencedBlocks = [];
+  let tabSafe = fnReplaced.replace(/```[\s\S]*?```/g, (m) => {
+    fencedBlocks.push(m);
+    return '%%FENCED' + (fencedBlocks.length - 1) + '%%';
+  });
+  tabSafe = tabSafe.replace(/^(\t+)(.+)$/gm, (m, tabs, content) => {
+    return '%%INDENT' + tabs.length + '%%' + content;
+  });
+  for (let fbi = 0; fbi < fencedBlocks.length; fbi++) {
+    tabSafe = tabSafe.replace('%%FENCED' + fbi + '%%', fencedBlocks[fbi]);
+  }
+
+  // ++text++ 特殊格式预处理：转为 <mark> 标签
+  const markProcessed = tabSafe.replace(/\+\+(.+?)\+\+/g, '<mark class="bk-mark-highlight">$1</mark>');
+
+  // 中文大纲编号预处理：为中文编号行添加层级缩进标记
+  const outlineLines = markProcessed.split('\n');
+  const mdListRe = /^\d+\.\s/;
+  const outlinePatterns = [
+    { level: 1, re: /^(?:壹|貳|叁|肆|伍|陸|柒|捌|玖|拾|壹|贰|叁|肆|伍|陆|柒|捌|玖|拾)[\s、．\.]/ },
+    { level: 2, re: /^(?:一|二|三|四|五|六|七|八|九|十)[\s、．\.]/ },
+    { level: 3, re: /^\d+[\s、．\.]/ },
+    { level: 4, re: /^[a-z][\s、．\.]/ }
+  ];
+  for (let oli = 0; oli < outlineLines.length; oli++) {
+    const line = outlineLines[oli];
+    let matchedLevel = 0;
+    for (let opi = 0; opi < outlinePatterns.length; opi++) {
+      if (outlinePatterns[opi].re.test(line)) {
+        matchedLevel = outlinePatterns[opi].level;
+        break;
+      }
+    }
+    if (!matchedLevel) continue;
+    if (matchedLevel === 3 && mdListRe.test(line)) {
+      let hasListNeighbor = false;
+      for (let di = -1; di <= 1; di += 2) {
+        let ni = oli + di;
+        while (ni >= 0 && ni < outlineLines.length && /^\s*$/.test(outlineLines[ni])) {
+          ni += di;
+        }
+        if (ni >= 0 && ni < outlineLines.length && mdListRe.test(outlineLines[ni])) {
+          hasListNeighbor = true;
+          break;
+        }
+      }
+      if (hasListNeighbor) continue;
+    }
+    outlineLines[oli] = '%%OUTLINE' + matchedLevel + '%%' + line;
+  }
+  const outlineProcessed = outlineLines.join('\n');
+
   // 用 marked 转 HTML
   const marked = new MarkedClass({ gfm: true, breaks: true });
-  const html = marked.parse(mdContent);
+  let html = marked.parse(outlineProcessed);
+
+  // ── 后处理 ──
+
+  // 缩进后处理：将 %%INDENTN%% 替换为缩进 HTML 元素
+  html = html.replace(/%%INDENT(\d+)%%/g, (m, level) => {
+    const lvl = parseInt(level, 10);
+    let indent = '';
+    for (let ii = 0; ii < lvl; ii++) indent += '\u2003';
+    return '<span class="bk-indent bk-indent-' + lvl + '">' + indent + '</span>';
+  });
+
+  // 大纲层级后处理：将 %%OUTLINEN%% 替换为层级缩进
+  html = html.replace(/%%OUTLINE(\d)%%/g, (m, level) => {
+    const lvl = parseInt(level, 10);
+    if (lvl <= 1) return '';
+    let indent = '';
+    for (let oi = 1; oi < lvl; oi++) indent += '\u2003';
+    return '<span class="bk-outline-indent bk-outline-' + lvl + '">' + indent + '</span>';
+  });
+
+  // 脚注后处理：附加脚注区域
+  const fnKeys = Object.keys(footnotes);
+  if (fnKeys.length) {
+    html += '<section class="bk-footnotes-section"><h3 class="bk-footnotes-title">脚注</h3>';
+    for (let fki = 0; fki < fnKeys.length; fki++) {
+      const fk = fnKeys[fki];
+      html += '<div class="bk-footnote" id="fn-' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">' +
+        '<span class="bk-fn-number">' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>' +
+        '<span class="bk-fn-text">' + footnotes[fk].text + '</span></div>';
+    }
+    html += '</section>';
+  }
 
   // HTML → Content
   const allContents = htmlToContents(html);

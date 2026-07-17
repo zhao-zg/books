@@ -33,22 +33,6 @@ def load_app_config(config_path='app_config.json'):
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-
-def _latest_mtime_in_dir(path):
-    """递归获取目录下最新的文件修改时间（含子目录）。目录不存在时返回 0。"""
-    latest = 0
-    if not os.path.isdir(path):
-        return latest
-    for _root, _dirs, _files in os.walk(path):
-        for _f in _files:
-            _fp = os.path.join(_root, _f)
-            if os.path.isfile(_fp):
-                _mt = os.path.getmtime(_fp)
-                if _mt > latest:
-                    latest = _mt
-    return latest
-
-
 def copy_book_resources(resource_dir: str, output_dir: str):
     """扫描 resource/books/ 下的系列目录，复制所有书籍资源到 output/books/，并生成 books-manifest.json。
 
@@ -473,112 +457,90 @@ def main():
     # ── 数据准备：ysz → zl-ysz → zl-merged ──────────────────────
     print("── 数据准备 ──")
 
-    # 增量检查：如果 zl-merged 已是最新则跳过数据准备
-    _merged_manifest = os.path.join(resource_dir, 'zl-merged', 'manifest.json')
-    _ysz_dir = os.path.join(resource_dir, 'ysz')
-    _books_dir = os.path.join(resource_dir, 'books')
-    _need_data_prep = True
-    if os.path.exists(_merged_manifest):
-        try:
-            _manifest_mtime = os.path.getmtime(_merged_manifest)
-            # 同时检查 ysz 源数据目录和 books 内置书目录
-            _ysz_latest = _latest_mtime_in_dir(_ysz_dir)
-            _books_latest = _latest_mtime_in_dir(_books_dir)
-            if max(_ysz_latest, _books_latest) <= _manifest_mtime:
-                _need_data_prep = False
-                print("✓ zl-merged 数据已是最新，跳过数据准备")
-            elif _books_latest > _manifest_mtime:
-                print("▶ 检测到 resource/books/ 有更新，重新执行数据准备")
-            elif _ysz_latest > _manifest_mtime:
-                print("▶ 检测到 resource/ysz/ 有更新，重新执行数据准备")
-        except Exception:
-            pass  # 检查失败则正常执行数据准备
+    # Step 0-pre: 检查 Node.js 环境（merge_zl_data.py 内置书转换依赖 Node.js）
+    _node_ok = False
+    try:
+        _r = subprocess.run(['node', '--version'], capture_output=True, text=True, timeout=5)
+        if _r.returncode == 0:
+            _ver = _r.stdout.strip()
+            print(f"✓ Node.js {_ver} 已安装")
+            _node_ok = True
+        else:
+            print("⚠ Node.js 不可用，内置书籍转换将被跳过")
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        print("⚠ Node.js 未安装或不在 PATH 中，内置书籍转换将被跳过")
+        print("  提示: 内置书（MD/EPUB/TXT）需要 Node.js 解析，请安装 Node.js 20+")
 
-    if _need_data_prep:
-        # Step 0-pre: 检查 Node.js 环境（merge_zl_data.py 内置书转换依赖 Node.js）
-        _node_ok = False
-        try:
-            _r = subprocess.run(['node', '--version'], capture_output=True, text=True, timeout=5)
-            if _r.returncode == 0:
-                _ver = _r.stdout.strip()
-                print(f"✓ Node.js {_ver} 已安装")
-                _node_ok = True
-            else:
-                print("⚠ Node.js 不可用，内置书籍转换将被跳过")
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            print("⚠ Node.js 未安装或不在 PATH 中，内置书籍转换将被跳过")
-            print("  提示: 内置书（MD/EPUB/TXT）需要 Node.js 解析，请安装 Node.js 20+")
+    if _node_ok:
+        # 检查关键 npm 依赖是否存在
+        _script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'convert-bundled.js')
+        if os.path.exists(_script):
+            _check_deps = False
+            try:
+                _r2 = subprocess.run(
+                    ['node', '-e', 'require("jsdom"); require("jszip"); console.log("deps-ok")'],
+                    capture_output=True, text=True, timeout=10,
+                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                )
+                if _r2.returncode == 0 and 'deps-ok' in _r2.stdout:
+                    _check_deps = True
+            except Exception:
+                pass
 
-        if _node_ok:
-            # 检查关键 npm 依赖是否存在
-            _script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'convert-bundled.js')
-            if os.path.exists(_script):
-                _check_deps = False
+            if not _check_deps:
+                print("⚠ npm 依赖缺失（jsdom/jszip），尝试自动安装...")
                 try:
-                    _r2 = subprocess.run(
-                        ['node', '-e', 'require("jsdom"); require("jszip"); console.log("deps-ok")'],
-                        capture_output=True, text=True, timeout=10,
+                    _r3 = subprocess.run(
+                        ['npm', 'install', '--production'],
+                        capture_output=True, text=True, timeout=120,
                         cwd=os.path.dirname(os.path.abspath(__file__)),
                     )
-                    if _r2.returncode == 0 and 'deps-ok' in _r2.stdout:
-                        _check_deps = True
-                except Exception:
-                    pass
+                    if _r3.returncode == 0:
+                        print("✓ npm 依赖安装成功")
+                    else:
+                        print(f"⚠ npm install 失败 (exit={_r3.returncode})")
+                        if _r3.stderr:
+                            print(f"  {_r3.stderr[:200]}")
+                except Exception as e:
+                    print(f"⚠ npm install 异常: {e}")
+        else:
+            print("⚠ 内置书转换脚本不存在: src/convert-bundled.js")
 
-                if not _check_deps:
-                    print("⚠ npm 依赖缺失（jsdom/jszip），尝试自动安装...")
-                    try:
-                        _r3 = subprocess.run(
-                            ['npm', 'install', '--production'],
-                            capture_output=True, text=True, timeout=120,
-                            cwd=os.path.dirname(os.path.abspath(__file__)),
-                        )
-                        if _r3.returncode == 0:
-                            print("✓ npm 依赖安装成功")
-                        else:
-                            print(f"⚠ npm install 失败 (exit={_r3.returncode})")
-                            if _r3.stderr:
-                                print(f"  {_r3.stderr[:200]}")
-                    except Exception as e:
-                        print(f"⚠ npm install 异常: {e}")
-            else:
-                print("⚠ 内置书转换脚本不存在: src/convert-bundled.js")
+    # Step 0a: 执行 process_ysz_books.py（ysz → zl-ysz）
+    try:
+        print("▶ 处理 YSZ 数据 (ysz → zl-ysz) ...")
+        result = subprocess.run(
+            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'process_ysz_books.py')],
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode == 0:
+            print("✓ YSZ 数据处理完成")
+            if result.stdout:
+                lines = result.stdout.strip().splitlines()
+                for line in lines[-5:]:
+                    print(f"  {line}")
+        else:
+            print(f"⚠ YSZ 数据处理警告 (exit={result.returncode})")
+            if result.stderr:
+                print(f"  {result.stderr[:200]}")
+    except Exception as e:
+        print(f"⚠ YSZ 数据处理异常: {e}")
 
-        # Step 0a: 执行 process_ysz_books.py（ysz → zl-ysz）
-        try:
-            print("▶ 处理 YSZ 数据 (ysz → zl-ysz) ...")
-            result = subprocess.run(
-                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'process_ysz_books.py')],
-                capture_output=True, text=True, timeout=600
-            )
-            if result.returncode == 0:
-                print("✓ YSZ 数据处理完成")
-                if result.stdout:
-                    lines = result.stdout.strip().splitlines()
-                    for line in lines[-5:]:
-                        print(f"  {line}")
-            else:
-                print(f"⚠ YSZ 数据处理警告 (exit={result.returncode})")
-                if result.stderr:
-                    print(f"  {result.stderr[:200]}")
-        except Exception as e:
-            print(f"⚠ YSZ 数据处理异常: {e}")
-
-        # Step 0b: 执行 merge_zl_data.py（zl-ysz → zl-merged）
-        try:
-            print("▶ 合并数据 (zl-ysz → zl-merged) ...")
-            result = subprocess.run(
-                [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_zl_data.py'), '--force'],
-                capture_output=True, text=True, timeout=300
-            )
-            if result.returncode == 0:
-                print("✓ 数据合并完成")
-            else:
-                print(f"⚠ 数据合并警告 (exit={result.returncode})")
-                if result.stderr:
-                    print(f"  {result.stderr[:200]}")
-        except Exception as e:
-            print(f"⚠ 数据合并异常: {e}")
+    # Step 0b: 执行 merge_zl_data.py（zl-ysz → zl-merged）
+    try:
+        print("▶ 合并数据 (zl-ysz → zl-merged) ...")
+        result = subprocess.run(
+            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_zl_data.py'), '--force'],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode == 0:
+            print("✓ 数据合并完成")
+        else:
+            print(f"⚠ 数据合并警告 (exit={result.returncode})")
+            if result.stderr:
+                print(f"  {result.stderr[:200]}")
+    except Exception as e:
+        print(f"⚠ 数据合并异常: {e}")
 
     print()
 
