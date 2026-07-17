@@ -347,7 +347,7 @@
 }
 .bk-dialog-cancel {
   background: #FFFFFF; color: var(--text-muted, #9A958C);
-  border: 1px solid var(--border, #E5E2DD); border-right: none;
+  border: 1px solid var(--border, #E5E2DD);
 }
 .bk-dialog-cancel:active { background: #F1F0ED; }
 .bk-dialog-confirm { background: var(--brand, #3D8A5A); color: #FFFFFF; }

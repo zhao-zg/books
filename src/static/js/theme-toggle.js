@@ -42,6 +42,11 @@
 
     // 是否为本地开发环境（localhost / 127.0.0.1 / file://）
     function _isLocalDevOrigin() {
+        // Capacitor 原生应用 hostname 也是 localhost，但不是本地开发环境
+        if (window.Capacitor && window.Capacitor.isNativePlatform &&
+            window.Capacitor.isNativePlatform()) {
+            return false;
+        }
         var h = location.hostname;
         return h === 'localhost' || h === '127.0.0.1' || h === '::1' || location.protocol === 'file:';
     }

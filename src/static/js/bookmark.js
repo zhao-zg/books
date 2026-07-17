@@ -413,7 +413,7 @@
                     ? '<button class="bk-dialog-cancel bk-dialog-danger" data-action="clear">清空全部</button>'
                     : '';
                 var footerHtml = '<div class="bk-dialog-actions">' +
-                    '<button class="bk-dialog-cancel" data-action="close"' + (!addBtnHtml && !clearBtnHtml ? ' style="flex:1;border-right:none"' : '') + '>关闭</button>' +
+                    '<button class="bk-dialog-cancel" data-action="close"' + (!addBtnHtml && !clearBtnHtml ? ' style="flex:1"' : '') + '>关闭</button>' +
                     addBtnHtml + clearBtnHtml +
                     '</div>';
 
@@ -481,7 +481,6 @@
                             var clearBtn = dialogEl.querySelector('[data-action="clear"]');
                             if (clearBtn) clearBtn.style.display = 'none';
                             var cancelBtn = dialogEl.querySelector('[data-action="close"]');
-                            if (cancelBtn) cancelBtn.style.borderRight = 'none';
                         });
                         return;
                     }
@@ -538,7 +537,6 @@
                                 var clearBtn2 = dialogEl.querySelector('[data-action="clear"]');
                                 if (clearBtn2) clearBtn2.style.display = 'none';
                                 var cancelBtn2 = dialogEl.querySelector('[data-action="close"]');
-                                if (cancelBtn2) cancelBtn2.style.borderRight = 'none';
                             }
                         }, 200);
                         BKBookmark.remove(bmId);

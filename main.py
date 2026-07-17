@@ -34,6 +34,21 @@ def load_app_config(config_path='app_config.json'):
         return json.load(f)
 
 
+def _latest_mtime_in_dir(path):
+    """递归获取目录下最新的文件修改时间（含子目录）。目录不存在时返回 0。"""
+    latest = 0
+    if not os.path.isdir(path):
+        return latest
+    for _root, _dirs, _files in os.walk(path):
+        for _f in _files:
+            _fp = os.path.join(_root, _f)
+            if os.path.isfile(_fp):
+                _mt = os.path.getmtime(_fp)
+                if _mt > latest:
+                    latest = _mt
+    return latest
+
+
 def copy_book_resources(resource_dir: str, output_dir: str):
     """扫描 resource/books/ 下的系列目录，复制所有书籍资源到 output/books/，并生成 books-manifest.json。
 
@@ -466,21 +481,6 @@ def main():
     if os.path.exists(_merged_manifest):
         try:
             _manifest_mtime = os.path.getmtime(_merged_manifest)
-
-            def _latest_mtime_in_dir(path):
-                """递归获取目录下最新的文件修改时间（含子目录）。"""
-                latest = 0
-                if not os.path.isdir(path):
-                    return latest
-                for _root, _dirs, _files in os.walk(path):
-                    for _f in _files:
-                        _fp = os.path.join(_root, _f)
-                        if os.path.isfile(_fp):
-                            _mt = os.path.getmtime(_fp)
-                            if _mt > latest:
-                                latest = _mt
-                return latest
-
             # 同时检查 ysz 源数据目录和 books 内置书目录
             _ysz_latest = _latest_mtime_in_dir(_ysz_dir)
             _books_latest = _latest_mtime_in_dir(_books_dir)
@@ -489,6 +489,8 @@ def main():
                 print("✓ zl-merged 数据已是最新，跳过数据准备")
             elif _books_latest > _manifest_mtime:
                 print("▶ 检测到 resource/books/ 有更新，重新执行数据准备")
+            elif _ysz_latest > _manifest_mtime:
+                print("▶ 检测到 resource/ysz/ 有更新，重新执行数据准备")
         except Exception:
             pass  # 检查失败则正常执行数据准备
 
