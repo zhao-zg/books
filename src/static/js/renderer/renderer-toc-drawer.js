@@ -218,22 +218,6 @@
       }
     }
   }
-    if (open) {
-      document.addEventListener('keydown', _tocEscHandler);
-      if (win.BK && win.BK.backStack) {
-        win.BK.backStack.push(function() { _toggleTocDrawer(false); });
-      }
-      // 不自动聚焦搜索框，避免唤出键盘
-    } else {
-      document.removeEventListener('keydown', _tocEscHandler);
-      // 点击章节跳转时（navigate=true）：抽屉的 pushState 历史条目会被 router 的
-      // replaceState 复用，这里只移除回退栈回调（silentPop），绝不 history.back，
-      // 否则会与章节跳转抢历史记录导致跳回原章节、看起来“点击不跳转”。
-      if (!opts.navigate && win.BK && win.BK.backStack) {
-        win.BK.backStack.pop();
-      }
-    }
-  }
 
   function _tocEscHandler(e) {
     if (e.key === 'Escape') { _toggleTocDrawer(false); }
