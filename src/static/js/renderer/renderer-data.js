@@ -248,23 +248,6 @@
       }
       // _mergeBundledBooks 已废弃（内置书走 CDN），但保留调用避免报错
       return _mergeBundledBooks();
-    }).catch(function (err) {
-      console.warn('[Renderer] DataManager 初始化失败:', err.message);
-      _zlDmReady = false;
-      // 内置书已走 CDN，不再需要 loadEpubResources
-      return _mergeImportedBooks();
-    }).then(function () {
-      // ★ 同 success 分支：合并导入书籍后重渲染
-      var _appEl2 = document.getElementById('app');
-      if (_appEl2 && _appEl2.style.display !== 'none') {
-        if (win.location.hash.indexOf('city') !== -1) {
-          if (BKRenderer.renderCityPage) BKRenderer.renderCityPage();
-        } else if (BKRenderer.renderShelfPage) {
-          BKRenderer.renderShelfPage();
-        }
-      }
-      // _mergeBundledBooks 已废弃（内置书走 CDN），但保留调用避免报错
-      return _mergeBundledBooks();
     }).catch(function (e) {
       console.warn('[Renderer] 内置书库合并失败:', e.message);
     });

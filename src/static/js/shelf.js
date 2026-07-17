@@ -126,6 +126,42 @@
   }
 
   /**
+   * 独立更新书架记录的笔记字段（不影响 finished/completedAt 等）。
+   * 若记录不存在则忽略（不入架、不广播）。
+   * @param {string} bookId
+   * @param {string|null} note  新笔记内容；null 或空串视为清除笔记
+   */
+  function updateNote(bookId, note) {
+    var rec = get(bookId);
+    if (!rec) return;
+    rec.note = (note && note.trim()) ? note.trim() : null;
+    _safeSet(_key(bookId), JSON.stringify(rec));
+    emitChanged(bookId, 'note-update');
+  }
+
+  /**
+   * 独立删除书架记录的笔记字段（保留其余字段不变）。
+   * @param {string} bookId
+   */
+  function removeNote(bookId) {
+    updateNote(bookId, null);
+  }
+
+  /**
+   * 独立更新书架记录的评分字段（不影响 finished/note 等）。
+   * 若记录不存在则忽略。
+   * @param {string} bookId
+   * @param {number|null} rating  1-5 评分；null 清除评分
+   */
+  function updateRating(bookId, rating) {
+    var rec = get(bookId);
+    if (!rec) return;
+    rec.rating = (typeof rating === 'number' && rating >= 1 && rating <= 5) ? rating : null;
+    _safeSet(_key(bookId), JSON.stringify(rec));
+    emitChanged(bookId, 'rating-update');
+  }
+
+  /**
    * 移除书架记录（连同 finished/note/rating 一并清除）。
    * @param {string} bookId
    */
@@ -291,7 +327,7 @@
   /**
    * 广播书架状态变更事件（全局自定义事件）。
    * @param {string} bookId
-   * @param {'add'|'finish'|'remove'} action
+   * @param {'add'|'finish'|'remove'|'unread'|'pin'|'unpin'|'note-update'|'rating-update'} action
    */
   function emitChanged(bookId, action) {
     try {
@@ -308,6 +344,9 @@
     markRead: markRead,
     unmarkRead: unmarkRead,    // 撤销「读完」：finished→false，移回在读
     finish: markRead,        // 别名：语义等价（标记已读）
+    updateNote: updateNote,   // 独立更新笔记
+    removeNote: removeNote,   // 独立删除笔记
+    updateRating: updateRating, // 独立更新评分
     isRead: isRead,
     isCollected: isCollected,
     setPinned: setPinned,

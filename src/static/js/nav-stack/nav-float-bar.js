@@ -526,7 +526,10 @@
                 if (cls.contains('speech-btn')          || cls.contains('play-btn') ||
                     cls.contains('highlight-trigger')   || cls.contains('bk-dialog-mask') ||
                     cls.contains('toc-item')            ||
-                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon')) return false;
+                    cls.contains('bk-highlight')        || cls.contains('bk-note-icon') ||
+                    cls.contains('scripture-ref')       || cls.contains('fn-ref') ||
+                    cls.contains('xref-ref')            || cls.contains('verse-ref') ||
+                    cls.contains('bk-epub-fn-ref')) return false;
             }
             el = el.parentElement;
         }

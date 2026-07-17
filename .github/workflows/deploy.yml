@@ -90,6 +90,21 @@ jobs:
             echo "⚠️ remote-config.js 不存在，跳过混淆"
           fi
           
+          echo "🔐 混淆 webdav-presets.js..."
+          if [ -f output/js/webdav-presets.js ]; then
+            npx javascript-obfuscator output/js/webdav-presets.js \
+              --output output/js/webdav-presets.js \
+              --compact true \
+              --control-flow-flattening true \
+              --dead-code-injection true \
+              --string-array true \
+              --string-array-encoding base64 \
+              --self-defending false
+            echo "✓ webdav-presets.js 已混淆"
+          else
+            echo "⚠️ webdav-presets.js 不存在，跳过混淆"
+          fi
+          
           echo "📄 检查 version.json 是否存在..."
           if [ -f output/version.json ]; then
             echo "✓ version.json 文件存在"

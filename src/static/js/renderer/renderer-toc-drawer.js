@@ -147,6 +147,37 @@
         }
       }
     } catch (e) {}
+
+    // 笔记数（划线笔记中有 note 字段的条目数）
+    try {
+      if (win.BKStorage && win.BKStorage.getAllPages) {
+        win.BKStorage.getAllPages().then(function (pages) {
+          var count = 0;
+          for (var p = 0; p < pages.length; p++) {
+            var hls = pages[p].highlights || [];
+            for (var h = 0; h < hls.length; h++) {
+              if (hls[h].note) count++;
+            }
+          }
+          // 加上书签笔记
+          if (win.BKBookmark && win.BKBookmark.getAll) {
+            win.BKBookmark.getAll().then(function (bms) {
+              for (var i = 0; i < bms.length; i++) {
+                if (bms[i].note) count++;
+              }
+              var el = document.getElementById('meStatNotes');
+              if (el) el.textContent = count;
+            }).catch(function () {
+              var el = document.getElementById('meStatNotes');
+              if (el) el.textContent = count;
+            });
+          } else {
+            var el = document.getElementById('meStatNotes');
+            if (el) el.textContent = count;
+          }
+        }).catch(function () {});
+      }
+    } catch (e) {}
   }
 
 
@@ -154,6 +185,7 @@
   /**
    * 切换 Drawer 的打开/关闭状态
    */
+  var _tocLockCleanup = null;
   function _toggleTocDrawer(open, opts) {
     opts = opts || {};
     var drawer = document.getElementById('bkTocDrawer');
@@ -165,6 +197,27 @@
       var si = document.getElementById('bkTocSearchInput');
       if (si) { si.value = ''; _filterTocItems(''); }
     }
+    if (open) {
+      document.addEventListener('keydown', _tocEscHandler);
+      if (win.BK && win.BK.backStack) {
+        win.BK.backStack.push(function() { _toggleTocDrawer(false); });
+      }
+      // 防触摸穿透：锁定遮罩滚动
+      if (overlay && win.BK && win.BK.lockOverlayScroll) {
+        _tocLockCleanup = win.BK.lockOverlayScroll(overlay, function() { _toggleTocDrawer(false); });
+      }
+    } else {
+      document.removeEventListener('keydown', _tocEscHandler);
+      // 释放遮罩滚动锁
+      if (_tocLockCleanup) { _tocLockCleanup(); _tocLockCleanup = null; }
+      // 点击章节跳转时（navigate=true）：抽屉的 pushState 历史条目会被 router 的
+      // replaceState 复用，这里只移除回退栈回调（silentPop），绝不 history.back，
+      // 否则会与章节跳转抢历史记录导致跳回原章节、看起来"点击不跳转"。
+      if (!opts.navigate && win.BK && win.BK.backStack) {
+        win.BK.backStack.pop();
+      }
+    }
+  }
     if (open) {
       document.addEventListener('keydown', _tocEscHandler);
       if (win.BK && win.BK.backStack) {

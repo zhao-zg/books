@@ -60,8 +60,23 @@
     shareBtn.textContent = '分享到笔记';
     shareBtn.addEventListener('click', function () {
       var txt = body.innerText || '';
-      if (window.BKNotes && window.BKNotes.addFromText) {
-        window.BKNotes.addFromText(txt);
+      if (window.BKBookmark && window.BKBookmark.add) {
+        /* 将经文内容保存为当前页书签的笔记 */
+        var path = window.__bkCurrentPath || '';
+        var scrollY = window.scrollY || 0;
+        var parts = path.split('/').filter(Boolean);
+        window.BKBookmark.add({
+          path: path,
+          scrollY: scrollY,
+          title: '经文笔记',
+          bookId: parts[0] || '',
+          chapterNum: parseInt(parts[1], 10) || 0,
+          note: txt
+        });
+        /* 提示用户已保存 */
+        if (window.BK && window.BK.toast) {
+          window.BK.toast('已保存到笔记');
+        }
       } else if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(txt).catch(function () {});
       }
@@ -80,11 +95,12 @@
     });
 
     /* 防滚动穿透 + 触摸点遮罩关闭（mobile touchend → history.back） */
-    window.BK.lockOverlayScroll(overlay, function() { try { history.back(); } catch(e) {} });
+    _spLockCleanup = window.BK.lockOverlayScroll(overlay, function() { try { history.back(); } catch(e) {} });
 
     return { overlay: overlay, title: title, body: body, backBtn: backBtn };
   }
 
+  var _spLockCleanup = null;
   var modal = null;
   function getModal() {
     if (!modal) modal = createModal();
@@ -108,6 +124,7 @@
           modal.overlay.classList.remove('scripture-popup-overlay--open');
           modal.overlay.setAttribute('aria-hidden', 'true');
         }
+        if (_spLockCleanup) { _spLockCleanup(); _spLockCleanup = null; }
       }
     };
   }

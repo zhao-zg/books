@@ -130,6 +130,7 @@
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatBooks">—</span><span class="bk-stat-label">书籍</span></div>';
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatChapters">—</span><span class="bk-stat-label">章节</span></div>';
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatBookmarks">—</span><span class="bk-stat-label">书签</span></div>';
+      html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatNotes">—</span><span class="bk-stat-label">笔记</span></div>';
       html += '</div>';
 
       // 设置入口：打开阅读界面的设置弹窗（阅读模式 + 字体大小），避免「我的」页内联冗余
@@ -143,6 +144,7 @@
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">内容与数据</div>';
       html += '<button class="bk-settings-row" data-action="bookmarks"><span class="bk-row-icon">📑</span><span class="bk-row-label">我的书签</span><span class="bk-row-arrow">›</span></button>';
+      html += '<button class="bk-settings-row" data-action="notes"><span class="bk-row-icon">📝</span><span class="bk-row-label">我的笔记</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="clear-data"><span class="bk-row-icon">🧹</span><span class="bk-row-label">清理数据</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
       html += '</div>'; // bk-settings-left end
@@ -160,11 +162,14 @@
         html += '<button class="bk-settings-row" data-action="android-apk"><span class="bk-row-icon">📱</span><span class="bk-row-label">安卓APK</span><span class="bk-row-arrow">›</span></button>';
         html += '<div class="cache-status" id="meApkStatus" style="display:none"></div>';
       }
-      if (canUpdate) {
+      if (canUpdate && window.BK_SERVERS_REACHABLE !== false) {
         html += '<button class="bk-settings-row" data-action="check-update"><span class="bk-row-icon">🔄</span><span class="bk-row-label">检查更新</span><span class="bk-row-arrow">›</span></button>';
       }
       html += '<button class="bk-settings-row" data-action="guide"><span class="bk-row-icon">📖</span><span class="bk-row-label">使用说明</span><span class="bk-row-arrow">›</span></button>';
-      html += '<button class="bk-settings-row" data-action="feedback"><span class="bk-row-icon">💬</span><span class="bk-row-label">问题反馈</span><span class="bk-row-arrow">›</span></button>';
+      if (window.BK_SERVERS_REACHABLE !== false) {
+        html += '<button class="bk-settings-row" data-action="feedback"><span class="bk-row-icon">💬</span><span class="bk-row-label">问题反馈</span><span class="bk-row-arrow">›</span></button>';
+      }
+      html += '<button class="bk-settings-row" data-action="sponsor" id="bkSponsorBtn" style="display:none"><span class="bk-row-icon">❤️</span><span class="bk-row-label">顾念微工</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
 
       // 资源管理
@@ -176,7 +181,7 @@
       // 高级（内联开关）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">高级</div>';
-      if (canUpdate) {
+      if (canUpdate && window.BK_SERVERS_REACHABLE !== false) {
         html += '<div class="pref-row"><div class="pref-label-wrap"><span class="pref-title">自动检查更新</span><span class="pref-desc">启动时自动检查是否有新版本</span></div><label class="pref-toggle"><input type="checkbox" id="meAutoCheckToggle"><span class="pref-toggle-slider"></span></label></div>';
       }
       html += '<div class="pref-row"><div class="pref-label-wrap"><span class="pref-title">开发者模式</span><span class="pref-desc">在页面底部显示调试日志</span></div><label class="pref-toggle"><input type="checkbox" id="meDevToggle"><span class="pref-toggle-slider"></span></label></div>';
@@ -206,6 +211,8 @@
             var action = row.getAttribute('data-action');
             if (action === 'bookmarks') {
               if (win.BKBookmark && win.BKBookmark.showList) win.BKBookmark.showList();
+            } else if (action === 'notes') {
+              if (win.BKNoteSummary && win.BKNoteSummary.show) win.BKNoteSummary.show();
             } else if (action === 'clear-data') {
               if (win.BK && win.BK.clearData) win.BK.clearData();
             } else if (action === 'download-mgr') {
@@ -232,6 +239,8 @@
               if (win.showGuideDialog) win.showGuideDialog();
             } else if (action === 'feedback') {
               if (win.showFeedbackDialog) win.showFeedbackDialog();
+            } else if (action === 'sponsor') {
+              if (win.showSponsorDialog) win.showSponsorDialog();
             }
           });
         })(rows[i]);
@@ -264,6 +273,12 @@
         if (on && win.BKDevConsole) win.BKDevConsole.init();
         else if (!on && win.BKDevConsole) win.BKDevConsole.destroy();
       });
+
+      // 赞助按钮：如果探测已完成且就绪，直接显示
+      if (window._bkSponsorReady === true) {
+        var spBtn = document.getElementById('bkSponsorBtn');
+        if (spBtn) spBtn.style.display = '';
+      }
 
       // 异步填充统计卡
       _fillSettingsStats();

@@ -3,8 +3,6 @@
   // ── 书架（书城增强 + 书架页）辅助函数 ────────────────────────────────
 
   /**
-
-  /**
    * 按 id 从公开书籍表（window.__bkBooks）与私有 _zlBooks 查书籍元数据。
    * @param {string} bookId
    * @returns {Object|null}
@@ -168,7 +166,7 @@
         var pct = (cc > 0 && readChCount > 0) ? Math.round(readChCount / cc * 100) : 0;
         subText = pct > 0 ? ('已读 ' + pct + '%') : '未读';
       }
-      // note/rating 数据模型已预留，本轮只读展示占位
+      // note/rating 数据：支持编辑与展示
       var metaExtra = '';
       if (rec.rating) metaExtra += ' ★' + rec.rating;
       if (rec.note) metaExtra += ' · 有笔记';
@@ -201,14 +199,14 @@
     }
     listEl.innerHTML = html;
 
-    // 绑定「标记已读」按钮（在读行）：点击 → BKShelf.markRead → 移入已读桶
-    // （bk-shelf-changed 触发整体重渲染，激活态停在「在读」故该行消失 = 已移动）
+    // 绑定「标记已读」按钮（在读行）：点击 → 弹出笔记输入框 → BKShelf.markRead → 移入已读桶
     var markBtns = listEl.querySelectorAll('.bk-shelf-markread');
     for (var m = 0; m < markBtns.length; m++) {
       (function (btn) {
         btn.addEventListener('click', function () {
           var id = btn.getAttribute('data-book-id');
-          if (id && win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(id);
+          if (!id) return;
+          _promptMarkReadNote(id);
         });
       })(markBtns[m]);
     }
@@ -342,6 +340,7 @@
   var ICON_INFO   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>';
   var ICON_DESKTOP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
   var ICON_TRASH  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
+  var ICON_NOTE   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
 
   // 书籍来源描述（用于「书籍详情」面板；缺失则空串）
   function _bookSourceText(book) {
@@ -441,6 +440,8 @@
     }
   }
 
+  var _shelfQuickLockCleanup = null;
+
   function _openShelfQuickMenu(row) {
     if (!row) return;
     _closeShelfQuickMenu();
@@ -481,6 +482,10 @@
     }
     actions.push({ icon: isPinned ? ICON_PIN_ON : ICON_PIN, label: isPinned ? '取消置顶' : '置顶本书', act: 'pin', on: isPinned });
     actions.push({ icon: ICON_INFO, label: '书籍详情', act: 'detail' });
+    // 笔记操作：有笔记显示"编辑笔记"，无笔记显示"添加笔记"
+    var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
+    var hasNote = !!(shelfRec && shelfRec.note);
+    actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑笔记' : '添加笔记', act: 'edit-note', hasNote: hasNote });
     actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
     actions.push({ icon: ICON_TRASH, label: '移出书架', sel: '.bk-shelf-remove-btn', danger: true });
 
@@ -505,6 +510,9 @@
         } else if (a.act === 'detail') {
           _closeShelfQuickMenu();
           _openBookDetail(book);
+        } else if (a.act === 'edit-note') {
+          _closeShelfQuickMenu();
+          _editShelfNote(bookId);
         } else if (a.act === 'desktop') {
           _closeShelfQuickMenu();
           _addBookToDesktop(book);
@@ -524,6 +532,10 @@
     mask.appendChild(sheet);
     mask.addEventListener('click', function (e) { if (e.target === mask) _closeShelfQuickMenu(); });
     page.appendChild(mask);
+    // 防触摸穿透：锁定遮罩滚动
+    if (win.BK && win.BK.lockOverlayScroll) {
+      _shelfQuickLockCleanup = win.BK.lockOverlayScroll(mask, function() { _closeShelfQuickMenu(); });
+    }
     // 触发入场动画
     if (win.requestAnimationFrame) {
       win.requestAnimationFrame(function () { mask.classList.add('is-open'); });
@@ -533,7 +545,120 @@
   }
 
   function _closeShelfQuickMenu() {
+    if (_shelfQuickLockCleanup) { _shelfQuickLockCleanup(); _shelfQuickLockCleanup = null; }
     var m = document.querySelector('.bk-shelf-quick-mask');
     if (m && m.parentNode) m.parentNode.removeChild(m);
+  }
+
+  /**
+   * 编辑/添加书架笔记（独立面板，不影响已读状态）
+   * 支持新建笔记、修改已有笔记、删除笔记
+   */
+  function _editShelfNote(bookId) {
+    var book = _findBookById(bookId);
+    var name = book ? (book.title || bookId) : bookId;
+    var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
+    var existingNote = (shelfRec && shelfRec.note) || '';
+
+    if (!win.BK || !win.BK.openDialog) {
+      // 降级：无法弹窗
+      return;
+    }
+
+    var html =
+      '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+        '<div class="bk-dialog-title">' + (existingNote ? '编辑笔记' : '添加笔记') + '</div>' +
+        '<div class="bk-dialog-body" style="padding:12px 16px">' +
+          '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escShelfHtml(name) + '》</div>' +
+          '<textarea class="bk-note-textarea" id="bkShelfEditNoteTa" placeholder="输入读书笔记…" rows="5" style="width:100%;box-sizing:border-box">' + _escShelfHtml(existingNote) + '</textarea>' +
+        '</div>' +
+        '<div class="bk-dialog-actions">' +
+          (existingNote ? '<button class="bk-dialog-cancel" style="color:var(--danger,#d9534f)" id="bkShelfEditNoteDel">删除笔记</button>' : '') +
+          '<button class="bk-dialog-cancel" id="bkShelfEditNoteCancel">取消</button>' +
+          '<button class="bk-dialog-confirm" id="bkShelfEditNoteOk">保存</button>' +
+        '</div>' +
+      '</div>';
+
+    var dlg = win.BK.openDialog({ id: 'bk-shelf-edit-note-dialog', html: html });
+    if (!dlg) return;
+
+    var dialogEl = document.getElementById('bk-shelf-edit-note-dialog');
+    if (!dialogEl) return;
+
+    var ta = dialogEl.querySelector('#bkShelfEditNoteTa');
+    var cancelBtn = dialogEl.querySelector('#bkShelfEditNoteCancel');
+    var okBtn = dialogEl.querySelector('#bkShelfEditNoteOk');
+    var delBtn = dialogEl.querySelector('#bkShelfEditNoteDel');
+
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { dlg.close(); });
+    if (okBtn) okBtn.addEventListener('click', function () {
+      var note = ta ? ta.value.trim() : '';
+      if (win.BKShelf && win.BKShelf.updateNote) win.BKShelf.updateNote(bookId, note || null);
+      dlg.close();
+    });
+    if (delBtn) delBtn.addEventListener('click', function () {
+      if (win.confirm && !win.confirm('确定删除此笔记？')) return;
+      if (win.BKShelf && win.BKShelf.removeNote) win.BKShelf.removeNote(bookId);
+      dlg.close();
+    });
+    if (ta) setTimeout(function () {
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 50);
+  }
+
+  /**
+   * 标记已读时弹出可选笔记输入框
+   * 用户可快速点"确定"跳过笔记（保持原行为），或输入笔记后确认
+   */
+  function _promptMarkReadNote(bookId) {
+    var book = _findBookById(bookId);
+    var name = book ? (book.title || bookId) : bookId;
+
+    if (!win.BK || !win.BK.openDialog) {
+      // 降级：直接标记无笔记
+      if (win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(bookId);
+      return;
+    }
+
+    var html =
+      '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+        '<div class="bk-dialog-title">标记已读</div>' +
+        '<div class="bk-dialog-body" style="padding:12px 16px">' +
+          '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escShelfHtml(name) + '》</div>' +
+          '<textarea class="bk-note-textarea" id="bkShelfNoteTa" placeholder="添加读书笔记（可选）" rows="3" style="width:100%;box-sizing:border-box"></textarea>' +
+        '</div>' +
+        '<div class="bk-dialog-actions">' +
+          '<button class="bk-dialog-cancel" id="bkShelfNoteCancel">取消</button>' +
+          '<button class="bk-dialog-confirm" id="bkShelfNoteOk">确定</button>' +
+        '</div>' +
+      '</div>';
+
+    var dlg = win.BK.openDialog({ id: 'bk-shelf-note-dialog', html: html });
+    if (!dlg) {
+      if (win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(bookId);
+      return;
+    }
+
+    var dialogEl = document.getElementById('bk-shelf-note-dialog');
+    if (!dialogEl) return;
+
+    var ta = dialogEl.querySelector('#bkShelfNoteTa');
+    var cancelBtn = dialogEl.querySelector('#bkShelfNoteCancel');
+    var okBtn = dialogEl.querySelector('#bkShelfNoteOk');
+
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { dlg.close(); });
+    if (okBtn) okBtn.addEventListener('click', function () {
+      var note = ta ? ta.value.trim() : '';
+      if (win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(bookId, { note: note || null });
+      dlg.close();
+    });
+    if (ta) setTimeout(function () { ta.focus(); }, 50);
+  }
+
+  function _escShelfHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
   }
 

@@ -7,32 +7,10 @@
    * @param {function} [onProgress] 可选回调 (percent, status) => {}
    */
   function downloadBook(bookId, series, onProgress) {
-    // 如果 series 为空，尝试从全局索引中查找
-    var resolvePromise;
-    if (!series && _cachedIndex && _cachedIndex.books) {
-      for (var i = 0; i < _cachedIndex.books.length; i++) {
-        if (_cachedIndex.books[i].id === bookId) {
-          series = _cachedIndex.books[i].series;
-          break;
-        }
-      }
-    }
-    if (!series) {
-      // 索引也未加载，先尝试加载索引再查找
-      var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
-      resolvePromise = indexPromise.then(function (idx) {
-        if (idx && idx.books) {
-          for (var i = 0; i < idx.books.length; i++) {
-            if (idx.books[i].id === bookId) {
-              return idx.books[i].series;
-            }
-          }
-        }
-        return '';
-      }).catch(function () { return ''; });
-    } else {
-      resolvePromise = Promise.resolve(series);
-    }
+    // 使用公共方法查找 series
+    var resolvePromise = series
+      ? Promise.resolve(series)
+      : findSeriesByBookId(bookId);
 
     return resolvePromise.then(function (resolvedSeries) {
       if (!resolvedSeries) {
@@ -87,20 +65,13 @@
       if (_isCancelled) {
         return Promise.resolve();
       }
-      // 检查暂停：轮询等待（在消费任务前，避免恢复时重复递增索引）
+      // 检查暂停：Promise 挂起，恢复时直接 resolve，无需轮询
       if (_isPaused) {
         return new Promise(function (resolve) {
-          var checkInterval = setInterval(function () {
-            if (!_isPaused || _isCancelled) {
-              clearInterval(checkInterval);
-              if (_isCancelled) {
-                resolve();
-              } else {
-                // 恢复后重新进入 runNext，从当前 nextIdx 开始（未消费）
-                resolve(runNext());
-              }
-            }
-          }, 200);
+          _pauseResolve = resolve;
+        }).then(function () {
+          if (_isCancelled) return Promise.resolve();
+          return runNext();
         });
       }
 
@@ -159,11 +130,12 @@
           if (onProgress) onProgress(acc.success + completed, acc.success + acc.failed, '重试中...');
         }).then(function (retryResult) {
           acc.success += retryResult.success;
-          // 收集本轮仍然失败的书名（从 failedTasks 的 _bookTitle 属性）
-          acc.failedBookNames = [];
+          // 累加 + 去重：不清空已有记录，追加本轮仍失败的书名
           for (var i = 0; i < retryResult.failedTasks.length; i++) {
             var t = retryResult.failedTasks[i];
-            if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+            if (t._bookTitle && acc.failedBookNames.indexOf(t._bookTitle) === -1) {
+              acc.failedBookNames.push(t._bookTitle);
+            }
           }
           if (retryResult.failed > 0) {
             acc.failed = retryResult.failed;

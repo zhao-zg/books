@@ -148,9 +148,28 @@
 }
 .bk-bm-item-note:hover { background: var(--interactive-soft-bg, #EAF3EC); opacity: 1; }
 .bk-bm-item-note:active { opacity: 1; transform: scale(.94); }
+.bk-bm-item-edit {
+  background: none; border: none; color: var(--text-muted, #9A958C); font-size: 1em;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; transition: background .15s, opacity .15s;
+  opacity: .6; flex-shrink: 0;
+}
+.bk-bm-item-edit:hover { background: var(--surface-alt, #EDEAE4); opacity: 1; }
+.bk-bm-item-edit:active { opacity: 1; transform: scale(.94); }
 
-/* 书签笔记编辑面板（设计稿 10:54） */
+/* 书签编辑面板 */
 .bk-note-editor { width: min(440px, calc(100vw - 40px)); }
+.bk-note-title-input {
+  width: 100%; box-sizing: border-box; font-family: inherit;
+  font-size: var(--text-base); font-weight: 500; color: var(--text, #1A1918);
+  background: var(--surface, #F5F4F1); border: 1px solid var(--border, #E5E2DD);
+  border-radius: var(--radius-md, 12px); padding: 10px 14px; outline: none;
+  margin-bottom: 4px; transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none; appearance: none;
+}
+.bk-note-title-input:focus {
+  border-color: var(--brand, #3D8A5A);
+  box-shadow: 0 0 0 3px var(--interactive-soft-bg, #EAF3EC);
+}
 .bk-note-quote {
   font-size: var(--text-sm); color: var(--text-soft, #5A564F); line-height: 1.6;
   background: var(--surface-alt, #EDEAE4); border-left: 3px solid var(--brand, #3D8A5A);

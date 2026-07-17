@@ -350,6 +350,7 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0);
   transition: background .2s ease;
+  touch-action: none;
 }
 .bk-shelf-quick-mask.is-open { background: rgba(0, 0, 0, .42); }
 

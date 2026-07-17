@@ -82,7 +82,34 @@
             }) : Promise.resolve();
         }
 
-        return { init: init, getPage: getPage, setPage: setPage, clear: clear };
+        /** 获取所有存储键（供笔记汇总遍历使用） */
+        function getAllKeys() {
+            if (!_store) return Promise.resolve([]);
+            if (_store.keys) return _store.keys().catch(function () { return []; });
+            // localStorage 降级
+            return Promise.resolve().then(function () {
+                try {
+                    return Object.keys(JSON.parse(localStorage.getItem('bk_highlights') || '{}'));
+                } catch (e) { return []; }
+            });
+        }
+
+        /** 获取所有页的划线数据（供笔记汇总使用） */
+        function getAllPages() {
+            return getAllKeys().then(function (keys) {
+                var pages = [];
+                var promises = keys.map(function (key) {
+                    return _store.getItem(key).then(function (arr) {
+                        if (Array.isArray(arr) && arr.length) {
+                            pages.push({ key: key, highlights: arr });
+                        }
+                    }).catch(function () {});
+                });
+                return Promise.all(promises).then(function () { return pages; });
+            });
+        }
+
+        return { init: init, getPage: getPage, setPage: setPage, clear: clear, getAllKeys: getAllKeys, getAllPages: getAllPages };
     })();
 
 var BKHighlight = {

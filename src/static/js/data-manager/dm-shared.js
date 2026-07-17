@@ -48,6 +48,7 @@
   var _cachedIndex = null;
   var _cachedManifest = null;
   var _cachedSearchIndex = null;
+  var _downloadedIdCache = null; // Set<string> | null（null = 未初始化）
 
   // ── 下载队列状态 ─────────────────────────────────────────────────────
   var _isDownloading = false;
@@ -56,6 +57,8 @@
   var _dlCompleted = 0;
   var _dlTotal = 0;
   var _dlCurrentTitle = '';
+  // 暂停/恢复机制：暂停时挂起 Promise，恢复时 resolve
+  var _pauseResolve = null;
   // 并发控制（顺序下载更稳定，减少网络波动导致的失败）
   var MAX_CONCURRENT = 1;
   var MAX_RETRIES = 3;
@@ -171,6 +174,34 @@
     }
     result.chapters = chapters;
     return result;
+  }
+
+  /**
+   * 从全局索引中查找书籍所属系列
+   * 先查内存缓存（O(n) 遍历），未命中则加载索引后查找
+   * @param {string} bookId
+   * @returns {Promise<string>} series ID，未找到则 resolve 空字符串
+   */
+  function findSeriesByBookId(bookId) {
+    // 先尝试从内存缓存同步查找
+    if (_cachedIndex && _cachedIndex.books) {
+      for (var i = 0; i < _cachedIndex.books.length; i++) {
+        if (_cachedIndex.books[i].id === bookId) {
+          return Promise.resolve(_cachedIndex.books[i].series);
+        }
+      }
+    }
+    // 缓存中未找到，尝试加载索引后查找
+    return loadIndex().then(function (idx) {
+      if (idx && idx.books) {
+        for (var i = 0; i < idx.books.length; i++) {
+          if (idx.books[i].id === bookId) {
+            return idx.books[i].series;
+          }
+        }
+      }
+      return '';
+    }).catch(function () { return ''; });
   }
 
   /**

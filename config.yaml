@@ -41,6 +41,9 @@ remote_servers:
     - https://myip.ipip.net
     - https://ipinfo.io/json
 
+# 赞助功能开关（true=启用顾念微工，false=完全不加载）
+sponsor_enabled: true
+
 # WebDAV 预置服务器（可选，由 config.yaml 配置，随构建产物下发；用户不可删除）
 # 用途：让打包者内置常用 WebDAV 服务器，普通用户开箱即用，无需手动填写。
 # 字段说明：

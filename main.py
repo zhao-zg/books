@@ -203,6 +203,10 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
         elif isinstance(value, str):
             encoded[key] = base64.b64encode(value.encode('utf-8')).decode('utf-8')
 
+    # 赞助功能开关（布尔值，不编码，直接透传）
+    sponsor_enabled = config.get('sponsor_enabled', True)
+    encoded['sponsor_enabled'] = sponsor_enabled
+
 
     # 生成 JS 内容
     js_content = f"""\
@@ -351,6 +355,51 @@ def inject_disguise_config(config: dict, output_dir: str = 'output'):
 
     if count:
         print(f"✓ 伪装配置已注入（disguise_enabled={val_str}，共 {count} 个文件）")
+
+
+def copy_static_images(config: dict, output_dir: str):
+    """复制 src/static/image/ → output/images/（复数）。
+
+    赞助二维码图片（zanzhu-wx.png, zanzhu-zfb.jpg）仅在 sponsor_enabled 时复制，
+    关闭时跳过并清理旧残留。其他图片始终复制。
+    图片不打进 APK/PWA 本地缓存，通过 BK.loadRemoteImage 从远程服务器获取。
+    """
+    sponsor_enabled = config.get('sponsor_enabled', True)
+    _SPONSOR_IMAGE_FILES = {'zanzhu-wx.png', 'zanzhu-zfb.jpg'}
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    static_img_src = os.path.join(script_dir, 'src', 'static', 'image')
+    static_img_dst = os.path.join(output_dir, 'images')
+
+    # 清理可能残留的 output/image（单数）目录（旧构建产物）
+    old_image_dir = os.path.join(output_dir, 'image')
+    if os.path.isdir(old_image_dir):
+        shutil.rmtree(old_image_dir, ignore_errors=True)
+
+    if not os.path.isdir(static_img_src):
+        print("⚠ src/static/image/ 目录不存在，跳过静态图片复制")
+        return
+
+    os.makedirs(static_img_dst, exist_ok=True)
+    for fn in os.listdir(static_img_src):
+        src_f = os.path.join(static_img_src, fn)
+        if not os.path.isfile(src_f):
+            continue
+        # 赞助关闭时跳过二维码图片
+        if not sponsor_enabled and fn in _SPONSOR_IMAGE_FILES:
+            continue
+        shutil.copy2(src_f, os.path.join(static_img_dst, fn))
+
+    if sponsor_enabled:
+        print("✓ 静态图片已复制到 images/")
+    else:
+        print("✓ 静态图片已复制到 images/（赞助二维码已跳过）")
+        # 清理旧残留赞助图片
+        for fn in _SPONSOR_IMAGE_FILES:
+            old = os.path.join(static_img_dst, fn)
+            if os.path.isfile(old):
+                os.remove(old)
+                print(f"  ✗ 已删除旧赞助图片 images/{fn}")
 
 
 def main():
@@ -529,6 +578,9 @@ def main():
     # 生成静态站点
     generator = BooksGenerator(output_dir, config)
     generator.generate_all(app_config)
+
+    # 复制静态图片 src/static/image/ → output/images/（带 sponsor_enabled 控制）
+    copy_static_images(config, output_dir)
 
     # 生成 remote-config.js（base64 编码 URL）
     generate_remote_config(config, output_dir)

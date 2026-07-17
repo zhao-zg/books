@@ -32,6 +32,7 @@
 .bk-toc-overlay.open {
   opacity: 1;
   pointer-events: auto;
+  touch-action: none;
 }
 .bk-toc-drawer-header {
   display: flex;

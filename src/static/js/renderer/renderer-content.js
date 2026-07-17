@@ -439,6 +439,12 @@
   }
 
   // Lightbox 显示/隐藏
+  var _lightboxLockCleanup = null;
+  function _closeLightbox() {
+    var overlay = document.getElementById('bk-lightbox');
+    if (overlay) overlay.classList.remove('bk-lightbox-active');
+    if (_lightboxLockCleanup) { _lightboxLockCleanup(); _lightboxLockCleanup = null; }
+  }
   function _openLightbox(src, alt) {
     var overlay = document.getElementById('bk-lightbox');
     if (!overlay) {
@@ -448,7 +454,7 @@
       overlay.innerHTML = '<div class="bk-lightbox-container"><img class="bk-lightbox-img" alt=""><div class="bk-lightbox-close">&times;</div></div>';
       overlay.addEventListener('click', function(e) {
         if (e.target === overlay || e.target.classList.contains('bk-lightbox-close')) {
-          overlay.classList.remove('bk-lightbox-active');
+          _closeLightbox();
         }
       });
       document.body.appendChild(overlay);
@@ -456,6 +462,10 @@
     var lbImg = overlay.querySelector('.bk-lightbox-img');
     if (lbImg) { lbImg.src = src; lbImg.alt = alt; }
     overlay.classList.add('bk-lightbox-active');
+    // 防触摸穿透：锁定遮罩滚动
+    if (win.BK && win.BK.lockOverlayScroll) {
+      _lightboxLockCleanup = win.BK.lockOverlayScroll(overlay, function() { _closeLightbox(); });
+    }
   }
 
   // ── PDF 页面懒渲染 ──────────────────────────────────────────────────────

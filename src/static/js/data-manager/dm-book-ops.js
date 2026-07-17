@@ -16,18 +16,13 @@
       // 本地无缓存，在线获取并缓存
       console.log('[DataManager] 本地无缓存，在线获取: ' + bookId);
       if (!series) {
-        // 尝试从索引中获取 series
-        if (_cachedIndex && _cachedIndex.books) {
-          for (var i = 0; i < _cachedIndex.books.length; i++) {
-            if (_cachedIndex.books[i].id === bookId) {
-              series = _cachedIndex.books[i].series;
-              break;
-            }
+        // 使用公共方法查找 series
+        return findSeriesByBookId(bookId).then(function (resolvedSeries) {
+          if (!resolvedSeries) {
+            return Promise.reject(new Error('未找到书籍 ' + bookId + ' 所属系列'));
           }
-        }
-      }
-      if (!series) {
-        return Promise.reject(new Error('未找到书籍 ' + bookId + ' 所属系列'));
+          return downloadBook(bookId, resolvedSeries);
+        });
       }
       return downloadBook(bookId, series);
     });
@@ -35,11 +30,16 @@
 
   /**
    * 检查书籍是否已下载到本地
+   * 优先查内存缓存，避免每次查询 IndexedDB 的 I/O 开销
    * @param {string} bookId
    */
   function isBookDownloaded(bookId) {
-    return storeGet(KEY_BOOK_PREFIX + bookId).then(function (data) {
-      return !!data;
+    if (_downloadedIdCache) {
+      return Promise.resolve(_downloadedIdCache.has(bookId));
+    }
+    // 缓存未初始化，先初始化再查询
+    return getDownloadedIdsList().then(function () {
+      return _downloadedIdCache ? _downloadedIdCache.has(bookId) : false;
     });
   }
 
@@ -102,9 +102,9 @@
       var sizePromises = ids.map(function (id) {
         return storeGet(KEY_BOOK_PREFIX + id).then(function (data) {
           if (!data) return 0;
-          // 估算 JSON 序列化后的大小
+          // 使用 Blob.size 获取精确的 UTF-8 字节数
           try {
-            return JSON.stringify(data).length * 2; // UTF-16 近似
+            return new Blob([JSON.stringify(data)]).size;
           } catch (e) {
             return 0;
           }
@@ -143,6 +143,12 @@
   function resumeDownload() {
     if (_isDownloading && _isPaused) {
       _isPaused = false;
+      // resolve 挂起的 Promise，唤醒等待中的 worker
+      if (_pauseResolve) {
+        var r = _pauseResolve;
+        _pauseResolve = null;
+        r();
+      }
       console.log('[DataManager] 下载已恢复');
     }
   }
@@ -154,6 +160,13 @@
     if (_isDownloading) {
       _isCancelled = true;
       _isPaused = false;
+      _isDownloading = false; // 立即重置，避免暂停中取消长时间不重置
+      // 唤醒可能挂起的暂停 Promise
+      if (_pauseResolve) {
+        var r = _pauseResolve;
+        _pauseResolve = null;
+        r();
+      }
       console.log('[DataManager] 下载已取消');
     }
   }

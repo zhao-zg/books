@@ -284,6 +284,7 @@ mark.bk-mark-highlight {
   background: rgba(0, 0, 0, 0.85);
   justify-content: center;
   align-items: center;
+  touch-action: none;
 }
 .bk-lightbox-overlay.bk-lightbox-active {
   display: flex;

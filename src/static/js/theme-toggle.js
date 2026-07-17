@@ -40,6 +40,49 @@
 
     function initDevConsole()  { window.BKDevConsole && window.BKDevConsole.init(); }
 
+    // 是否为本地开发环境（localhost / 127.0.0.1 / file://）
+    function _isLocalDevOrigin() {
+        var h = location.hostname;
+        return h === 'localhost' || h === '127.0.0.1' || h === '::1' || location.protocol === 'file:';
+    }
+
+    // ── 服务器可达性检查（应用启动时执行）──────────────────────────
+    // 检查远程服务器是否可达，结果存入 window.BK_SERVERS_REACHABLE
+    // 不可达时隐藏：检查更新、问题反馈、顾念微工
+    function checkServerReachability() {
+        var servers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
+        if (!servers.length) {
+            window.BK_SERVERS_REACHABLE = false;
+            return Promise.resolve(false);
+        }
+        // 本地开发：跳过跨域探测，直接判不可达
+        if (_isLocalDevOrigin()) {
+            window.BK_SERVERS_REACHABLE = false;
+            return Promise.resolve(false);
+        }
+        var TIMEOUT = 5000;
+        var promises = servers.map(function(serverUrl) {
+            return new Promise(function(resolve) {
+                var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                var timer = setTimeout(function() {
+                    if (ctrl) try { ctrl.abort(); } catch(e) {}
+                    resolve(false);
+                }, TIMEOUT);
+                var opts = { method: 'HEAD', cache: 'no-cache' };
+                if (ctrl) opts.signal = ctrl.signal;
+                fetch(serverUrl, opts)
+                    .then(function(r) { clearTimeout(timer); resolve(r.ok); })
+                    .catch(function() { clearTimeout(timer); resolve(false); });
+            });
+        });
+        return Promise.all(promises).then(function(results) {
+            var reachable = results.some(function(r) { return r === true; });
+            window.BK_SERVERS_REACHABLE = reachable;
+            console.log('[连通性] 服务器' + (reachable ? '可达' : '不可达'));
+            return reachable;
+        });
+    }
+
     function initThemeToggle() {
         // 内页启动缓存检测
         (function() {
@@ -125,6 +168,56 @@
                 themeQuery.addListener(handleThemeQueryChange);
             }
         }
+
+        // ── 触发服务器可达性检查，完成后探测赞助图片 ──────────────
+        checkServerReachability().then(function(reachable) {
+            if (!reachable) {
+                // 服务器不可达，隐藏依赖连通性的按钮（如果当前在「我的」页面）
+                var cu = document.querySelector('[data-action="check-update"]');
+                if (cu) cu.style.display = 'none';
+                var fb = document.querySelector('[data-action="feedback"]');
+                if (fb) fb.style.display = 'none';
+                var ac = document.getElementById('meAutoCheckToggle');
+                if (ac) { var row = ac.closest('.pref-row'); if (row) row.style.display = 'none'; }
+                return;
+            }
+            // 服务器可达时，探测赞助图片是否可获取，成功才显示按钮
+            var sponsorEnabled = !(window.BK_SERVERS && window.BK_SERVERS.sponsor_enabled === false);
+            if (!sponsorEnabled) return;
+            try {
+                var firstUse = parseInt(localStorage.getItem('bk_first_use') || '0', 10);
+                var elapsed = firstUse ? (Date.now() - firstUse) : 0;
+                if (elapsed >= 5 * 60 * 1000 && !window._bkSponsorProbed) {
+                    window._bkSponsorProbed = true;
+                    var servers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
+                    var probeFile = 'images/zanzhu-wx.png';
+                    var tried = 0;
+                    var PROBE_TIMEOUT = 6000;
+                    (function tryNext() {
+                        if (tried >= servers.length) return;
+                        var url = servers[tried++] + probeFile + '?t=' + Date.now();
+                        var img = new Image();
+                        var timer = setTimeout(function() {
+                            img.onload = img.onerror = null;
+                            img.src = '';
+                            tryNext();
+                        }, PROBE_TIMEOUT);
+                        img.onload = function() {
+                            clearTimeout(timer);
+                            window._bkSponsorReady = true;
+                            // 如果当前页面有赞助按钮，显示它
+                            var sponsorBtn = document.getElementById('bkSponsorBtn');
+                            if (sponsorBtn) sponsorBtn.style.display = '';
+                        };
+                        img.onerror = function() {
+                            clearTimeout(timer);
+                            tryNext();
+                        };
+                        img.src = url;
+                    })();
+                }
+            } catch(e) {}
+        });
     }
 
     /**
@@ -299,6 +392,7 @@
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>📋</span><div><strong>章节目录</strong><div style="font-size:0.75em;color:var(--text-secondary)">点击书籍进入目录，选择章节开始阅读</div></div></div>' +
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>📖</span><div><strong>阅读视图</strong><div style="font-size:0.75em;color:var(--text-secondary)">支持段落、标题、引用、图片、代码块等</div></div></div>' +
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>📑</span><div><strong>书签</strong><div style="font-size:0.75em;color:var(--text-secondary)">添加书签随时回到上次阅读的位置</div></div></div>' +
+                '<div style="display:flex;gap:8px;padding:5px 0"><span>✏️</span><div><strong>划线笔记</strong><div style="font-size:0.75em;color:var(--text-secondary)">选中文字后添加划线和笔记</div></div></div>' +
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>🔍</span><div><strong>全文搜索</strong><div style="font-size:0.75em;color:var(--text-secondary)">搜索书籍内容，快速定位</div></div></div></div>' +
                 '<div style="margin-bottom:14px"><div style="font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">🔊 朗读功能</div>' +
                 '<div style="display:flex;gap:8px;padding:5px 0"><span>▶️</span><div><strong>听书</strong><div style="font-size:0.75em;color:var(--text-secondary)">底部控制栏播放/暂停，支持变速和循环</div></div></div>' +
@@ -412,6 +506,70 @@
         }
     }
     window.showFeedbackDialog = showFeedbackDialog;
+
+    // 赞助对话框（顾念微工）
+    function showSponsorDialog() {
+        var SPONSOR_SERVERS = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
+        var imgFiles = { wx: 'images/zanzhu-wx.png', zfb: 'images/zanzhu-zfb.jpg' };
+
+        var dlg = window.BK.openDialog({
+            id: 'bkSponsorMask',
+            html: [
+                '<div class="bk-sponsor-box">',
+                '  <div class="bk-sponsor-close" id="bkSponsorClose">×</div>',
+                '  <div class="bk-sponsor-title">❤️ 顾念微工</div>',
+                '  <div class="bk-sponsor-desc">蒙福有余，可助这盏灯不灭 🌟</div>',
+                '  <div class="bk-sponsor-tabs">',
+                '    <button class="bk-sponsor-tab active" data-type="wx">🟢 微信</button>',
+                '    <button class="bk-sponsor-tab" data-type="zfb">🔵 支付宝</button>',
+                '  </div>',
+                '  <div class="bk-sponsor-img-wrap" id="bkSponsorImgWrap"></div>',
+                '</div>'
+            ].join('')
+        });
+        if (!dlg) return;
+
+        // 关闭 & 标签切换
+        dlg.mask.addEventListener('click', function(e) {
+            var t = e.target;
+            if (t.id === 'bkSponsorClose') { dlg.close(); return; }
+            var tab = t.closest ? t.closest('.bk-sponsor-tab') : (t.classList.contains('bk-sponsor-tab') ? t : null);
+            if (tab && tab.dataset.type) {
+                dlg.mask.querySelectorAll('.bk-sponsor-tab').forEach(function(b) { b.classList.remove('active'); });
+                tab.classList.add('active');
+                loadImg(tab.dataset.type);
+            }
+        });
+
+        // 使用统一图片加载工具
+        function loadImg(type) {
+            var imgWrap = document.getElementById('bkSponsorImgWrap');
+            if (!imgWrap) return;
+            BK.loadRemoteImage(imgWrap, SPONSOR_SERVERS, imgFiles[type],
+                type === 'wx' ? '微信赞助二维码' : '支付宝赞助二维码',
+                {
+                    className: 'bk-sponsor-qr',
+                    loadingText: '加载中…',
+                    errorText: '加载失败',
+                    onLoad: function(img) {
+                        img.style.cursor = 'zoom-in';
+                        img.addEventListener('click', function() {
+                            if (window.openImageViewer) window.openImageViewer(img.src);
+                        });
+                    },
+                    onError: function() {
+                        // 所有服务器图片均加载失败，隐藏按钮避免再次点击
+                        var sponsorBtn = document.getElementById('bkSponsorBtn');
+                        if (sponsorBtn) sponsorBtn.style.display = 'none';
+                    }
+                }
+            );
+        }
+
+        // 初始加载微信
+        loadImg('wx');
+    }
+    window.showSponsorDialog = showSponsorDialog;
 
     var _themeDialog = null;
 

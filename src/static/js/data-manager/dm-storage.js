@@ -39,11 +39,18 @@
 
   function getDownloadedIdsList() {
     return storeGet(KEY_DOWNLOADED).then(function (list) {
-      return Array.isArray(list) ? list : [];
+      var ids = Array.isArray(list) ? list : [];
+      // 初始化内存缓存
+      if (!_downloadedIdCache) {
+        _downloadedIdCache = new Set(ids);
+      }
+      return ids;
     });
   }
 
   function saveDownloadedIdsList(list) {
+    // 同步更新内存缓存
+    _downloadedIdCache = new Set(list);
     return storeSet(KEY_DOWNLOADED, list);
   }
 
@@ -52,6 +59,7 @@
       if (list.indexOf(bookId) === -1) {
         list.push(bookId);
       }
+      if (_downloadedIdCache) _downloadedIdCache.add(bookId);
       return saveDownloadedIdsList(list);
     });
   }
@@ -62,6 +70,7 @@
       if (idx !== -1) {
         list.splice(idx, 1);
       }
+      if (_downloadedIdCache) _downloadedIdCache.delete(bookId);
       return saveDownloadedIdsList(list);
     });
   }

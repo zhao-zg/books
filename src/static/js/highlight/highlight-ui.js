@@ -116,7 +116,12 @@ Object.assign(BKHighlight, {
                 e.stopPropagation();
                 var id = self._pendingHighlightId;
                 self.hideAllMenus();
-                if (id) self.removeMark(id);
+                if (id) {
+                    var h = self.highlights.find(function (x) { return x.id === id; });
+                    var hasNote = h && h.note;
+                    var msg = hasNote ? '确定删除此划线？含笔记将一并删除' : '确定删除此划线？';
+                    if (confirm(msg)) self.removeMark(id);
+                }
             });
 
             document.getElementById('hl-ann-expand').addEventListener('click', function (e) {
@@ -158,7 +163,7 @@ Object.assign(BKHighlight, {
                 e.stopPropagation();
                 var id = self._pendingHighlightId;
                 self.hideAllMenus();
-                if (id) self.removeNote(id);
+                if (id && confirm('确定删除此笔记？')) self.removeNote(id);
             });
 
             self._bindColorPanel(menu.querySelector('.hl-color-panel'), 'existing');
@@ -185,6 +190,7 @@ Object.assign(BKHighlight, {
             function closeModal() {
                 var id = modal.dataset.highlightId;
                 modal.style.display = 'none';
+                if (self._noteLockCleanup) { self._noteLockCleanup(); self._noteLockCleanup = null; }
                 if (id) {
                     var h = self.highlights.find(function (x) { return x.id === id; });
                     if (h && !h.note && !h.color && !h.underline) self.removeHighlight(id);
@@ -195,15 +201,15 @@ Object.assign(BKHighlight, {
             document.getElementById('hl-note-save').addEventListener('click', function () {
                 var id   = modal.dataset.highlightId;
                 var text = document.getElementById('hl-note-textarea').value.trim();
-                modal.style.display = 'none';
                 if (id) self.saveNote(id, text);
+                closeModal();
             });
             modal.addEventListener('click', function (e) {
                 if (e.target === modal) closeModal();
             });
 
             if (window.BK && window.BK.lockOverlayScroll) {
-                window.BK.lockOverlayScroll(modal, closeModal);
+                self._noteLockCleanup = window.BK.lockOverlayScroll(modal, closeModal);
             }
         },
 

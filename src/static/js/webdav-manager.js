@@ -23,6 +23,7 @@
 
   // ── 常量 ──────────────────────────────────────────────────────────────
   var TIMEOUT_MS = 30000;                 // 单文件/请求超时
+  var PROBE_TIMEOUT_MS = 8000;             // 探测连接超时（多域名竞速）
   var IMPORTABLE_EXT = ['.txt', '.epub', '.md', '.markdown', '.pdf']; // 可导入扩展名
 
   // 错误类型枚举
@@ -62,6 +63,112 @@
   // DEV-2（设计偏差修复）：模块内缓存当前激活的 config 对象（含 connect 但未 save 的）。
   // getActiveConfig 优先返回此缓存，fallback 到按存储 id 查找，保证「刚 connect 未保存」也能读到。
   var _activeConfigCache = null;
+
+  // ── 密码加密（AES-GCM via Web Crypto API）─────────────────────────────────
+  // P1-1：用户配置的密码在 localStorage 中加密存储，密钥保存在 IndexedDB。
+  // 预置服务器凭据由 base64 编码随包下发，不经过加密层。
+  var _cryptoKey = null;       // CryptoKey 对象（null=未初始化）
+  var _cryptoReady = null;     // Promise，crypto 初始化完成后 resolve
+  var _configCache = null;     // 解密后的配置缓存（null=未初始化，降级读 raw）
+
+  function _openKeyDB() {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open('bk_crypto', 1);
+      req.onupgradeneeded = function (e) { e.target.result.createObjectStore('keys'); };
+      req.onsuccess = function (e) { resolve(e.target.result); };
+      req.onerror = function (e) { reject(e.target.error); };
+    });
+  }
+
+  function _getKeyFromIDB() {
+    return _openKeyDB().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction('keys', 'readonly');
+        tx.objectStore('keys').get('webdav_key').onsuccess = function (e) {
+          resolve(e.target.result || null);
+        };
+        tx.onerror = function () { resolve(null); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function _saveKeyToIDB(key) {
+    return _openKeyDB().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction('keys', 'readwrite');
+        tx.objectStore('keys').put(key, 'webdav_key');
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { resolve(); };
+      });
+    }).catch(function () {});
+  }
+
+  function _encryptPassword(password) {
+    if (!_cryptoKey || !password) return Promise.resolve(password || '');
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var data = new TextEncoder().encode(password);
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, _cryptoKey, data).then(function (buf) {
+      var cipher = new Uint8Array(buf);
+      var combined = new Uint8Array(iv.length + cipher.length);
+      combined.set(iv, 0);
+      combined.set(cipher, iv.length);
+      var str = '';
+      for (var i = 0; i < combined.length; i++) str += String.fromCharCode(combined[i]);
+      return 'enc:' + btoa(str);
+    });
+  }
+
+  function _decryptPassword(stored) {
+    if (!_cryptoKey || !stored || stored.indexOf('enc:') !== 0) return Promise.resolve(stored || '');
+    try {
+      var raw = atob(stored.substring(4));
+      var combined = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) combined[i] = raw.charCodeAt(i);
+      var iv = combined.slice(0, 12);
+      var cipher = combined.slice(12);
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, _cryptoKey, cipher).then(function (buf) {
+        return new TextDecoder().decode(buf);
+      });
+    } catch (e) {
+      return Promise.resolve(stored);
+    }
+  }
+
+  function _getConfigsRaw() {
+    try {
+      return JSON.parse(win.localStorage.getItem(CFG_KEY) || '[]') || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function _initCrypto() {
+    if (_cryptoReady) return _cryptoReady;
+    _cryptoReady = _getKeyFromIDB().then(function (key) {
+      if (key) return key;
+      return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']).then(function (k) {
+        return _saveKeyToIDB(k).then(function () { return k; });
+      });
+    }).then(function (key) {
+      _cryptoKey = key;
+      var configs = _getConfigsRaw();
+      return Promise.all(configs.map(function (c) {
+        return _decryptPassword(c.password).then(function (pwd) {
+          c.password = pwd;
+          return c;
+        });
+      }));
+    }).then(function (decrypted) {
+      _configCache = decrypted;
+    }).catch(function (e) {
+      console.warn('[WebDAV] 加密初始化失败，降级为明文模式:', e);
+      _configCache = _getConfigsRaw();
+    });
+    return _cryptoReady;
+  }
+
+  // 模块加载时启动 crypto 初始化（异步，不阻塞页面）
+  _initCrypto();
 
   // ── 预置服务器（由 config.yaml 经 main.py 生成 webdav-presets.js 注入）──
   // 预置服务器随包下发，用户不可删除；其凭据以 base64(JSON) 编码，运行时解码。
@@ -232,9 +339,14 @@
   }
 
   // ── PROPFIND 请求（返回 {resp, text}）──────────────────────────────────
-  function propfind(url, config, depth, timeoutMs) {
+  function propfind(url, config, depth, timeoutMs, externalSignal) {
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); }, timeoutMs || TIMEOUT_MS);
+    // P2-4：支持外部信号取消（多域名竞速时首个成功取消其余）
+    if (externalSignal) {
+      if (externalSignal.aborted) { controller.abort(); }
+      else { externalSignal.addEventListener('abort', function () { controller.abort(); }); }
+    }
     var headers = buildHeaders(config, {
       'Depth': depth || '1',
       'Content-Type': 'application/xml; charset=utf-8'
@@ -280,9 +392,11 @@
       // 旧逻辑 split('/').pop() 为空 → 回退为原始相对 href（如 /dav/sub/，不美观）。
       // 改为取最后一个非空路径段；仍为空才回退「未命名」。对绝对/相对 href 均正确。
       var fallbackName = hrefUrl.split('/').filter(Boolean).pop() || '未命名';
-      var name = nameEl && textOf(nameEl)
-        ? textOf(nameEl)
-        : decodeURIComponent(fallbackName);
+      // P3-4：decodeURIComponent 包 try-catch，防止非法编码序列抛异常
+      var decodedName;
+      try { decodedName = decodeURIComponent(fallbackName); }
+      catch (e) { decodedName = fallbackName; }
+      var name = nameEl && textOf(nameEl) ? textOf(nameEl) : decodedName;
 
       entries.push({
         href: hrefUrl,
@@ -336,7 +450,10 @@
   function connect(cfg, opts) {
     opts = opts || {};
     var base = normalizeConfig(cfg);
-    return pickFastestUrl(base, null, '1').then(function (picked) {
+    // P1-1：确保 crypto 就绪后再连接（保证 saveConfig 能正确加密）
+    return _initCrypto().then(function () {
+      return pickFastestUrl(base, null, '1');
+    }).then(function (picked) {
       // 以最快节点 url 作为本次连接地址；保留 urls 供记录/重连
       var config = Object.assign({}, base, {
         url: picked.url,
@@ -365,6 +482,14 @@
     });
   }
 
+  // P1-2：根据文件大小动态计算下载超时（base 30s + 10s/MB，上限 300s）
+  function calcDownloadTimeout(size) {
+    if (!size || size <= 0) return 60000; // 未知大小时给 60s
+    var sizeMB = size / (1024 * 1024);
+    var timeout = 30000 + sizeMB * 10000; // 30s base + 10s per MB
+    return Math.min(300000, Math.max(30000, Math.round(timeout)));
+  }
+
   // ── 下载单文件（GET + 流式进度）───────────────────────────────────────
   // onProgress(p): p ∈ [0,1]；服务器未返回 Content-Length 时 p = -1
   // 返回 fileInfo: { name, mime, text?|arrayBuffer?, size, remotePath }
@@ -372,7 +497,8 @@
     var url = entry.remotePath || entry.href;
     var ext = (entry.name || '').split('.').pop().toLowerCase();
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    var timeoutMs = calcDownloadTimeout(entry.size);
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
 
     function fail(err) {
       clearTimeout(timer);
@@ -401,18 +527,21 @@
         var reader = resp.body.getReader();
         var chunks = [];
         var received = 0;
-        function pump() {
-          return reader.read().then(function (result) {
-            if (result.done) {
+          function pump() {
+            return reader.read().then(function (result) {
+              if (result.done) {
+                clearTimeout(timer);
+                return assemble(chunks, received, ext, entry, url);
+              }
+              chunks.push(result.value);
+              received += result.value.length;
+              // P1-2：收到数据后重置超时计时器（idle timeout 模式）
               clearTimeout(timer);
-              return assemble(chunks, received, ext, entry, url);
-            }
-            chunks.push(result.value);
-            received += result.value.length;
-            if (onProgress) onProgress(total > 0 ? Math.min(1, received / total) : -1);
-            return pump();
-          });
-        }
+              timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+              if (onProgress) onProgress(total > 0 ? Math.min(1, received / total) : -1);
+              return pump();
+            });
+          }
         return pump().catch(fail);
       }
 
@@ -503,10 +632,10 @@
 
   // 探测单个 URL 是否可达（PROPFIND），成功返回 {url, ms, status, text, dirUrl}
   // OPT-1：增加 depth 参数（默认 '0'），返回 text + dirUrl 供调用方直接解析目录
-  function probeUrl(cfg, url, timeoutMs, depth) {
+  function probeUrl(cfg, url, timeoutMs, depth, externalSignal) {
     var dirUrl = buildDirUrl(url, '');
     var t0 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
-    return propfind(dirUrl, cfg, depth || '0', timeoutMs || 5000).then(function (result) {
+    return propfind(dirUrl, cfg, depth || '0', timeoutMs || PROBE_TIMEOUT_MS, externalSignal).then(function (result) {
       var resp = result.resp;
       if (!resp.ok) throw wrapError(null, resp);
       var t1 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
@@ -532,14 +661,30 @@
     });
   }
 
-  // 选择最快可达节点：单域名直接探测；多域名并发探测取最快成功者
-  // OPT-1：增加 depth 参数，透传给 probeUrl，使竞速可同时获取目录内容
+  // P2-4 + P3-6：多域名竞速时首个成功即 abort 其余请求；超时使用 PROBE_TIMEOUT_MS
   function pickFastestUrl(cfg, timeoutMs, depth) {
     var urls = candidateUrls(cfg);
     if (urls.length === 0) return Promise.reject(new Error('未配置 WebDAV 地址'));
-    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || 5000, depth);
-    var probes = urls.map(function (u) { return probeUrl(cfg, u, timeoutMs || 5000, depth); });
-    return firstSuccess(probes);
+    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || PROBE_TIMEOUT_MS, depth);
+    // 多域名：为每个探测创建 AbortController，首个成功后取消其余
+    var controllers = urls.map(function () { return new AbortController(); });
+    var probes = urls.map(function (u, i) {
+      return probeUrl(cfg, u, timeoutMs || PROBE_TIMEOUT_MS, depth, controllers[i].signal);
+    });
+    return new Promise(function (resolve, reject) {
+      var errors = [], pending = probes.length;
+      probes.forEach(function (p, i) {
+        Promise.resolve(p).then(function (val) {
+          // 首个成功：取消其余所有探测
+          controllers.forEach(function (c, j) { if (j !== i) { try { c.abort(); } catch (e) {} } });
+          resolve(val);
+        }, function (err) {
+          errors[i] = err;
+          pending--;
+          if (pending === 0) reject(errors.filter(Boolean)[0] || new Error('所有节点均不可达'));
+        });
+      });
+    });
   }
 
   // ── 配置管理（localStorage）───────────────────────────────────────────
@@ -552,7 +697,7 @@
       url: trimSlash(cfg.url || ''),
       urls: urls,                       // 多域名候选（可空）
       username: cfg.username || '',
-      password: cfg.password || '',          // 明文存储（设计决策①）
+      password: cfg.password || '',          // 加密后存储（见 saveConfig/_initCrypto）
       authType: cfg.authType || 'basic',
       note: cfg.note || '',
       preset: !!cfg.preset
@@ -560,22 +705,50 @@
   }
 
   function getConfigs() {
-    try {
-      return JSON.parse(win.localStorage.getItem(CFG_KEY) || '[]') || [];
-    } catch (e) {
-      return [];
-    }
+    // P1-1：优先返回解密后的缓存（crypto 初始化后填充）
+    if (_configCache) return _configCache;
+    return _getConfigsRaw();
   }
 
   function saveConfig(config) {
     var c = normalizeConfig(config);
-    var configs = getConfigs();
-    var found = false;
-    for (var i = 0; i < configs.length; i++) {
-      if (configs[i].id === c.id) { configs[i] = c; found = true; break; }
+    var plaintextPwd = c.password;
+    // 同步更新内存缓存（使用明文密码，供后续连接使用）
+    if (_configCache) {
+      var foundC = false;
+      for (var ci = 0; ci < _configCache.length; ci++) {
+        if (_configCache[ci].id === c.id) { _configCache[ci] = c; foundC = true; break; }
+      }
+      if (!foundC) _configCache.push(c);
     }
-    if (!found) configs.push(c);
-    try { win.localStorage.setItem(CFG_KEY, JSON.stringify(configs)); } catch (e) {}
+    // 异步加密密码后写入 localStorage
+    _initCrypto().then(function () {
+      return _encryptPassword(plaintextPwd);
+    }).then(function (encPwd) {
+      var toStore = Object.assign({}, c, { password: encPwd });
+      var configs = _getConfigsRaw();
+      var found = false;
+      for (var i = 0; i < configs.length; i++) {
+        if (configs[i].id === toStore.id) { configs[i] = toStore; found = true; break; }
+      }
+      if (!found) configs.push(toStore);
+      try {
+        win.localStorage.setItem(CFG_KEY, JSON.stringify(configs));
+      } catch (e) {
+        // P2-5：不再静默吞错，记录到控制台
+        console.error('[WebDAV] 保存配置失败:', e);
+      }
+    }).catch(function (e) {
+      console.error('[WebDAV] 加密保存失败，降级明文写入:', e);
+      // 降级：直接写明文（优于不保存）
+      var configs = _getConfigsRaw();
+      var found = false;
+      for (var i = 0; i < configs.length; i++) {
+        if (configs[i].id === c.id) { configs[i] = c; found = true; break; }
+      }
+      if (!found) configs.push(c);
+      try { win.localStorage.setItem(CFG_KEY, JSON.stringify(configs)); } catch (e2) {}
+    });
     return c;
   }
 
@@ -584,11 +757,14 @@
     for (var k = 0; k < _presets.length; k++) {
       if (_presets[k].id === id) return Promise.resolve(_presets[k]);
     }
-    var configs = getConfigs();
-    for (var i = 0; i < configs.length; i++) {
-      if (configs[i].id === id) return Promise.resolve(configs[i]);
-    }
-    return Promise.resolve(null);
+    // P1-1：等待 crypto 初始化后返回解密配置
+    return _initCrypto().then(function () {
+      var configs = getConfigs();
+      for (var i = 0; i < configs.length; i++) {
+        if (configs[i].id === id) return configs[i];
+      }
+      return null;
+    });
   }
 
   // 全部可用配置：预置（在前）+ 用户已保存（在后）
@@ -643,6 +819,7 @@
     getAllConfigs: getAllConfigs,
     getActiveConfig: getActiveConfig,
     setActiveConfig: setActiveConfig,
+    ensureCryptoReady: function () { return _cryptoReady || Promise.resolve(); },
     // 多域名 / 最快节点（供 UI 与测试）
     candidateUrls: candidateUrls,
     pickFastestUrl: pickFastestUrl,
@@ -650,6 +827,7 @@
     ERROR: ERROR,
     MESSAGES: MESSAGES,
     TIMEOUT_MS: TIMEOUT_MS,
+    PROBE_TIMEOUT_MS: PROBE_TIMEOUT_MS,
     IMPORTABLE_EXT: IMPORTABLE_EXT
   };
 

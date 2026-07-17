@@ -662,80 +662,66 @@
       renderWebdav();
     }
 
+    // P3-3: 顺序下载改为 async/await，取代递归 next(i) 模式
     // 顺序下载（并发 1），失败单本继续
-    function downloadAndImport(entries) {
+    async function downloadAndImport(entries) {
       if (!wd.config || !entries.length || wd.locked) return;
       wd.locked = true;
       wd._downloadCancelled = false;
       // OPT-P1：下载前强制刷新一次「已下载集合」，保证去重判断基于最新记录
-      refreshDownloadedSet(true).then(function () {
-        var done = 0, updated = 0, failed = 0, skipped = 0;
-        function next(i) {
-          // 检查取消标志
-          if (wd._downloadCancelled) {
-            skipped = entries.length - i;
-            wd.locked = false;
-            wd._downloadCancelled = false;
-            wd.selected = {};
-            var parts = ['已取消：新导入 ' + done + ' 本'];
-            if (updated) parts.push('更新 ' + updated + ' 本');
-            if (failed) parts.push('失败 ' + failed + ' 本');
-            if (skipped) parts.push('跳过 ' + skipped + ' 本');
-            showStatus(parts.join('，'));
-            hideStatusAfter(4000);
-            // OPT-P1：取消后不需要全量刷新，内存map已是最新
-            renderWebdav();
-            return;
-          }
-          if (i >= entries.length) {
-            wd.locked = false;
-            wd.selected = {};   // 清空选择
-            var parts = ['导入完成：新导入 ' + done + ' 本'];
-            if (updated) parts.push('更新 ' + updated + ' 本');
-            if (failed) parts.push('失败 ' + failed + ' 本');
-            showStatus(parts.join('，'));
-            hideStatusAfter(4000);
-            // 刷新书城/书架（导入已入架，renderHome 即书架）
-            if (win.BKRenderer && win.BKRenderer.renderHome) {
-              try { win.BKRenderer.renderHome(); } catch (e) {}
-            }
-            // OPT-P1：下载完成后不需要全量刷新，内存map已通过增量更新保持最新
-            renderWebdav();
-            return;
-          }
-          var entry = entries[i];
-          var existingId = (wd._downloadedSet && wd._downloadedSet[entry.remotePath]) || null;
-          showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name + (existingId ? '（已存在，更新中）' : '') + ' <button class="bk-webdav-cancel-btn" data-action="wd-cancel-download">取消</button>');
-          setItemProgress(entry.remotePath, 0, true);
-          win.WebDavManager.downloadFile(wd.config, entry, function (p) {
-            if (p >= 0) setItemProgress(entry.remotePath, p, true);
-          }).then(function (fileInfo) {
-            // 下载完成后再次检查取消（下载期间用户可能点了取消）
-            if (wd._downloadCancelled) { skipped++; next(i + 1); return; }
-            var source = {
-              type: 'webdav',
-              serverId: wd.config.id,
-              remotePath: entry.remotePath,
-              serverName: (wd.config.name && wd.config.name.indexOf('://') < 0) ? wd.config.name : (nodeLabel(wd.config, wd.config.connectedUrl) || 'WebDAV')
-            };
-            // 已下载过则复用原 id（resync/覆盖写），避免重复书
-            return win.ImportManager.importFromBuffer(fileInfo, { source: source, bookId: existingId || undefined });
-          }).then(function (importResult) {
-            // OPT-P1：增量更新内存去重map，避免每本下载完都重扫IndexedDB
-            var newBookId = (importResult && importResult.id) ? importResult.id : (existingId || ('b_' + Date.now()));
-            wd._downloadedSet[entry.remotePath] = newBookId;
-            if (existingId) updated++; else done++;
-            setItemProgress(entry.remotePath, 1, false);
-            next(i + 1);
-          }).catch(function (err) {
-            failed++;
-            setItemProgress(entry.remotePath, -1, false);
-            showStatus('失败：' + entry.name + ' — ' + (err && err.message ? err.message : String(err)));
-            next(i + 1);
-          });
+      await refreshDownloadedSet(true);
+      var done = 0, updated = 0, failed = 0, skipped = 0;
+      for (var i = 0; i < entries.length; i++) {
+        // 检查取消标志
+        if (wd._downloadCancelled) {
+          skipped = entries.length - i;
+          break;
         }
-        next(0);
-      });
+        var entry = entries[i];
+        var existingId = (wd._downloadedSet && wd._downloadedSet[entry.remotePath]) || null;
+        showStatus('下载中 (' + (i + 1) + '/' + entries.length + ')：' + entry.name + (existingId ? '（已存在，更新中）' : '') + ' <button class="bk-webdav-cancel-btn" data-action="wd-cancel-download">取消</button>');
+        setItemProgress(entry.remotePath, 0, true);
+        try {
+          var fileInfo = await win.WebDavManager.downloadFile(wd.config, entry, function (p) {
+            if (p >= 0) setItemProgress(entry.remotePath, p, true);
+          });
+          // 下载完成后再次检查取消（下载期间用户可能点了取消）
+          if (wd._downloadCancelled) { skipped++; continue; }
+          var source = {
+            type: 'webdav',
+            serverId: wd.config.id,
+            remotePath: entry.remotePath,
+            serverName: (wd.config.name && wd.config.name.indexOf('://') < 0) ? wd.config.name : (nodeLabel(wd.config, wd.config.connectedUrl) || 'WebDAV')
+          };
+          // 已下载过则复用原 id（resync/覆盖写），避免重复书
+          var importResult = await win.ImportManager.importFromBuffer(fileInfo, { source: source, bookId: existingId || undefined });
+          // OPT-P1：增量更新内存去重map，避免每本下载完都重扫IndexedDB
+          var newBookId = (importResult && importResult.id) ? importResult.id : (existingId || ('b_' + Date.now()));
+          wd._downloadedSet[entry.remotePath] = newBookId;
+          if (existingId) updated++; else done++;
+          setItemProgress(entry.remotePath, 1, false);
+        } catch (err) {
+          failed++;
+          setItemProgress(entry.remotePath, -1, false);
+          showStatus('失败：' + entry.name + ' — ' + (err && err.message ? err.message : String(err)));
+        }
+      }
+      // 收尾
+      wd.locked = false;
+      wd._downloadCancelled = false;
+      wd.selected = {};
+      var parts = [skipped > 0 ? '已取消：新导入 ' + done + ' 本' : '导入完成：新导入 ' + done + ' 本'];
+      if (updated) parts.push('更新 ' + updated + ' 本');
+      if (failed) parts.push('失败 ' + failed + ' 本');
+      if (skipped) parts.push('跳过 ' + skipped + ' 本');
+      showStatus(parts.join('，'));
+      hideStatusAfter(4000);
+      // 刷新书城/书架（导入已入架，renderHome 即书架）
+      if (win.BKRenderer && win.BKRenderer.renderHome) {
+        try { win.BKRenderer.renderHome(); } catch (e) {}
+      }
+      // OPT-P1：下载完成后不需要全量刷新，内存map已通过增量更新保持最新
+      renderWebdav();
     }
 
     function wdDownloadOne(path) {

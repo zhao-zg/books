@@ -993,6 +993,10 @@
         for (var i = 0; i < radios.length; i++) {
           radios[i].checked = (radios[i].value === this._scope);
         }
+        // reopen 时重新锁定遮罩滚动（防止触摸穿透）
+        if (win.BK && win.BK.lockOverlayScroll) {
+          this._lockCleanup = win.BK.lockOverlayScroll(this._modal, function () { self.close(); });
+        }
         if (this._input) setTimeout(function () { self._input.focus(); }, 100);
         return;
       }

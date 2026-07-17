@@ -50,6 +50,17 @@
   --heading-font-family: 'Songti SC', 'STSong', SimSun, Georgia, 'Times New Roman', serif;
   --num-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --mono-font-family: 'SF Mono', 'Menlo', Consolas, 'Courier New', monospace;
+  /* 赞助对话框 */
+  --sponsor-wx-color: #07C160;
+  --sponsor-zfb-color: #1677FF;
+  --sponsor-wx-bg: rgba(7,193,96,.08);
+  --sponsor-zfb-bg: rgba(22,119,255,.08);
+  /* 图片查看器 */
+  --viewer-overlay-bg: rgba(0,0,0,.92);
+  --viewer-control-bg: rgba(0,0,0,.45);
+  --viewer-control-bg-active: rgba(0,0,0,.65);
+  --viewer-control-text: #fff;
+  --viewer-hint: rgba(255,255,255,.5);
 }
 [data-theme="warm"] {
   --surface: #FAF8F4; --surface-alt: #F2EEE6; --nav-hover: #EFEAE0;
@@ -86,6 +97,9 @@
   /* Surface RGB for glassmorphism */
   --surface-rgb: 250,248,244;
   --glass-bg: rgba(250,248,244,0.78);
+  /* 赞助对话框（warm 略高透明度） */
+  --sponsor-wx-bg: rgba(7,193,96,.09);
+  --sponsor-zfb-bg: rgba(22,119,255,.09);
 }
 [data-theme="dark"] {
   --surface: #1A1917; --surface-alt: #232220; --nav-hover: #2A2926;
@@ -124,6 +138,9 @@
   --glass-bg: rgba(26,25,23,0.78);
   /* Code block background for dark theme */
   --code-bg: #1b1b1b;
+  /* 赞助对话框（dark 更高透明度以适应深色背景） */
+  --sponsor-wx-bg: rgba(7,193,96,.16);
+  --sponsor-zfb-bg: rgba(22,119,255,.16);
 }
 
 /* ── 深色模式：EPUB 内联颜色安全网（覆盖已导入书籍中残留的硬编码颜色）── */

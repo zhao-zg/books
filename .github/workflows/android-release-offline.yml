@@ -106,8 +106,8 @@ jobs:
     - name: 🔐 执行 JS 混淆
       run: |
         echo "=== 混淆 JS 文件 ==="
-        # 混淆单文件 JS（remote-config.js, theme-toggle.js）
-        for f in remote-config.js theme-toggle.js; do
+        # 混淆单文件 JS（remote-config.js, webdav-presets.js, theme-toggle.js）
+        for f in remote-config.js webdav-presets.js theme-toggle.js; do
           if [ -f "output/js/$f" ]; then
             echo "混淆 $f ..."
             npx javascript-obfuscator "output/js/$f" \
@@ -145,7 +145,7 @@ jobs:
       run: |
         echo "=== 验证混淆结果 ==="
         # 验证单文件 JS
-        for f in remote-config.js theme-toggle.js; do
+        for f in remote-config.js webdav-presets.js theme-toggle.js; do
           if grep -q "_0x" output/js/$f; then
             echo "✅ $f 混淆验证通过"
             ls -lh output/js/$f

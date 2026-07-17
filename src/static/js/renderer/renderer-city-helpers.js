@@ -642,7 +642,8 @@
       // 按来源类型分系列：本地导入 / WebDAV 导入
       var hasLocal = false, hasWebdav = false;
       // 使用 cacheBook 持久化导入书的已下载状态（与内置书统一处理）
-      var cachePromises = [];
+      // P2-6: cacheBook 延迟到空闲时执行，不阻塞书城渲染
+      var _booksToCache = [];
       for (var ii = 0; ii < imported.length; ii++) {
         var ib = imported[ii];
         // ★ 内置资源 EPUB 已在 loadEpubResources 中设置 series，不覆盖
@@ -675,8 +676,9 @@
           _zlBooks.push(ib);
         }
         // 通过 cacheBook 持久化到 DataManager 的已下载列表（刷新后不丢失）
+        // P2-6: 仅收集，不在循环中调用（延迟到空闲时批量执行）
         if (win.DataManager && win.DataManager.cacheBook) {
-          cachePromises.push(win.DataManager.cacheBook(ib.id, ib));
+          _booksToCache.push(ib);
         } else {
           // DataManager 不可用时退回内存操作
           var inDl = false;
@@ -710,15 +712,23 @@
       // 系列数据已变更，失效合并缓存（与 _mergeBundledBooks 一致）
       _invalidateMergedSeriesCache();
 
-      // 等待所有 cacheBook 完成后刷新内存中的下载 ID 列表
-      if (cachePromises.length > 0) {
-        return Promise.all(cachePromises).then(function () {
-          if (win.DataManager && win.DataManager.getDownloadedBookIds) {
-            return win.DataManager.getDownloadedBookIds().then(function (ids) {
-              _zlDownloadedIds = ids || [];
-            });
-          }
-        });
+      // P2-6: 延迟到空闲时批量执行 cacheBook，不阻塞书城渲染
+      if (_booksToCache.length > 0 && win.DataManager && win.DataManager.cacheBook) {
+        var _runIdleCache = function () {
+          var idlePromises = _booksToCache.map(function (b) { return win.DataManager.cacheBook(b.id, b); });
+          Promise.all(idlePromises).then(function () {
+            if (win.DataManager.getDownloadedBookIds) {
+              win.DataManager.getDownloadedBookIds().then(function (ids) {
+                _zlDownloadedIds = ids || [];
+              });
+            }
+          });
+        };
+        if (win.requestIdleCallback) {
+          win.requestIdleCallback(_runIdleCache, { timeout: 2000 });
+        } else {
+          setTimeout(_runIdleCache, 0);
+        }
       }
     });
   }
