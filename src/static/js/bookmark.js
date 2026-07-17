@@ -480,7 +480,6 @@
                             }
                             var clearBtn = dialogEl.querySelector('[data-action="clear"]');
                             if (clearBtn) clearBtn.style.display = 'none';
-                            var cancelBtn = dialogEl.querySelector('[data-action="close"]');
                         });
                         return;
                     }
@@ -536,7 +535,6 @@
                                 }
                                 var clearBtn2 = dialogEl.querySelector('[data-action="clear"]');
                                 if (clearBtn2) clearBtn2.style.display = 'none';
-                                var cancelBtn2 = dialogEl.querySelector('[data-action="close"]');
                             }
                         }, 200);
                         BKBookmark.remove(bmId);
