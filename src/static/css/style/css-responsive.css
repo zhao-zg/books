@@ -494,6 +494,24 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 [data-theme="dark"] .bk-ns-item:active { background: var(--nav-hover, rgba(255,255,255,.06)); }
 [data-theme="dark"] .bk-ns-action-btn:active { background: var(--nav-hover, rgba(255,255,255,.06)); }
 
+/* 类型筛选 Tab */
+.bk-ns-type-tabs { display: flex; gap: 6px; padding: 8px 16px 4px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; border-bottom: 1px solid var(--border, #E5E2DD); }
+.bk-ns-type-tabs::-webkit-scrollbar { display: none; }
+.bk-ns-type-tab { padding: 6px 14px; border-radius: var(--radius-full, 9999px); font-size: var(--text-sm); color: var(--text-muted); background: transparent; border: 1px solid var(--border, #E5E2DD); cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, border-color .15s; display: inline-flex; align-items: center; gap: 5px; }
+.bk-ns-type-tab.active { background: var(--brand, #3D8A5A); color: #fff; border-color: var(--brand, #3D8A5A); }
+.bk-ns-type-tab:active { opacity: 0.7; }
+.bk-ns-type-count { font-size: 10px; opacity: 0.7; }
+.bk-ns-type-tab.active .bk-ns-type-count { opacity: 1; }
+
+/* 有笔记的标记项高亮左侧色条 */
+.bk-ns-item-has-note { border-left: 3px solid var(--brand, #3D8A5A); padding-left: 13px; }
+
+/* 书签标题样式 */
+.bk-ns-item-title { font-size: var(--text-base); font-weight: 500; color: var(--text); margin-bottom: 2px; }
+
+/* 暗色主题：类型 Tab */
+[data-theme="dark"] .bk-ns-type-tab:active { opacity: 0.7; }
+
 /* ════════════════════════════════════════════════════════════
    书城：多级下钻（系列 → 分类 → 书籍）
    复用既有 .category-grid / .category-card / .series-catalog-card /

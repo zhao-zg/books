@@ -790,6 +790,78 @@ function parseTxt(text, fileName) {
   };
 }
 
+// ── EPUB TOC 解析（NCX/nav）── 对齐前端 import-epub.js 的 parseEpubToc()
+// 构建侧用 JSDOM 替代浏览器 DOMParser，逻辑等价
+async function parseEpubTocNode(zip, opfDoc, manifest, opfDir) {
+  const tocMap = {};
+
+  // 查找 NCX (EPUB2): spine toc 属性 或 manifest media-type
+  let ncxId = '';
+  const spineEl = opfDoc.querySelector('spine');
+  if (spineEl) ncxId = spineEl.getAttribute('toc') || '';
+  if (!ncxId) {
+    for (const id in manifest) {
+      if (manifest[id].mediaType === 'application/x-dtbncx+xml') { ncxId = id; break; }
+    }
+  }
+
+  // 查找 nav (EPUB3): manifest item properties="nav"
+  let navId = '';
+  const navItem = opfDoc.querySelector('item[properties~="nav"]');
+  if (navItem) navId = navItem.getAttribute('id');
+
+  // 解析 NCX
+  if (ncxId && manifest[ncxId]) {
+    const ncxHref = opfDir ? (opfDir + '/' + manifest[ncxId].href) : manifest[ncxId].href;
+    try {
+      const ncxText = await zip.file(ncxHref).async('string');
+      const ncxDom = new JSDOM(ncxText, { contentType: 'application/xml' });
+      const ncxDoc = ncxDom.window.document;
+      const navPoints = ncxDoc.querySelectorAll('navPoint');
+      navPoints.forEach(np => {
+        const labelEl = np.querySelector('text');
+        const contentEl = np.querySelector('content');
+        if (labelEl && contentEl) {
+          const title = (labelEl.textContent || '').trim();
+          const src = (contentEl.getAttribute('src') || '').split('#')[0];
+          if (title && src) {
+            const baseName = src.split('/').pop();
+            tocMap[baseName] = title;
+            tocMap[src] = title;
+          }
+        }
+      });
+    } catch (e) { /* skip missing NCX */ }
+  }
+
+  // 解析 nav (EPUB3)
+  if (navId && manifest[navId]) {
+    const navHref = opfDir ? (opfDir + '/' + manifest[navId].href) : manifest[navId].href;
+    try {
+      const navText = await zip.file(navHref).async('string');
+      const navDom = new JSDOM(navText, { contentType: 'text/html' });
+      const navDoc = navDom.window.document;
+      const navEl = navDoc.querySelector('nav[epub\\:type="toc"]') ||
+                    navDoc.querySelector('nav[role="doc-toc"]') ||
+                    navDoc.querySelector('nav');
+      if (navEl) {
+        const links = navEl.querySelectorAll('a');
+        links.forEach(a => {
+          const href = (a.getAttribute('href') || '').split('#')[0];
+          const title = (a.textContent || '').trim();
+          if (title && href) {
+            const baseName = href.split('/').pop();
+            tocMap[baseName] = title;
+            tocMap[href] = title;
+          }
+        });
+      }
+    } catch (e) { /* skip missing nav */ }
+  }
+
+  return tocMap;
+}
+
 // ── EPUB 解析（使用 JSZip + JSDOM DOMParser）──
 async function parseEpubNode(data, fileName) {
   const zip = await JSZip.loadAsync(data);
@@ -852,6 +924,9 @@ async function parseEpubNode(data, fileName) {
   }
   const cssMap = cssTexts.length ? parseEpubCss(cssTexts.join('\n')) : null;
 
+  // 提取 TOC（NCX/nav）— 章节标题优先使用 TOC，与前端导入对齐
+  const tocMap = await parseEpubTocNode(zip, opfDoc, manifest, opfDir);
+
   // 处理图片 → base64
   const imageMap = {};
   for (const id in manifest) {
@@ -887,12 +962,15 @@ async function parseEpubNode(data, fileName) {
 
       const chapterContents = htmlToContents(processedHtml, cssMap, spineHrefMap, basename);
       if (chapterContents.length) {
-        // 尝试提取标题
-        let chTitle = '';
-        for (let ci = 0; ci < chapterContents.length; ci++) {
-          if (chapterContents[ci].type === 'heading') {
-            chTitle = chapterContents[ci].text;
-            break;
+        // 章节标题：优先从 TOC 查找，其次从内容中的 heading 提取
+        // 与前端 import-epub.js 逻辑对齐
+        let chTitle = tocMap[basename] || '';
+        if (!chTitle) {
+          for (let ci = 0; ci < chapterContents.length; ci++) {
+            if (chapterContents[ci].type === 'heading' && chapterContents[ci].level <= 2) {
+              chTitle = chapterContents[ci].text;
+              break;
+            }
           }
         }
         if (!chTitle) chTitle = '第' + (chapters.length + 1) + '章';

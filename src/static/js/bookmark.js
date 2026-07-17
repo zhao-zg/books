@@ -634,18 +634,23 @@
         var quote = bookmark.title || bookmark.path || '未命名书签';
         var noteVal = bookmark.note || '';
 
+        var hasNote = !!(bookmark.note && bookmark.note.trim());
         var html =
             '<div class="bk-dialog bk-bm-note-editor">' +
-                '<div class="bk-dialog-header">' +
-                    '<span class="bk-dialog-title">编辑书签名称</span>' +
-                    '<button class="bk-dialog-close" id="bkTitleClose" aria-label="关闭">×</button>' +
+                '<div class="bk-dialog-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0">' +
+                    '<span class="bk-dialog-title">编辑笔记</span>' +
+                    '<button class="bk-dialog-close" id="bkNoteClose" aria-label="关闭" style="font-size:22px;line-height:1;background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--text-muted,#9A958C)">×</button>' +
                 '</div>' +
                 '<div class="bk-dialog-body" style="padding:16px">' +
-                    '<input class="bk-bm-note-title-input" id="bkTitleInput" type="text" placeholder="书签名称" maxlength="100">' +
+                    '<div class="bk-bm-note-quote">' + _escHtml(quote) + '</div>' +
+                    '<textarea class="bk-bm-note-textarea" id="bkNoteTextarea" placeholder="输入读书笔记…" rows="5"></textarea>' +
                 '</div>' +
-                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:flex-end">' +
-                    '<button class="bk-btn bk-btn-secondary" id="bkTitleCancel">取消</button>' +
-                    '<button class="bk-btn bk-btn-primary" id="bkTitleSave">保存</button>' +
+                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:space-between">' +
+                    (hasNote ? '<button class="bk-btn-danger-ghost" id="bkNoteDelete">删除</button>' : '<span></span>') +
+                    '<span style="display:flex;gap:10px">' +
+                        '<button class="bk-btn bk-btn-secondary" id="bkNoteCancel">取消</button>' +
+                        '<button class="bk-btn bk-btn-primary" id="bkNoteSave">保存</button>' +
+                    '</span>' +
                 '</div>' +
             '</div>';
 

@@ -185,10 +185,14 @@
                     }
                     return;
                 }
-                // 书签按钮 → 打开书签列表
+                // 书签按钮 → 打开统一标记面板（默认书签 Tab）
                 if (t.hasAttribute && t.hasAttribute('data-float-bookmark')) {
                     e.preventDefault();
-                    if (window.BKBookmark && window.BKBookmark.showList) window.BKBookmark.showList();
+                    if (window.BKNoteSummary && window.BKNoteSummary.show) {
+                        window.BKNoteSummary.show({ tab: 'bookmark', showAddBookmark: true });
+                    } else if (window.BKBookmark && window.BKBookmark.showList) {
+                        window.BKBookmark.showList();
+                    }
                     return;
                 }
                 // 设置按钮
