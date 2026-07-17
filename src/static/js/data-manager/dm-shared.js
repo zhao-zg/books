@@ -5,8 +5,10 @@
  *   .loadIndex()              加载/更新全局索引
  *   .getCachedIndex()         获取已缓存索引（同步）
  *   .checkIndexUpdate()       检查索引是否需要更新
- *   .loadSearchIndex()        加载搜索索引（懒加载）
- *   .getCachedSearchIndex()   获取已缓存搜索索引（同步）
+ *   .loadContentIndexes()      加载所有已有内容索引（懒加载）
+ *   .getContentIndexMap()       获取内容索引映射（同步）
+ *   .buildContentIndex(data)    为书籍生成全文内容索引（供下载/导入用）
+ *   .removeContentIndex(id)     移除书籍内容索引
  *   .downloadBook(id,series)  下载单本书
  *   .downloadSeries(id)       批量下载某系列
  *   .downloadAll()            下载全部书籍
@@ -42,12 +44,13 @@
   var KEY_MANIFEST  = 'zl_manifest';
   var KEY_DOWNLOADED = 'zl_downloaded_ids';
   var KEY_BOOK_PREFIX = 'zl_book:';
-  var KEY_SEARCH_INDEX = 'zl_search_index';
+  var KEY_CONTENT_INDEX_IDS = 'zl_ci_ids';
+  var KEY_CONTENT_INDEX_PREFIX = 'zl_ci:';
 
   // ── 内存缓存 ──────────────────────────────────────────────────────────
   var _cachedIndex = null;
   var _cachedManifest = null;
-  var _cachedSearchIndex = null;
+  var _contentIndexMap = null; // { bookId: { id, title, series, chapters: [{ n, t, c }] } } | null（未初始化）
   var _downloadedIdCache = null; // Set<string> | null（null = 未初始化）
 
   // ── 下载队列状态 ─────────────────────────────────────────────────────

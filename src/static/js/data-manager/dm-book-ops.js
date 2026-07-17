@@ -61,6 +61,10 @@
     return storeSet(KEY_BOOK_PREFIX + bookId, bookData)
       .then(function () { return addDownloadedId(bookId); })
       .then(function () {
+        // 为已缓存的书构建全文内容索引（不阻塞返回）
+        buildContentIndex(bookData);
+        // 同步加入书目索引
+        addToBookIndex(bookData);
         console.log('[DataManager] 书籍缓存完成: ' + bookId);
         return bookData;
       });
@@ -79,6 +83,9 @@
         return removeDownloadedId(bookId);
       })
       .then(function () {
+        // 同步清理内容索引和书目索引
+        removeContentIndex(bookId);
+        removeFromBookIndex(bookId);
         console.log('[DataManager] 已删除: ' + bookId);
       });
   }

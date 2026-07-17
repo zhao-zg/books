@@ -1,8 +1,7 @@
 /*!
- * search.js — 书报搜索（三阶段全局搜索）
+ * search.js — 书报搜索（两阶段搜索）
  * 阶段 1：书名搜索（基于 books-index.json，带相关性评分）
- * 阶段 2：搜索索引搜索（基于 build-time search-index.json，覆盖所有书籍）
- * 阶段 3：深度内容搜索（基于已下载书籍，提供上下文片段）
+ * 阶段 2：内容搜索（基于按需全文内容索引，仅已下载/已导入书籍）
  * 按系列分组显示，防抖 300ms，分页加载（每页 50 条）
  */
 (function (win) {
@@ -118,167 +117,21 @@
       return results;
     },
 
-    // ── 内容搜索（异步，基于已下载书籍）──────────────────────────────────
+    // ── 内容搜索（基于按需全文内容索引，同步）──────────────────────
 
     /**
-     * 遍历已下载书籍的章节内容搜索关键词
-     * @param {string} query 搜索关键词
-     * @param {function} callback 完成后回调 (results)
-     */
-    _searchContent: function (query, callback) {
-      if (!query.trim()) {
-        if (callback) callback([]);
-        return;
-      }
-
-      var DM = win.DataManager;
-      if (!DM) {
-        if (callback) callback([]);
-        return;
-      }
-
-      var terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-
-      // 获取已下载书籍 ID 列表
-      DM.getDownloadedBookIds().then(function (downloadedIds) {
-        if (!downloadedIds || !downloadedIds.length) {
-          if (callback) callback([]);
-          return;
-        }
-
-        var index = DM.getCachedIndex();
-        var books = (index && index.books) || [];
-        var seriesList = (index && index.series) || [];
-
-        // 构建映射
-        var bookInfoMap = {};
-        for (var b = 0; b < books.length; b++) {
-          bookInfoMap[books[b].id] = books[b];
-        }
-        var seriesMap = {};
-        for (var s = 0; s < seriesList.length; s++) {
-          seriesMap[seriesList[s].id] = seriesList[s].title;
-        }
-
-        var results = [];
-        var pending = downloadedIds.length;
-        var done = false;
-
-        function finish() {
-          if (!done) {
-            done = true;
-            if (callback) callback(results);
-          }
-        }
-
-        // 逐个加载已下载书籍并搜索内容
-        downloadedIds.forEach(function (bookId) {
-          var info = bookInfoMap[bookId] || {};
-          var series = info.series || '';
-          var bookTitle = info.title || bookId;
-          var seriesTitle = seriesMap[series] || series;
-
-          DM.getBook(bookId, series).then(function (bookData) {
-            if (done) return;
-            if (bookData && bookData.chapters) {
-              var chapters = bookData.chapters;
-              for (var c = 0; c < chapters.length; c++) {
-                var ch = chapters[c];
-                var content = ch.content || '';
-                if (Array.isArray(content)) {
-                  content = content.map(function (c) { return c.text || ''; }).join('');
-                }
-                if (!content) continue;
-
-                var contentLower = content.toLowerCase();
-                var matched = true;
-                for (var t = 0; t < terms.length; t++) {
-                  if (contentLower.indexOf(terms[t]) === -1) {
-                    matched = false;
-                    break;
-                  }
-                }
-
-                if (matched) {
-                  // 提取匹配上下文：找到包含最多关键词的最佳位置
-                  var ctxStart = contentLower.indexOf(terms[0]);
-                  if (terms.length > 1 && ctxStart !== -1) {
-                    var winRadius = 20;
-                    var bestPos = ctxStart;
-                    var bestScore = 0;
-                    // 在各个关键词出现位置附近采样，选覆盖最多词的窗口
-                    var candidates = [ctxStart];
-                    for (var ct = 1; ct < terms.length; ct++) {
-                      var cp = contentLower.indexOf(terms[ct]);
-                      if (cp !== -1 && candidates.indexOf(cp) === -1) candidates.push(cp);
-                    }
-                    for (var ci = 0; ci < candidates.length; ci++) {
-                      var sample = contentLower.substring(
-                        Math.max(0, candidates[ci] - winRadius),
-                        candidates[ci] + winRadius
-                      );
-                      var score = 0;
-                      for (var cs = 0; cs < terms.length; cs++) {
-                        if (sample.indexOf(terms[cs]) !== -1) score++;
-                      }
-                      if (score > bestScore) {
-                        bestScore = score;
-                        bestPos = candidates[ci];
-                      }
-                    }
-                    ctxStart = bestPos;
-                  }
-                  var ctxFrom = Math.max(0, ctxStart - 20);
-                  var ctxTo = Math.min(content.length, ctxStart + 20);
-                  var context = (ctxFrom > 0 ? '…' : '') +
-                    content.substring(ctxFrom, ctxTo) +
-                    (ctxTo < content.length ? '…' : '');
-
-                  var chTitle = ch.title || (ch.number ? '第' + ch.number + '章' : '');
-
-                  results.push({
-                    type: 'content',        // 内容匹配
-                    bookId: bookId,
-                    bookTitle: bookTitle,
-                    series: series,
-                    seriesTitle: seriesTitle,
-                    chapterTitle: chTitle,
-                    chapterNumber: ch.number || 0,
-                    context: context,
-                    url: bookId + '/' + (ch.number || c + 1)
-                  });
-                }
-              }
-            }
-            pending--;
-            if (pending <= 0) finish();
-          }).catch(function () {
-            pending--;
-            if (pending <= 0) finish();
-          });
-        });
-
-        // 超时保护（15 秒）
-        setTimeout(function () { finish(); }, 15000);
-
-      }).catch(function () {
-        if (callback) callback([]);
-      });
-    },
-
-    // ── 搜索索引搜索（同步，基于 build-time search-index.json）──────────
-
-    /**
-     * 在构建时生成的搜索索引中搜索所有章节
-     * 覆盖所有书籍（不仅是已下载的），使用章节标题和摘要匹配
+     * 在已下载/已导入书籍的全文内容索引中搜索
+     * 阶段2：遍历 _contentIndexMap 中每本书的每个章节，匹配全文
      * @param {string} query 搜索关键词
      * @returns {Array} 匹配结果数组
      */
-    _searchContentIndex: function (query) {
+    _searchContent: function (query) {
+      if (!query.trim()) return [];
+
       var DM = win.DataManager;
       if (!DM) return [];
-      var index = DM.getCachedSearchIndex();
-      if (!index || !index.books) return [];
+      var indexMap = DM.getContentIndexMap();
+      if (!indexMap) return [];
 
       var terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
       var results = [];
@@ -291,15 +144,17 @@
         seriesMap[seriesList[s].id] = seriesList[s].title;
       }
 
-      for (var i = 0; i < index.books.length; i++) {
-        var book = index.books[i];
-        for (var c = 0; c < book.chapters.length; c++) {
-          var ch = book.chapters[c];
+      var bookIds = Object.keys(indexMap);
+      for (var b = 0; b < bookIds.length; b++) {
+        var book = indexMap[bookIds[b]];
+        var chapters = book.chapters || [];
+        for (var c = 0; c < chapters.length; c++) {
+          var ch = chapters[c];
           var hayTitle = (ch.t || '').toLowerCase();
-          var haySummary = (ch.s || '').toLowerCase();
-          var hayCombined = hayTitle + ' ' + haySummary;
+          var hayContent = (ch.c || '').toLowerCase();
+          var hayCombined = hayTitle + ' ' + hayContent;
 
-          // AND 逻辑：所有关键词必须在标题或摘要中至少出现一次
+          // AND 逻辑：所有关键词必须在标题或正文中至少出现一次
           var allMatch = true;
           for (var j = 0; j < terms.length; j++) {
             if (hayCombined.indexOf(terms[j]) === -1) {
@@ -309,21 +164,39 @@
           }
 
           if (allMatch) {
-            // 评分：标题匹配加分
+            // 评分：标题匹配加分，正文匹配基础分
             var titleMatch = false;
             for (var j = 0; j < terms.length; j++) {
               if (hayTitle.indexOf(terms[j]) !== -1) { titleMatch = true; break; }
             }
             var score = titleMatch ? 2 : 1;
+
+            // 提取匹配上下文：找到首个关键词出现位置，截取前后 30 字
+            var context = '';
+            if (hayContent) {
+              var firstPos = -1;
+              for (var t = 0; t < terms.length; t++) {
+                var p = hayContent.indexOf(terms[t]);
+                if (p !== -1 && (firstPos === -1 || p < firstPos)) firstPos = p;
+              }
+              if (firstPos !== -1) {
+                var ctxFrom = Math.max(0, firstPos - 30);
+                var ctxTo = Math.min(hayContent.length, firstPos + 30);
+                context = (ctxFrom > 0 ? '\u2026' : '') +
+                  ch.c.substring(ctxFrom, ctxTo) +
+                  (ctxTo < hayContent.length ? '\u2026' : '');
+              }
+            }
+
             results.push({
-              type: 'content-index',
+              type: 'content',
               bookId: book.id,
               bookTitle: book.title,
               series: book.series || '',
               seriesTitle: seriesMap[book.series] || book.series || '',
-              chapterTitle: ch.t || ('第' + ch.n + '章'),
+              chapterTitle: ch.t || ('\u7B2C' + ch.n + '\u7AE0'),
               chapterNumber: ch.n,
-              context: ch.s || '',
+              context: context,
               url: book.id + '/' + ch.n,
               score: score
             });
@@ -334,6 +207,8 @@
       results.sort(function (a, b) { return b.score - a.score; });
       return results;
     },
+
+    // ── 搜索索引搜索已移除，改为 _searchContent 基于按需全文内容索引 ────────
 
     // ── 高亮匹配关键词 ──────────────────────────────────────────────────
 
@@ -351,10 +226,9 @@
     // ── 搜索执行 ────────────────────────────────────────────────────────
 
     /**
-     * 执行搜索：三阶段
+     * 执行搜索：两阶段
      * 1. 同步：书名搜索（_searchTitles）→ 即时结果
-     * 2. 异步：搜索索引搜索（_searchContentIndex）→ 快速，覆盖所有书籍
-     * 3. 异步：深度内容搜索（_searchContent）→ 慢速，仅已下载书籍，提供上下文片段
+     * 2. 同步：内容搜索（_searchContent）→ 基于按需全文内容索引
      */
     _doSearch: function (query) {
       var self = this;
@@ -367,22 +241,7 @@
         return;
       }
 
-      self._isLoading = true;
       var startTime = Date.now();
-
-      // 显示搜索中状态（骨架屏）
-      if (self._countEl) {
-        self._countEl.textContent = '搜索中...';
-      }
-      if (self._resultsEl) {
-        var skeletonHtml = '<div class="bk-search-skeleton">' +
-          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w60"></div><div class="bk-skeleton-bar bk-skeleton-w40"></div></div>' +
-          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w80"></div></div>' +
-          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w50"></div><div class="bk-skeleton-bar bk-skeleton-w30"></div></div>' +
-          '<div class="bk-skeleton-row"><div class="bk-skeleton-bar bk-skeleton-w70"></div></div>' +
-          '</div>';
-        self._resultsEl.innerHTML = skeletonHtml;
-      }
 
       // 1. 书名搜索（同步，即时完成）
       var titleResults = [];
@@ -390,34 +249,39 @@
         titleResults = self._searchTitles(query);
       }
 
-      // 2. 内容索引搜索 + 深度内容搜索（仅 'all' 模式）
+      // 2. 内容搜索（仅 'all' 模式）
       if (self._scope === 'all') {
         var DM = win.DataManager;
-        var searchIndex = DM ? DM.getCachedSearchIndex() : null;
+        var indexMap = DM ? DM.getContentIndexMap() : null;
 
-        if (!searchIndex && DM) {
-          // 搜索索引尚未加载，先显示书名结果，同时触发加载
+        if (!indexMap && DM) {
+          // 内容索引尚未加载，先显示书名结果，同时触发加载
+          self._isLoading = true;
           self._allResults = titleResults;
           self._displayedCount = 0;
           self._renderPage();
 
-          // 显示加载搜索索引提示
+          // 显示加载提示
           if (self._resultsEl) {
-            var loadingHint = '<div class="bk-search-content-loading">📥 正在加载搜索索引...</div>';
+            var loadingHint = '<div class="bk-search-content-loading">\uD83D\uDCE5 正在加载内容索引...</div>';
             self._resultsEl.insertAdjacentHTML('beforeend', loadingHint);
           }
 
-          DM.loadSearchIndex().then(function () {
+          DM.loadContentIndexes().then(function () {
             if (self._currentQuery !== query) return;
-            self._doSearchPhase2And3(query, titleResults, startTime);
+            self._doSearchPhase2(query, titleResults, startTime);
           }).catch(function () {
             if (self._currentQuery !== query) return;
-            // 加载失败，跳过内容索引搜索，直接进入深度搜索
-            self._doSearchPhase3(query, titleResults, [], startTime);
+            // 加载失败，只显示书名结果
+            self._allResults = titleResults;
+            self._isLoading = false;
+            self._renderPage();
+            self._updateCount(Date.now() - startTime);
+            self._addSearchHistory(query);
           });
         } else {
-          // 搜索索引已就绪，直接执行阶段 2 和 3
-          self._doSearchPhase2And3(query, titleResults, startTime);
+          // 内容索引已就绪，直接执行
+          self._doSearchPhase2(query, titleResults, startTime);
         }
       } else {
         // 仅书名模式
@@ -431,124 +295,41 @@
     },
 
     /**
-     * 阶段 2：搜索索引搜索 + 阶段 3：深度内容搜索
+     * 阶段 2：内容搜索（基于按需全文内容索引，同步）
      */
-    _doSearchPhase2And3: function (query, titleResults, startTime) {
+    _doSearchPhase2: function (query, titleResults, startTime) {
       var self = this;
 
-      // 阶段 2：搜索索引搜索
-      var contentIndexResults = self._searchContentIndex(query);
+      var contentResults = self._searchContent(query);
 
-      // 去重：统计每本书在搜索索引中的匹配数
+      // 去重：如果某书已在书名结果中出现，且内容搜索中只有1条匹配，则跳过
+      // （1条章节匹配不比书名匹配提供更多价值；多条则保留，提供具体章节入口）
       var titleBookIds = {};
       for (var t = 0; t < titleResults.length; t++) {
         titleBookIds[titleResults[t].bookId] = true;
       }
       var bookMatchCount = {};
-      for (var ci = 0; ci < contentIndexResults.length; ci++) {
-        var bid = contentIndexResults[ci].bookId;
+      for (var ci = 0; ci < contentResults.length; ci++) {
+        var bid = contentResults[ci].bookId;
         bookMatchCount[bid] = (bookMatchCount[bid] || 0) + 1;
       }
 
-      // 如果某书已在书名结果中出现，且搜索索引中只有1条匹配，则跳过
-      // （1条章节匹配不比书名匹配提供更多价值；多条则保留，提供具体章节入口）
-      var filteredContentIndex = [];
-      for (var cf = 0; cf < contentIndexResults.length; cf++) {
-        var result = contentIndexResults[cf];
+      var filteredContent = [];
+      for (var cf = 0; cf < contentResults.length; cf++) {
+        var result = contentResults[cf];
         if (titleBookIds[result.bookId] && bookMatchCount[result.bookId] <= 1) continue;
-        filteredContentIndex.push(result);
+        filteredContent.push(result);
       }
 
-      // 合并：书名结果 → 内容索引结果
-      var merged = titleResults.concat(filteredContentIndex);
-      self._allResults = merged;
+      // 合并：书名结果 → 内容结果
+      self._allResults = titleResults.concat(filteredContent);
       self._displayedCount = 0;
+      self._isLoading = false;
       self._renderPage();
 
-      // 更新计数（搜索索引阶段完成）
-      var elapsed2 = Date.now() - startTime;
-      self._updateCount(elapsed2);
-
-      // 阶段 3：深度内容搜索（异步，仅已下载书籍）
-      if (self._contentTimer) clearTimeout(self._contentTimer);
-      self._contentTimer = setTimeout(function () {
-        self._searchContent(query, function (contentResults) {
-          if (self._currentQuery !== query) return;
-
-          // 构建已有结果的 URL 集合用于去重
-          var existingUrls = {};
-          for (var e = 0; e < self._allResults.length; e++) {
-            existingUrls[self._allResults[e].url] = true;
-          }
-
-          // 添加不重复的深度内容结果，并为已有的 content-index 结果补充 context
-          var newContentResults = [];
-          for (var r = 0; r < contentResults.length; r++) {
-            var cr = contentResults[r];
-            if (existingUrls[cr.url]) {
-              // 为已有的 content-index 结果补充深度上下文
-              for (var m = 0; m < self._allResults.length; m++) {
-                if (self._allResults[m].url === cr.url && self._allResults[m].type === 'content-index') {
-                  self._allResults[m].context = cr.context;
-                  self._allResults[m].deepContext = true;
-                  break;
-                }
-              }
-            } else {
-              newContentResults.push(cr);
-            }
-          }
-
-          self._allResults = self._allResults.concat(newContentResults);
-          self._displayedCount = 0;
-          self._isLoading = false;
-          self._renderPage();
-
-          var elapsed3 = Date.now() - startTime;
-          self._updateCount(elapsed3);
-          self._addSearchHistory(query);
-        });
-      }, 50);
-    },
-
-    /**
-     * 阶段 3（回退）：当搜索索引加载失败时，仅执行深度内容搜索
-     */
-    _doSearchPhase3: function (query, titleResults, contentIndexResults, startTime) {
-      var self = this;
-
-      var merged = titleResults.concat(contentIndexResults);
-      self._allResults = merged;
-      self._displayedCount = 0;
-      self._renderPage();
-
-      if (self._contentTimer) clearTimeout(self._contentTimer);
-      self._contentTimer = setTimeout(function () {
-        self._searchContent(query, function (contentResults) {
-          if (self._currentQuery !== query) return;
-
-          var existingUrls = {};
-          for (var e = 0; e < self._allResults.length; e++) {
-            existingUrls[self._allResults[e].url] = true;
-          }
-
-          var newResults = [];
-          for (var r = 0; r < contentResults.length; r++) {
-            if (!existingUrls[contentResults[r].url]) {
-              newResults.push(contentResults[r]);
-            }
-          }
-
-          self._allResults = self._allResults.concat(newResults);
-          self._displayedCount = 0;
-          self._isLoading = false;
-          self._renderPage();
-
-          var elapsed = Date.now() - startTime;
-          self._updateCount(elapsed);
-          self._addSearchHistory(query);
-        });
-      }, 50);
+      var elapsed = Date.now() - startTime;
+      self._updateCount(elapsed);
+      self._addSearchHistory(query);
     },
 
     /**
@@ -717,12 +498,6 @@
 
         // 移动端：IntersectionObserver 无限滚动
         self._setupInfiniteScroll();
-      }
-
-      // 如果内容搜索还在进行中，显示提示
-      if (self._isLoading && self._scope === 'all') {
-        var loadingHint = '<div class="bk-search-content-loading">🔍 正在搜索更多内容...</div>';
-        self._resultsEl.insertAdjacentHTML('beforeend', loadingHint);
       }
 
       // 绑定点击事件

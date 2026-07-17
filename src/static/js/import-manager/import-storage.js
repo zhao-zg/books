@@ -24,7 +24,47 @@
       // 导入即入架：让书籍同时出现在「书架」与个人库（统一记录源），
       // 否则 WebDAV/文件导入的书只在书城合并、书架列表读不到。
       try { if (win.BKShelf && win.BKShelf.add) win.BKShelf.add(book.id); } catch (e) {}
+      // 为导入的书构建全文内容索引 + 加入书目索引，使搜索可命中
+      try {
+        if (win.DataManager) {
+          if (win.DataManager.buildContentIndex) win.DataManager.buildContentIndex(book);
+          if (win.DataManager.addToBookIndex) win.DataManager.addToBookIndex(book);
+        }
+      } catch (e) { console.warn('[ImportManager] 更新内容索引失败:', e); }
       return book;
+    });
+  }
+
+  /**
+   * 移除导入的书籍：从 imported-data 存储删除，并同步清理内容索引和书目索引
+   * @param {string} bookId
+   */
+  function removeImportedBook(bookId) {
+    return importStore.getItem(KEY_PREFIX + bookId).then(function (book) {
+      return importStore.removeItem(KEY_PREFIX + bookId).then(function () {
+        return importStore.getItem(KEY_IDS).then(function (ids) {
+          ids = ids || [];
+          var idx = ids.indexOf(bookId);
+          if (idx !== -1) ids.splice(idx, 1);
+          return importStore.setItem(KEY_IDS, ids);
+        });
+      }).then(function () {
+        // 移出书架
+        try { if (win.BKShelf && win.BKShelf.remove) win.BKShelf.remove(bookId); } catch (e) {}
+        // 同步清理内容索引和书目索引
+        try {
+          if (win.DataManager) {
+            if (win.DataManager.removeContentIndex) win.DataManager.removeContentIndex(bookId);
+            if (win.DataManager.removeFromBookIndex) win.DataManager.removeFromBookIndex(bookId);
+          }
+        } catch (e) {}
+        // 同步清理 DataManager 缓存
+        try {
+          if (win.DataManager && win.DataManager.deleteBook) win.DataManager.deleteBook(bookId);
+        } catch (e) {}
+        console.log('[ImportManager] 已移除导入书: ' + bookId);
+        return book || bookId;
+      });
     });
   }
 

@@ -431,13 +431,7 @@
       }
 
       function setTTSHighlight(el) {
-        if (_prevTTSEl === el) return;
-        if (_prevTTSEl) _prevTTSEl.classList.remove('bk-tts-active');
-        _prevTTSEl = el;
-        if (el) {
-          el.classList.add('bk-tts-active');
-          try { el.scrollIntoView({behavior: 'smooth', block: 'nearest'}); } catch(e) {}
-        }
+        return;
       }
 
       function clearTTSHighlight() {

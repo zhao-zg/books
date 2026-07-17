@@ -6,7 +6,6 @@
 """
 import json
 import os
-import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -138,191 +137,18 @@ class BooksGenerator:
         print(f"  style.css ({len(css_content)} bytes)")
 
     # ------------------------------------------------------------------
-    # 搜索索引
-    # ------------------------------------------------------------------
-
-    def _generate_bundled_search_entries(self, project_root):
-        """为内置资源（resource/books/）生成最小搜索条目（仅标题）。
-
-        内置资源没有章节 JSON 文件，无法像 YSZ 书籍那样提取章节摘要，
-        但至少应让书名可被搜索到。
-        """
-        books_dir = os.path.join(project_root, 'resource', 'books')
-        if not os.path.isdir(books_dir):
-            return []
-
-        SUPPORTED_EXTS = {'.epub': 'epub', '.md': 'md', '.markdown': 'md', '.txt': 'txt'}
-        entries = []
-
-        for entry in sorted(os.listdir(books_dir)):
-            entry_path = os.path.join(books_dir, entry)
-            if not os.path.isdir(entry_path):
-                continue
-            for f in sorted(os.listdir(entry_path)):
-                ext = os.path.splitext(f)[1].lower()
-                if ext not in SUPPORTED_EXTS:
-                    continue
-                stem = os.path.splitext(f)[0]
-                entries.append({
-                    'id': f'bundle-{entry}__{stem}',
-                    'title': stem,
-                    'series': entry,
-                    'chapters': [],
-                })
-
-        if entries:
-            print(f"  内置资源搜索条目: {len(entries)} 本")
-        return entries
-
-    def generate_search_index(self):
-        """生成搜索索引文件 output/books/search-index.json
-
-        遍历 resource/zl-merged/ 下所有系列和书籍，提取书名、章节标题和内容摘要，
-        生成精简的搜索索引供前端使用。
-        """
-        # resource 目录相对于 src/generator.py 的位置
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        resource_dir = os.path.join(project_root, 'resource', 'zl-merged')
-
-        if not os.path.isdir(resource_dir):
-            print(f"⚠ resource 目录不存在: {resource_dir}，跳过搜索索引生成")
-            return
-
-        # 读取全局索引获取系列列表
-        global_index_path = os.path.join(resource_dir, 'books-index.json')
-        if not os.path.isfile(global_index_path):
-            print("⚠ books-index.json 不存在，跳过搜索索引生成")
-            return
-
-        with open(global_index_path, 'r', encoding='utf-8') as f:
-            global_index = json.load(f)
-
-        series_list = global_index.get('series', [])
-
-        # 构建 series id → title 映射
-        series_title_map = {}
-        for s in series_list:
-            series_title_map[s['id']] = s.get('title', s['id'])
-
-        books_output = []
-        html_tag_re = re.compile(r'<[^>]+>')
-        book_count = 0
-        chapter_count = 0
-
-        for series_info in series_list:
-            series_id = series_info['id']
-            series_dir = os.path.join(resource_dir, series_id)
-
-            if not os.path.isdir(series_dir):
-                continue
-
-            # 读取系列索引
-            series_index_path = os.path.join(series_dir, 'index.json')
-            if not os.path.isfile(series_index_path):
-                continue
-
-            with open(series_index_path, 'r', encoding='utf-8') as f:
-                series_books = json.load(f)
-
-            if not isinstance(series_books, list):
-                continue
-
-            for book_info in series_books:
-                book_id = book_info.get('id', '')
-                book_title = book_info.get('title', '')
-
-                # 读取书籍 JSON
-                book_path = os.path.join(series_dir, book_id + '.json')
-                if not os.path.isfile(book_path):
-                    continue
-
-                try:
-                    with open(book_path, 'r', encoding='utf-8') as f:
-                        book_data = json.load(f)
-                except (json.JSONDecodeError, IOError):
-                    print(f"  ⚠ 无法解析书籍文件: {book_path}")
-                    continue
-
-                chapters = book_data.get('chapters', [])
-                chapters_output = []
-
-                for ch in chapters:
-                    ch_number = ch.get('number', 0)
-                    ch_title = ch.get('title', '')
-                    content = ch.get('content', '')
-
-                    # 处理 content：可以是字符串或数组
-                    if isinstance(content, list):
-                        # 数组格式：[{type: "paragraph", text: "..."}]
-                        text_parts = []
-                        for item in content:
-                            if isinstance(item, dict):
-                                text_parts.append(item.get('text', ''))
-                            elif isinstance(item, str):
-                                text_parts.append(item)
-                        content_text = ' '.join(text_parts)
-                    else:
-                        content_text = str(content) if content else ''
-
-                    # 去除 HTML 标签
-                    content_text = html_tag_re.sub('', content_text)
-
-                    # 提取前 150 个字符作为摘要
-                    summary = content_text[:150].strip()
-                    if len(content_text) > 150:
-                        summary = summary + '…'
-
-                    chapters_output.append({
-                        'n': ch_number,
-                        't': ch_title,
-                        's': summary,
-                    })
-
-                books_output.append({
-                    'id': book_id,
-                    'title': book_title,
-                    'series': series_id,
-                    'chapters': chapters_output,
-                })
-
-                book_count += 1
-                chapter_count += len(chapters_output)
-
-        # 内置书已在 zl-merged/ 中生成 ysz 格式 JSON，上面的遍历已自动包含，无需额外追加
-
-        # 输出到 output/books/search-index.json
-        books_dir = os.path.join(self.output_dir, 'books')
-        os.makedirs(books_dir, exist_ok=True)
-
-        search_index = {
-            'version': 1,
-            'generated_at': datetime.now().isoformat(),
-            'books': books_output,
-        }
-
-        output_path = os.path.join(books_dir, 'search-index.json')
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(search_index, f, ensure_ascii=False, separators=(',', ':'))
-
-        file_size = os.path.getsize(output_path)
-        print(f"✓ search-index.json 已生成 ({book_count} 本书, {chapter_count} 个章节, {file_size // 1024} KB)")
-
-    # ------------------------------------------------------------------
     # 完整生成流程
     # ------------------------------------------------------------------
 
     def generate_all(self, app_config: dict = None):
-        """完整生成流程：静态资源 → 搜索索引 → PWA → version"""
+        """完整生成流程：静态资源 → PWA → version"""
 
         # 1. 静态资源（先复制，避免后续生成的文件被覆盖）
         self.copy_static_assets()
 
-        # 2. 搜索索引（在静态资源复制之后生成，避免被覆盖）
-        self.generate_search_index()
+        # 2. CSS（split 后由 copy_static_assets 递归复制，无需独立步骤）
 
-        # 3. CSS（split 后由 copy_static_assets 递归复制，无需独立步骤）
-
-        # 4. PWA manifest 和 Service Worker（注入版本号）
+        # 3. PWA manifest 和 Service Worker（注入版本号）
         self.generate_manifest_and_sw(app_config)
 
         # 5. version.json

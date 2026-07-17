@@ -173,13 +173,6 @@ def copy_zl_merged_data(resource_dir: str, output_dir: str):
         except Exception:
             pass
 
-    # 将生成的搜索索引也复制到 zl-data/ 下（loadSearchIndex 路径为 books/search-index.json）
-    search_index_dst_dir = os.path.join(dst_dir, 'books')
-    os.makedirs(search_index_dst_dir, exist_ok=True)
-    search_index_src = os.path.join(output_dir, 'books', 'search-index.json')
-    if os.path.exists(search_index_src):
-        shutil.copy2(search_index_src, os.path.join(search_index_dst_dir, 'search-index.json'))
-
     print(f"✓ zl-data 已生成（{series_count} 个系列，{book_count} 本书）")
     print(f"  目标: {dst_dir}")
 

@@ -138,6 +138,7 @@
     isImportableFile: isImportableFile,
     getImportedBook: getImportedBook,
     getImportedBooks: getImportedBooks,
+    removeImportedBook: removeImportedBook,
     getPdfDataStore: getPdfDataStore,
     loadBundledBooks: loadBundledBooks,      // [已废弃] 保留空桩，避免引用报错
     getBundledBook: getBundledBook,          // [已废弃] 保留空桩，避免引用报错

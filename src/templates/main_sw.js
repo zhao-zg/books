@@ -4,7 +4,7 @@
  * 缓存策略（v2，适配在线数据架构）：
  *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存
  *  - 书籍 JSON 数据由 data-manager.js 通过 localforage 管理，SW 不介入
- *  - data CDN 索引文件（books-index.json / manifest.json / search-index.json）使用 stale-while-revalidate
+ *  - data CDN 索引文件（books-index.json / manifest.json）使用 stale-while-revalidate
  *  - 版本检测文件（version.json）始终走网络
  */
 
@@ -211,8 +211,8 @@ self.addEventListener('fetch', event => {
       event.respondWith((async () => {
         try {
           const url = new URL(request.url);
-          // books-index.json、manifest.json 和 search-index.json：stale-while-revalidate，确保索引尽量最新
-          if (url.pathname.endsWith('books-index.json') || url.pathname.endsWith('manifest.json') || url.pathname.endsWith('search-index.json')) {
+          // books-index.json、manifest.json：stale-while-revalidate，确保索引尽量最新
+          if (url.pathname.endsWith('books-index.json') || url.pathname.endsWith('manifest.json')) {
             return await staleWhileRevalidate(request, CACHE_NAME);
           }
           // 其他 CDN 请求（书籍 JSON 等）：不缓存，直接透传给 data-manager.js 处理

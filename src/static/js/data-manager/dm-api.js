@@ -49,17 +49,22 @@
     }
     return store.keys().then(function (keys) {
       var bookKeys = [];
+      var ciKeys = [];
       for (var i = 0; i < keys.length; i++) {
         if (keys[i].indexOf(KEY_BOOK_PREFIX) === 0) {
           bookKeys.push(keys[i]);
+        } else if (keys[i].indexOf(KEY_CONTENT_INDEX_PREFIX) === 0 || keys[i] === KEY_CONTENT_INDEX_IDS) {
+          ciKeys.push(keys[i]);
         }
       }
-      var removePromises = bookKeys.map(function (key) {
+      var allKeys = bookKeys.concat(ciKeys);
+      var removePromises = allKeys.map(function (key) {
         return storeRemove(key);
       });
       return Promise.all(removePromises).then(function () {
+        _contentIndexMap = null;
         return saveDownloadedIdsList([]).then(function () {
-          console.log('[DataManager] 已清除全部书籍缓存: ' + bookKeys.length + ' 本');
+          console.log('[DataManager] 已清除全部书籍缓存: ' + bookKeys.length + ' 本, 内容索引: ' + ciKeys.length + ' 条');
           return { cleared: bookKeys.length };
         });
       });
@@ -120,53 +125,174 @@
     });
   }
 
-  // ── 搜索索引 ────────────────────────────────────────────────────────────
+  // ── 内容索引（按需生成，全文搜索） ────────────────────────────────────
 
   /**
-   * 加载搜索索引 search-index.json
-   * 策略：内存缓存 → localforage → 远程获取
-   * 返回 { version, generated_at, books: [...] }
+   * 从书籍数据中提取章节纯文本
+   * @param {object} ch 章节对象，content 可为字符串或结构化数组
+   * @returns {string}
    */
-  function loadSearchIndex() {
-    // 1. 内存缓存
-    if (_cachedSearchIndex) {
-      return Promise.resolve(_cachedSearchIndex);
-    }
-
-    // 2. localforage 缓存
-    return storeGet(KEY_SEARCH_INDEX).then(function (cached) {
-      if (cached) {
-        _cachedSearchIndex = cached;
-        console.log('[DataManager] 使用缓存搜索索引（' + ((cached.books || []).length) + ' 本书）');
-        return cached;
+  function _chapterText(ch) {
+    if (!ch) return '';
+    if (typeof ch.content === 'string') return ch.content;
+    if (Array.isArray(ch.content)) {
+      var t = '';
+      for (var i = 0; i < ch.content.length; i++) {
+        t += (ch.content[i].text || '');
       }
+      return t;
+    }
+    return '';
+  }
 
-      // 3. 远程获取
-      var url = buildUrl('books/search-index.json?t=' + Date.now());
-      console.log('[DataManager] 远程加载搜索索引: ' + url);
-      return fetchWithRetry(url)
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          _cachedSearchIndex = data;
-          return storeSet(KEY_SEARCH_INDEX, data).then(function () {
-            console.log('[DataManager] 搜索索引加载成功，共 ' +
-              ((data.books || []).length) + ' 本书');
-            return data;
-          });
-        })
-        .catch(function (err) {
-          console.error('[DataManager] 加载搜索索引失败:', err);
-          throw new Error('无法加载搜索索引');
+  /**
+   * 为书籍生成全文内容索引并持久化到 localforage
+   * 每个章节存储：章节号(n)、标题(t)、全文纯文本(c)
+   * @param {object} bookData 书籍数据（需含 id, title, chapters）
+   * @returns {Promise}
+   */
+  function buildContentIndex(bookData) {
+    if (!bookData || !bookData.id) return Promise.resolve();
+    var chapters = bookData.chapters || [];
+    var chaptersEntry = [];
+    for (var i = 0; i < chapters.length; i++) {
+      var ch = chapters[i];
+      chaptersEntry.push({
+        n: ch.number || (i + 1),
+        t: ch.title || '',
+        c: _chapterText(ch)
+      });
+    }
+    var entry = {
+      id: bookData.id,
+      title: bookData.title || bookData.id,
+      series: bookData.series || '',
+      chapters: chaptersEntry
+    };
+
+    // 更新内存缓存
+    if (!_contentIndexMap) _contentIndexMap = {};
+    _contentIndexMap[bookData.id] = entry;
+
+    // 持久化：单本书索引 + ID 列表
+    return storeSet(KEY_CONTENT_INDEX_PREFIX + bookData.id, entry)
+      .then(function () {
+        return storeGet(KEY_CONTENT_INDEX_IDS).then(function (ids) {
+          ids = ids || [];
+          if (ids.indexOf(bookData.id) === -1) ids.push(bookData.id);
+          return storeSet(KEY_CONTENT_INDEX_IDS, ids);
         });
+      })
+      .then(function () {
+        console.log('[DataManager] 内容索引已构建: ' + bookData.id + '（' + chaptersEntry.length + ' 章）');
+      })
+      .catch(function (err) {
+        console.warn('[DataManager] 构建内容索引失败:', err);
+      });
+  }
+
+  /**
+   * 移除书籍的内容索引
+   * @param {string} bookId
+   * @returns {Promise}
+   */
+  function removeContentIndex(bookId) {
+    if (!bookId) return Promise.resolve();
+    // 清内存
+    if (_contentIndexMap) delete _contentIndexMap[bookId];
+    // 持久化
+    return storeRemove(KEY_CONTENT_INDEX_PREFIX + bookId)
+      .then(function () {
+        return storeGet(KEY_CONTENT_INDEX_IDS).then(function (ids) {
+          ids = ids || [];
+          var idx = ids.indexOf(bookId);
+          if (idx !== -1) ids.splice(idx, 1);
+          return storeSet(KEY_CONTENT_INDEX_IDS, ids);
+        });
+      })
+      .then(function () {
+        console.log('[DataManager] 内容索引已移除: ' + bookId);
+      })
+      .catch(function (err) {
+        console.warn('[DataManager] 移除内容索引失败:', err);
+      });
+  }
+
+  /**
+   * 加载所有已有的内容索引到内存（懒加载）
+   * 从 localforage 逐本读取，合并到 _contentIndexMap
+   * @returns {Promise<object>} _contentIndexMap
+   */
+  function loadContentIndexes() {
+    if (_contentIndexMap) return Promise.resolve(_contentIndexMap);
+    _contentIndexMap = {};
+    return storeGet(KEY_CONTENT_INDEX_IDS).then(function (ids) {
+      if (!ids || !ids.length) return _contentIndexMap;
+      var promises = ids.map(function (bookId) {
+        return storeGet(KEY_CONTENT_INDEX_PREFIX + bookId).then(function (entry) {
+          if (entry) _contentIndexMap[bookId] = entry;
+        });
+      });
+      return Promise.all(promises).then(function () {
+        var count = Object.keys(_contentIndexMap).length;
+        console.log('[DataManager] 内容索引已加载: ' + count + ' 本书');
+        return _contentIndexMap;
+      });
     });
   }
 
   /**
-   * 获取已缓存的搜索索引（同步）
+   * 获取内容索引映射（同步）
    * 返回 null 如果尚未加载
    */
-  function getCachedSearchIndex() {
-    return _cachedSearchIndex;
+  function getContentIndexMap() {
+    return _contentIndexMap;
+  }
+
+  /**
+   * 将书籍追加到书目索引（运行时，供导入外部书籍在阶段1书名搜索中可见）
+   * 仅更新内存缓存 _cachedIndex，不持久化（索引在刷新时从远程重载）
+   * @param {object} bookData 书籍数据（需含 id, title）
+   */
+  function addToBookIndex(bookData) {
+    if (!bookData || !bookData.id || !_cachedIndex) return;
+    if (!_cachedIndex.books) _cachedIndex.books = [];
+    // 去重
+    for (var i = 0; i < _cachedIndex.books.length; i++) {
+      if (_cachedIndex.books[i].id === bookData.id) return;
+    }
+    _cachedIndex.books.push({
+      id: bookData.id,
+      title: bookData.title || bookData.id,
+      series: bookData.series || '',
+      chapter_count: (bookData.chapters || []).length
+    });
+    // 确保 series 存在
+    if (_cachedIndex.series && bookData.series) {
+      var found = false;
+      for (var s = 0; s < _cachedIndex.series.length; s++) {
+        if (_cachedIndex.series[s].id === bookData.series) { found = true; break; }
+      }
+      if (!found) {
+        _cachedIndex.series.push({ id: bookData.series, title: bookData.seriesTitle || bookData.series });
+      }
+    }
+    console.log('[DataManager] 书目索引已更新（添加: ' + bookData.id + '）');
+  }
+
+  /**
+   * 从书目索引中移除书籍（运行时，供移除外部书籍使用）
+   * @param {string} bookId
+   */
+  function removeFromBookIndex(bookId) {
+    if (!bookId || !_cachedIndex || !_cachedIndex.books) return;
+    for (var i = _cachedIndex.books.length - 1; i >= 0; i--) {
+      if (_cachedIndex.books[i].id === bookId) {
+        _cachedIndex.books.splice(i, 1);
+        console.log('[DataManager] 书目索引已更新（移除: ' + bookId + '）');
+        return;
+      }
+    }
   }
 
   // ── 公开 API ─────────────────────────────────────────────────────────
@@ -175,8 +301,12 @@
     loadIndex: loadIndex,
     getCachedIndex: getCachedIndex,
     checkIndexUpdate: checkIndexUpdate,
-    loadSearchIndex: loadSearchIndex,
-    getCachedSearchIndex: getCachedSearchIndex,
+    loadContentIndexes: loadContentIndexes,
+    getContentIndexMap: getContentIndexMap,
+    buildContentIndex: buildContentIndex,
+    removeContentIndex: removeContentIndex,
+    addToBookIndex: addToBookIndex,
+    removeFromBookIndex: removeFromBookIndex,
     downloadBook: downloadBook,
     downloadSeries: downloadSeries,
     downloadAll: downloadAll,

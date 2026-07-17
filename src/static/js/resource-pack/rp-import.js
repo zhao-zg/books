@@ -494,7 +494,9 @@
 
       // browsing
       var listHtml = '';
-      if (!wd.entries.length) {
+      if (wd._dirLoading) {
+        listHtml = '<div class="bk-webdav-connecting"><div class="bk-spinner"></div>加载目录中…</div>';
+      } else if (!wd.entries.length) {
         listHtml = '<div class="bk-webdav-empty">该目录为空</div>';
       } else {
         for (var i = 0; i < wd.entries.length; i++) {
@@ -630,8 +632,10 @@
       }
       // 保存当前锁定状态（可能正在下载），列目录完成后恢复，避免误解锁
       var prevLocked = wd.locked;
+      var prevPath = wd.path;      // 保存当前路径，加载失败时恢复
       wd._dirLoading = true;
       wd.locked = true;
+      renderWebdav();  // 立即显示加载中
       win.WebDavManager.listDir(wd.config, path).then(function (entries) {
         wd.path = path; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
         wd._dirLoading = false; wd.locked = prevLocked;
@@ -640,7 +644,7 @@
         // OPT-P1：浏览新目录，非强制刷新（内存中已有数据即复用）
         refreshDownloadedSet(false).then(function () { renderWebdav(); });
       }).catch(function (err) {
-        wd._dirLoading = false; wd.locked = prevLocked; setWdError(err);
+        wd._dirLoading = false; wd.locked = prevLocked; wd.path = prevPath; renderWebdav(); setWdError(err);
       });
     }
 

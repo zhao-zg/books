@@ -34,6 +34,9 @@
               return addDownloadedId(bookId);
             })
             .then(function () {
+              // 为下载的书构建全文内容索引（不阻塞返回）
+              buildContentIndex(converted);
+              addToBookIndex(converted);
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
               return converted;
