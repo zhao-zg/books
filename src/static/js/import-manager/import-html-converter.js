@@ -386,12 +386,30 @@
           if (isDuokanFnRef) {
             var fnRefHref = node.getAttribute('href') || '';
             var fnRefId = fnRefHref.replace(/^#/, '') || '';
-            var fnRefText = (node.textContent || '').trim();
+            // 保留原始 EPUB 的脚注引用标记：提取 <a> 内部的 <img> 图标（如 MDC 的 verse.png）
+            // 若无 img 子节点则回退为 † 占位文本
+            var fnRefInner = '';
+            var fnRefImg = null;
+            for (var fri = 0; fri < node.childNodes.length; fri++) {
+              var fnChild = node.childNodes[fri];
+              if (fnChild.nodeType === 1 && (fnChild.tagName || '').toLowerCase() === 'img') {
+                fnRefImg = fnChild;
+                break;
+              }
+            }
+            if (fnRefImg) {
+              var imgSrc = fnRefImg.getAttribute('src') || '';
+              var imgClass = fnRefImg.getAttribute('class') || '';
+              var imgClsAttr = imgClass ? ' class="' + escAttr(imgClass) + '"' : '';
+              fnRefInner = '<img' + imgClsAttr + ' src="' + escAttr(imgSrc) + '">';
+            } else {
+              fnRefInner = '†';
+            }
             contents.push({
               type: 'footnote_ref',
               footnoteId: fnRefId,
-              text: fnRefText,
-              html: '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">' + escHtml(fnRefText) + '</sup>'
+              text: '',
+              html: '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">' + fnRefInner + '</sup>'
             });
             break;
           }
@@ -479,24 +497,17 @@
         contents.push({ type: 'footnotes_section', footnoteRefs: fnItems });
       }
       // 为行内 footnote_ref 关联脚注编号（用于渲染时对应）
+      // 保留原始引用标记（<img> 图标或 † 回退文本），不做覆盖
       var fnIdMap = {};
       for (var fmi = 0; fmi < epubFootnotes.length; fmi++) {
         fnIdMap[epubFootnotes[fmi].id] = fmi + 1;
       }
       for (var ci6 = 0; ci6 < contents.length; ci6++) {
         if (contents[ci6].type === 'footnote_ref' && contents[ci6].footnoteId) {
-          var fnNum = fnIdMap[contents[ci6].footnoteId];
-          if (fnNum) {
-            contents[ci6].html = '<sup class="bk-epub-fn-ref" data-fn-id="' +
-              escAttr(contents[ci6].footnoteId) + '">' + fnNum + '</sup>';
+          // 仅验证存在对应脚注并记录编号，保留原始引用标记（img 图标或 † 回退）
+          if (fnIdMap[contents[ci6].footnoteId]) {
+            contents[ci6].footnoteRefIndex = fnIdMap[contents[ci6].footnoteId];
           }
-        }
-        // 替换段落 HTML 中的 † 占位符为递增编号
-        if (contents[ci6].type === 'paragraph' && contents[ci6].html) {
-          contents[ci6].html = contents[ci6].html.replace(/<sup class="bk-epub-fn-ref" data-fn-id="([^"]+)">†<\/sup>/g, function(m, fnId) {
-            var num = fnIdMap[fnId];
-            return '<sup class="bk-epub-fn-ref" data-fn-id="' + fnId + '">' + (num || '') + '</sup>';
-          });
         }
       }
     }

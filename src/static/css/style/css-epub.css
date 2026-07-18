@@ -1,16 +1,39 @@
-/* ── EPUB 脚注引用（duokan-footnote 行内标记）── */
+/* ── EPUB 脚注引用（duokan-footnote 行内标记）──
+   保留原始 EPUB 的 <img> 图标（如 MDC 的 verse.png）；
+   无 img 时回退为 † 文本符号 */
 .bk-epub-fn-ref {
-  color: var(--brand, #3D8A5A);
+  display: inline;
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.75em;
-  vertical-align: super;
-  line-height: 0;
+  vertical-align: baseline;
+  line-height: 1;
   text-decoration: none;
   margin: 0 1px;
 }
+/* 图片图标样式（还原原始 EPUB .footnote_img 规则） */
+.bk-epub-fn-ref img {
+  height: 0.8em;
+  vertical-align: middle;
+  border: none;
+}
 .bk-epub-fn-ref:hover {
-  text-decoration: underline;
+  opacity: 0.7;
+  text-decoration: none;
+}
+[data-theme="dark"] .bk-epub-fn-ref img {
+  /* 暗色模式下图片图标保持原样（verse.png 本身是黄底蓝字，暗色下也清晰） */
+  filter: brightness(0.9);
+}
+
+/* EPUB 脚注弹窗遮罩 */
+.bk-epub-fn-popup-mask {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.12);
+  z-index: 9998;
+}
+.bk-epub-fn-popup-mask-active {
+  display: block;
 }
 
 /* EPUB 脚注弹窗 */
@@ -18,16 +41,16 @@
   display: none;
   position: fixed;
   z-index: 9999;
-  max-width: 320px;
-  max-height: 240px;
+  max-width: min(480px, calc(100vw - 20px));
+  max-height: min(360px, 60vh);
   overflow-y: auto;
   background: var(--card-bg, #fff);
   border: 1px solid var(--border, #e0e0e0);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  padding: 14px 16px;
+  padding: 16px 18px;
   font-size: 0.9em;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 .bk-epub-fn-popup-active {
   display: block;
@@ -49,12 +72,15 @@
 }
 .bk-epub-fn-popup-content p {
   margin: 0.3em 0;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 [data-theme="dark"] .bk-epub-fn-popup {
   background: #2a2a2a;
   border-color: #444;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+[data-theme="dark"] .bk-epub-fn-popup-mask {
+  background: rgba(0,0,0,0.3);
 }
 
 /* ── EPUB 大纲层级样式 ────────────────────────────────────── */

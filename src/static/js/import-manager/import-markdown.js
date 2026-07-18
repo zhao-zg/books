@@ -207,7 +207,7 @@
           var fk = fnKeys[fki];
           parsedHtml += '<div class="bk-footnote" id="fn-' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">' +
             '<span class="bk-fn-number">' + String(footnotes[fk].id).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>' +
-            '<span class="bk-fn-text">' + footnotes[fk].text + '</span></div>';
+            '<div class="bk-fn-text">' + footnotes[fk].text + '</div></div>';
         }
         parsedHtml += '</section>';
       }

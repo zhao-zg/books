@@ -318,44 +318,94 @@
   }
 
   // EPUB 辅助：处理图片转为 base64 data URI
+  // 同时处理 type==='image' 的 src 字段，以及所有 content 项 html 字段中的 <img src>
   function processEpubImages(zip, contents, htmlFilePath, opfDir) {
     // 找到 HTML 文件所在目录（用于解析相对路径）
     var htmlDir = htmlFilePath.indexOf('/') >= 0
       ? htmlFilePath.substring(0, htmlFilePath.lastIndexOf('/') + 1)
       : '';
     var imagePromises = [];
+    // 图片缓存：同一 zip 内的图片只读取一次（同 src 复用 data URI），避免重复 IO
+    var imageCache = {};
+
+    var mimeMap = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      png: 'image/png', gif: 'image/gif',
+      webp: 'image/webp', svg: 'image/svg+xml'
+    };
+
+    // 解析图片 src 为 zip 内规范化路径；返回 null 表示无需处理（data URI / 外链）
+    function resolveImgPath(src) {
+      if (!src || src.indexOf('data:') === 0 || src.indexOf('http') === 0) return null;
+      var imgPath;
+      if (src.indexOf('/') === 0) {
+        imgPath = src.substring(1);
+      } else {
+        imgPath = htmlDir + src;
+      }
+      return normalizePath(imgPath);
+    }
+
+    // 从 zip 读取图片为 data URI（带缓存，同一 path 只读一次）
+    function loadImgDataUri(path) {
+      if (imageCache[path]) return imageCache[path];
+      var zipFile = zip.file(path) || zip.file(decodeURIComponent(path));
+      if (!zipFile) return null;
+      var p = zipFile.async('base64').then(function(b64) {
+        var ext = path.split('.').pop().toLowerCase();
+        var mime = mimeMap[ext] || 'image/jpeg';
+        return 'data:' + mime + ';base64,' + b64;
+      });
+      imageCache[path] = p;
+      return p;
+    }
 
     for (var i = 0; i < contents.length; i++) {
-      if (contents[i].type === 'image' && contents[i].src) {
-        var src = contents[i].src;
-        if (src.indexOf('data:') === 0) continue; // 已经是 data URI
-        // 解析相对路径
-        var imgPath;
-        if (src.indexOf('/') === 0) {
-          imgPath = src.substring(1);
-        } else {
-          imgPath = htmlDir + src;
-        }
-        // 规范化路径（处理 ../）
-        imgPath = normalizePath(imgPath);
+      var item = contents[i];
 
-        (function(index, path) {
-          var zipFile = zip.file(path) || zip.file(decodeURIComponent(path));
-          if (zipFile) {
+      // 1. 处理 type==='image' 的 src 字段（正文图片）
+      if (item.type === 'image' && item.src) {
+        (function(index) {
+          var path = resolveImgPath(contents[index].src);
+          if (!path) return;
+          imagePromises.push(
+            loadImgDataUri(path).then(function(dataUri) {
+              if (dataUri) contents[index].src = dataUri;
+            })
+          );
+        })(i);
+      }
+
+      // 2. 扫描所有 content 项 html 字段中的 <img src="...">（如脚注引用图标 verse.png）
+      //    将相对路径 src 替换为 base64 data URI，使图标在渲染时能正常显示
+      if (item.html && item.html.indexOf('<img') !== -1) {
+        var htmlStr = item.html;
+        var imgRegex = /<img\b[^>]*\bsrc="([^"]+)"/gi;
+        var match;
+        var srcsToLoad = []; // [{src, path}]
+        while ((match = imgRegex.exec(htmlStr)) !== null) {
+          var rawSrc = match[1];
+          var path = resolveImgPath(rawSrc);
+          if (path) {
+            srcsToLoad.push({ src: rawSrc, path: path });
+          }
+        }
+        if (srcsToLoad.length > 0) {
+          (function(index, srcs) {
             imagePromises.push(
-              zipFile.async('base64').then(function(b64) {
-                var ext = path.split('.').pop().toLowerCase();
-                var mimeMap = {
-                  jpg: 'image/jpeg', jpeg: 'image/jpeg',
-                  png: 'image/png', gif: 'image/gif',
-                  webp: 'image/webp', svg: 'image/svg+xml'
-                };
-                var mime = mimeMap[ext] || 'image/jpeg';
-                contents[index].src = 'data:' + mime + ';base64,' + b64;
+              Promise.all(srcs.map(function(s) { return loadImgDataUri(s.path); })).then(function(dataUris) {
+                // 统一替换该 content item html 中的所有 img src（原子操作，避免竞争）
+                for (var di = 0; di < srcs.length; di++) {
+                  if (dataUris[di]) {
+                    var escSrc = srcs[di].src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    var srcRegex = new RegExp('src="' + escSrc + '"', 'g');
+                    contents[index].html = contents[index].html.replace(srcRegex, 'src="' + dataUris[di] + '"');
+                  }
+                }
               })
             );
-          }
-        })(i, imgPath);
+          })(i, srcsToLoad);
+        }
       }
     }
 

@@ -145,6 +145,14 @@
         var tag = (child.tagName || '').toLowerCase();
         if (tag === 'br') {
           result += '<br>';
+        } else if (tag === 'img') {
+          // img 是 void element，保留 src 和 class（后续 processEpubImages 会将 src 替换为 data URI）
+          var inlineImgSrc = child.getAttribute('src') || '';
+          var inlineImgCls = child.getAttribute('class') || '';
+          var inlineImgClsAttr = inlineImgCls ? ' class="' + escAttr(inlineImgCls) + '"' : '';
+          if (inlineImgSrc) {
+            result += '<img' + inlineImgClsAttr + ' src="' + escAttr(inlineImgSrc) + '">';
+          }
         } else if (INLINE_TAGS[tag]) {
           var inner = extractInlineHtml(child, cssMap, spineHrefMap, currentBasename);
           if (tag === 'a') {
@@ -152,7 +160,25 @@
             // EPUB duokan-footnote 行内引用：渲染为 <sup> 而非 <a>
             if (child.classList && child.classList.contains('duokan-footnote')) {
               var fnRefId = href.replace(/^#/, '') || '';
-              result += '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">†</sup>';
+              // 保留原始 <a> 内部的 <img> 图标（如 MDC 的 verse.png），若无则回退为 †
+              var fnRefInnerHtml = '';
+              var fnRefImgNode = null;
+              for (var fri2 = 0; fri2 < child.childNodes.length; fri2++) {
+                var fc2 = child.childNodes[fri2];
+                if (fc2.nodeType === 1 && (fc2.tagName || '').toLowerCase() === 'img') {
+                  fnRefImgNode = fc2;
+                  break;
+                }
+              }
+              if (fnRefImgNode) {
+                var fSrc2 = fnRefImgNode.getAttribute('src') || '';
+                var fCls2 = fnRefImgNode.getAttribute('class') || '';
+                var fClsAttr2 = fCls2 ? ' class="' + escAttr(fCls2) + '"' : '';
+                fnRefInnerHtml = '<img' + fClsAttr2 + ' src="' + escAttr(fSrc2) + '">';
+              } else {
+                fnRefInnerHtml = '†';
+              }
+              result += '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">' + fnRefInnerHtml + '</sup>';
             } else {
               // Detect cross-chapter links:
               // 1. Use spineHrefMap (file basename → chapter number) for general EPUB links

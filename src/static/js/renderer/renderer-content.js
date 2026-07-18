@@ -119,7 +119,7 @@
             var fnrText = fnr.html || wrapRefs(fnr.text || '', ctx);
             html += '<div class="bk-footnote" id="fn-' + escAttr(fnrRawId || String(fnrDisplayNum)) + '">';
             html += '<span class="bk-fn-number">' + escText(String(fnrDisplayNum)) + '</span>';
-            html += '<span class="bk-fn-text">' + fnrText + '</span>';
+            html += '<div class="bk-fn-text">' + fnrText + '</div>';
             html += '</div>';
           }
           html += '</section>';
@@ -132,7 +132,7 @@
         var fnId = (item.attrs && item.attrs.id) || '';
         html = '<div class="bk-footnote" id="fn-' + escAttr(fnId) + '">' +
           '<span class="bk-fn-number">' + escText(fnId) + '</span>' +
-          '<span class="bk-fn-text">' + wrapRefs(text, ctx) + '</span>' +
+          '<div class="bk-fn-text">' + wrapRefs(text, ctx) + '</div>' +
           '</div>';
         break;
 
@@ -270,7 +270,7 @@
         var fn = footnotes[fi];
         html += '<div class="bk-footnote" id="fn-' + escAttr(fn.id || fi + 1) + '">';
         html += '<span class="bk-fn-number">' + escText(fn.id || (fi + 1)) + '</span>';
-        html += '<span class="bk-fn-text">' + wrapRefs(fn.text || '', ctx) + '</span>';
+        html += '<div class="bk-fn-text">' + wrapRefs(fn.text || '', ctx) + '</div>';
         html += '</div>';
       }
       html += '</div>';
@@ -375,6 +375,13 @@
       });
       document.body.appendChild(popup);
 
+      // 创建遮罩层
+      var mask = document.createElement('div');
+      mask.id = 'bk-epub-fn-popup-mask';
+      mask.className = 'bk-epub-fn-popup-mask';
+      mask.addEventListener('click', _closeFootnotePopup);
+      document.body.appendChild(mask);
+
       // 点击弹窗外部关闭
       document.addEventListener('click', _fnPopupOutsideClickHandler);
       // ESC 键关闭
@@ -397,31 +404,53 @@
     // 定位弹窗（在脚注标记附近）
     if (anchorEl) {
       var rect = anchorEl.getBoundingClientRect();
+      var popupWidth = Math.min(480, window.innerWidth - 20);
+      var popupHeight = Math.min(360, window.innerHeight * 0.6);
       var popupTop = rect.bottom + 8;
       var popupLeft = rect.left;
 
-      // 避免超出视口
-      popup.style.top = Math.min(popupTop, window.innerHeight - 250) + 'px';
-      popup.style.left = Math.max(10, Math.min(popupLeft, window.innerWidth - 320)) + 'px';
+      // 右侧空间不足则右对齐
+      if (popupLeft + popupWidth > window.innerWidth - 10) {
+        popupLeft = window.innerWidth - popupWidth - 10;
+      }
+      popupLeft = Math.max(10, popupLeft);
+
+      // 下方空间不足则向上弹出
+      if (popupTop + popupHeight > window.innerHeight - 10) {
+        popupTop = Math.max(10, rect.top - popupHeight - 8);
+      }
+
+      popup.style.top = popupTop + 'px';
+      popup.style.left = popupLeft + 'px';
     }
 
+    var maskEl = document.getElementById('bk-epub-fn-popup-mask');
+    if (maskEl) maskEl.classList.add('bk-epub-fn-popup-mask-active');
     popup.classList.add('bk-epub-fn-popup-active');
   }
 
   // 关闭脚注弹窗
   function _closeFootnotePopup() {
     var popup = document.getElementById('bk-epub-fn-popup');
+    var mask = document.getElementById('bk-epub-fn-popup-mask');
     if (popup) {
       popup.classList.remove('bk-epub-fn-popup-active');
+    }
+    if (mask) {
+      mask.classList.remove('bk-epub-fn-popup-mask-active');
     }
   }
 
   // 脚注弹窗：点击外部关闭
+  // 注意：遮罩层已有独立 click 监听，此处排除遮罩避免重复调用
   function _fnPopupOutsideClickHandler(e) {
     var popup = document.getElementById('bk-epub-fn-popup');
     if (!popup || !popup.classList.contains('bk-epub-fn-popup-active')) return;
-    // 如果点击的不是脚注引用标记，也不是弹窗内部，则关闭
-    if (!e.target.closest('sup.bk-epub-fn-ref') && !popup.contains(e.target)) {
+    var mask = document.getElementById('bk-epub-fn-popup-mask');
+    // 如果点击的不是脚注引用标记，也不是弹窗内部，也不是遮罩层，则关闭
+    if (!e.target.closest('sup.bk-epub-fn-ref') &&
+        !popup.contains(e.target) &&
+        e.target !== mask) {
       _closeFootnotePopup();
     }
   }
@@ -433,8 +462,12 @@
     }
   }
 
-  // 脚注弹窗：滚动关闭
-  function _fnPopupScrollHandler() {
+  // 脚注弹窗：滚动关闭（阅读区域滚动时）
+  // 注意：弹窗自身滚动（overflow-y: auto）不应触发关闭
+  function _fnPopupScrollHandler(e) {
+    var popup = document.getElementById('bk-epub-fn-popup');
+    // 弹窗内部滚动不关闭
+    if (popup && popup.contains(e.target)) return;
     _closeFootnotePopup();
   }
 
