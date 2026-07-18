@@ -12,19 +12,28 @@
                     /^\s*<html[\s>]/i.test(htmlStr);
     var fragmentHtml;
     if (isFullDoc) {
-      // 用 application/xhtml+xml 解析完整 XHTML 文档，提取 body
-      var xdoc = parser.parseFromString(htmlStr, 'application/xhtml+xml');
-      var xbody = xdoc.getElementsByTagName('body')[0];
-      if (xbody) {
-        // 序列化 body 内容为 HTML 字符串
-        fragmentHtml = '';
-        for (var bi = 0; bi < xbody.childNodes.length; bi++) {
-          fragmentHtml += serializeNode(xbody.childNodes[bi]);
-        }
+      // 优先用正则提取 <body>...</body> 之间的内容。
+      // 原因：JSDOM 的 outerHTML/XMLSerializer 在序列化 application/xhtml+xml
+      // 解析出的节点时，会把带命名空间前缀的属性（如 epub:type）重映射为
+      // 自动生成的前缀（如 ns1:type），导致后续 text/html 解析无法识别
+      // aside[epub:type="footnote"]，脚注被误判为普通 list。
+      // 正则提取保留原始属性名，在浏览器和 JSDOM 中行为一致。
+      var bodyMatch = htmlStr.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch) {
+        fragmentHtml = bodyMatch[1];
       } else {
-        // fallback: 尝试正则提取 <body>...</body> 之间的内容
-        var bodyMatch = htmlStr.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        fragmentHtml = bodyMatch ? bodyMatch[1] : htmlStr;
+        // fallback: 用 application/xhtml+xml 解析完整 XHTML 文档，提取 body
+        var xdoc = parser.parseFromString(htmlStr, 'application/xhtml+xml');
+        var xbody = xdoc.getElementsByTagName('body')[0];
+        if (xbody) {
+          // 序列化 body 内容为 HTML 字符串
+          fragmentHtml = '';
+          for (var bi = 0; bi < xbody.childNodes.length; bi++) {
+            fragmentHtml += serializeNode(xbody.childNodes[bi]);
+          }
+        } else {
+          fragmentHtml = htmlStr;
+        }
       }
     } else {
       fragmentHtml = htmlStr;
