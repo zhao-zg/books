@@ -1,6 +1,6 @@
 /* ── EPUB 脚注引用（duokan-footnote 行内标记）──
    保留原始 EPUB 的 <img> 图标（如 MDC 的 verse.png）；
-   无 img 时回退为 † 文本符号 */
+   无 img 时回退为 <span class="bk-epub-fn-ref-text">†</span> 文本符号 */
 .bk-epub-fn-ref {
   display: inline;
   cursor: pointer;
@@ -8,6 +8,13 @@
   line-height: 1;
   text-decoration: none;
   margin: 0 1px;
+}
+/* 回退文本符号 †（无 img 子节点时的占位）：上移 + 加粗，与图标视觉对齐 */
+.bk-epub-fn-ref-text {
+  font-weight: bold;
+  position: relative;
+  top: -0.15em;
+  color: var(--text-secondary, #666);
 }
 /* 图片图标样式（还原原始 EPUB .footnote_img 规则） */
 .bk-epub-fn-ref img {
@@ -20,8 +27,9 @@
   text-decoration: none;
 }
 [data-theme="dark"] .bk-epub-fn-ref img {
-  /* 暗色模式下图片图标保持原样（verse.png 本身是黄底蓝字，暗色下也清晰） */
-  filter: brightness(0.9);
+  /* 暗色模式下保持原始彩色图标外观（verse.png 黄底蓝字在暗色背景下具备良好对比度）。
+     不调整 brightness，避免 brightness(0.9) 让蓝字进一步变暗导致清晰度下降。 */
+  filter: none;
 }
 
 /* EPUB 脚注弹窗遮罩 */

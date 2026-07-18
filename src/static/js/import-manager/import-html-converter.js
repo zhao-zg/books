@@ -386,25 +386,10 @@
           if (isDuokanFnRef) {
             var fnRefHref = node.getAttribute('href') || '';
             var fnRefId = fnRefHref.replace(/^#/, '') || '';
-            // 保留原始 EPUB 的脚注引用标记：提取 <a> 内部的 <img> 图标（如 MDC 的 verse.png）
-            // 若无 img 子节点则回退为 † 占位文本
-            var fnRefInner = '';
-            var fnRefImg = null;
-            for (var fri = 0; fri < node.childNodes.length; fri++) {
-              var fnChild = node.childNodes[fri];
-              if (fnChild.nodeType === 1 && (fnChild.tagName || '').toLowerCase() === 'img') {
-                fnRefImg = fnChild;
-                break;
-              }
-            }
-            if (fnRefImg) {
-              var imgSrc = fnRefImg.getAttribute('src') || '';
-              var imgClass = fnRefImg.getAttribute('class') || '';
-              var imgClsAttr = imgClass ? ' class="' + escAttr(imgClass) + '"' : '';
-              fnRefInner = '<img' + imgClsAttr + ' src="' + escAttr(imgSrc) + '">';
-            } else {
-              fnRefInner = '†';
-            }
+            // 保留原始 EPUB 的脚注引用标记：提取 <a> 内部的 <img> 图标（含 alt/src/class），
+            // 若无 img 子节点则回退为 <span class="bk-epub-fn-ref-text">†</span>
+            // 使用公共函数避免与 import-epub-style.js 的重复逻辑
+            var fnRefInner = extractDuokanFnRefInner(node);
             contents.push({
               type: 'footnote_ref',
               footnoteId: fnRefId,

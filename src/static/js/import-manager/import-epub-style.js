@@ -146,12 +146,16 @@
         if (tag === 'br') {
           result += '<br>';
         } else if (tag === 'img') {
-          // img 是 void element，保留 src 和 class（后续 processEpubImages 会将 src 替换为 data URI）
+          // img 是 void element，保留 src/class/alt（后续 processEpubImages 会将 src 替换为 data URI）
+          // alt 属性保留用于无障碍访问（屏幕阅读器可读取图片描述）
           var inlineImgSrc = child.getAttribute('src') || '';
           var inlineImgCls = child.getAttribute('class') || '';
-          var inlineImgClsAttr = inlineImgCls ? ' class="' + escAttr(inlineImgCls) + '"' : '';
+          var inlineImgAlt = child.getAttribute('alt') || '';
+          var inlineImgAttrs = '';
+          if (inlineImgCls) inlineImgAttrs += ' class="' + escAttr(inlineImgCls) + '"';
+          if (inlineImgAlt) inlineImgAttrs += ' alt="' + escAttr(inlineImgAlt) + '"';
           if (inlineImgSrc) {
-            result += '<img' + inlineImgClsAttr + ' src="' + escAttr(inlineImgSrc) + '">';
+            result += '<img' + inlineImgAttrs + ' src="' + escAttr(inlineImgSrc) + '">';
           }
         } else if (INLINE_TAGS[tag]) {
           var inner = extractInlineHtml(child, cssMap, spineHrefMap, currentBasename);
@@ -160,24 +164,9 @@
             // EPUB duokan-footnote 行内引用：渲染为 <sup> 而非 <a>
             if (child.classList && child.classList.contains('duokan-footnote')) {
               var fnRefId = href.replace(/^#/, '') || '';
-              // 保留原始 <a> 内部的 <img> 图标（如 MDC 的 verse.png），若无则回退为 †
-              var fnRefInnerHtml = '';
-              var fnRefImgNode = null;
-              for (var fri2 = 0; fri2 < child.childNodes.length; fri2++) {
-                var fc2 = child.childNodes[fri2];
-                if (fc2.nodeType === 1 && (fc2.tagName || '').toLowerCase() === 'img') {
-                  fnRefImgNode = fc2;
-                  break;
-                }
-              }
-              if (fnRefImgNode) {
-                var fSrc2 = fnRefImgNode.getAttribute('src') || '';
-                var fCls2 = fnRefImgNode.getAttribute('class') || '';
-                var fClsAttr2 = fCls2 ? ' class="' + escAttr(fCls2) + '"' : '';
-                fnRefInnerHtml = '<img' + fClsAttr2 + ' src="' + escAttr(fSrc2) + '">';
-              } else {
-                fnRefInnerHtml = '†';
-              }
+              // 保留原始 <a> 内部的 <img> 图标（含 alt/src/class）；若无则回退为 <span>†</span>
+              // 使用公共函数避免与 import-html-converter.js 的重复逻辑
+              var fnRefInnerHtml = extractDuokanFnRefInner(child);
               result += '<sup class="bk-epub-fn-ref" data-fn-id="' + escAttr(fnRefId) + '">' + fnRefInnerHtml + '</sup>';
             } else {
               // Detect cross-chapter links:

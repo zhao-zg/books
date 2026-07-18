@@ -50,6 +50,44 @@ var win = window;
     return str.replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
   }
 
+  // ── HTML 实体解码（escAttr / escHtml 的逆操作）──
+  // 用于 processEpubImages 从 html 字符串提取 img src 后的实体解码，
+  // 避免文件名含 & < > " ' 等特殊字符时无法匹配 zip 路径
+  function decodeHtmlEntities(s) {
+    if (!s) return '';
+    return String(s).replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'");
+  }
+
+  // ── duokan-footnote 引用内部 HTML 提取（公共逻辑）──
+  // 保留原始 EPUB 的 <img> 图标（含 alt/src/class，alt 用于无障碍访问）；
+  // 若 <a> 内无 <img> 子节点则回退为 <span class="bk-epub-fn-ref-text">†</span>
+  // 供 import-html-converter.js 和 import-epub-style.js 复用，避免逻辑重复
+  function extractDuokanFnRefInner(aNode) {
+    var fnRefImg = null;
+    for (var i = 0; i < aNode.childNodes.length; i++) {
+      var child = aNode.childNodes[i];
+      if (child.nodeType === 1 && (child.tagName || '').toLowerCase() === 'img') {
+        fnRefImg = child;
+        break;
+      }
+    }
+    if (fnRefImg) {
+      var src = fnRefImg.getAttribute('src') || '';
+      var cls = fnRefImg.getAttribute('class') || '';
+      var alt = fnRefImg.getAttribute('alt') || '';
+      var attrs = '';
+      if (cls) attrs += ' class="' + escAttr(cls) + '"';
+      if (alt) attrs += ' alt="' + escAttr(alt) + '"';
+      if (src) attrs += ' src="' + escAttr(src) + '"';
+      return '<img' + attrs + '>';
+    }
+    return '<span class="bk-epub-fn-ref-text">†</span>';
+  }
+
   // ── 章节分割正则（移植自 txt_parser.py）──
   var chapterPatterns = [
     /^第[零一二三四五六七八九十百千\d]+[章节回部篇集卷]\s*(.*)$/,

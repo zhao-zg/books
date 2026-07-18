@@ -337,6 +337,9 @@
     // 解析图片 src 为 zip 内规范化路径；返回 null 表示无需处理（data URI / 外链）
     function resolveImgPath(src) {
       if (!src || src.indexOf('data:') === 0 || src.indexOf('http') === 0) return null;
+      // html 字符串中的 src 经过 escAttr 编码（如 & → &amp;），
+      // 若文件名含 & < > " ' 等特殊字符需先解码，否则无法匹配 zip 路径
+      src = decodeHtmlEntities(src);
       var imgPath;
       if (src.indexOf('/') === 0) {
         imgPath = src.substring(1);
