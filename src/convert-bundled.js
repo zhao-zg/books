@@ -80,6 +80,7 @@ for (const f of frontFiles) {
 
 // 验证关键函数已挂到 global
 const requiredFns = ['parseEpub', 'parseMd', 'parseTxt', 'htmlToContents',
+                     'cleanInvisibleChars',
                      'generateId', 'escHtml', 'escAttr'];
 for (const fn of requiredFns) {
   if (typeof global[fn] !== 'function') {
@@ -88,14 +89,7 @@ for (const fn of requiredFns) {
   }
 }
 
-// ── 3. 工具：清理零宽字符（构建端独有预处理，前端无此函数）──
-// 在 main 里对 MD/TXT 输入文本调用，与旧版行为一致
-function cleanInvisibleChars(str) {
-  if (!str) return str;
-  return str.replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
-}
-
-// ── 4. 主入口 ──
+// ── 3. 主入口 ──
 async function main() {
   // marked 是 ESM-only 包，动态 import；实例化后注入到 win.marked。
   // 注意：前端 import-markdown.js::parseMd 会调用 win.marked.use({gfm:true, breaks:true})

@@ -37,7 +37,7 @@
           mdText = decodeBase64(fileInfo.data);
         }
         if (!mdText) throw new Error('无法读取 Markdown 文件内容');
-        bookData = parseMd(mdText, fileInfo.name);
+        bookData = parseMd(cleanInvisibleChars(mdText), fileInfo.name);
         return saveBook(bookData, { source: { type: 'local' } }).then(function(book) {
           console.log('[导入] MD 解析完成:', book.title, book.chapters.length + '章');
           return book;
@@ -49,7 +49,7 @@
           txtText = decodeBase64(fileInfo.data);
         }
         if (!txtText) throw new Error('无法读取文件内容');
-        bookData = parseTxt(txtText, fileInfo.name);
+        bookData = parseTxt(cleanInvisibleChars(txtText), fileInfo.name);
         return saveBook(bookData, { source: { type: 'local' } }).then(function(book) {
           console.log('[导入] TXT 解析完成:', book.title, book.chapters.length + '章');
           return book;
@@ -90,14 +90,14 @@
       var mdText = fileInfo.text;
       if (!mdText && fileInfo.data) mdText = decodeBase64(fileInfo.data);
       if (!mdText) return Promise.reject(new Error('无法读取 Markdown 文件内容'));
-      bookData = parseMd(mdText, fileInfo.name);
+      bookData = parseMd(cleanInvisibleChars(mdText), fileInfo.name);
       return saveBook(bookData, opts);
     } else {
       // 默认按 TXT 处理
       var txtText = fileInfo.text;
       if (!txtText && fileInfo.data) txtText = decodeBase64(fileInfo.data);
       if (!txtText) return Promise.reject(new Error('无法读取文件内容'));
-      bookData = parseTxt(txtText, fileInfo.name);
+      bookData = parseTxt(cleanInvisibleChars(txtText), fileInfo.name);
       return saveBook(bookData, opts);
     }
   }

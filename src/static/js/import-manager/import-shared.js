@@ -43,6 +43,13 @@ var win = window;
                      .replace(/'/g, '&#39;');
   }
 
+  // ── 零宽字符清理（MD/TXT 导入预处理，与构建端 convert-bundled.js 共用）──
+  // 清理 BOM（U+FEFF）和零宽空格/连接符等不可见字符，避免渲染异常
+  function cleanInvisibleChars(str) {
+    if (!str) return str;
+    return str.replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '');
+  }
+
   // ── 章节分割正则（移植自 txt_parser.py）──
   var chapterPatterns = [
     /^第[零一二三四五六七八九十百千\d]+[章节回部篇集卷]\s*(.*)$/,
