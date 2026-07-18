@@ -203,6 +203,10 @@
       html += '</div>';
       html += '</div>';
     }
+    // 状态徽章：默认空不显示；下载中/成功/失败时由 _handleBookClick 写入文字并由 CSS 浮到卡片右上角。
+    // 此前 _handleBookClick / _refreshAfterDownload 用 querySelector('.cache-status') 取元素，
+    // 但 _buildBookCard 从未渲染该元素导致永远为 null —— 下载反馈实际从未生效（潜伏 bug）。
+    html += '<div class="cache-status" aria-hidden="true"></div>';
     html += '</div>';
     html += '</div>';
     html += '</div>';
@@ -211,6 +215,15 @@
 
   /**
    * 处理书籍卡片点击：已下载则导航，未下载则先下载
+   *
+   * 体验流程（未下载 → 已下载 → 打开）：
+   *   1. 入口防抖：检查 data-downloading，已设置直接 return，避免重复 fetch
+   *   2. 卡片置忙：data-downloading="true" + aria-busy，CSS 禁用 .book-link 再次点击
+   *   3. 进度反馈：传入 onProgress(percent, status) 回调，实时更新 .cache-status 文字
+   *      （此前潜伏 bug：onProgress 从未传入，进度信息全丢）
+   *   4. 成功过渡：显示 ✓「下载完成」→ 延迟 400ms → navigate（让用户看清状态再跳转）
+   *   5. 失败保留：显示 ✗ + toast 提示，状态保留不回退，由 _refreshAfterDownload 通过
+   *      data-download-failed 守卫跳过覆盖，保证用户能看到失败信息
    */
   function _handleBookClick(bookId, series, cardEl) {
     if (_isBookDownloaded(bookId)) {
@@ -231,26 +244,68 @@
       return;
     }
 
-    // 显示下载中状态
     var cardEl2 = cardEl ? cardEl.closest('.zl-book-card') : null;
-    var iconEl = cardEl ? cardEl.querySelector('.cache-status') : null;
-    if (iconEl) { iconEl.textContent = '⏳'; iconEl.style.color = '#ff9800'; }
-    if (cardEl2) cardEl2.setAttribute('data-downloading', 'true');
+    // 防抖：卡片正在下载中，忽略重复点击
+    if (cardEl2 && cardEl2.getAttribute('data-downloading') === 'true') {
+      return;
+    }
 
-    win.DataManager.downloadBook(bookId, series)
+    var iconEl = cardEl ? cardEl.querySelector('.cache-status') : null;
+
+    // 取书名（优先 _zlBooks，找不到 fallback bookId）—— 用于失败 toast 文案
+    var bookTitle = bookId;
+    for (var i = 0; i < _zlBooks.length; i++) {
+      if (_zlBooks[i].id === bookId) { bookTitle = _zlBooks[i].title || bookId; break; }
+    }
+
+    // ── 卡片置忙 ──────────────────────────────────────────
+    if (cardEl2) {
+      cardEl2.setAttribute('data-downloading', 'true');
+      cardEl2.removeAttribute('data-download-failed');  // 清除上一次的失败状态
+    }
+    if (iconEl) {
+      iconEl.textContent = '⏳ 下载中…';
+      iconEl.style.color = 'var(--warning-text, #B5793A)';
+      iconEl.setAttribute('aria-hidden', 'false');
+    }
+
+    // ── 下载（传入 onProgress 回调，实时更新文字） ────────
+    win.DataManager.downloadBook(bookId, series, function (percent, status) {
+      // percent === -1 表示错误（已在 catch 处理）；其余按百分比更新
+      if (percent < 0) return;
+      if (!iconEl) return;
+      var pct = (percent > 100 ? 100 : percent) | 0;
+      iconEl.textContent = '⏳ ' + (status || '下载中') + (pct < 100 ? ' ' + pct + '%' : '');
+    })
       .then(function () {
-        // 下载成功，更新状态
+        // 下载成功
         _zlDownloadedIds.push(bookId);
-        if (iconEl) { iconEl.textContent = '✓'; iconEl.style.color = 'var(--brand)'; }
+        if (iconEl) {
+          iconEl.textContent = '✓ 已下载';
+          iconEl.style.color = 'var(--success-text, #3D8A5A)';
+        }
         if (cardEl2) cardEl2.removeAttribute('data-downloading');
-        // 导航到书籍
-        if (win.BKRouter) win.BKRouter.navigate(bookId);
+        // 延迟 400ms 再跳转，让用户看清「已下载」状态后再打开书
+        // 新下载的书没有阅读进度，直接进入第一章；navigate(bookId) 不带章节号
+        // 会停在地书详情页，用户体验是"下载完了却没打开"。
+        setTimeout(function () {
+          if (win.BKRouter) win.BKRouter.navigate(bookId + '/1');
+        }, 400);
       })
       .catch(function (err) {
         console.error('[Renderer] 书籍下载失败:', err);
-        if (iconEl) { iconEl.textContent = '✗'; iconEl.style.color = '#f44336'; }
-        if (cardEl2) cardEl2.removeAttribute('data-downloading');
-        setTimeout(function () { if (iconEl) { iconEl.textContent = '☁'; iconEl.style.color = 'var(--text-muted)'; } }, 2000);
+        var errMsg = (err && (err.hint || err.message)) ? (err.hint || err.message) : '未知错误';
+        if (iconEl) {
+          iconEl.textContent = '✗ 下载失败';
+          iconEl.style.color = 'var(--danger-text, #C8553D)';
+          iconEl.setAttribute('aria-hidden', 'false');
+        }
+        if (cardEl2) {
+          cardEl2.removeAttribute('data-downloading');
+          // 标记失败，供 _refreshAfterDownload 跳过覆盖
+          cardEl2.setAttribute('data-download-failed', 'true');
+        }
+        _toast('《' + bookTitle + '》下载失败：' + errMsg);
       });
   }
 
@@ -606,6 +661,12 @@
 
   /**
    * 下载完成后刷新书籍网格和统计
+   *
+   * 状态协调规则（避免覆盖「下载中/失败」的实时反馈）：
+   *   - data-downloading="true" → 跳过（用户正在下载，不要覆盖进度文字）
+   *   - data-download-failed="true" → 跳过（用户失败状态需保留供查看/重试）
+   *   - 其他卡片 → 清空 .cache-status 内容（默认空，CSS 隐藏；不再画常态 ☁/✓ 角标，
+   *     因为书城卡已在封面/标题表达了书籍身份，常态徽章是冗余信息）
    */
   function _refreshAfterDownload() {
     if (!_zlDmReady || !win.DataManager) return;
@@ -616,12 +677,15 @@
       if (homeView) {
         var cards = homeView.querySelectorAll('.zl-book-card');
         for (var i = 0; i < cards.length; i++) {
-          var bookId = cards[i].getAttribute('data-book-id');
-          var isDown = _isBookDownloaded(bookId);
+          // 跳过正在下载或已失败的卡片，避免覆盖实时状态
+          if (cards[i].getAttribute('data-downloading') === 'true') continue;
+          if (cards[i].getAttribute('data-download-failed') === 'true') continue;
           var statusEl = cards[i].querySelector('.cache-status');
           if (statusEl) {
-            statusEl.textContent = isDown ? '✓' : '☁';
-            statusEl.style.color = isDown ? 'var(--brand)' : 'var(--text-muted)';
+            // 默认状态清空 —— 常态徽章由 _handleBookClick 在点击时填充
+            statusEl.textContent = '';
+            statusEl.style.color = '';
+            statusEl.setAttribute('aria-hidden', 'true');
           }
         }
       }

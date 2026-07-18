@@ -163,15 +163,73 @@
   flex-shrink: 0;
 }
 
-/* ── 书籍下载状态过渡动画 ──────────────────────────────────── */
-.cache-status {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+/* ── 书籍下载状态徽章（书城卡 .zl-book-card.is-city-book 内的 .cache-status） ────
+ * 设计原则：
+ *  - 常态空徽章不显示（:empty 选择器），避免冗余 ☁/✓ 角标干扰封面海报视觉
+ *  - 下载中：橙色脉冲 + 禁用 .book-link 再次点击（pointer-events:none）
+ *  - 失败：红色徽章不脉冲，状态保留供用户查看/重试
+ * 文字内容（如「⏳ 下载中 50%」「✓ 已下载」「✗ 下载失败」）由 _handleBookClick 写入，
+ * CSS 仅负责定位、配色与动画。
+ * ----------------------------------------------------------------------------- */
+.zl-book-card.is-city-book .cache-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: rgba(26, 25, 24, 0.82);
+  color: #fff;
+  font-size: var(--text-xs, 11px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity .2s var(--ease-out, ease), transform .2s var(--ease-out, ease);
+  pointer-events: none;
+  z-index: 3;
+  max-width: calc(100% - 16px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* 内容非空时显示（由 JS 设置 textContent → :empty 自动判断） */
+.zl-book-card.is-city-book .cache-status:not(:empty) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 兼容旧通用规则：css-base.css 中 .zl-book-card .cache-status 用了 margin-left/opacity 等
+ * flex-item 样式，城市卡用绝对定位覆盖之。已下载未失败的常态下 _refreshAfterDownload 会清空
+ * textContent，:empty 触发 opacity:0 -> 回到不可见。 */
+
 @keyframes bk-pulse {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.18); }
+  0%, 100% { opacity: 0.78; transform: translateY(0) scale(0.98); }
+  50%      { opacity: 1;    transform: translateY(0) scale(1.04); }
 }
-.zl-book-card[data-downloading="true"] .cache-status {
+
+/* 下载中：橙色文字 + 脉冲动画 */
+.zl-book-card.is-city-book[data-downloading="true"] .cache-status {
+  color: var(--warning-text, #B5793A);
+  background: rgba(26, 25, 24, 0.85);
   animation: bk-pulse 1.2s ease-in-out infinite;
+}
+
+/* 下载中：禁用 .book-link 再次点击（防抖）；视觉上轻降饱和度提示忙碌 */
+.zl-book-card.is-city-book[data-downloading="true"] .book-link {
+  pointer-events: none;
+  cursor: default;
+}
+.zl-book-card.is-city-book[data-downloading="true"] .bk-cover {
+  filter: saturate(0.85) brightness(0.96);
+  transition: filter .25s ease;
+}
+
+/* 下载失败：红色徽章不脉冲，状态保留 */
+.zl-book-card.is-city-book[data-download-failed="true"] .cache-status {
+  animation: none;
+  color: #fff;
+  background: rgba(200, 85, 61, 0.88);
 }
 
