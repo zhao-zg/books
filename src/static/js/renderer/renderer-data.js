@@ -317,6 +317,8 @@
     stopScrollTracking();
     _scrollPageKey = pageKey;
     _scrollSaveHandler = function() {
+      // 进度条实时更新（不防抖）：让顶部 #bkReadingProgress 紧跟滚动
+      try { _updateTopReadingProgress(); } catch(e) {}
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(function() {
         saveScrollPosition();

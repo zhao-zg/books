@@ -817,9 +817,21 @@
     (function(){
         var prog=document.getElementById('bkReadingProgress');
         if(prog){
-            function updProg(){var s=window.scrollY||0;var d=document.documentElement.scrollHeight-window.innerHeight;prog.style.width=(d>0?Math.min(100,s/d*100):0)+'%';}
+            function updProg(){
+                // 阅读视图由 renderer 模块按章节进度+章内滚动综合更新，此处不介入
+                if(document.body.classList.contains('bk-reading-page')) return;
+                var s=window.scrollY||0;
+                var d=document.documentElement.scrollHeight-window.innerHeight;
+                prog.style.width=(d>0?Math.min(100,s/d*100):0)+'%';
+            }
             window.addEventListener('scroll',updProg,{passive:true});
-            window.addEventListener('hashchange',function(){prog.style.width='0%';});
+            window.addEventListener('hashchange',function(){
+                // 切换路由后：阅读页由 renderer 重置；非阅读页清零交回 window 滚动逻辑
+                if(!document.body.classList.contains('bk-reading-page')){
+                    prog.style.width='0%';
+                    setTimeout(updProg,50);
+                }
+            });
         }
     })();
     </script>

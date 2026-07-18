@@ -285,6 +285,9 @@
           if (_sc === win) win.scrollTo(0, 0);
           else _sc.scrollTop = 0;
 
+          // 切章后同步顶部进度条：跳到「当前章节在书中位置」的段位（ratio=0）
+          try { _updateTopReadingProgress(); } catch(e) {}
+
           // 重新初始化依赖 DOM 的功能
           if (win.BKHighlight && win.BKHighlight.rendoHighlights) win.BKHighlight.rendoHighlights();
           if (win.BKScripturePopup && win.BKScripturePopup.init) win.BKScripturePopup.init();

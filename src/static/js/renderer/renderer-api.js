@@ -24,6 +24,8 @@
       _exitSplitMode();
       _cleanupPdfCache();
       document.body.classList.remove('bk-reading-page');
+      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
+      try { _updateTopReadingProgress(); } catch(e) {}
       showHome();
       var homeView = document.getElementById('homeView');
       if (!homeView) return;
@@ -52,6 +54,8 @@
       _exitSplitMode();
       _cleanupPdfCache();
       document.body.classList.remove('bk-reading-page');
+      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
+      try { _updateTopReadingProgress(); } catch(e) {}
       showHome();
       var homeView = document.getElementById('homeView');
       if (!homeView) return;
@@ -101,6 +105,8 @@
       _exitSplitMode();
       _cleanupPdfCache();
       document.body.classList.remove('bk-reading-page');
+      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
+      try { _updateTopReadingProgress(); } catch(e) {}
       showApp();
       var app = getApp();
 
@@ -288,6 +294,8 @@
       _exitSplitMode();
       _cleanupPdfCache();
       document.body.classList.remove('bk-reading-page');
+      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
+      try { _updateTopReadingProgress(); } catch(e) {}
       showApp();
       var app = getApp();
       document.title = '书架';
@@ -505,6 +513,8 @@
       _exitSplitMode();
       _cleanupPdfCache();
       document.body.classList.remove('bk-reading-page');
+      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
+      try { _updateTopReadingProgress(); } catch(e) {}
       showApp();
       var app = getApp();
       app.innerHTML = '<div class="bk-loading"><div class="bk-spinner"></div><div>加载中...</div></div>';
@@ -691,6 +701,8 @@
               else c.scrollTop = bmScrollY;
               // 恢复滚动位置后用重试检查，确保 DOM 渲染完成后再判定
               _retryCheckScrollCompletion(0);
+              // 恢复滚动后同步顶部进度条
+              try { _updateTopReadingProgress(); } catch(e) {}
             });
           });
         } else {
@@ -737,6 +749,10 @@
         _installReadingShortcuts(bookId, uniqueChapters, chapterNum);
         _installCarouselSwipe(bookId, uniqueChapters, chapterNum);
         _installChapterLinkHandler(bookId);
+        // carousel 初始化完成后，同步顶部进度条到当前章节段位
+        // （_carouselChapterNum/_carouselUniqueChapters 在 _installCarouselSwipe 内才赋值，
+        //   早于此刻调用会因变量为 null 被清零；bmScrollY>0 的恢复滚动同步由 rAF 内调用处理）
+        try { _updateTopReadingProgress(); } catch(e) {}
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +

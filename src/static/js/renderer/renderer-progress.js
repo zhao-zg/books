@@ -197,3 +197,39 @@
     } catch(e) { return 0; }
   }
 
+  // ── 页面顶部阅读进度条（#bkReadingProgress） ──────────────────────────
+  //
+  // 语义：综合「当前章节在整本书中的位置」与「章节内滚动比例」
+  //   progress = (chapterIndex + scrollRatio) / totalChapters * 100
+  //
+  // 切章时跳到 `chapterIndex / totalChapters` 的段位；页内滚动时在该章
+  // 对应的区间内（[chapterIndex/total, (chapterIndex+1)/total]）细粒度填充。
+  // 离开阅读视图时清零，避免残留。
+  //
+  function _updateTopReadingProgress() {
+    var prog = document.getElementById('bkReadingProgress');
+    if (!prog) return;
+
+    // 非阅读页：清零并交给 index.html 的 window 滚动逻辑
+    if (!document.body.classList.contains('bk-reading-page')) {
+      prog.style.width = '0%';
+      return;
+    }
+
+    var total = (_carouselUniqueChapters && _carouselUniqueChapters.length) || 0;
+    if (total <= 0 || !_carouselChapterNum) { prog.style.width = '0%'; return; }
+
+    // 当前章节在去重列表中的索引（0-based）
+    var idx = 0;
+    for (var i = 0; i < _carouselUniqueChapters.length; i++) {
+      if (_carouselUniqueChapters[i].number === _carouselChapterNum) { idx = i; break; }
+    }
+    // 章节内滚动比例（0~1）
+    var ratio = _getChapterScrollRatio();
+    if (ratio < 0) ratio = 0; else if (ratio > 1) ratio = 1;
+
+    var pct = (idx + ratio) / total * 100;
+    if (pct < 0) pct = 0; else if (pct > 100) pct = 100;
+    prog.style.width = pct + '%';
+  }
+
