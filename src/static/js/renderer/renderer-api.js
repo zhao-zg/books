@@ -2,6 +2,17 @@
 
   // ── 渲染器对象 ──────────────────────────────────────────────────────
 
+  // 公共退出阅读视图：清理资源 + 移除阅读页标记 + 同步进度条清零
+  // （5 处退出路径统一调用，避免未来新增路径漏掉进度条清零）
+  function _exitReadingView() {
+    stopScrollTracking();
+    _removeReadingShortcuts();
+    _exitSplitMode();
+    _cleanupPdfCache();
+    document.body.classList.remove('bk-reading-page');
+    try { _updateTopReadingProgress(); } catch(e) {}
+  }
+
   var BKRenderer = {
 
     // zl-html 渲染器激活标志
@@ -19,13 +30,7 @@
     // 渲染进 #homeView；内部状态机（_city*）表达三级下钻，不进 hash。
 
     renderCityPage: function () {
-      stopScrollTracking();
-      _removeReadingShortcuts();
-      _exitSplitMode();
-      _cleanupPdfCache();
-      document.body.classList.remove('bk-reading-page');
-      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
-      try { _updateTopReadingProgress(); } catch(e) {}
+      _exitReadingView();
       showHome();
       var homeView = document.getElementById('homeView');
       if (!homeView) return;
@@ -49,13 +54,7 @@
      * 复用书城三级下钻的渲染与无限滚动基建。
      */
     renderSeriesPage: function (seriesId) {
-      stopScrollTracking();
-      _removeReadingShortcuts();
-      _exitSplitMode();
-      _cleanupPdfCache();
-      document.body.classList.remove('bk-reading-page');
-      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
-      try { _updateTopReadingProgress(); } catch(e) {}
+      _exitReadingView();
       showHome();
       var homeView = document.getElementById('homeView');
       if (!homeView) return;
@@ -100,13 +99,7 @@
     // ── 我的（个人中心，手机/平板） ─────────────────────────────
 
     renderMyPage: function () {
-      stopScrollTracking();
-      _removeReadingShortcuts();
-      _exitSplitMode();
-      _cleanupPdfCache();
-      document.body.classList.remove('bk-reading-page');
-      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
-      try { _updateTopReadingProgress(); } catch(e) {}
+      _exitReadingView();
       showApp();
       var app = getApp();
 
@@ -289,13 +282,7 @@
     // ── 书架页（新增模块） ────────────────────────────────────────
 
     renderShelfPage: function () {
-      stopScrollTracking();
-      _removeReadingShortcuts();
-      _exitSplitMode();
-      _cleanupPdfCache();
-      document.body.classList.remove('bk-reading-page');
-      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
-      try { _updateTopReadingProgress(); } catch(e) {}
+      _exitReadingView();
       showApp();
       var app = getApp();
       document.title = '书架';
@@ -508,13 +495,7 @@
     },
 
     renderChapterList: function (bookId) {
-      stopScrollTracking();
-      _removeReadingShortcuts();
-      _exitSplitMode();
-      _cleanupPdfCache();
-      document.body.classList.remove('bk-reading-page');
-      // 离开阅读视图：同步顶部进度条（内部会判断非阅读页并清零）
-      try { _updateTopReadingProgress(); } catch(e) {}
+      _exitReadingView();
       showApp();
       var app = getApp();
       app.innerHTML = '<div class="bk-loading"><div class="bk-spinner"></div><div>加载中...</div></div>';

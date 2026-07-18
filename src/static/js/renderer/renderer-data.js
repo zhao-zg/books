@@ -313,12 +313,23 @@
     } catch(e) {}
   }
 
+  // rAF 合并进度条更新：scroll 高频触发时每帧最多更新一次，避免 layout thrashing
+  var _progressRafPending = false;
+  function _scheduleProgressUpdate() {
+    if (_progressRafPending) return;
+    _progressRafPending = true;
+    requestAnimationFrame(function() {
+      _progressRafPending = false;
+      try { _updateTopReadingProgress(); } catch(e) {}
+    });
+  }
+
   function startScrollTracking(pageKey) {
     stopScrollTracking();
     _scrollPageKey = pageKey;
     _scrollSaveHandler = function() {
-      // 进度条实时更新（不防抖）：让顶部 #bkReadingProgress 紧跟滚动
-      try { _updateTopReadingProgress(); } catch(e) {}
+      // 进度条实时更新（rAF 合并）：紧跟滚动且不触发 layout thrashing
+      _scheduleProgressUpdate();
       clearTimeout(_scrollSaveTimer);
       _scrollSaveTimer = setTimeout(function() {
         saveScrollPosition();

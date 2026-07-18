@@ -104,6 +104,10 @@
     var container = _getScrollContainer();
     if (!container) { if (count < _MAX_SCROLL_RETRIES) _scheduleRetry(count); return; }
 
+    // 重试时同步顶部进度条：内容渲染可能使 scrollHeight 变化，
+    // 短章节初始 maxScroll<=0 时 ratio=1 偏高，渲染完成后需修正
+    try { _updateTopReadingProgress(); } catch(e) {}
+
     var ratio = _getChapterScrollRatio();
     if (ratio >= _CHAPTER_READ_THRESHOLD) {
       // ratio 达阈值，但需区分两种情况：
