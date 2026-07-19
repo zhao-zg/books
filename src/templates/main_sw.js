@@ -37,6 +37,7 @@ const PRECACHE_URLS = [
   './js/renderer/renderer-utils.js',
   './js/renderer/renderer-data.js',
   './js/renderer/renderer-progress.js',
+  './js/renderer/renderer-pdf.js',
   './js/renderer/renderer-content.js',
   './js/renderer/renderer-carousel.js',
   './js/renderer/renderer-city-helpers.js',

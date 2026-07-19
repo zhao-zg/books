@@ -15,6 +15,7 @@
   var _swipeHandlers = null;
   var _swipeEl = null;
   var _swipeAnimating = false;  // 动画进行中，拒绝新滑动手势
+  var _carouselResizeHandler = null;  // 视口变化重算 transform 的防抖处理器
   var SWIPE_THRESHOLD = 80;
   var SWIPE_MAX_VERTICAL = 60;
   var SWIPE_DURATION = 280;
@@ -333,6 +334,30 @@
       readingView.addEventListener('touchend', onTouchEnd, { passive: true });
       _swipeEl = readingView;
     }
+
+    // 响应式：视口尺寸变化时重算 track translateX
+    // 场景：桌面端窗口宽度变化、手机旋转屏幕、双栏 ↔ 单栏切换。
+    // 不重算会导致 carousel 当前页偏移（track 仍按旧 pageW 平移，新视口下页宽已变）。
+    if (_carouselResizeHandler) {
+      win.removeEventListener('resize', _carouselResizeHandler);
+      win.removeEventListener('orientationchange', _carouselResizeHandler);
+    }
+    var _resizeTimer = null;
+    _carouselResizeHandler = function () {
+      if (_resizeTimer) clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(function () {
+        // 动画进行中跳过，避免打断滑动切章
+        if (_swipeAnimating) { _resizeTimer = null; return; }
+        if (_carouselTrack && _carouselTrack.parentElement) {
+          var pageW = _carouselTrack.parentElement.offsetWidth;
+          _carouselTrack.style.transition = 'none';
+          _carouselTrack.style.transform = 'translateX(' + (-pageW) + 'px)';
+        }
+        _resizeTimer = null;
+      }, 200);
+    };
+    win.addEventListener('resize', _carouselResizeHandler);
+    win.addEventListener('orientationchange', _carouselResizeHandler);
   }
 
   function _removeSwipeHandler() {
@@ -347,6 +372,13 @@
     _swipeHandlers = null;
     _swipeState = null;
     _swipeEl = null;
+
+    // 移除响应式监听器，避免离开阅读视图后仍触发
+    if (_carouselResizeHandler) {
+      win.removeEventListener('resize', _carouselResizeHandler);
+      win.removeEventListener('orientationchange', _carouselResizeHandler);
+      _carouselResizeHandler = null;
+    }
   }
 
   // 防止 carousel 内部导航触发 router 重复渲染

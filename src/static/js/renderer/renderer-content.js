@@ -137,12 +137,18 @@
         break;
 
       case 'pdf_page':
-        var pgNum = item.pageNumber || 1;
-        var pdfBkId = item.pdfBookId || '';
-        html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '">' +
-          '<div class="bk-pdf-page-placeholder"><span>第 ' + pgNum + ' 页</span></div>' +
-          '<canvas class="bk-pdf-canvas"></canvas>' +
-          '</div>';
+        // 委托给 BKPdf 模块生成（含文本层/注解层容器）
+        if (win.BKPdf && win.BKPdf.generatePageHTML) {
+          html = win.BKPdf.generatePageHTML(item);
+        } else {
+          // 回退：BKPdf 尚未加载时生成基础结构
+          var pgNum = item.pageNumber || 1;
+          var pdfBkId = item.pdfBookId || '';
+          html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '">' +
+            '<div class="bk-pdf-page-placeholder"><span>第 ' + pgNum + ' 页</span></div>' +
+            '<canvas class="bk-pdf-canvas"></canvas>' +
+            '</div>';
+        }
         break;
 
       case 'separator':
@@ -501,98 +507,18 @@
     }
   }
 
-  // ── PDF 页面懒渲染 ──────────────────────────────────────────────────────
-  // 使用 IntersectionObserver 在 .bk-pdf-page 元素进入视口时，
-  // 用 pdf.js 渲染对应页到内嵌 <canvas>。
+  // ── PDF 页面懒渲染（委托给 renderer-pdf.js 的 BKPdf 模块）─────────────
+  // 实际实现见 renderer-pdf.js，这里仅做薄委托以保持调用方不变。
 
-  var _pdfDocCache = {};      // pdfBookId → Promise<pdfDocument> (缓存 Promise 避免并发重复加载)
-  var _pdfRenderObserver = null; // IntersectionObserver 单例
-
-  function _getPdfDoc(pdfBookId) {
-    if (_pdfDocCache[pdfBookId]) return _pdfDocCache[pdfBookId];
-    // 从 imported-pdf-data store 读取 Uint8Array
-    var pdfStore = (win.ImportManager && win.ImportManager.getPdfDataStore)
-      ? win.ImportManager.getPdfDataStore() : null;
-    if (!pdfStore) return Promise.reject(new Error('PDF 数据存储不可用'));
-    var p = pdfStore.getItem('pdf:' + pdfBookId).then(function (data) {
-      if (!data) return Promise.reject(new Error('PDF 数据未找到: ' + pdfBookId));
-      var lib = win.pdfjsLib;
-      if (!lib) return Promise.reject(new Error('pdf.js 未加载'));
-      return lib.getDocument({ data: new Uint8Array(data) }).promise;
-    });
-    _pdfDocCache[pdfBookId] = p;
-    return p;
+  function initPdfPageLazyRender(containerEl) {
+    if (win.BKPdf && win.BKPdf.init) {
+      win.BKPdf.init(containerEl);
+    }
   }
 
   function _cleanupPdfCache() {
-    var keys = Object.keys(_pdfDocCache);
-    for (var i = 0; i < keys.length; i++) {
-      // pdfDocument.destroy() 需在 resolve 后调用；这里安全地尝试
-      var p = _pdfDocCache[keys[i]];
-      if (p && typeof p.then === 'function') {
-        p.then(function (pdf) { if (pdf && pdf.destroy) pdf.destroy(); }).catch(function () {});
-      }
-    }
-    _pdfDocCache = {};
-    if (_pdfRenderObserver) {
-      _pdfRenderObserver.disconnect();
-      _pdfRenderObserver = null;
-    }
-  }
-
-  function _renderPdfPage(el) {
-    if (el.getAttribute('data-pdf-rendered') === '1') return;
-    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
-    var pdfBkId = el.getAttribute('data-pdf-book') || '';
-    var canvas = el.querySelector('.bk-pdf-canvas');
-    if (!canvas) return;
-
-    var placeholder = el.querySelector('.bk-pdf-page-placeholder');
-
-    _getPdfDoc(pdfBkId).then(function (pdf) {
-      return pdf.getPage(pgNum);
-    }).then(function (page) {
-      var viewport = page.getViewport({ scale: 1 });
-      // 按容器宽度适配缩放
-      var containerWidth = el.clientWidth || el.parentElement.clientWidth || 600;
-      var scale = containerWidth / viewport.width;
-      var scaledViewport = page.getViewport({ scale: scale });
-
-      canvas.width = Math.floor(scaledViewport.width);
-      canvas.height = Math.floor(scaledViewport.height);
-      canvas.style.width = Math.floor(scaledViewport.width) + 'px';
-      canvas.style.height = Math.floor(scaledViewport.height) + 'px';
-
-      var ctx = canvas.getContext('2d');
-      return page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-    }).then(function () {
-      // 渲染完成，标记并隐藏占位
-      el.setAttribute('data-pdf-rendered', '1');
-      if (placeholder) placeholder.style.display = 'none';
-      canvas.style.opacity = '1';
-    }).catch(function (err) {
-      console.warn('[PDF] 页面渲染失败:', pgNum, err);
-      if (placeholder) placeholder.innerHTML = '<span>页面加载失败</span>';
-    });
-  }
-
-  function initPdfPageLazyRender(containerEl) {
-    var pages = containerEl.querySelectorAll('.bk-pdf-page');
-    if (!pages.length) return;
-
-    if (!_pdfRenderObserver) {
-      _pdfRenderObserver = new IntersectionObserver(function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) {
-            _renderPdfPage(entries[i].target);
-            _pdfRenderObserver.unobserve(entries[i].target);
-          }
-        }
-      }, { rootMargin: '200px 0px' });
-    }
-
-    for (var i = 0; i < pages.length; i++) {
-      _pdfRenderObserver.observe(pages[i]);
+    if (win.BKPdf && win.BKPdf.cleanup) {
+      win.BKPdf.cleanup();
     }
   }
 
