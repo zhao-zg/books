@@ -1,39 +1,29 @@
   // ── 资源检查与管理 ────────────────────────────────────────────────────
 
   /**
-   * 检查资源下载统计与估算大小
-   * 返回 { total, downloaded, missing, estimatedTotalSize, estimatedMissingSize }
+   * 检查资源下载统计
+   * 返回 { total, downloaded, missing }
+   * （estimatedTotalSize / estimatedMissingSize 已移除：唯一调用方仅使用 downloaded/total）
    */
   function checkResources() {
     var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
     return indexPromise.then(function (indexData) {
       var books = indexData.books || [];
       var total = books.length;
-      var BYTES_PER_CHAPTER = 3072;
 
       return getDownloadedIdsList().then(function (downloadedIds) {
         var downloadedCount = 0;
-        var estimatedTotalSize = 0;
-        var estimatedMissingSize = 0;
 
         for (var i = 0; i < books.length; i++) {
-          var chapters = books[i].chapter_count || 0;
-          var bookSize = chapters * BYTES_PER_CHAPTER;
-          estimatedTotalSize += bookSize;
-
           if (downloadedIds.indexOf(books[i].id) !== -1) {
             downloadedCount++;
-          } else {
-            estimatedMissingSize += bookSize;
           }
         }
 
         return {
           total: total,
           downloaded: downloadedCount,
-          missing: total - downloadedCount,
-          estimatedTotalSize: estimatedTotalSize,
-          estimatedMissingSize: estimatedMissingSize
+          missing: total - downloadedCount
         };
       });
     });
@@ -64,6 +54,8 @@
       return Promise.all(removePromises).then(function () {
         _contentIndexMap = null;
         return saveDownloadedIdsList([]).then(function () {
+          // 失效占用缓存（全部书籍数据已清空）
+          _invalidateBookSizeCache();
           console.log('[DataManager] 已清除全部书籍缓存: ' + bookKeys.length + ' 本, 内容索引: ' + ciKeys.length + ' 条');
           return { cleared: bookKeys.length };
         });

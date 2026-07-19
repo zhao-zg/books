@@ -65,6 +65,8 @@
         buildContentIndex(bookData);
         // 同步加入书目索引
         addToBookIndex(bookData);
+        // 失效占用缓存（书籍数据已变更）
+        _invalidateBookSizeCache();
         console.log('[DataManager] 书籍缓存完成: ' + bookId);
         return bookData;
       });
@@ -86,47 +88,84 @@
         // 同步清理内容索引和书目索引
         removeContentIndex(bookId);
         removeFromBookIndex(bookId);
+        // 失效占用缓存（书籍数据已变更）
+        _invalidateBookSizeCache();
         console.log('[DataManager] 已删除: ' + bookId);
       });
   }
 
   /**
    * 获取存储统计信息
-   * 返回 { downloadedCount, totalSizeBytes, totalSizeFormatted }
+   * 返回 {
+   *   downloadedCount,
+   *   totalSizeBytes,         // zl-data 中书籍数据的估算占用（带内存缓存，写操作后失效）
+   *   totalSizeFormatted,
+   *   originUsageBytes,       // 浏览器整体占用（IndexedDB + Cache Storage，覆盖 PDF/资源包等所有源）
+   *   originUsageFormatted,
+   *   usageBreakdown          // [{ storageType, usage }] 或 null（仅 Chrome 92+ 可用）
+   * }
    */
   function getStorageStats() {
     return getDownloadedIdsList().then(function (ids) {
       var count = ids.length;
-      // 估算总大小：遍历所有已存储的书籍数据
+
+      // 1) zl-data 书籍数据占用估算（带内存缓存，cacheBook/deleteBook/downloadBook/clearAllBooks 后失效）
+      var bookSizePromise;
       if (!store || !count) {
-        return {
-          downloadedCount: count,
-          totalSizeBytes: 0,
-          totalSizeFormatted: '0 B'
-        };
+        _bookBytesCache = 0;
+        bookSizePromise = Promise.resolve(0);
+      } else if (_bookBytesCache !== null) {
+        // 命中缓存，跳过 O(N) 遍历
+        bookSizePromise = Promise.resolve(_bookBytesCache);
+      } else {
+        bookSizePromise = Promise.all(ids.map(function (id) {
+          return storeGet(KEY_BOOK_PREFIX + id).then(function (data) {
+            if (!data) return 0;
+            // 使用 Blob.size 获取精确的 UTF-8 字节数
+            try {
+              return new Blob([JSON.stringify(data)]).size;
+            } catch (e) {
+              return 0;
+            }
+          });
+        })).then(function (sizes) {
+          var total = 0;
+          for (var i = 0; i < sizes.length; i++) total += sizes[i];
+          _bookBytesCache = total;  // 写入缓存
+          return total;
+        });
       }
 
-      var sizePromises = ids.map(function (id) {
-        return storeGet(KEY_BOOK_PREFIX + id).then(function (data) {
-          if (!data) return 0;
-          // 使用 Blob.size 获取精确的 UTF-8 字节数
-          try {
-            return new Blob([JSON.stringify(data)]).size;
-          } catch (e) {
-            return 0;
-          }
-        });
-      });
+      // 2) 浏览器整体占用：navigator.storage.estimate() 一次拿到 origin 级总占用，
+      //    天然覆盖 IndexedDB 所有库 + Cache Storage，无需逐库遍历，性能好且无遗漏。
+      //    这相当于把导入书二进制与索引(imported-data / imported-pdf-data)、
+      //    资源包解压文件(bk-main Cache)、书签/划线等全部计入。
+      var originSizePromise;
+      if (win.navigator && win.navigator.storage && typeof win.navigator.storage.estimate === 'function') {
+        originSizePromise = win.navigator.storage.estimate().then(function (est) {
+          // Chrome 92+ 提供 usageBreakdown：[{ storageType: 'indexeddb', usage: N }, ...]
+          // 保存 breakdown 供 UI 层按需展示分项（如 IndexedDB / Cache Storage 分别多少）
+          var usage = (est && est.usage) || 0;
+          var breakdown = (est && Array.isArray(est.usageBreakdown) && est.usageBreakdown.length)
+            ? est.usageBreakdown : null;
+          return { usage: usage, breakdown: breakdown };
+        }).catch(function () { return { usage: 0, breakdown: null }; });
+      } else {
+        originSizePromise = Promise.resolve({ usage: 0, breakdown: null });
+      }
 
-      return Promise.all(sizePromises).then(function (sizes) {
-        var totalBytes = 0;
-        for (var i = 0; i < sizes.length; i++) {
-          totalBytes += sizes[i];
-        }
+      return Promise.all([bookSizePromise, originSizePromise]).then(function (results) {
+        var bookBytes = results[0];
+        var originResult = results[1];
+        var originBytes = originResult.usage;
+        var breakdown = originResult.breakdown;
         return {
           downloadedCount: count,
-          totalSizeBytes: totalBytes,
-          totalSizeFormatted: formatSize(totalBytes)
+          totalSizeBytes: bookBytes,
+          totalSizeFormatted: formatSize(bookBytes),
+          originUsageBytes: originBytes,
+          originUsageFormatted: formatSize(originBytes),
+          usageBreakdown: breakdown
         };
       });
     });

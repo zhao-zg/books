@@ -21,11 +21,7 @@
     return win.location.origin + '/' + clean;
   }
 
-  function fmtSize(bytes) {
-    if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
-    return bytes + ' B';
-  }
+  // fmtSize 已移除——统一使用 dm-shared.js 的全局 formatSize（加载顺序：dm-shared 先于 rp-* 执行）
 
   function escHtml(s) {
     return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

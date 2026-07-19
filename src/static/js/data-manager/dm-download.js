@@ -37,6 +37,8 @@
               // 为下载的书构建全文内容索引（不阻塞返回）
               buildContentIndex(converted);
               addToBookIndex(converted);
+              // 失效占用缓存（书籍数据已变更）
+              _invalidateBookSizeCache();
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
               return converted;

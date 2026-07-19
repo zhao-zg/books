@@ -49,7 +49,7 @@
                   '<div class="bk-rp-item-label">' + escHtml(pack.label) + '</div>' +
                   '<div class="bk-rp-item-meta">' +
                     (pack.book_count || (pack.books || []).length) + ' 本书' +
-                    (pack.size ? ' · ' + fmtSize(pack.size) : '') +
+                    (pack.size ? ' · ' + formatSize(pack.size) : '') +
                   '</div>' +
                 '</div>' +
                 '<button class="bk-rp-btn ' + statusClass + '" data-action="' + (cached ? 'delete' : 'download') + '" data-idx="' + idx + '">' +

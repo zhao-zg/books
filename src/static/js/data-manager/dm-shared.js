@@ -17,7 +17,7 @@
  *   .getDownloadedBookIds()   获取已下载 ID 列表
  *   .deleteBook(id)           删除本地缓存
  *   .getStorageStats()        存储统计
- *   .checkResources()         检查资源下载统计与估算大小
+ *   .checkResources()         检查资源下载统计（已缓存/总本数）
  *   .clearAllBooks()           清除所有已下载书籍数据
  *   .getBooksBySeriesStatus()  按系列分组返回缓存统计
  *   .pauseDownload()          暂停批量下载
@@ -52,6 +52,7 @@
   var _cachedManifest = null;
   var _contentIndexMap = null; // { bookId: { id, title, series, chapters: [{ n, t, c }] } } | null（未初始化）
   var _downloadedIdCache = null; // Set<string> | null（null = 未初始化）
+  var _bookBytesCache = null;   // number | null（null = 未计算/已失效）—— 书籍数据占用缓存，避免每次 getStorageStats 都 O(N) 遍历
 
   // ── 下载队列状态 ─────────────────────────────────────────────────────
   var _isDownloading = false;
@@ -208,11 +209,23 @@
   }
 
   /**
-   * 格式化文件大小
+   * 格式化文件大小（支持 B / KB / MB / GB）
+   * 对 NaN/Infinity/负数等非法输入归一化为 0，保证健壮性
    */
   function formatSize(bytes) {
+    if (!isFinite(bytes) || bytes < 0) bytes = 0;
+    if (!bytes) return '0 B';
+    if (bytes >= 1024 * 1024 * 1024) return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
     if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
-    return bytes + ' B';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return Math.round(bytes) + ' B';
+  }
+
+  /**
+   * 失效书籍占用缓存——在任何写入/删除 zl-data 中书籍数据的操作后调用
+   * 包括：cacheBook / deleteBook / downloadBook / clearAllBooks
+   */
+  function _invalidateBookSizeCache() {
+    _bookBytesCache = null;
   }
 

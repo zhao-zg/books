@@ -477,31 +477,63 @@
    */
   function _refreshStorageStats() {
     if (!_zlDmReady || !win.DataManager) return;
-    // 更新资源摘要（checkResources）
+    // 更新资源摘要（checkResources）— 仅显示已缓存/总本数，不再把估算总大小标成「占用」
     var resEl = document.getElementById('dlResourceSummary');
     var ovCached = document.getElementById('dlOvCached');
-    var ovSize = document.getElementById('dlOvSize');
     if (resEl && win.DataManager.checkResources) {
       win.DataManager.checkResources().then(function (res) {
         var cached = res.downloaded || 0;
         var total = res.total || _zlBooks.length || 0;
-        var sizeMB = res.estimatedTotalSize
-          ? (res.estimatedTotalSize / 1024 / 1024).toFixed(1)
-          : '未知';
-        resEl.textContent = '已缓存 ' + cached + ' / 总共 ' + total + ' 本书（约 ' + sizeMB + ' MB）';
+        resEl.textContent = '已缓存 ' + cached + ' / 总共 ' + total + ' 本书';
         if (ovCached) ovCached.textContent = cached + '/' + total;
-        if (ovSize) ovSize.textContent = sizeMB + ' MB';
       }).catch(function () {
         resEl.textContent = '资源统计获取失败';
       });
     }
-    // 更新存储统计（getStorageStats）
+    // 更新存储统计（getStorageStats）— 概览卡「占用」与详细信息均来自真实占用
+    // 优先用 navigator.storage.estimate() 的整体占用（覆盖 PDF、资源包等所有源），
+    // 退化到 zl-data 书籍估算大小。
+    var ovSize = document.getElementById('dlOvSize');
     var el = document.getElementById('dlStorageInfo');
-    if (el) {
+    if (win.DataManager.getStorageStats) {
       win.DataManager.getStorageStats().then(function (stats) {
-        el.textContent = '已下载 ' + stats.downloadedCount + ' 本书，占用 ' + stats.totalSizeFormatted;
+        var occ = (stats.originUsageBytes > 0)
+          ? stats.originUsageFormatted
+          : (stats.totalSizeFormatted || '0 B');
+        if (ovSize) ovSize.textContent = occ;
+        if (el) {
+          var detail = '已下载 ' + stats.downloadedCount + ' 本书，占用 ' + occ;
+          if (stats.originUsageBytes === 0 && stats.downloadedCount > 0) {
+            // 退化路径：浏览器不支持 navigator.storage.estimate() 或返回 0
+            // 此时 occ 仅为 zl-data 估算，PDF/资源包等大头未计入，需明确提示
+            detail += '（浏览器不支持精确统计，实际占用可能更大）';
+          } else if (stats.originUsageBytes > 0) {
+            // 优先利用 usageBreakdown 分项（Chrome 92+），展示 IndexedDB / Cache Storage 等分项
+            var bk = stats.usageBreakdown;
+            if (bk && bk.length > 1) {
+              var parts = [];
+              for (var bi = 0; bi < bk.length; bi++) {
+                if (bk[bi].usage > 0) {
+                  // storageType 取值如 'indexeddb' / 'caches' / 'serviceworker' 等
+                  var label = bk[bi].storageType === 'indexeddb' ? '数据库'
+                    : bk[bi].storageType === 'caches' ? '缓存'
+                    : bk[bi].storageType;
+                  parts.push(label + ' ' + formatSize(bk[bi].usage));
+                }
+              }
+              if (parts.length) detail += '（' + parts.join('，') + '）';
+            } else if (stats.totalSizeBytes > 0) {
+              // 无 breakdown 时，仅在差值显著（>50MB）时显示书籍数据分项
+              var diff = stats.originUsageBytes - stats.totalSizeBytes;
+              if (diff > 50 * 1024 * 1024) {
+                detail += '（书籍数据 ' + stats.totalSizeFormatted + '）';
+              }
+            }
+          }
+          el.textContent = detail;
+        }
       }).catch(function () {
-        el.textContent = '存储统计获取失败';
+        if (el) el.textContent = '存储统计获取失败';
       });
     }
     // 概览卡：系列数

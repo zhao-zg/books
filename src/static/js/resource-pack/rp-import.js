@@ -76,12 +76,8 @@
       _downloadedSet: {}      // remotePath -> imported bookId（当前服务器已下载的文件）
     };
 
-    function formatSize(bytes) {
-      if (!bytes) return '';
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
+    // 局部 formatSize 已移除——统一使用 dm-shared.js 的全局 formatSize
+    // 调用点（renderFileList line 133）已有 f.size ? 守卫，0 字节不会传入
 
     function renderFileList() {
       var container = document.getElementById('bkImportFileList');
@@ -517,7 +513,7 @@
               '<label class="bk-webdav-check"><input type="checkbox" data-action="wd-check" data-path="' + escAttr(en.remotePath) + '"' + (selected ? ' checked' : '') + ' /></label>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
               doneTag +
-              '<span class="bk-webdav-size">' + fmtSize(en.size) + '</span>' +
+              '<span class="bk-webdav-size">' + formatSize(en.size) + '</span>' +
               '<button class="bk-webdav-dl" data-action="wd-download" data-path="' + escAttr(en.remotePath) + '">' + dlLabel + '</button>' +
               '<div class="bk-webdav-progress" data-path="' + escAttr(en.remotePath) + '" style="display:none"><div class="bk-webdav-progress-bar"></div></div>' +
               '</div>';
