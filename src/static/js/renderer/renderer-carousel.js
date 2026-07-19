@@ -16,6 +16,7 @@
   var _swipeEl = null;
   var _swipeAnimating = false;  // 动画进行中，拒绝新滑动手势
   var _carouselResizeHandler = null;  // 视口变化重算 transform 的防抖处理器
+  var _carouselResizeTimer = null;    // 防抖定时器（模块级，_removeSwipeHandler 中需 clearTimeout）
   var SWIPE_THRESHOLD = 80;
   var SWIPE_MAX_VERTICAL = 60;
   var SWIPE_DURATION = 280;
@@ -342,18 +343,17 @@
       win.removeEventListener('resize', _carouselResizeHandler);
       win.removeEventListener('orientationchange', _carouselResizeHandler);
     }
-    var _resizeTimer = null;
     _carouselResizeHandler = function () {
-      if (_resizeTimer) clearTimeout(_resizeTimer);
-      _resizeTimer = setTimeout(function () {
+      if (_carouselResizeTimer) clearTimeout(_carouselResizeTimer);
+      _carouselResizeTimer = setTimeout(function () {
         // 动画进行中跳过，避免打断滑动切章
-        if (_swipeAnimating) { _resizeTimer = null; return; }
+        if (_swipeAnimating) { _carouselResizeTimer = null; return; }
         if (_carouselTrack && _carouselTrack.parentElement) {
           var pageW = _carouselTrack.parentElement.offsetWidth;
           _carouselTrack.style.transition = 'none';
           _carouselTrack.style.transform = 'translateX(' + (-pageW) + 'px)';
         }
-        _resizeTimer = null;
+        _carouselResizeTimer = null;
       }, 200);
     };
     win.addEventListener('resize', _carouselResizeHandler);
@@ -378,6 +378,11 @@
       win.removeEventListener('resize', _carouselResizeHandler);
       win.removeEventListener('orientationchange', _carouselResizeHandler);
       _carouselResizeHandler = null;
+    }
+    // 清除待执行的 resize 定时器，避免切章后旧定时器操作新页面
+    if (_carouselResizeTimer) {
+      clearTimeout(_carouselResizeTimer);
+      _carouselResizeTimer = null;
     }
   }
 

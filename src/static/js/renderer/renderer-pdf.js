@@ -38,6 +38,7 @@
   var _pdfCurrentBookId = null;     // 当前阅读的 PDF 书 ID（用于控制 zoom）
   var _pdfZoomControls = null;      // zoom 控件 DOM
   var _pdfResizeHandler = null;     // 视口变化重渲染的防抖处理器
+  var _pdfResizeTimer = null;       // 防抖定时器（模块级，cleanup 时需 clearTimeout）
 
   // ==================== 文档加载（带 CJK cMap 配置）====================
 
@@ -83,6 +84,8 @@
         standardFontDataUrl: STANDARD_FONT_URL
       }).promise;
     });
+    // 加载失败时清除缓存的 rejected Promise，允许会话内重试
+    p.catch(function () { delete _pdfDocCache[pdfBookId]; });
     _pdfDocCache[pdfBookId] = p;
     return p;
   }
@@ -133,8 +136,8 @@
     _cancelRender(el);
 
     var abort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    _pdfRenderAbort[el.dataset.pdfBook + ':' + el.dataset.pdfPage] = abort;
     var sigKey = el.dataset.pdfBook + ':' + el.dataset.pdfPage;
+    _pdfRenderAbort[sigKey] = abort;
 
     _setRenderingState(el, true);
 
@@ -187,6 +190,8 @@
       });
     }).then(function () {
       _setRenderingState(el, false);
+      // 渲染成功，清除 abort 控制器引用（释放内存，避免闭包持有已完成的 renderTask）
+      delete _pdfRenderAbort[sigKey];
       // 记录已渲染（用 dataset 替代属性，方便回收后清除）
       el.setAttribute('data-pdf-rendered', '1');
       if (placeholder) placeholder.style.display = 'none';
@@ -304,6 +309,10 @@
     });
   }
 
+  // XSS 防护：仅允许安全 scheme（http/https/mailto/tel）。
+  // 防止 javascript:/data:/vbscript: 等 URL 通过 <a>.href 执行脚本——
+  // Capacitor WebView 中 XSS 可访问原生 bridge，风险升级。
+  var SAFE_LINK_SCHEMES = /^(https?:|mailto:|tel:)/i;
   // LinkTarget 常量（与 pdf.js 官方一致）
   var PDF_LINK_TARGET = { NONE: 0, SELF: 1, BLANK: 2, PARENT: 3, TOP: 4 };
   var PDF_DEFAULT_LINK_REL = 'noopener noreferrer nofollow';
@@ -320,12 +329,13 @@
       if (!url || typeof url !== 'string') {
         throw new Error('A valid "url" parameter must provided.');
       }
+      var isSafeUrl = SAFE_LINK_SCHEMES.test(url);
       var target = newWindow ? PDF_LINK_TARGET.BLANK : this.externalLinkTarget;
-      if (this.externalLinkEnabled) {
+      if (this.externalLinkEnabled && isSafeUrl) {
         link.href = link.title = url;
       } else {
         link.href = '';
-        link.title = 'Disabled: ' + url;
+        link.title = isSafeUrl ? ('Disabled: ' + url) : 'Blocked: unsafe URL scheme';
         link.onclick = function () { return false; };
       }
       var targetStr = '';
@@ -385,7 +395,12 @@
    */
   function _applyZoomToVisible(pdfBookId) {
     var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-rendered="1"], .bk-pdf-page[data-pdf-rendering="1"]');
+    var vh = win.innerHeight || doc.documentElement.clientHeight;
     for (var i = 0; i < pages.length; i++) {
+      // 只重渲染当前在视口内的页面（与 resize handler 一致），
+      // 避免对离屏页面重渲染产生不必要开销和竞态
+      var rect = pages[i].getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= vh) continue;
       // 重置渲染状态
       pages[i].removeAttribute('data-pdf-rendered');
       renderPage(pages[i], true);
@@ -598,6 +613,10 @@
     var pages = containerEl.querySelectorAll('.bk-pdf-page');
     if (!pages.length) return;
 
+    // :has() 降级：为容器显式添加 class，旧 WebView 下也能应用 PDF 贴边样式。
+    // cleanup() 中移除；切回 epub/txt/md 时因不再 init 也不会有此 class。
+    containerEl.classList.add('bk-pdf-mode');
+
     // 推断当前 bookId（取第一个页面的 data-pdf-book）
     var pdfBookId = pages[0].getAttribute('data-pdf-book') || '';
     if (pdfBookId) {
@@ -641,22 +660,21 @@
       win.removeEventListener('resize', _pdfResizeHandler);
       win.removeEventListener('orientationchange', _pdfResizeHandler);
     }
-    var _resizeTimer = null;
     _pdfResizeHandler = function () {
-      if (_resizeTimer) clearTimeout(_resizeTimer);
-      _resizeTimer = setTimeout(function () {
+      if (_pdfResizeTimer) clearTimeout(_pdfResizeTimer);
+      _pdfResizeTimer = setTimeout(function () {
         // 只重渲染当前在视口内的已渲染页面（避免全量重渲染卡顿）
         for (var i = 0; i < _pdfActivePages.length; i++) {
-          var el = _pdfActivePages[i];
-          if (!el) continue;
-          if (el.getAttribute('data-pdf-rendered') !== '1') continue;
-          var rect = el.getBoundingClientRect();
-          if (rect.bottom > 0 && rect.top < win.innerHeight) {
+          var pgEl = _pdfActivePages[i];
+          if (!pgEl) continue;
+          if (pgEl.getAttribute('data-pdf-rendered') !== '1') continue;
+          var r = pgEl.getBoundingClientRect();
+          if (r.bottom > 0 && r.top < win.innerHeight) {
             // isRetry=true 强制重渲染（重新读取容器宽度）
-            renderPage(el, true);
+            renderPage(pgEl, true);
           }
         }
-        _resizeTimer = null;
+        _pdfResizeTimer = null;
       }, 300);
     };
     win.addEventListener('resize', _pdfResizeHandler);
@@ -706,6 +724,17 @@
       win.removeEventListener('resize', _pdfResizeHandler);
       win.removeEventListener('orientationchange', _pdfResizeHandler);
       _pdfResizeHandler = null;
+    }
+    // 清除待执行的 resize 定时器，避免切章后旧定时器操作新页面
+    if (_pdfResizeTimer) {
+      clearTimeout(_pdfResizeTimer);
+      _pdfResizeTimer = null;
+    }
+
+    // 移除 .bk-pdf-mode class（:has() 降级，切回文字书时恢复正常阅读器样式）
+    var pdfModeEls = doc.querySelectorAll('.bk-pdf-mode');
+    for (var m = 0; m < pdfModeEls.length; m++) {
+      pdfModeEls[m].classList.remove('bk-pdf-mode');
     }
 
     // 隐藏 zoom 控件

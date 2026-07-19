@@ -77,9 +77,27 @@ class BooksGenerator:
             with open(sw_src, 'r', encoding='utf-8') as f:
                 sw_content = f.read()
             sw_content = sw_content.replace('__APP_VERSION__', app_version)
+
+            # 注入 vendor/cmaps + vendor/standard_fonts 文件列表到 SW 预缓存
+            # 确保首次离线打开中文 PDF 时 CJK 字体映射和标准字体可用
+            static_dir = os.path.join(os.path.dirname(__file__), 'static')
+            vendor_urls = []
+            for sub in ('cmaps', 'standard_fonts'):
+                sub_dir = os.path.join(static_dir, 'vendor', sub)
+                if not os.path.isdir(sub_dir):
+                    continue
+                for fname in sorted(os.listdir(sub_dir)):
+                    fpath = os.path.join(sub_dir, fname)
+                    if os.path.isfile(fpath):
+                        vendor_urls.append(f"'./vendor/{sub}/{fname}'")
+            vendor_list_str = ',\n  '.join(vendor_urls)
+            sw_content = sw_content.replace(
+                '/* __VENDOR_PRECACHE_URLS__ */', vendor_list_str
+            )
+
             with open(sw_dst, 'w', encoding='utf-8') as f:
                 f.write(sw_content)
-            print(f"✓ sw.js 已生成 (版本: {app_version})")
+            print(f"✓ sw.js 已生成 (版本: {app_version}, vendor 预缓存: {len(vendor_urls)} 个文件)")
 
         # 将版本号注入已复制的 output/index.html
         index_dst = os.path.join(self.output_dir, 'index.html')

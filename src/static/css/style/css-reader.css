@@ -22,7 +22,9 @@
    使用 :has() 由 DOM 结构驱动，切换回文字书（epub/txt/md）时自动恢复。
    主流行为：中灰背景包围白色页面；移动端贴边占满，桌面端居中限宽。 */
 #chapterContent:has(.bk-pdf-page),
-.bk-carousel-page .content:has(.bk-pdf-page) {
+.bk-carousel-page .content:has(.bk-pdf-page),
+#chapterContent.bk-pdf-mode,
+.bk-carousel-page .content.bk-pdf-mode {
   padding-left: 0;
   padding-right: 0;
   /* 中灰背景突出白色 PDF 页面（对标 Acrobat #525659），
@@ -32,7 +34,9 @@
 /* 桌面端：PDF 页面居中 + 限宽，两侧留中灰背景（对标桌面 PDF 阅读器） */
 @media (min-width: 768px) {
   #chapterContent:has(.bk-pdf-page),
-  .bk-carousel-page .content:has(.bk-pdf-page) {
+  .bk-carousel-page .content:has(.bk-pdf-page),
+  #chapterContent.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-mode {
     width: 100%;          /* 作为 flex item 时先填满交叉轴，触发 max-width 限制 */
     max-width: 820px;
     margin-left: auto;
@@ -42,7 +46,9 @@
 /* 横屏手机：去除 640px 居中限宽，让 PDF 充分利用横向空间（贴边） */
 @media (orientation: landscape) and (max-height: 500px) {
   #chapterContent:has(.bk-pdf-page),
-  .bk-carousel-page .content:has(.bk-pdf-page) {
+  .bk-carousel-page .content:has(.bk-pdf-page),
+  #chapterContent.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-mode {
     max-width: none;
     margin-left: 0;
     margin-right: 0;

@@ -81,6 +81,12 @@ const PRECACHE_URLS = [
   './icons/icon.png'
 ];
 
+// vendor/cmaps + vendor/standard_fonts 的文件列表由构建脚本（generator.py）
+// 在构建时扫描目录生成，替换 __VENDOR_PRECACHE_URLS__ 占位符。
+// 独立于 PRECACHE_URLS 预缓存：install 时单独 addAll，失败不阻塞核心安装。
+// 确保首次离线打开中文 PDF 时 CJK 字体映射和标准字体可用。
+const VENDOR_CMAP_FONT_URLS = [/* __VENDOR_PRECACHE_URLS__ */];
+
 // --------------------------------------------------------------------------
 // 1. 生命周期
 // --------------------------------------------------------------------------
@@ -93,6 +99,16 @@ self.addEventListener('install', event => {
         await cache.addAll(PRECACHE_URLS);
       } catch (e) {
         // 预缓存失败不阻塞安装（部分资源可能暂时不可用）
+      }
+      // 独立预缓存 vendor cMaps/fonts（PDF CJK 字体支持）。
+      // 失败不阻塞安装——首次在线打开 PDF 时默认策略会运行时缓存。
+      if (VENDOR_CMAP_FONT_URLS.length > 0) {
+        try {
+          const vendorCache = await caches.open(CACHE_NAME);
+          await vendorCache.addAll(VENDOR_CMAP_FONT_URLS);
+        } catch (e) {
+          // vendor 预缓存失败不阻塞安装
+        }
       }
       try {
         self.skipWaiting();
