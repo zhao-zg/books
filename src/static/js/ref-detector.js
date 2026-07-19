@@ -405,9 +405,12 @@
   }
 
   // ── 包裹单个括号/破折号引用为 <span> ───────────────────────────────────
-  function makeSpan(rawText, refs) {
+  // inParen: 标记为括号内引用，生成 data-paren="1" 属性
+  //   用于 scanCtx 跳过括号内引用（括号内引用不应污染外层 book/ch 上下文）
+  function makeSpan(rawText, refs, inParen) {
     var dataRefs = refs.join(',');
-    return '<span class="scripture-ref" data-refs="' + escHtml(dataRefs) + '">' + escHtml(rawText) + '</span>';
+    var parenAttr = inParen ? ' data-paren="1"' : '';
+    return '<span class="scripture-ref" data-refs="' + escHtml(dataRefs) + '"' + parenAttr + '>' + escHtml(rawText) + '</span>';
   }
 
   // ── 主函数：将文本中的经文引用包裹为 <span> ────────────────────────────
@@ -454,7 +457,8 @@
     var result = [], last = 0, m;
 
     // 对纯文本段扫描行内章节式引用，同时处理《书名》上下文更新
-    function pushPlain(seg) {
+    // suppressCtx: 为 true 时不更新外层 book/ch 上下文（用于括号内回退调用）
+    function pushPlain(seg, suppressCtx) {
       var isCJK = /[\u4e00-\u9fff]/;
       // 收集行内经文引用匹配
       var allMatches = [];
@@ -524,7 +528,7 @@
         // 《书名》：更新上下文，原文直接输出
         // 书卷未变时保留章号（如注解正文含"但以理"，ch 仍应是当前章，而非重置为 0）
         if (fm.ctxBook !== undefined) {
-          if (!_lockBook) {
+          if (!suppressCtx && !_lockBook) {
             if (fm.ctxBook !== book) ch = 0;
             book = fm.ctxBook;
           }
@@ -538,7 +542,7 @@
           var _fnRefs = expandCnRefs(_fnText, book, ch);
           if (_fnRefs.length === 1) {
             var _fnLm = _fnRefs[0].match(/^([^\d:]+)(\d+):(\d+)/);
-            if (_fnLm && !_lockBook) { book = _fnLm[1]; ch = parseInt(_fnLm[2], 10); }
+            if (!suppressCtx && _fnLm && !_lockBook) { book = _fnLm[1]; ch = parseInt(_fnLm[2], 10); }
             result.push('<span class="scripture-ref fn-ref" data-vkey="' + escHtml(_fnRefs[0]) + '" data-fn="' + escHtml(fm.fnNum) + '">' + escHtml(fm.text) + '</span>');
           } else {
             result.push(escHtml(fm.text));
@@ -597,11 +601,11 @@
             result.push(escHtml(fm.text));
             continue;
           }
-          if (ilm && !_lockBook) {
+          if (!suppressCtx && ilm && !_lockBook) {
             book = ilm[1];
             ch = parseInt(ilm[2], 10);
           }
-          result.push(makeSpan(fm.text, irefs));
+          result.push(makeSpan(fm.text, irefs, suppressCtx));
         } else {
           result.push(escHtml(fm.text));
         }
@@ -630,7 +634,7 @@
       // 含"页"字的括号是页码/书页引用，非经文，直接回退渲染（如"创世记L-S，四五五页"）
       if (m[1].indexOf('页') >= 0) {
         result.push(escHtml(m[0][0]));
-        pushPlain(m[1]);
+        pushPlain(m[1], true);  // 括号内回退：不更新上下文
         result.push(escHtml(m[0][m[0].length - 1]));
         last = m.index + m[0].length;
         continue;
@@ -638,22 +642,10 @@
       // 尝试展开括号内容
       var refs = expandCnRefs(m[1], book, ch);
       if (refs.length > 0) {
-        // 括号处理后的上下文更新：
-        // 1) 允许在外层 ch 缺失时从括号内补齐章号（如「…（一26）…（28）」中的 28）
-        // 2) 避免无条件覆盖外层 ch，防止连续括号把纯节续接到错误章
-        var lastRef = refs[refs.length - 1];
-        var lm = lastRef.match(/^([^\d:]+)(\d+):(\d+)/);
-        if (lm && !_lockBook) {
-          var _newBook = lm[1];
-          var _newCh = parseInt(lm[2], 10);
-          // 书卷变化时同步章号；同书卷仅在外层无章号时补齐
-          if (_newBook !== book) {
-            book = _newBook;
-            ch = _newCh;
-          } else if (!ch) {
-            ch = _newCh;
-          }
-        }
+        // ★ 括号内引用不更新外层 book/ch 上下文
+        //   原因：括号内经文是局部引用，不应污染外层上下文
+        //   例：「约三16...（林前十13）...（14）」中（14）应解析为约3:14 而非林前10:14
+        //   scanCtx 也会跳过 data-paren="1" 的引用，保证章节渲染层级也不受污染
         // ★ 括号内也过滤掉整章引用（节号全为 :0），不包裹 span
         // 无论单章还是多章范围，只要没有具体到某一节，就不识别：
         // 直接输出括号原文（含括号），避免「约四十」「约三至五章」这类被误识别/拆分包裹
@@ -664,14 +656,14 @@
         if (allParenVerseZero) {
           result.push(escHtml(m[0]));
         } else {
-          result.push(makeSpan(m[0], refs));
+          result.push(makeSpan(m[0], refs, true));
         }
       } else {
         // 括号整体解析失败（如「在以弗所三章十六节，」含前置词），
         // 回退：把括号开符、内容、闭符分别扫描行内引用
-        var openCh = m[0][0], closeCh = m[0][m[0].length-1];
+        var openCh = m[0][0], closeCh = m[0][m[0].length - 1];
         result.push(escHtml(openCh));
-        pushPlain(m[1]);
+        pushPlain(m[1], true);  // 括号内回退：不更新上下文
         result.push(escHtml(closeCh));
       }
       last = m.index + m[0].length;
@@ -706,8 +698,14 @@
   function scanCtx(text, ctxStr) {
     if (!text) return ctxStr || '';
     var html = wrapRefs(text, ctxStr);
-    var re = /data-refs="([^"]+)"/g, m, lastRefs = null;
-    while ((m = re.exec(html)) !== null) lastRefs = m[1];
+    // 跳过括号内引用（带 data-paren="1"），只取括号外最后一个引用作为上下文
+    // 原因：括号内经文是局部引用，不应作为后续兄弟/子节点的上下文
+    // 例：「约三16...（林前十13）然后（14）」→ scanCtx 应返回约3:16 而非林前10:13
+    var re = /data-refs="([^"]+)"([^>]*)/g, m, lastRefs = null;
+    while ((m = re.exec(html)) !== null) {
+      if (m[2] && m[2].indexOf('data-paren="1"') >= 0) continue;
+      lastRefs = m[1];
+    }
     if (!lastRefs) return ctxStr || '';
     var refs = lastRefs.split(',');
     var lr = refs[refs.length - 1].trim().replace(/[上中下]$/, '');
