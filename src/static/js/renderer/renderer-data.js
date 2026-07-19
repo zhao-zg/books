@@ -14,6 +14,10 @@
   var _dmInitPromise = null;    // DataManager 初始化 Promise（单例）
   var _dlDialog = null;      // 下载管理对话框引用（BK.openDialog 返回）
   var _dlProgressTimer = null;  // 下载进度轮询定时器
+  var _lastClickDownloadId = null;  // 最后一次在书城点击下载的书 ID（用于完成后判断是否自动跳转，避免并发下载时先完成者劫持导航）
+  // 错误码常量（与 dm-shared.js 中保持一致，模块内独立定义避免跨模块引用）
+  // ★ M5修复：将 'CANCELLED' 字面量收敛为常量，便于以后修改/统一引用。
+  var ERR_CANCELLED = 'CANCELLED';
   var _manageMode = false;      // 书籍管理模式（显示删除按钮）
   var _showAppGen = 0;          // showApp 过渡动画生成计数器
   var _bkHomeClickHandler = null; // 首页事件委托处理器（用于 removeEventListener）

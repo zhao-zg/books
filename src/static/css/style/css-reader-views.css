@@ -183,6 +183,11 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
   max-height: 100dvh;
   overflow-x: hidden;
   overflow-y: auto;
+  /* 始终预留滚动条空间，避免内容渲染前后滚动条出现/消失导致容器宽度抖动
+     （典型场景：PDF 首次渲染时内容未溢出→无滚动条→容器729px→canvas渲染729px→
+     溢出→滚动条出现→容器714px→canvas 溢出 .bk-pdf-page 15px）。
+     移动端 overlay 滚动条不占空间，此属性对其无影响。 */
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
@@ -190,6 +195,15 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
   overscroll-behavior: contain;
   /* 亮色模式滚动条 */
   scrollbar-color: rgba(0,0,0,.18) transparent;
+}
+
+/* 移动端（<768px）：关闭 scrollbar-gutter: stable，让 PDF 撑满视口宽度。
+   真实手机 overlay 滚动条不占空间；桌面窗口缩到窄尺寸时由方案 G（renderPage
+   重渲染兜底，触发阈值 >3% 宽度差异）自动重渲染。 */
+@media (max-width: 767px) {
+  .bk-carousel-page {
+    scrollbar-gutter: auto;
+  }
 }
 .bk-carousel-page::-webkit-scrollbar { width: 6px; }
 .bk-carousel-page::-webkit-scrollbar-track { background: transparent; }
@@ -239,6 +253,7 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
     max-width: none;
     height: 100dvh;
     flex-shrink: 0;
+    order: -1;              /* TOC 排到左侧（DOM 中 #app 在前，需 order 修正） */
     z-index: auto;
     box-shadow: none;
     border-right: 1px solid var(--border, #E5E2DD);

@@ -102,6 +102,29 @@
     return _pdfDataStore;
   }
 
+  /**
+   * 清理指定书的 PDF 原始二进制数据。
+   * 该 store 写入路径唯一（parsePdf 内 setItem('pdf:' + bookId)），此前无任何删除入口，
+   * 导致移出书架后 PDF 文件永久驻留——此函数补齐该缺口。
+   * @param {string} bookId
+   * @returns {Promise<boolean>} 是否成功删除（无对应记录也返回 true）
+   */
+  function removePdfData(bookId) {
+    if (!bookId) return Promise.resolve(false);
+    try {
+      return getPdfDataStore().removeItem('pdf:' + bookId).then(function () {
+        console.log('[PDF] 已清理 PDF 原始数据: ' + bookId);
+        return true;
+      }).catch(function (e) {
+        console.warn('[PDF] 清理 PDF 数据失败:', e);
+        return false;
+      });
+    } catch (e) {
+      console.warn('[PDF] 清理 PDF 数据失败:', e);
+      return Promise.resolve(false);
+    }
+  }
+
   // 无大纲时：每页生成一个章节
   function buildPerPageChapters(bookId, totalPages) {
     var chapters = [];

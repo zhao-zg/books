@@ -460,10 +460,27 @@
           if (!_shelfSelected) return;
           var ids = Object.keys(_shelfSelected);
           if (!ids.length) return;
-          var ok = (win.confirm) ? win.confirm('确定将选中的 ' + ids.length + ' 本书移出书架？') : true;
-          if (!ok) return;
+          // 检测选中书中是否含导入书（imported- 前缀），差异化提示文案
+          var hasImported = false;
           for (var i = 0; i < ids.length; i++) {
-            if (win.BKShelf && win.BKShelf.remove) win.BKShelf.remove(ids[i]);
+            if (ids[i].indexOf('imported-') === 0) { hasImported = true; break; }
+          }
+          var msg;
+          if (hasImported) {
+            // 混合或全为导入书：需说明导入书清数据、书城书保留缓存
+            msg = '确定将选中的 ' + ids.length + ' 本书移出书架？\n\n其中导入书将清除本地数据（缓存、阅读进度、PDF/EPUB 文件等，无法恢复）；书城下载书的本地缓存将予以保留，可随时重新加入。';
+          } else {
+            // 全为书城下载书：仅移出书架，保留缓存
+            msg = '确定将选中的 ' + ids.length + ' 本书移出书架？\n\n本地缓存将予以保留，可随时重新加入书架继续阅读。';
+          }
+          var ok = (win.confirm) ? win.confirm(msg) : true;
+          if (!ok) return;
+          for (var j = 0; j < ids.length; j++) {
+            if (win.BKShelf && win.BKShelf.purgeBook) {
+              win.BKShelf.purgeBook(ids[j]);   // 移出书架 + 按书型差异化清理本地数据
+            } else if (win.BKShelf && win.BKShelf.remove) {
+              win.BKShelf.remove(ids[j]);       // 降级：仅移出书架记录
+            }
           }
           // bk-shelf-changed 触发整体重渲染
         });
@@ -826,6 +843,26 @@
         }
       }
       return '';
+    },
+
+    // ── 下载导航协作（书城 + 搜索框共享同一协调机制）─────────────────────
+    // 多个入口（书城卡片点击 / 搜索结果点击）都可能启动下载并要求「下载完成后自动跳转」。
+    // 通过此协调机制确保并发下载时只有「最后点击的书」才自动跳转，
+    // 避免先完成者劫持导航：用户点 A 又点 B，A 先完成时不应抢跳到 A。
+    // 详见 _handleBookClick（renderer-city-helpers.js）与 search.js 两处 downloadBook 调用。
+    claimDownloadNavigate: function (bookId) {
+      _lastClickDownloadId = bookId;
+    },
+
+    isClaimedDownloadNavigate: function (bookId) {
+      return bookId === _lastClickDownloadId;
+    },
+
+    // ★ M3修复：暴露阅读进度查询 API，让 search.js 等外部模块不再直读 localStorage key
+    //   （'bk_progress:' 前缀是 renderer 内部约定，不应耦合到其他模块）。
+    //   返回 0 表示无进度；> 0 为上次阅读的章节号。
+    getReadingProgress: function (bookId) {
+      return getReadingProgress(bookId);
     }
   };
 

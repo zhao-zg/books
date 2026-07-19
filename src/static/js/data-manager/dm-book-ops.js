@@ -175,9 +175,10 @@
 
   /**
    * 暂停当前批量下载
+   * 仅在当前活跃批次上生效（防止用户暂停一个已结束/被新批次取代的旧批次状态）
    */
   function pauseDownload() {
-    if (_isDownloading && !_isPaused) {
+    if (_isDownloading && !_isPaused && _dlActiveToken > 0) {
       _isPaused = true;
       console.log('[DataManager] 下载已暂停');
     }
@@ -187,7 +188,7 @@
    * 恢复暂停的批量下载
    */
   function resumeDownload() {
-    if (_isDownloading && _isPaused) {
+    if (_isDownloading && _isPaused && _dlActiveToken > 0) {
       _isPaused = false;
       // resolve 挂起的 Promise，唤醒等待中的 worker
       if (_pauseResolve) {
@@ -200,19 +201,41 @@
   }
 
   /**
-   * 取消当前批量下载
+   * 取消当前下载（批量下载与单本下载一并取消）
+   * ★ 关键：推进 _dlRunToken 并重置 _dlActiveToken，使任何仍在运行的旧 worker
+   *   在下一次 runNext/success/failure 校验时立即识别出「批次已切换」并退出，
+   *   避免取消后立即开始新批量时旧 worker 复活消费旧 tasks
+   * ★ 隐患4修复：同时推进 _singleDlToken，使所有进行中的单本 downloadBook
+   *   在下一个校验节点识别为「已被取消」并抛 CANCELLED 错误。
+   *   单本下载取消不再依赖 _isDownloading 守卫 —— 即使没有批量下载在进行，
+   *   仅单本下载在跑时也能被取消。
    */
   function cancelDownload() {
+    var didCancel = false;
+    // 取消批量下载
     if (_isDownloading) {
       _isCancelled = true;
       _isPaused = false;
       _isDownloading = false; // 立即重置，避免暂停中取消长时间不重置
-      // 唤醒可能挂起的暂停 Promise
-      if (_pauseResolve) {
-        var r = _pauseResolve;
-        _pauseResolve = null;
-        r();
-      }
+      // ★ 推进 token 使旧批次失效：旧 worker 的闭包持有的 runToken !== _dlActiveToken
+      _dlRunToken++;
+      _dlActiveToken = 0;
+      didCancel = true;
+    }
+    // 取消所有进行中的单本下载（即使没有批量下载在进行）
+    // 推进 token 使 downloadBook 在下一次校验时识别为「已被取消」
+    _singleDlToken++;
+    // ★ I2修复：删除此处冗余的 didCancel=true（原代码无条件覆盖 line 223 的条件赋值，
+    //   导致即使没有任何下载在进行也打印"下载已取消"日志，污染诊断信息）。
+    //   单本下载被取消时不打印 console 日志是有意的——单本下载场景前端 UI 已有反馈，
+    //   日志主要用于批量下载的诊断需要。
+    // 唤醒可能挂起的暂停 Promise
+    if (_pauseResolve) {
+      var r = _pauseResolve;
+      _pauseResolve = null;
+      r();
+    }
+    if (didCancel) {
       console.log('[DataManager] 下载已取消');
     }
   }

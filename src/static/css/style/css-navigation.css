@@ -25,6 +25,15 @@
 .bk-float-bottom-tts-btn.bk-playing .bk-pause-icon { display: block; }
 .bk-float-tts-bar { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 1; display: none; pointer-events: none; }
 .bk-float-tts-bar.show { display: block; pointer-events: auto; }
+/* PDF 模式下隐藏 TTS 朗读栏（PDF 无文字朗读需求，避免遮挡页面）
+   注意：TTS 控制栏实际有两层——.bk-float-tts-bar（包装层，部分布局下不存在）
+   和 .bottom-control-bar（实际控制栏，含播放/进度/速度）。
+   在 split mode 等布局下 .bottom-control-bar 直接挂在 .reading-view 下而非
+   .bk-float-tts-bar 内，所以需同时隐藏两者。 */
+body:has(.bk-pdf-mode) .bk-float-tts-bar,
+body.bk-pdf-reading .bk-float-tts-bar,
+body:has(.bk-pdf-mode) .bottom-control-bar,
+body.bk-pdf-reading .bottom-control-bar { display: none !important; }
 .bk-float-tts-bar .bottom-control-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; border-radius: 16px; border: 1px solid var(--border, #E5E2DD); box-shadow: var(--shadow-card, 0 2px 8px rgba(60,40,10,.06)); background: var(--card-bg, #fff); -webkit-backdrop-filter: none; backdrop-filter: none; padding: 10px 14px; }
 .bk-float-tts-bar .tts-title { flex-basis: 100%; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--brand, #3D8A5A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 [data-theme="dark"] .bk-float-tts-bar .bottom-control-bar { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }

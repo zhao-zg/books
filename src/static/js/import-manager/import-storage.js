@@ -36,8 +36,10 @@
   }
 
   /**
-   * 移除导入的书籍：从 imported-data 存储删除，并同步清理内容索引和书目索引
+   * 移除导入的书籍：彻底清理 imported-data / imported-pdf-data / zl-data / 书架记录 / 内容&书目索引。
+   * 该函数为「移出书架即彻底清理」的核心，补齐此前缺失的 PDF 二进制数据清理（此前无任何删除入口）。
    * @param {string} bookId
+   * @returns {Promise<Object|string|undefined>} 被删除的书籍对象（无记录时返回 bookId）
    */
   function removeImportedBook(bookId) {
     return importStore.getItem(KEY_PREFIX + bookId).then(function (book) {
@@ -58,10 +60,14 @@
             if (win.DataManager.removeFromBookIndex) win.DataManager.removeFromBookIndex(bookId);
           }
         } catch (e) {}
-        // 同步清理 DataManager 缓存
+        // 同步清理 DataManager 缓存（zl-data + 索引 + 占用缓存）
         try {
           if (win.DataManager && win.DataManager.deleteBook) win.DataManager.deleteBook(bookId);
         } catch (e) {}
+        // 清理 PDF 原始二进制数据（此前无任何删除入口，此调用补齐缺口）
+        try {
+          if (typeof removePdfData === 'function') removePdfData(bookId);
+        } catch (e) { console.warn('[ImportManager] 清理 PDF 数据失败:', e); }
         console.log('[ImportManager] 已移除导入书: ' + bookId);
         return book || bookId;
       });

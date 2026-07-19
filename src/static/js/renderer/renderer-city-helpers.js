@@ -221,9 +221,10 @@
    *   2. 卡片置忙：data-downloading="true" + aria-busy，CSS 禁用 .book-link 再次点击
    *   3. 进度反馈：传入 onProgress(percent, status) 回调，实时更新 .cache-status 文字
    *      （此前潜伏 bug：onProgress 从未传入，进度信息全丢）
-   *   4. 成功过渡：显示 ✓「下载完成」→ 延迟 400ms → navigate（让用户看清状态再跳转）
-   *   5. 失败保留：显示 ✗ + toast 提示，状态保留不回退，由 _refreshAfterDownload 通过
-   *      data-download-failed 守卫跳过覆盖，保证用户能看到失败信息
+    *   4. 成功过渡：显示 ✓「下载完成」→ 延迟 400ms → 跳转（仅当本书仍是「最后点击下载的书」
+    *      且用户仍停留在书城时才跳，避免并发下载时先完成者劫持导航；尊重历史阅读进度）
+    *   5. 失败保留：显示 ✗ + toast 提示，状态保留不回退，由 _refreshAfterDownload 通过
+    *      data-download-failed 守卫跳过覆盖，保证用户能看到失败信息
    */
   function _handleBookClick(bookId, series, cardEl) {
     if (_isBookDownloaded(bookId)) {
@@ -259,6 +260,12 @@
     }
 
     // ── 卡片置忙 ──────────────────────────────────────────
+    // 记录最后一次点击下载的书 ID：下载完成时只有「最后点击的书」才自动跳转，
+    // 避免并发下载多本时先完成者劫持导航（用户点 A 又点 B，A 先完成不应抢跳到 A）
+    // ★ I1修复：改用 BKRenderer 暴露的 claim API 统一访问 _lastClickDownloadId，
+    //   与 search.js 等跨模块调用点保持一致的封装；同一 IIFE 闭包内本可直访，
+    //   但统一走 API 便于未来在 claim 内集中加入日志/校验等逻辑。
+    BKRenderer.claimDownloadNavigate(bookId);
     if (cardEl2) {
       cardEl2.setAttribute('data-downloading', 'true');
       cardEl2.removeAttribute('data-download-failed');  // 清除上一次的失败状态
@@ -271,28 +278,57 @@
 
     // ── 下载（传入 onProgress 回调，实时更新文字） ────────
     win.DataManager.downloadBook(bookId, series, function (percent, status) {
-      // percent === -1 表示错误（已在 catch 处理）；其余按百分比更新
-      if (percent < 0) return;
+      // ★ 隐患8修复：percent === -1 表示错误/取消，不再直接丢弃，
+      //   先将具体状态文字显示到图标，让用户在 catch 触发前的微任务间隙能短暂看到原因。
+      //   catch 紧接着会覆盖为最终失败/取消状态。
+      if (percent < 0) {
+        if (iconEl && status) {
+          iconEl.textContent = '⏳ ' + status;
+        }
+        return;
+      }
       if (!iconEl) return;
       var pct = (percent > 100 ? 100 : percent) | 0;
       iconEl.textContent = '⏳ ' + (status || '下载中') + (pct < 100 ? ' ' + pct + '%' : '');
     })
       .then(function () {
         // 下载成功
-        _zlDownloadedIds.push(bookId);
+        // 去重 push（避免重复下载或刷新后重复触发导致 _zlDownloadedIds 膨胀）
+        if (_zlDownloadedIds.indexOf(bookId) === -1) {
+          _zlDownloadedIds.push(bookId);
+        }
         if (iconEl) {
           iconEl.textContent = '✓ 已下载';
           iconEl.style.color = 'var(--success-text, #3D8A5A)';
         }
         if (cardEl2) cardEl2.removeAttribute('data-downloading');
-        // 延迟 400ms 再跳转，让用户看清「已下载」状态后再打开书
-        // 新下载的书没有阅读进度，直接进入第一章；navigate(bookId) 不带章节号
-        // 会停在地书详情页，用户体验是"下载完了却没打开"。
+        // 延迟 400ms 再跳转，让用户看清「已下载」状态后再打开书。
+        // ★ 跳转守卫（修复并发下载劫持）：仅当本书仍是「最后点击下载的书」且用户仍停留在
+        //   书城视图时才自动跳转。若用户已点击其他书下载、或已手动打开别的书离开书城，
+        //   则本书完成后只入库不跳转，避免覆盖用户当前操作。
+        // ★ 进度尊重：删书时 localStorage 的 bk_progress:<id> 不会被清理，复下载应回到上次位置。
         setTimeout(function () {
-          if (win.BKRouter) win.BKRouter.navigate(bookId + '/1');
+          if (!BKRenderer.isClaimedDownloadNavigate(bookId)) return;  // 已被后续点击覆盖，不抢跳
+          var homeEl = document.getElementById('homeView');
+          if (!homeEl || homeEl.style.display === 'none') return;  // 用户已离开书城，不劫持
+          if (!win.BKRouter) return;
+          var progress = getReadingProgress(bookId);
+          if (progress > 0) win.BKRouter.navigate(bookId + '/' + progress);
+          else win.BKRouter.navigate(bookId + '/1');
         }, 400);
       })
       .catch(function (err) {
+        // ★ 隐患4修复：用户主动取消（CANCELLED）时做无声清理，不显示失败图标/toast
+        // ★ M5修复：使用 ERR_CANCELLED 常量替代字面量
+        if (err && err.code === ERR_CANCELLED) {
+          if (iconEl) {
+            iconEl.textContent = '';
+            iconEl.style.color = '';
+            iconEl.setAttribute('aria-hidden', 'true');
+          }
+          if (cardEl2) cardEl2.removeAttribute('data-downloading');
+          return;
+        }
         console.error('[Renderer] 书籍下载失败:', err);
         var errMsg = (err && (err.hint || err.message)) ? (err.hint || err.message) : '未知错误';
         if (iconEl) {
@@ -576,6 +612,11 @@
     }).then(function (result) {
       _onDownloadComplete(result, seriesTitle);
     }).catch(function (err) {
+      // ★ busy 错误仅 toast 提示，不杀现有进度轮询与控件，避免污染进行中的下载
+      if (err && err.code === 'BUSY') {
+        _toast(err.message || '已有下载任务正在进行');
+        return;
+      }
       _onDownloadError(err);
     });
   }
@@ -592,6 +633,10 @@
     }).then(function (result) {
       _onDownloadComplete(result, '全部');
     }).catch(function (err) {
+      if (err && err.code === 'BUSY') {
+        _toast(err.message || '已有下载任务正在进行');
+        return;
+      }
       _onDownloadError(err);
     });
   }

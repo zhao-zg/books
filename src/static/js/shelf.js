@@ -163,11 +163,115 @@
 
   /**
    * 移除书架记录（连同 finished/note/rating 一并清除）。
+   * 仅清 localStorage 书架记录，不清理 IndexedDB / Cache Storage 数据。
+   * 如需「移出书架即彻底清理」，请使用 purgeBook()。
    * @param {string} bookId
    */
   function remove(bookId) {
     _safeRemove(_key(bookId));
     emitChanged(bookId, 'remove');
+  }
+
+  /**
+   * 「移出书架」：按 bookId 类型差异化清理本地数据。
+   *
+   * 路由策略：
+   *  ① 导入书（bookId 以 'imported-' 开头）：彻底清理。
+   *     - localStorage：bk_shelf:<id> / bk_lastread_ts:<id> / bk_progress:<id> / bk_scroll:<id>…；
+   *       若 bk_last_read 指向该书，也一并清除。
+   *     - IndexedDB：ImportManager.removeImportedBook —— 清 imported-data / imported-pdf-data / zl-data / 索引。
+   *     不可恢复。
+   *
+   *  ② 书城下载书（非 imported- 前缀）：仅移出书架记录，保留本地数据作为离线兜底。
+   *     - 仅清 bk_shelf:<id>（由 remove 完成）。
+   *     - 保留 zl-data / Cache Storage / 阅读进度 / 滚动位置，下次重新加入书架可无缝续读。
+   *
+   * 同步立即移出书架并广播 'remove' 事件，触发书架列表就地重渲染；
+   * 导入书的 IndexedDB 与剩余 localStorage 在后台异步清理，完成后再次广播 'purge-done'，
+   * 供需要更新占用统计的视图消费。书城书无异步清理，仅广播 'purge-done' 以保持事件契约一致。
+   *
+   * @param {string} bookId
+   * @returns {Promise<void>}
+   */
+  function purgeBook(bookId) {
+    if (!bookId) return Promise.resolve();
+    // 1) 同步移出书架（触发立即重渲染，避免用户感知卡顿）
+    try { remove(bookId); } catch (e) {}
+
+    var isImported = bookId.indexOf('imported-') === 0;
+
+    // 2) 书城下载书：仅移出书架，保留本地数据作为离线兜底（zl-data / 阅读进度 / 滚动位置）
+    if (!isImported) {
+      // 仍广播 purge-done 以保持事件契约一致（占用统计无需更新，因数据未清）
+      return Promise.resolve().then(function () {
+        try {
+          win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
+            detail: { bookId: bookId, action: 'purge-done' }
+          }));
+        } catch (e) {}
+      });
+    }
+
+    // 3) 导入书：彻底清理 localStorage 与 IndexedDB
+    _purgeLocalStorageFor(bookId);
+
+    var p;
+    try {
+      if (win.ImportManager && win.ImportManager.removeImportedBook) {
+        p = Promise.resolve(win.ImportManager.removeImportedBook(bookId));
+      } else {
+        p = Promise.resolve();
+      }
+    } catch (e) {
+      console.warn('[BKShelf] purgeBook 异步清理失败:', e);
+      p = Promise.resolve();
+    }
+
+    return p.then(function () {
+      try {
+        win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
+          detail: { bookId: bookId, action: 'purge-done' }
+        }));
+      } catch (e) {}
+    }).catch(function () {});
+  }
+
+  /**
+   * 清理 localStorage 中与一本书关联的所有残留键：
+   *   bk_lastread_ts:<id> / bk_progress:<id> / bk_scroll:<id> / bk_scroll:<id>/<chNum>… /
+   *   若 bk_last_read 指向该书也清除。
+   * 单条失败不影响其他键。
+   * @param {string} bookId
+   */
+  function _purgeLocalStorageFor(bookId) {
+    if (!bookId) return;
+    var ls = win.localStorage;
+    if (!ls) return;
+    var prefixes = [
+      'bk_lastread_ts:' + bookId,
+      'bk_progress:' + bookId,
+      'bk_scroll:' + bookId
+    ];
+    // 精确匹配的键直接删
+    for (var i = 0; i < prefixes.length; i++) {
+      try { ls.removeItem(prefixes[i]); } catch (e) {}
+    }
+    // bk_scroll:<bookId>/<chNum> 形式的键需要遍历删除
+    var scrollPrefix = 'bk_scroll:' + bookId + '/';
+    try {
+      var keysToRemove = [];
+      for (var j = ls.length - 1; j >= 0; j--) {
+        var k = ls.key(j);
+        if (k && k.indexOf(scrollPrefix) === 0) keysToRemove.push(k);
+      }
+      for (var m = 0; m < keysToRemove.length; m++) {
+        try { ls.removeItem(keysToRemove[m]); } catch (e) {}
+      }
+    } catch (e) {}
+    // bk_last_read：若指向该书则清除
+    try {
+      if (ls.getItem('bk_last_read') === bookId) ls.removeItem('bk_last_read');
+    } catch (e) {}
   }
 
   /**
@@ -341,6 +445,7 @@
     get: get,
     add: add,
     remove: remove,
+    purgeBook: purgeBook,     // 移出书架 + 彻底清理本地数据（IndexedDB / localStorage 残留）
     markRead: markRead,
     unmarkRead: unmarkRead,    // 撤销「读完」：finished→false，移回在读
     finish: markRead,        // 别名：语义等价（标记已读）

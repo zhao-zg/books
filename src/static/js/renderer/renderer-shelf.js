@@ -221,7 +221,7 @@
       })(unreadBtns[u]);
     }
 
-    // 绑定移除按钮（二次确认后写 BKShelf.remove，由事件监听整体重渲染）
+    // 绑定移除按钮（二次确认后 BKShelf.purgeBook：按书型差异化清理，由事件监听整体重渲染）
     var rmBtns = listEl.querySelectorAll('.bk-shelf-remove-btn');
     for (var j = 0; j < rmBtns.length; j++) {
       (function (btn) {
@@ -230,8 +230,23 @@
           if (!id) return;
           var b = _findBookById(id);
           var name = b ? (b.title || id) : id;
-          if (win.confirm && !win.confirm('确定将《' + name + '》移出书架？')) return;
-          if (win.BKShelf && win.BKShelf.remove) win.BKShelf.remove(id);
+          // 按书型差异化文案：
+          //  - 导入书：彻底清本地数据，不可恢复
+          //  - 书城下载书：仅移出书架，保留本地缓存作离线兜底，可随时重新加入续读
+          var isImported = id.indexOf('imported-') === 0;
+          var msg;
+          if (isImported) {
+            msg = '确定将《' + name + '》移出书架？\n\n将同时清除本书的本地数据（缓存、阅读进度、PDF/EPUB 文件等），无法恢复。';
+          } else {
+            msg = '确定将《' + name + '》移出书架？\n\n本地缓存将予以保留，可随时重新加入书架继续阅读。';
+          }
+          if (win.confirm && !win.confirm(msg)) return;
+          if (win.BKShelf && win.BKShelf.purgeBook) {
+            win.BKShelf.purgeBook(id);
+          } else if (win.BKShelf && win.BKShelf.remove) {
+            // 降级：仅移出书架记录（老版本或 purgeBook 缺失时）
+            win.BKShelf.remove(id);
+          }
           // 移除后由 bk-shelf-changed 监听整体重渲染（含统计与空状态）
         });
       })(rmBtns[j]);

@@ -55,6 +55,16 @@
   }
 }
 
+/* PDF 模式下页码栏对比度修复：
+   中灰背景 #525659 上的默认深黑标题（var(--heading) = #1A1918）对比度仅 2.37:1，
+   远低于 WCAG AA 4.5:1。改为浅色文字 + 半透明浅色分割线，
+   对标 Acrobat/PDF.js 在深色工具栏区的页码标识风格。 */
+#chapterContent.bk-pdf-mode .bk-page-title,
+.bk-carousel-page .content.bk-pdf-mode .bk-page-title {
+  color: #F2F2F2;                 /* 浅灰白：在 #525659 上对比度 ≈ 8.9:1，远超 AA */
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
 .bk-heading + .bk-paragraph { text-indent: 0; }
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
@@ -164,6 +174,14 @@
   text-align: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);  /* 页面阴影，增加层次感 */
 }
+/* 缩放时：pdf-page 变为可滚动容器，让放大的 canvas 可滚动查看（对标 Acrobat/PDF.js）。
+   解决放大后右半边被裁切的 Critical bug。 */
+.bk-pdf-page.bk-pdf-zoomed {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;          /* 取消居中，canvas 左对齐便于横向滚动 */
+}
 .bk-pdf-page-placeholder {
   position: absolute;
   inset: 0;
@@ -186,6 +204,10 @@
   display: inline-block;
   margin: 0 auto;
   line-height: 0;
+}
+/* 缩放时取消 auto 居中，避免 canvas 比容器宽时左右都被裁切 */
+.bk-pdf-page.bk-pdf-zoomed .bk-pdf-canvas-wrap {
+  margin: 0;
 }
 .bk-pdf-canvas {
   display: block;
@@ -277,20 +299,24 @@
   height: 100%;
 }
 
-/* ── PDF 缩放控件 ──────────────────────────────────────────── */
+/* ── PDF 缩放控件（毛玻璃胶囊式，移动优先）────────────────────── */
+/* 深色毛玻璃在 #525659 中灰阅读区背景上对比适中，白色图标清晰可读。
+   44px 触控目标符合移动端可用性；安全区适配避免遮挡 home 指示条。 */
 .bk-pdf-zoom-bar {
   position: fixed;
-  right: 16px;
-  bottom: 80px;
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   display: none;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border, #ddd);
-  border-radius: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(20, 20, 20, 0.78);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   z-index: 1000;
   user-select: none;
   -webkit-user-select: none;
@@ -299,30 +325,32 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
-  color: var(--text, #333);
-  font-size: 20px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 22px;
   cursor: pointer;
   border-radius: 50%;
   transition: background 0.2s;
   padding: 0;
   line-height: 1;
+  -webkit-tap-highlight-color: transparent;
 }
 .bk-pdf-zoom-btn:hover {
-  background: var(--surface-alt, #f0eeea);
+  background: rgba(255, 255, 255, 0.12);
 }
 .bk-pdf-zoom-btn:active {
-  background: var(--border, #ddd);
+  background: rgba(255, 255, 255, 0.22);
 }
 .bk-pdf-zoom-value {
-  min-width: 48px;
+  min-width: 52px;
   text-align: center;
   font-size: 13px;
-  color: var(--text-muted, #666);
+  color: rgba(255, 255, 255, 0.85);
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 .bk-footnotes-section {
   margin-top: 2em;

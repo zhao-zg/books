@@ -47,6 +47,12 @@
   var KEY_CONTENT_INDEX_IDS = 'zl_ci_ids';
   var KEY_CONTENT_INDEX_PREFIX = 'zl_ci:';
 
+  // 错误码常量
+  // ★ M5修复：将散落多处的 'CANCELLED' 字面量收敛为常量，便于以后修改/统一引用。
+  //   各调用点（dm-download.js / search.js / renderer-city-helpers.js）均通过此常量
+  //   或各模块本地同名常量比较，避免字符串拼写不一致导致的隐性 bug。
+  var ERR_CANCELLED = 'CANCELLED';
+
   // ── 内存缓存 ──────────────────────────────────────────────────────────
   var _cachedIndex = null;
   var _cachedManifest = null;
@@ -55,6 +61,9 @@
   var _bookBytesCache = null;   // number | null（null = 未计算/已失效）—— 书籍数据占用缓存，避免每次 getStorageStats 都 O(N) 遍历
 
   // ── 下载队列状态 ─────────────────────────────────────────────────────
+  // 批次令牌机制：每次启动批量下载递增此 token，runConcurrent 闭包捕获本次 token，
+  // 消费任务前校验，防止「取消后立即开始新批量」时旧 worker 复活消费旧 tasks 数组
+  var _dlRunToken = 0;
   var _isDownloading = false;
   var _isPaused = false;
   var _isCancelled = false;
@@ -63,6 +72,14 @@
   var _dlCurrentTitle = '';
   // 暂停/恢复机制：暂停时挂起 Promise，恢复时 resolve
   var _pauseResolve = null;
+  // 当前活跃批次的 token（与 _pauseResolve/_isPaused 配合；pauseDownload/resumeDownload/cancelDownload
+  // 需验证调用方对应的批次仍是当前活跃批次，避免跨批次误操作）
+  var _dlActiveToken = 0;
+  // 单本下载取消令牌：cancelDownload 推进此 token，各 downloadBook 闭包捕获本次 token，
+  // 在 fetch 前/响应后/写入前等关键节点校验，被取消时抛 CANCELLED 错误。
+  // 与 _dlRunToken 独立：批量下载的取消走 _dlRunToken，单本下载的取消走 _singleDlToken，
+  // 同一次 cancelDownload 会同时推进两者，使两种下载都被取消。
+  var _singleDlToken = 0;
   // 并发控制（顺序下载更稳定，减少网络波动导致的失败）
   var MAX_CONCURRENT = 1;
   var MAX_RETRIES = 3;
@@ -83,10 +100,20 @@
    * 当前地址重试耗尽后自动切换到下一个地址
    * @param {string} url
    * @param {number} [retries] 当前地址剩余重试次数
+   * @param {Object} [options] 可选参数
+   *   @param {function} [options.shouldAbort] 每次重试前调用，返回 true 则放弃重试并抛 CANCELLED 错误。
+   *     ★ M1修复：让调用方能在 setTimeout 重试间隔内提前取消，避免用户取消下载后仍继续发起重试。
    * @returns {Promise<Response>}
    */
-  function fetchWithRetry(url, retries) {
+  function fetchWithRetry(url, retries, options) {
     if (typeof retries === 'undefined') retries = MAX_RETRIES;
+    // ★ M1修复：重试入口校验取消——首次调用时也会校验（虽然 dm-download.js 在调用前后都有兜底校验，
+    //   这里集中校验让通用 fetchWithRetry 也支持取消语义，下游调用方无需各自处理）
+    if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
+      var abortErr = new Error('下载已取消');
+      abortErr.code = ERR_CANCELLED;
+      throw abortErr;
+    }
     return fetch(url, { cache: 'no-cache' })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -109,7 +136,13 @@
           return new Promise(function (resolve) {
             setTimeout(resolve, delay);
           }).then(function () {
-            return fetchWithRetry(url, retries - 1);
+            // ★ M1修复：重试 setTimeout 间隔内可能已被取消，再次校验避免无效重试
+            if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
+              var e = new Error('下载已取消');
+              e.code = ERR_CANCELLED;
+              throw e;
+            }
+            return fetchWithRetry(url, retries - 1, options);
           });
         }
         // 当前地址重试耗尽（或 HTML 响应），尝试切换到下一个地址
@@ -127,7 +160,13 @@
             relativePath = url.substring(url.lastIndexOf('/') + 1);
           }
           var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
-          return fetchWithRetry(newUrl, MAX_RETRIES);
+          // ★ M1修复：切换地址时也校验取消（用户在等待备用地址切换期间可能已取消）
+          if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
+            var abortSwitchErr = new Error('下载已取消');
+            abortSwitchErr.code = ERR_CANCELLED;
+            throw abortSwitchErr;
+          }
+          return fetchWithRetry(newUrl, MAX_RETRIES, options);
         }
         throw err._isHtmlResponse
           ? new Error('该书籍数据文件在所有服务器上均不存在')

@@ -20,6 +20,10 @@
   // 每页显示条数
   var PAGE_SIZE = 50;
 
+  // 错误码常量（与 dm-shared.js / renderer-data.js 中保持一致，模块内独立定义避免跨模块引用）
+  // ★ M5修复：将散落本文件的 'CANCELLED' 字面量收敛为常量
+  var ERR_CANCELLED = 'CANCELLED';
+
   var BKSearch = {
     _modal: null,
     _input: null,
@@ -41,7 +45,20 @@
      * 检查书籍是否有上次阅读进度
      */
     _hasProgress: function (bookId) {
-      try { return parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10) > 0; } catch(e) { return false; }
+      return this._getReadingProgress(bookId) > 0;
+    },
+
+    /**
+     * 读取书籍上次阅读进度（章节号）
+     * ★ M3修复：优先调用 BKRenderer.getReadingProgress API，
+     *   不再直读 localStorage（'bk_progress:' 前缀是 renderer 内部约定）。
+     *   旧版本 fallback 保留，应对 Service Worker 缓存导致 renderer 未更新的极端情况。
+     */
+    _getReadingProgress: function (bookId) {
+      if (win.BKRenderer && typeof win.BKRenderer.getReadingProgress === 'function') {
+        try { return win.BKRenderer.getReadingProgress(bookId) || 0; } catch(e) { return 0; }
+      }
+      try { return parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10); } catch(e) { return 0; }
     },
 
     // 当前搜索状态
@@ -514,8 +531,9 @@
             function doNavigate() {
               if (win.BKRouter) {
                 // 检查阅读进度，有进度则直接跳转到上次阅读的章节
-                var progress = 0;
-                try { progress = parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10); } catch(ex) {}
+                // ★ M3修复：通过 self._getReadingProgress 封装函数获取进度，
+                //   不再直读 localStorage key
+                var progress = self._getReadingProgress(bookId);
                 if (progress > 0 && bookId) {
                   win.BKRouter.navigate(bookId + '/' + progress);
                 } else if (url) {
@@ -537,11 +555,40 @@
                   item.classList.add('bk-search-item-downloading');
                   if (textEl) textEl.textContent = '⏳ 正在下载书籍...';
 
+                  // ★ 防导航劫持：登记本书为「最后点击下载的书」（与书城共享同一协调机制）
+                  // 用户此后在书城或搜索框再点其他书下载时，本书完成后将不抢跳转
+                  if (win.BKRenderer && win.BKRenderer.claimDownloadNavigate) {
+                    win.BKRenderer.claimDownloadNavigate(bookId);
+                  }
+
                   DM.downloadBook(bookId, series || '').then(function () {
+                    // ★ M4修复：item DOM 已脱离文档 → 用户重新搜索导致旧 DOM 被替换，
+                    //   放弃所有 UI 更新与导航（下载本身仍会完成并缓存，下次点击这本书可直接打开）
+                    if (!item.isConnected) return;
                     item.classList.remove('bk-search-item-downloading');
+                    // ★ 守卫1：若已被后续点击覆盖（用户点了其他书下载），本书静默退出不抢跳
+                    if (win.BKRenderer && win.BKRenderer.isClaimedDownloadNavigate &&
+                        !win.BKRenderer.isClaimedDownloadNavigate(bookId)) return;
+                    // ★ 守卫2：搜索面板已关闭 + 书城不可见 → 用户已离开（如打开了别的书），不抢跳
+                    if ((!self._modal || self._modal.style.display === 'none')) {
+                      var homeEl = document.getElementById('homeView');
+                      if (!homeEl || homeEl.style.display === 'none') return;
+                    }
                     doNavigate();
                   }).catch(function (err) {
+                    // ★ M4修复：item DOM 已脱离文档 → 跳过无意义的 UI 更新与导航
+                    if (!item.isConnected) return;
                     item.classList.remove('bk-search-item-downloading');
+                    // ★ 若已被后续点击覆盖，静默退出不抢跳
+                    if (win.BKRenderer && win.BKRenderer.isClaimedDownloadNavigate &&
+                        !win.BKRenderer.isClaimedDownloadNavigate(bookId)) return;
+                    // ★ C1修复：用户主动取消（CANCELLED）做无声清理，不报"下载失败"也不强制跳转
+                    //   参照 _handleBookClick（renderer-city-helpers.js:319-327）的 CANCELLED 处理模式
+                    // ★ M5修复：使用 ERR_CANCELLED 常量替代字面量
+                    if (err && err.code === ERR_CANCELLED) {
+                      if (textEl) textEl.innerHTML = '';
+                      return;
+                    }
                     if (textEl) textEl.innerHTML = '⚠ 下载失败，点击重试';
                     console.error('[BKSearch] 下载书籍失败:', err);
                     // 降级：仍尝试直接导航（renderChapterList → loadBook 会再次尝试下载）
@@ -575,8 +622,9 @@
             function doNavigate() {
               if (bookId && win.BKRouter) {
                 // 检查阅读进度，有进度则直接跳转到上次阅读的章节
-                var progress = 0;
-                try { progress = parseInt(localStorage.getItem('bk_progress:' + bookId) || '0', 10); } catch(ex) {}
+                // ★ M3修复：通过 self._getReadingProgress 封装函数获取进度，
+                //   不再直读 localStorage key
+                var progress = self._getReadingProgress(bookId);
                 if (progress > 0) {
                   win.BKRouter.navigate(bookId + '/' + progress);
                 } else {
@@ -594,9 +642,35 @@
                   // 未缓存：显示下载中状态
                   var statusEl = title.querySelector('.bk-search-cache-status');
                   if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = 'var(--gold)'; }
+                  // ★ 防导航劫持：登记本书为「最后点击下载的书」（与书城共享同一协调机制）
+                  if (win.BKRenderer && win.BKRenderer.claimDownloadNavigate) {
+                    win.BKRenderer.claimDownloadNavigate(bookId);
+                  }
                   DM.downloadBook(bookId, series || '').then(function () {
+                    // ★ M4修复：title DOM 已脱离文档 → 用户重新搜索导致旧 DOM 被替换，
+                    //   放弃导航与状态更新（下载本身仍会完成并缓存）
+                    if (!title.isConnected) return;
+                    // ★ 守卫1：若已被后续点击覆盖，本书静默退出不抢跳
+                    if (win.BKRenderer && win.BKRenderer.isClaimedDownloadNavigate &&
+                        !win.BKRenderer.isClaimedDownloadNavigate(bookId)) return;
+                    // ★ 守卫2：搜索面板已关闭 + 书城不可见 → 用户已离开，不抢跳
+                    if ((!self._modal || self._modal.style.display === 'none')) {
+                      var homeEl = document.getElementById('homeView');
+                      if (!homeEl || homeEl.style.display === 'none') return;
+                    }
                     doNavigate();
                   }).catch(function (err) {
+                    // ★ M4修复：title DOM 已脱离文档 → 跳过无意义的 UI 更新与导航
+                    if (!title.isConnected) return;
+                    // ★ 若已被后续点击覆盖，静默退出不抢跳
+                    if (win.BKRenderer && win.BKRenderer.isClaimedDownloadNavigate &&
+                        !win.BKRenderer.isClaimedDownloadNavigate(bookId)) return;
+                    // ★ C1修复：用户主动取消（CANCELLED）做无声清理，不报"下载失败"也不强制跳转
+                    // ★ M5修复：使用 ERR_CANCELLED 常量替代字面量
+                    if (err && err.code === ERR_CANCELLED) {
+                      if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+                      return;
+                    }
                     if (statusEl) { statusEl.textContent = '✗'; statusEl.style.color = 'var(--danger-text)'; }
                     console.error('[BKSearch] 下载书籍失败:', err);
                     doNavigate();

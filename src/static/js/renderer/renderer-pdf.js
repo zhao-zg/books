@@ -141,10 +141,21 @@
 
     _setRenderingState(el, true);
 
-    getPdfDoc(pdfBkId).then(function (pdf) {
+    // 首次渲染时等待一帧，确保 .bk-pdf-mode 的 CSS 规则（padding/width 重置）完全 reflow 后再读取容器宽度。
+    // 否则 IntersectionObserver 回调可能在 CSS reflow 前触发，_getContainerWidth 取到旧宽度导致 canvas 溢出。
+    // isRetry=true（缩放/resize 触发的重渲染）不需要等待，CSS 此时已稳定。
+    var ready = (isRetry || el.getAttribute('data-pdf-rendered') === '1')
+      ? Promise.resolve()
+      : new Promise(function (resolve) {
+          (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(resolve);
+        });
+
+    ready.then(function () {
+      return getPdfDoc(pdfBkId);
+    }).then(function (pdf) {
       return pdf.getPage(pgNum);
     }).then(function (page) {
-      // 计算 fit-to-width 基础 scale
+      // 计算 fit-to-width 基础 scale（此时 CSS 已 reflow，可安全读取容器宽度）
       var baseViewport = page.getViewport({ scale: 1 });
       var containerWidth = _getContainerWidth(el);
       var baseScale = containerWidth / baseViewport.width;
@@ -197,6 +208,22 @@
       if (placeholder) placeholder.style.display = 'none';
       canvas.style.opacity = '1';
       _trackActivePage(el);
+
+      // 方案 G 兜底：渲染完成后再次读取容器宽度，若与渲染时所用宽度差异超过 3%，
+      // 说明容器在渲染过程中发生了宽度抖动（滚动条出现/消失、split mode 布局过渡等），
+      // 自动触发一次重渲染修正。isRetry=true 不再二次重渲染，避免无限循环。
+      // 这是 scrollbar-gutter:stable 之外的第二道防线，覆盖极端时序场景。
+      if (!isRetry) {
+        var postContainerWidth = _getContainerWidth(el);
+        var renderedWidth = parseFloat(canvas.style.width) || 0;
+        if (renderedWidth > 0 && postContainerWidth > 0) {
+          var widthDiff = Math.abs(renderedWidth - postContainerWidth) / postContainerWidth;
+          if (widthDiff > 0.03) {
+            console.log('[PDF] 容器宽度抖动', renderedWidth, '->', postContainerWidth, '触发自动重渲染');
+            renderPage(el, true);
+          }
+        }
+      }
     }).catch(function (err) {
       if (err && err.name === 'RenderingCancelledException') return;
       console.warn('[PDF] 页面渲染失败:', pgNum, err);
@@ -226,15 +253,25 @@
   }
 
   function _getContainerWidth(el) {
-    // 向上查找第一个有有效内容宽度的祖先元素
-    // 注意：clientWidth 包含 padding，需要减去 padding 才是实际可用宽度
+    // canvas 应适配内容容器（#chapterContent / .content / .bk-pdf-page）的内宽。
+    // 不可继续向上到 .bk-carousel-page（更宽的轮播页），否则 canvas 会溢出 .bk-pdf-page。
+    // 注意：必须跳过 .bk-pdf-canvas-wrap（它包裹 canvas，宽度随 canvas 变化，不能作为参考）。
+    // 防御：读取 clientWidth 会触发同步 reflow，确保 .bk-pdf-mode 的 padding 规则已生效。
     var node = el.parentElement;
     while (node) {
-      var style = win.getComputedStyle(node);
-      var pl = parseFloat(style.paddingLeft) || 0;
-      var pr = parseFloat(style.paddingRight) || 0;
-      var cw = node.clientWidth - pl - pr;
-      if (cw > 0) return cw;
+      if (node.classList && (node.classList.contains('bk-pdf-page') ||
+          node.classList.contains('content') ||
+          node.id === 'chapterContent' ||
+          node.classList.contains('bk-carousel-page'))) {
+        // 读取 offsetWidth 触发同步 reflow，确保 .bk-pdf-mode 的 padding 规则已生效
+        void node.offsetWidth;
+        var style = win.getComputedStyle(node);
+        var pl = parseFloat(style.paddingLeft) || 0;
+        var pr = parseFloat(style.paddingRight) || 0;
+        var cw = node.clientWidth - pl - pr;
+        if (cw > 0) return cw;
+        break;
+      }
       node = node.parentElement;
     }
     return el.clientWidth || 600;
@@ -387,6 +424,16 @@
     _pdfZoomState[pdfBookId] = _pdfZoomState[pdfBookId] || {};
     _pdfZoomState[pdfBookId].zoom = zoom;
     _updateZoomControls(zoom);
+    // zoom > 1 时让 .bk-pdf-page 变为可滚动容器，避免放大后 canvas 溢出被裁切（Critical）。
+    // classList 切换很轻量，可在 pinch zoom touchmove 中安全调用。
+    var pages = doc.querySelectorAll('.bk-pdf-page');
+    for (var i = 0; i < pages.length; i++) {
+      if (zoom > 1.0) {
+        pages[i].classList.add('bk-pdf-zoomed');
+      } else {
+        pages[i].classList.remove('bk-pdf-zoomed');
+      }
+    }
     return zoom;
   }
 
@@ -613,9 +660,34 @@
     var pages = containerEl.querySelectorAll('.bk-pdf-page');
     if (!pages.length) return;
 
-    // :has() 降级：为容器显式添加 class，旧 WebView 下也能应用 PDF 贴边样式。
+    // :has() 降级：为每个含 PDF 页面的 .content 容器添加 class，旧 WebView 下也能应用 PDF 贴边样式。
     // cleanup() 中移除；切回 epub/txt/md 时因不再 init 也不会有此 class。
-    containerEl.classList.add('bk-pdf-mode');
+    // 注意：class 必须加到 .content（#chapterContent / 预览页 .content）上，
+    // 才能命中 CSS 中 #chapterContent.bk-pdf-mode / .bk-carousel-page .content.bk-pdf-mode 选择器。
+    var contentCandidates = [];
+    if (containerEl.classList && containerEl.classList.contains('content') &&
+        containerEl.querySelector('.bk-pdf-page')) {
+      contentCandidates.push(containerEl);
+    }
+    var childContents = containerEl.querySelectorAll('.content');
+    for (var ci = 0; ci < childContents.length; ci++) {
+      if (childContents[ci].querySelector('.bk-pdf-page')) {
+        contentCandidates.push(childContents[ci]);
+      }
+    }
+    for (var cj = 0; cj < contentCandidates.length; cj++) {
+      contentCandidates[cj].classList.add('bk-pdf-mode');
+    }
+    // 强制 reflow：对每个加了 .bk-pdf-mode 的 .content 元素读取 offsetWidth，
+    // 确保其 padding/width 规则立即生效（而非等到下一帧）。直接读 #app 的 offsetWidth 对后代元素
+    // 的样式重算无强制效果，必须读 .content 元素本身。
+    // 防御 CSS 时序导致 _getContainerWidth 取到 reflow 前的旧宽度（canvas 溢出 15px）。
+    for (var ck = 0; ck < contentCandidates.length; ck++) {
+      void contentCandidates[ck].offsetWidth;
+    }
+    // :has() 降级：在 body 上标记 PDF 阅读态，用于隐藏 TTS 朗读栏等文字书专属 UI。
+    // cleanup() 中移除；切回 epub/txt/md 时因不再 init 也不会有此 class。
+    if (doc.body) doc.body.classList.add('bk-pdf-reading');
 
     // 推断当前 bookId（取第一个页面的 data-pdf-book）
     var pdfBookId = pages[0].getAttribute('data-pdf-book') || '';
@@ -736,6 +808,8 @@
     for (var m = 0; m < pdfModeEls.length; m++) {
       pdfModeEls[m].classList.remove('bk-pdf-mode');
     }
+    // 移除 body 上的 PDF 阅读态标记
+    if (doc.body) doc.body.classList.remove('bk-pdf-reading');
 
     // 隐藏 zoom 控件
     _hideZoomControls();
