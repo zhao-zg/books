@@ -142,6 +142,12 @@
     function onTouchStart(e) {
       if (e.touches.length > 1) return;
       if (_swipeAnimating) return;   // 动画进行中不响应新滑动
+      // PDF 单页横向滑动模式下手势冲突避让：
+      // .bk-pdf-single 容器自身是横向 scroll-snap 容器，需要横向手势翻 PDF 页。
+      // carousel 若抢夺 touchmove + preventDefault 会阻止 PDF 翻页，导致横滑切章而非翻页。
+      // 此处直接放弃建立 swipeState，让 PDF 容器自己处理横向滚动；
+      // 连续模式（无 .bk-pdf-single class）下 carousel 行为不受影响。
+      if (e.target && e.target.closest && (e.target.closest('.bk-pdf-single') || e.target.closest('.bk-pdf-continuous-view'))) return;
       var t = e.touches[0];
       _swipeState = {
         startX: t.clientX,

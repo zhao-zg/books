@@ -84,6 +84,95 @@
   var MAX_CONCURRENT = 1;
   var MAX_RETRIES = 3;
 
+  // ── 实时进度状态（字节级）─────────────────────────────────────────────
+  // 当前本书的字节进度（onProgress 推送时刷新，getDownloadStatus 读取）
+  // 当 _dlBytesTotal=0 时表示该响应无 Content-Length，只能显示"已接收"
+  var _dlBytesReceived = 0;
+  var _dlBytesTotal = 0;
+  // 当前本书字节级百分比（0-100，_dlBytesTotal>0 时为整数百分比；=0 时为 -1 表示未知）
+  var _dlCurrentBookPercent = 0;
+  // 批次累计接收字节（用于估算整体速度/剩余时间，跨多本累加）
+  var _dlBatchBytesReceived = 0;
+  // 批次开始时间戳（ms），用于速度估算
+  var _dlBatchStartTs = 0;
+  // 上次进度更新时间戳（ms），用于瞬时速度估算
+  var _dlLastProgressTs = 0;
+  var _dlLastProgressBytes = 0;
+  // 瞬时速度（B/s），getDownloadStatus 读取，由 downloadBook 在流式读取时计算
+  var _dlSpeedBps = 0;
+  // 整个批次的总进度百分比（0-100，已含当前本字节加权），getDownloadStatus 读取
+  var _dlTotalPercent = 0;
+  // 当前阶段文案（'下载中' / '解析数据' / '写入本地' / '完成'）
+  var _dlStage = '';
+
+  /**
+   * 重置实时进度状态（downloadSeries/downloadAll/downloadBook 启动前调用）
+   * 注意：不重置 _dlBatchBytesReceived，由批次级函数自行管理
+   */
+  function _resetBookProgressState() {
+    _dlBytesReceived = 0;
+    _dlBytesTotal = 0;
+    _dlCurrentBookPercent = 0;
+    _dlSpeedBps = 0;
+    _dlStage = '';
+  }
+
+  /**
+   * 重置批次进度状态（downloadSeries/downloadAll 启动前调用）
+   */
+  function _resetBatchProgressState() {
+    _dlBatchBytesReceived = 0;
+    _dlBatchStartTs = Date.now();
+    _dlLastProgressTs = _dlBatchStartTs;
+    _dlLastProgressBytes = 0;
+    _dlTotalPercent = 0;
+    _resetBookProgressState();
+  }
+
+  /**
+   * 更新瞬时速度：根据时间差和字节差计算 B/s
+   * @param {number} received 当前累计接收字节
+   * @returns {number} B/s
+   *
+   * ★ 鲁棒性：
+   *   - dt < 50ms 视为极端抖动，跳过（避免单次 read 抖动）
+   *   - 50-200ms 区间也计算（真实 CDN 下载时 onByteProgress 间隔常在该区间）
+   *   - db <= 0 时仅"心跳"刷新 _dlLastProgressTs（避免长时间挂起）
+   *   - 平滑系数 0.5：让新数据有适当权重，又不至于被瞬时毛刺带偏
+   */
+  function _calcSpeedBps(received) {
+    var now = Date.now();
+    var dt = now - _dlLastProgressTs;
+    if (dt < 50) return _dlSpeedBps;
+    var db = received - _dlLastProgressBytes;
+    if (db <= 0) {
+      // 字节未增加但时间过去：软刷新时间戳（"心跳"），避免下次 dt 仍停留在很久之前导致 db 过大
+      _dlLastProgressTs = now;
+      return _dlSpeedBps;
+    }
+    var instant = db * 1000 / dt;
+    _dlSpeedBps = _dlSpeedBps > 0 ? (_dlSpeedBps * 0.5 + instant * 0.5) : instant;
+    _dlLastProgressTs = now;
+    _dlLastProgressBytes = received;
+    return _dlSpeedBps;
+  }
+
+  /**
+   * 计算批次总进度百分比（completed + 当前本字节进度）/ total * 100
+   * @param {number} completed 已完成本数
+   * @param {number} total 总本数
+   * @returns {number} 0-100
+   */
+  function _calcTotalPercent(completed, total) {
+    if (total <= 0) return 0;
+    var bookProg = _dlBytesTotal > 0 ? _dlBytesReceived / _dlBytesTotal : 0;
+    if (bookProg > 1) bookProg = 1;
+    var pct = ((completed + bookProg) / total) * 100;
+    if (pct > 99.5) pct = 99.5;  // 留 0.5% 给完成阶段
+    if (pct < 0) pct = 0;
+    return pct;
+  }
+
   // ── 工具函数 ──────────────────────────────────────────────────────────
 
   /**

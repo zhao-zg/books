@@ -1,0 +1,811 @@
+/*!
+ * pdf-highlight.js - PDF 文本高亮标注
+ *
+ * 职责：
+ *   - 监听文本选中，弹出操作面板（高亮/复制/批注）
+ *   - 在 text layer 上渲染高亮矩形（CSS 绝对定位 div）
+ *   - 高亮数据由 pdf-state.js 管理（localStorage 持久化）
+ *   - 高亮列表抽屉（查看/删除所有高亮）
+ *
+ * 依赖：pdf-state.js, pdf-core.js, pdf-navigator.js
+ * 挂载：window.BKPdf._internal.highlight
+ */
+(function (win) {
+  'use strict';
+
+  var doc = win.document;
+  var S = win.BKPdf._internal.state;
+
+  // ==================== 状态 ====================
+
+  var _actionPanel = null;
+  var _currentSelection = null; // { page, text, rects }
+  var _highlightOverlays = {};  // pageEl → [div elements]
+  var _highlightColor = 'yellow'; // 当前选中颜色
+  var _drawer = null;
+  var _drawerBody = null;
+  var _drawerVisible = false;
+
+  // ==================== 文本选中监听 ====================
+
+  function init(containerEl, bookId) {
+    // 监听所有 text layer 的 mouseup/touchend
+    var textLayers = containerEl.querySelectorAll('.bk-pdf-text-layer');
+    for (var i = 0; i < textLayers.length; i++) {
+      _bindTextLayer(textLayers[i], bookId);
+    }
+    // 也监听后续渲染的页面（通过 MutationObserver）
+    _observeNewPages(containerEl, bookId);
+  }
+
+  function _bindTextLayer(textLayerEl, bookId) {
+    textLayerEl.addEventListener('mouseup', function (e) {
+      setTimeout(function () { _checkSelection(textLayerEl, bookId); }, 50);
+    });
+    textLayerEl.addEventListener('touchend', function (e) {
+      setTimeout(function () { _checkSelection(textLayerEl, bookId); }, 150);
+    });
+  }
+
+  function _observeNewPages(containerEl, bookId) {
+    var observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        for (var j = 0; j < mutations[i].addedNodes.length; j++) {
+          var node = mutations[i].addedNodes[j];
+          if (node.nodeType === 1) {
+            var tls = node.querySelectorAll ? node.querySelectorAll('.bk-pdf-text-layer') : [];
+            for (var k = 0; k < tls.length; k++) {
+              _bindTextLayer(tls[k], bookId);
+            }
+            if (node.classList && node.classList.contains('bk-pdf-text-layer')) {
+              _bindTextLayer(node, bookId);
+            }
+          }
+        }
+      }
+    });
+    observer.observe(containerEl, { childList: true, subtree: true });
+  }
+
+  function _checkSelection(textLayerEl, bookId) {
+    var sel = win.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      _hideActionPanel();
+      _currentSelection = null;
+      return;
+    }
+
+    var text = sel.toString().trim();
+    if (!text) return;
+
+    // 找到所属的 .bk-pdf-page 元素
+    var pageEl = textLayerEl.closest ? textLayerEl.closest('.bk-pdf-page') : null;
+    if (!pageEl) {
+      // fallback: 向上遍历
+      var p = textLayerEl.parentNode;
+      while (p && !p.classList.contains('bk-pdf-page')) p = p.parentNode;
+      pageEl = p;
+    }
+    if (!pageEl) return;
+
+    var pageNum = parseInt(pageEl.getAttribute('data-pdf-page'), 10) || 1;
+
+    // 获取选中区域的矩形
+    var range = sel.getRangeAt(0);
+    var rects = _getNormalizedRects(range, textLayerEl);
+
+    _currentSelection = { page: pageNum, text: text, rects: rects, bookId: bookId };
+
+    // 显示操作面板（在选区上方）
+    _showActionPanel(range, textLayerEl);
+  }
+
+  /**
+   * 获取选中矩形（归一化为相对于 text layer 的百分比坐标）
+   */
+  function _getNormalizedRects(range, textLayerEl) {
+    var rangeRects = range.getClientRects();
+    var containerRect = textLayerEl.getBoundingClientRect();
+    var cw = containerRect.width || 1;
+    var ch = containerRect.height || 1;
+    var rects = [];
+    for (var i = 0; i < rangeRects.length; i++) {
+      var r = rangeRects[i];
+      if (r.width < 1 || r.height < 1) continue;
+      rects.push({
+        left: (r.left - containerRect.left) / cw,
+        top: (r.top - containerRect.top) / ch,
+        width: r.width / cw,
+        height: r.height / ch
+      });
+    }
+    return rects;
+  }
+
+  // ==================== 操作面板 ====================
+
+  /**
+   * 创建颜色选择行 HTML（5 色圆点）
+   * 复用 state.HIGHLIGHT_COLORS，颜色 class 与 css-pdf.css 中 .bk-pdf-hl-{color} 对应
+   */
+  function _buildColorRowHTML() {
+    var colors = S.HIGHLIGHT_COLORS || ['yellow', 'green', 'blue', 'pink', 'orange'];
+    var html = '<div class="bk-pdf-hl-color-row" role="radiogroup" aria-label="高亮颜色">';
+    for (var i = 0; i < colors.length; i++) {
+      var c = colors[i];
+      var active = (c === _highlightColor) ? ' bk-pdf-hl-color-active' : '';
+      html += '<button class="bk-pdf-hl-color-dot bk-pdf-hl-color-' + c + active + '"' +
+        ' data-color="' + c + '" role="radio" aria-checked="' + (active ? 'true' : 'false') + '"' +
+        ' aria-label="' + c + '" title="' + c + '"></button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function _refreshColorRow() {
+    if (!_actionPanel) return;
+    var row = _actionPanel.querySelector('.bk-pdf-hl-color-row');
+    if (!row) return;
+    var dots = row.querySelectorAll('.bk-pdf-hl-color-dot');
+    for (var i = 0; i < dots.length; i++) {
+      var c = dots[i].getAttribute('data-color');
+      var isActive = (c === _highlightColor);
+      dots[i].classList.toggle('bk-pdf-hl-color-active', isActive);
+      dots[i].setAttribute('aria-checked', isActive ? 'true' : 'false');
+    }
+  }
+
+  function _createActionPanel() {
+    if (_actionPanel) return _actionPanel;
+    var panel = doc.createElement('div');
+    panel.className = 'bk-pdf-hl-action-panel';
+    panel.innerHTML =
+      _buildColorRowHTML() +
+      '<div class="bk-pdf-hl-btn-row">' +
+        '<button class="bk-pdf-hl-btn bk-pdf-hl-highlight-btn" title="高亮">🖍</button>' +
+        '<button class="bk-pdf-hl-btn bk-pdf-hl-underline-btn" title="下划线">U̲</button>' +
+        '<button class="bk-pdf-hl-btn bk-pdf-hl-strike-btn" title="删除线">S̶</button>' +
+        '<button class="bk-pdf-hl-btn bk-pdf-hl-copy-btn" title="复制">📋</button>' +
+        '<button class="bk-pdf-hl-btn bk-pdf-hl-note-btn" title="批注">📝</button>' +
+      '</div>';
+
+    doc.body.appendChild(panel);
+    _actionPanel = panel;
+
+    // 颜色选择 - 事件委托（避免重渲染后绑定丢失）
+    panel.querySelector('.bk-pdf-hl-color-row').addEventListener('click', function (e) {
+      var dot = e.target.closest('.bk-pdf-hl-color-dot');
+      if (!dot) return;
+      _highlightColor = dot.getAttribute('data-color') || 'yellow';
+      _refreshColorRow();
+      // 切换颜色后保持面板可见，方便用户继续操作
+    });
+
+    // 高亮按钮
+    var hlBtn = panel.querySelector('.bk-pdf-hl-highlight-btn');
+    hlBtn.addEventListener('click', function () {
+      _doHighlight();
+      _hideActionPanel();
+    });
+
+    // 下划线按钮
+    var ulBtn = panel.querySelector('.bk-pdf-hl-underline-btn');
+    ulBtn.addEventListener('click', function () {
+      _doUnderline();
+      _hideActionPanel();
+    });
+
+    // 删除线按钮
+    var stBtn = panel.querySelector('.bk-pdf-hl-strike-btn');
+    stBtn.addEventListener('click', function () {
+      _doStrikethrough();
+      _hideActionPanel();
+    });
+
+    // 复制按钮
+    var copyBtn = panel.querySelector('.bk-pdf-hl-copy-btn');
+    copyBtn.addEventListener('click', function () {
+      if (_currentSelection && _currentSelection.text) {
+        _copyToClipboard(_currentSelection.text);
+      }
+      _hideActionPanel();
+      win.getSelection().removeAllRanges();
+    });
+
+    // 批注按钮
+    var noteBtn = panel.querySelector('.bk-pdf-hl-note-btn');
+    noteBtn.addEventListener('click', function () {
+      _doHighlightWithNote();
+      _hideActionPanel();
+    });
+
+    return panel;
+  }
+
+  function _showActionPanel(range, textLayerEl) {
+    _createActionPanel();
+    // 每次显示前刷新颜色选中态（外部代码可能改过 _highlightColor）
+    _refreshColorRow();
+    var rangeRect = range.getBoundingClientRect();
+    var panelW = 210;
+    var panelH = 78; // 颜色行(28) + 间距(4) + 按钮行(40) + 内边距(6*2)，从原 40 调整
+    var left = rangeRect.left + rangeRect.width / 2 - panelW / 2;
+    var top = rangeRect.top - panelH - 8;
+
+    // 边界修正
+    if (left < 8) left = 8;
+    if (left + panelW > win.innerWidth - 8) left = win.innerWidth - panelW - 8;
+    if (top < 8) top = rangeRect.bottom + 8;
+
+    _actionPanel.style.left = left + 'px';
+    _actionPanel.style.top = top + 'px';
+    _actionPanel.classList.add('bk-pdf-hl-panel-visible');
+  }
+
+  function _hideActionPanel() {
+    if (_actionPanel) _actionPanel.classList.remove('bk-pdf-hl-panel-visible');
+  }
+
+  // ==================== 批注浮动输入框 ====================
+
+  var _notePanel = null;
+  var _noteTextarea = null;
+  var _noteTargetHlId = null; // 正在编辑批注的高亮 id
+
+  function _createNotePanel() {
+    if (_notePanel) return _notePanel;
+    var panel = doc.createElement('div');
+    panel.className = 'bk-pdf-note-panel';
+    panel.innerHTML =
+      '<div class="bk-pdf-note-header">' +
+        '<span class="bk-pdf-note-title">批注</span>' +
+        '<button class="bk-pdf-note-close" aria-label="关闭">✕</button>' +
+      '</div>' +
+      '<textarea class="bk-pdf-note-input" placeholder="输入批注内容…" rows="3"></textarea>' +
+      '<div class="bk-pdf-note-actions">' +
+        '<button class="bk-pdf-note-save">保存</button>' +
+        '<button class="bk-pdf-note-cancel">取消</button>' +
+      '</div>';
+    doc.body.appendChild(panel);
+    _notePanel = panel;
+    _noteTextarea = panel.querySelector('.bk-pdf-note-input');
+
+    // 关闭按钮
+    panel.querySelector('.bk-pdf-note-close').addEventListener('click', _hideNotePanel);
+    // 取消按钮
+    panel.querySelector('.bk-pdf-note-cancel').addEventListener('click', _hideNotePanel);
+    // 保存按钮
+    panel.querySelector('.bk-pdf-note-save').addEventListener('click', function () {
+      _saveNote();
+    });
+
+    return panel;
+  }
+
+  function _showNotePanel(hlId, existingNote, anchorRect) {
+    _createNotePanel();
+    _noteTargetHlId = hlId;
+    if (_noteTextarea) {
+      _noteTextarea.value = existingNote || '';
+      _noteTextarea.focus();
+    }
+
+    // 定位在锚点附近
+    var left = anchorRect ? anchorRect.left + anchorRect.width / 2 - 120 : win.innerWidth / 2 - 120;
+    var top = anchorRect ? anchorRect.bottom + 8 : win.innerHeight / 2 - 80;
+    if (left < 8) left = 8;
+    if (left + 240 > win.innerWidth - 8) left = win.innerWidth - 248;
+    if (top + 180 > win.innerHeight) top = (anchorRect ? anchorRect.top - 180 : win.innerHeight / 2 - 80);
+
+    _notePanel.style.left = left + 'px';
+    _notePanel.style.top = top + 'px';
+    _notePanel.classList.add('bk-pdf-note-panel-visible');
+  }
+
+  function _hideNotePanel() {
+    if (_notePanel) _notePanel.classList.remove('bk-pdf-note-panel-visible');
+    _noteTargetHlId = null;
+  }
+
+  function _saveNote() {
+    if (!_noteTargetHlId || !_noteTextarea) return;
+    var note = _noteTextarea.value.trim();
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    // F5：记录批注修改前的旧值用于撤销
+    var oldNote = '';
+    var pageNo = null;
+    var hlArr = S.highlights(bookId);
+    for (var i = 0; i < hlArr.length; i++) {
+      if (hlArr[i].id === _noteTargetHlId) {
+        oldNote = hlArr[i].note || '';
+        pageNo = hlArr[i].page;
+        break;
+      }
+    }
+    var newNote = note || '';
+    S.setHighlightNote(bookId, _noteTargetHlId, newNote);
+    var U = win.BKPdf._internal.undo;
+    if (U && pageNo != null && oldNote !== newNote) {
+      U.recordNote(bookId, { hlId: _noteTargetHlId, page: pageNo, oldNote: oldNote, newNote: newNote });
+    }
+    _hideNotePanel();
+    // 刷新抽屉（如打开）
+    if (_drawerVisible) _populateDrawer();
+  }
+
+  function _doHighlightWithNote() {
+    if (!_currentSelection) return;
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    // 先添加高亮
+    var hl = {
+      page: _currentSelection.page,
+      text: _currentSelection.text,
+      rects: _currentSelection.rects,
+      color: _highlightColor,
+      type: 'highlight',
+      note: ''
+    };
+    var hlId = S.addHighlight(bookId, hl);
+    // F5：记录撤销（含 note 变化，所以同时记 add + note 初始为空）
+    var U = win.BKPdf._internal.undo;
+    if (U && hlId) U.recordAdd(bookId, hl);
+    _renderHighlightOnPage(_currentSelection.page);
+    win.getSelection().removeAllRanges();
+
+    // 立即弹出批注输入框
+    var sel = _currentSelection;
+    _currentSelection = null;
+
+    // 用选中区域最后的 rect 作为锚点定位
+    var anchorRect = null;
+    try {
+      var pageEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + sel.page + '"]');
+      if (pageEl) {
+        var textLayer = pageEl.querySelector('.bk-pdf-text-layer');
+        if (textLayer) {
+          var tlRect = textLayer.getBoundingClientRect();
+          // 用 rects 数组最后一个作为近似位置
+          var lastRect = sel.rects.length ? sel.rects[sel.rects.length - 1] : null;
+          if (lastRect) {
+            anchorRect = {
+              left: tlRect.left + lastRect.left * tlRect.width,
+              top: tlRect.top + lastRect.top * tlRect.height,
+              width: lastRect.width * tlRect.width,
+              height: lastRect.height * tlRect.height,
+              bottom: tlRect.top + (lastRect.top + lastRect.height) * tlRect.height
+            };
+          }
+        }
+      }
+    } catch (e) {}
+
+    _showNotePanel(hlId, '', anchorRect);
+  }
+
+  // ==================== 高亮渲染 ====================
+
+  function _doHighlight() {
+    if (!_currentSelection) return;
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    var hl = {
+      page: _currentSelection.page,
+      text: _currentSelection.text,
+      rects: _currentSelection.rects,
+      color: _highlightColor,
+      type: 'highlight'
+    };
+    var hlId = S.addHighlight(bookId, hl);
+    // F5：记录撤销
+    var U = win.BKPdf._internal.undo;
+    if (U && hlId) U.recordAdd(bookId, hl);
+    _renderHighlightOnPage(_currentSelection.page);
+    win.getSelection().removeAllRanges();
+    _currentSelection = null;
+  }
+
+  function _doUnderline() {
+    if (!_currentSelection) return;
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    var hl = {
+      page: _currentSelection.page,
+      text: _currentSelection.text,
+      rects: _currentSelection.rects,
+      color: _highlightColor,
+      type: 'underline'
+    };
+    var hlId = S.addHighlight(bookId, hl);
+    var U = win.BKPdf._internal.undo;
+    if (U && hlId) U.recordAdd(bookId, hl);
+    _renderHighlightOnPage(_currentSelection.page);
+    win.getSelection().removeAllRanges();
+    _currentSelection = null;
+  }
+
+  function _doStrikethrough() {
+    if (!_currentSelection) return;
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    var hl = {
+      page: _currentSelection.page,
+      text: _currentSelection.text,
+      rects: _currentSelection.rects,
+      color: _highlightColor,
+      type: 'strikethrough'
+    };
+    var hlId = S.addHighlight(bookId, hl);
+    var U = win.BKPdf._internal.undo;
+    if (U && hlId) U.recordAdd(bookId, hl);
+    _renderHighlightOnPage(_currentSelection.page);
+    win.getSelection().removeAllRanges();
+    _currentSelection = null;
+  }
+
+  /**
+   * 渲染指定页面的所有高亮
+   */
+  function _renderHighlightOnPage(pageNum) {
+    var bookId = S.currentBookId();
+    var highlights = S.highlightsByPage(bookId, pageNum);
+    if (!highlights.length) return;
+
+    // 找到页面元素
+    var pageEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + pageNum + '"]');
+    if (!pageEl) return;
+
+    var textLayer = pageEl.querySelector('.bk-pdf-text-layer');
+    if (!textLayer) return;
+
+    // 先清除旧的高亮覆盖层
+    _clearHighlightOverlays(pageEl);
+
+    // 创建新覆盖层
+    var overlays = [];
+    for (var i = 0; i < highlights.length; i++) {
+      var hl = highlights[i];
+      var color = hl.color || 'yellow';
+      var hlType = hl.type || 'highlight';
+      for (var j = 0; j < hl.rects.length; j++) {
+        var rect = hl.rects[j];
+        var div = doc.createElement('div');
+        var cls = 'bk-pdf-hl-overlay bk-pdf-hl-' + color;
+        if (hlType === 'underline') cls += ' bk-pdf-hl-underline';
+        else if (hlType === 'strikethrough') cls += ' bk-pdf-hl-strikethrough';
+        div.className = cls;
+        div.setAttribute('data-pdf-hl-id', hl.id || '');
+        div.style.left = (rect.left * 100) + '%';
+        div.style.top = (rect.top * 100) + '%';
+        div.style.width = (rect.width * 100) + '%';
+        div.style.height = (rect.height * 100) + '%';
+        textLayer.appendChild(div);
+        overlays.push(div);
+      }
+    }
+    _highlightOverlays[pageEl] = overlays;
+  }
+
+  function _clearHighlightOverlays(pageEl) {
+    var old = _highlightOverlays[pageEl];
+    if (old) {
+      for (var i = 0; i < old.length; i++) {
+        if (old[i].parentNode) old[i].parentNode.removeChild(old[i]);
+      }
+    }
+    _highlightOverlays[pageEl] = [];
+  }
+
+  /**
+   * 渲染所有可见页面的所有高亮
+   */
+  function renderAllVisibleHighlights() {
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+    var pages = doc.querySelectorAll('.bk-pdf-page');
+    for (var i = 0; i < pages.length; i++) {
+      var pn = parseInt(pages[i].getAttribute('data-pdf-page'), 10);
+      if (pn > 0) _renderHighlightOnPage(pn);
+    }
+  }
+
+  /**
+   * F5：撤销后刷新入口 —— 重渲所有可见页 + 如抽屉打开则刷新列表
+   * 供 pdf-undo.js 调用
+   */
+  function refreshAfterUndo() {
+    renderAllVisibleHighlights();
+    if (_drawerVisible) _populateDrawer();
+  }
+
+  // ==================== 高亮列表抽屉 ====================
+
+  var _drawerFilter = 'all'; // all | highlight | underline | strikethrough | note
+
+  function _createDrawer() {
+    if (_drawer) return _drawer;
+    var drawer = doc.createElement('div');
+    drawer.className = 'bk-pdf-hl-drawer';
+    drawer.innerHTML =
+      '<div class="bk-pdf-hl-drawer-header">' +
+        '<span class="bk-pdf-hl-drawer-title">高亮标注</span>' +
+        '<button class="bk-pdf-hl-drawer-close" aria-label="关闭">✕</button>' +
+      '</div>' +
+      '<div class="bk-pdf-hl-drawer-tabs">' +
+        '<button class="bk-pdf-hl-tab bk-pdf-hl-tab-active" data-filter="all">全部</button>' +
+        '<button class="bk-pdf-hl-tab" data-filter="highlight">🖍高亮</button>' +
+        '<button class="bk-pdf-hl-tab" data-filter="underline">U̲下划线</button>' +
+        '<button class="bk-pdf-hl-tab" data-filter="strikethrough">S̶删除线</button>' +
+        '<button class="bk-pdf-hl-tab" data-filter="note">📝批注</button>' +
+      '</div>' +
+      '<div class="bk-pdf-hl-drawer-body"></div>' +
+      '<div class="bk-pdf-hl-drawer-footer"></div>';
+    doc.body.appendChild(drawer);
+
+    _drawer = drawer;
+    _drawerBody = drawer.querySelector('.bk-pdf-hl-drawer-body');
+
+    var closeBtn = drawer.querySelector('.bk-pdf-hl-drawer-close');
+    if (closeBtn) closeBtn.addEventListener('click', hide);
+
+    drawer.addEventListener('click', function (e) {
+      if (e.target === drawer) hide();
+    });
+
+    // 筛选标签
+    var tabs = drawer.querySelectorAll('.bk-pdf-hl-tab');
+    for (var t = 0; t < tabs.length; t++) {
+      tabs[t].addEventListener('click', function () {
+        _drawerFilter = this.getAttribute('data-filter');
+        var allTabs = _drawer.querySelectorAll('.bk-pdf-hl-tab');
+        for (var a = 0; a < allTabs.length; a++) {
+          allTabs[a].classList.toggle('bk-pdf-hl-tab-active', allTabs[a] === this);
+        }
+        _populateDrawer();
+      });
+    }
+
+    return drawer;
+  }
+
+  function _populateDrawer() {
+    if (!_drawerBody) return;
+    var bookId = S.currentBookId();
+    if (!bookId) return;
+
+    var highlights = S.highlights(bookId);
+    if (!highlights.length) {
+      _drawerBody.innerHTML = '<div class="bk-pdf-outline-empty">暂无标注</div>';
+      _updateDrawerFooter(0, 0, 0, 0);
+      return;
+    }
+
+    var sorted = highlights.slice().sort(function (a, b) { return a.page - b.page || (a.timestamp || 0) - (b.timestamp || 0); });
+
+    // 按筛选条件过滤
+    var filtered = sorted;
+    if (_drawerFilter === 'highlight') {
+      filtered = sorted.filter(function (h) { return (!h.type || h.type === 'highlight'); });
+    } else if (_drawerFilter === 'underline') {
+      filtered = sorted.filter(function (h) { return h.type === 'underline'; });
+    } else if (_drawerFilter === 'strikethrough') {
+      filtered = sorted.filter(function (h) { return h.type === 'strikethrough'; });
+    } else if (_drawerFilter === 'note') {
+      filtered = sorted.filter(function (h) { return h.note && h.note.trim(); });
+    }
+
+    // 统计
+    var hlCount = sorted.filter(function (h) { return !h.type || h.type === 'highlight'; }).length;
+    var ulCount = sorted.filter(function (h) { return h.type === 'underline'; }).length;
+    var stCount = sorted.filter(function (h) { return h.type === 'strikethrough'; }).length;
+    var noteCount = sorted.filter(function (h) { return h.note && h.note.trim(); }).length;
+    _updateDrawerFooter(hlCount, ulCount, stCount, noteCount);
+
+    if (!filtered.length) {
+      _drawerBody.innerHTML = '<div class="bk-pdf-outline-empty">当前筛选无结果</div>';
+      return;
+    }
+
+    var html = '<ul class="bk-pdf-outline-list bk-pdf-hl-list">';
+    for (var i = 0; i < filtered.length; i++) {
+      var hl = filtered[i];
+      var pageLabel = S.getDisplayPageLabel(hl.page);
+      var color = hl.color || 'yellow';
+      var hlType = hl.type || 'highlight';
+      var typeIcon = hlType === 'underline' ? 'U̲' : (hlType === 'strikethrough' ? 'S̶' : '🖍');
+      var noteSnippet = hl.note ? (' <span class="bk-pdf-hl-note-badge" data-pdf-hl-note-id="' + (hl.id || '') + '" title="' + S.escAttr(hl.note) + '">📝</span>') : '';
+      var textSnippet = (hl.text || '').substring(0, 80);
+      html += '<li class="bk-pdf-outline-item bk-pdf-hl-item" data-pdf-hl-type="' + hlType + '">';
+      html += '<span class="bk-pdf-hl-type-icon">' + typeIcon + '</span>';
+      html += '<span class="bk-pdf-hl-list-dot bk-pdf-hl-list-dot-' + color + '"></span>';
+      html += '<a class="bk-pdf-outline-link bk-pdf-hl-link" data-pdf-hl-page="' + hl.page + '" data-pdf-hl-id="' + (hl.id || '') + '" href="javascript:void(0)">';
+      html += S.escText(textSnippet);
+      html += ' <span class="bk-pdf-hl-page-num">P' + pageLabel + '</span>';
+      html += noteSnippet;
+      html += '</a>';
+      // 批注预览（如有）
+      if (hl.note && hl.note.trim()) {
+        html += '<div class="bk-pdf-hl-note-preview">📝 ' + S.escText((hl.note || '').substring(0, 120)) + '</div>';
+      }
+      html += '<button class="bk-pdf-bookmark-del bk-pdf-hl-del" data-pdf-hl-del="' + (hl.id || '') + '" aria-label="删除标注" title="删除">✕</button>';
+      html += '</li>';
+    }
+    html += '</ul>';
+    _drawerBody.innerHTML = html;
+
+    // 绑定跳转
+    var links = _drawerBody.querySelectorAll('.bk-pdf-hl-link');
+    for (var j = 0; j < links.length; j++) {
+      links[j].addEventListener('click', _onHlClick);
+    }
+
+    // 绑定批注徽章点击（查看/编辑批注）
+    var noteBadges = _drawerBody.querySelectorAll('.bk-pdf-hl-note-badge');
+    for (var nb = 0; nb < noteBadges.length; nb++) {
+      noteBadges[nb].addEventListener('click', function (e) {
+        e.stopPropagation();
+        var hlId = e.target.getAttribute('data-pdf-hl-note-id');
+        var bookId = S.currentBookId();
+        if (!bookId || !hlId) return;
+        var hlArr = S.highlights(bookId);
+        var found = null;
+        for (var i = 0; i < hlArr.length; i++) {
+          if (hlArr[i].id === hlId) { found = hlArr[i]; break; }
+        }
+        if (found) {
+          var badgeRect = e.target.getBoundingClientRect();
+          _showNotePanel(hlId, found.note || '', badgeRect);
+        }
+      });
+    }
+
+    // 绑定删除
+    var delBtns = _drawerBody.querySelectorAll('.bk-pdf-hl-del');
+    for (var k = 0; k < delBtns.length; k++) {
+      delBtns[k].addEventListener('click', _onHlDelete);
+    }
+  }
+
+  function _onHlClick(e) {
+    e.preventDefault();
+    var link = e.currentTarget;
+    var pageNum = parseInt(link.getAttribute('data-pdf-hl-page'), 10);
+    if (pageNum && pageNum > 0) {
+      var nav = win.BKPdf._internal.nav;
+      if (nav && nav.goToPage) nav.goToPage(pageNum, true);
+      hide();
+    }
+  }
+
+  function _onHlDelete(e) {
+    e.stopPropagation();
+    var btn = e.currentTarget;
+    var hlId = btn.getAttribute('data-pdf-hl-del');
+    var bookId = S.currentBookId();
+    if (bookId && hlId) {
+      // F5：删除前抓快照用于撤销
+      var snapshot = null;
+      var hlArr = S.highlights(bookId);
+      for (var i = 0; i < hlArr.length; i++) {
+        if (hlArr[i].id === hlId) { snapshot = hlArr[i]; break; }
+      }
+      S.removeHighlight(bookId, hlId);
+      var U = win.BKPdf._internal.undo;
+      if (U && snapshot) U.recordRemove(bookId, snapshot);
+      _populateDrawer();
+      // 重新渲染高亮覆盖层
+      renderAllVisibleHighlights();
+    }
+  }
+
+  // ==================== 底部统计栏 ====================
+
+  function _updateDrawerFooter(hlCount, ulCount, stCount, noteCount) {
+    var footer = _drawer ? _drawer.querySelector('.bk-pdf-hl-drawer-footer') : null;
+    if (!footer) return;
+    var total = hlCount + ulCount + stCount;
+    footer.innerHTML =
+      '<span class="bk-pdf-hl-stat">共 ' + total + ' 条标注</span>' +
+      '<span class="bk-pdf-hl-stat-dot">·</span>' +
+      '<span class="bk-pdf-hl-stat">' + noteCount + ' 条批注</span>';
+  }
+
+  // ==================== 展开/收起抽屉 ====================
+
+  function toggle() {
+    if (_drawerVisible) hide();
+    else show();
+  }
+
+  function show() {
+    _createDrawer();
+    _populateDrawer();
+    if (_drawer) _drawer.classList.add('bk-pdf-hl-drawer-visible');
+    _drawerVisible = true;
+    S.closeAllDrawersExcept('highlight');
+  }
+
+  function hide() {
+    if (_drawer) _drawer.classList.remove('bk-pdf-hl-drawer-visible');
+    _drawerVisible = false;
+  }
+
+  // _closeOthers 已抽取为公共工具 S.closeAllDrawersExcept
+
+  // ==================== 复制到剪贴板 ====================
+
+  function _copyToClipboard(text) {
+    if (win.navigator && win.navigator.clipboard && win.navigator.clipboard.writeText) {
+      win.navigator.clipboard.writeText(text).catch(function () {
+        _fallbackCopy(text);
+      });
+    } else {
+      _fallbackCopy(text);
+    }
+  }
+
+  function _fallbackCopy(text) {
+    var ta = doc.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    doc.body.appendChild(ta);
+    ta.select();
+    try { doc.execCommand('copy'); } catch (e) {}
+    doc.body.removeChild(ta);
+  }
+
+  // ==================== init / cleanup ====================
+
+  function cleanup() {
+    _hideActionPanel();
+    _hideNotePanel();
+    if (_actionPanel && _actionPanel.parentNode) {
+      _actionPanel.parentNode.removeChild(_actionPanel);
+    }
+    _actionPanel = null;
+    if (_notePanel && _notePanel.parentNode) {
+      _notePanel.parentNode.removeChild(_notePanel);
+    }
+    _notePanel = null;
+    _noteTextarea = null;
+    _noteTargetHlId = null;
+    if (_drawer && _drawer.parentNode) {
+      _drawer.parentNode.removeChild(_drawer);
+    }
+    _drawer = null;
+    _drawerBody = null;
+    _drawerVisible = false;
+    _drawerFilter = 'all';
+    // 清除所有高亮覆盖层
+    var keys = Object.keys(_highlightOverlays);
+    for (var i = 0; i < keys.length; i++) {
+      _clearHighlightOverlays(keys[i]);
+    }
+    _highlightOverlays = {};
+    _currentSelection = null;
+  }
+
+  // ==================== 导出 ====================
+
+  win.BKPdf._internal.highlight = {
+    init: init,
+    cleanup: cleanup,
+    toggle: toggle,
+    show: show,
+    hide: hide,
+    renderAllVisibleHighlights: renderAllVisibleHighlights,
+    renderHighlightOnPage: _renderHighlightOnPage,
+    refreshAfterUndo: refreshAfterUndo,
+    showNotePanel: _showNotePanel,
+    _doHighlight: _doHighlight,
+    _hideActionPanel: _hideActionPanel
+  };
+
+})(window);

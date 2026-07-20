@@ -48,6 +48,12 @@
 
           if (outline && outline.length > 0) {
             // ── 有书签：按书签分章 ──
+            // 同步注入 outline 树到 BKPdf 阅读器（供目录抽屉使用，异步不阻塞主流程）
+            if (win.BKPdf && typeof win.BKPdf.setOutline === 'function') {
+              _buildOutlineTreeForReader(pdf, outline).then(function(tree) {
+                try { win.BKPdf.setOutline(bookId, tree); } catch (e) { console.warn('[PDF] setOutline 注入失败:', e); }
+              }).catch(function() { /* 静默失败，不影响导入 */ });
+            }
             // 获取每页文字用于提取页码范围
             return resolveOutlineChapters(pdf, outline, bookId, totalPages).then(function(outlineChapters) {
               return outlineChapters;
@@ -236,6 +242,46 @@
 
       return chapters.length ? chapters : buildPerPageChapters(bookId, totalPages);
     });
+  }
+
+  /**
+   * 构建 BKPdf 阅读器目录抽屉所需的 outline 树结构。
+   * 递归遍历 pdf.js 返回的原始 outline（每节点用 .items 作为子项），
+   * 为每个节点解析出 pageNumber，输出格式：
+   *   [{ title, dest, pageNumber, children: [...] }]
+   * 与 resolveOutlineChapters 互补——后者只生成主章节列表，保留递归层级信息供侧边抽屉展开。
+   * 失败静默：目录可用为加分项，不影响导入。
+   */
+  function _buildOutlineTreeForReader(pdf, outline) {
+    if (!outline || !outline.length) return Promise.resolve([]);
+
+    function visitNode(node) {
+      var title = node.title || '';
+      var dest = node.dest;
+      var pagePromise;
+      if (!dest) {
+        pagePromise = Promise.resolve(0);
+      } else if (typeof dest === 'string') {
+        pagePromise = pdf.getDestination(dest).then(function (d) {
+          if (!d || !d[0]) return 0;
+          return pdf.getPageIndex(d[0]).then(function (idx) { return idx + 1; });
+        }).catch(function () { return 0; });
+      } else if (Array.isArray(dest) && dest[0]) {
+        pagePromise = pdf.getPageIndex(dest[0]).then(function (idx) { return idx + 1; }).catch(function () { return 0; });
+      } else {
+        pagePromise = Promise.resolve(0);
+      }
+      return pagePromise.then(function (pageNumber) {
+        var childPromise = (node.items && node.items.length)
+          ? Promise.all(node.items.map(visitNode))
+          : Promise.resolve([]);
+        return childPromise.then(function (children) {
+          return { title: title, dest: dest, pageNumber: pageNumber, children: children };
+        });
+      });
+    }
+
+    return Promise.all(outline.map(visitNode));
   }
 
   // 提取 PDF 元数据（title, author, subject, language）

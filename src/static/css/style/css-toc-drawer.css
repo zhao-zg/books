@@ -23,7 +23,7 @@
 .bk-toc-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: var(--overlay-strong, rgba(44, 24, 16, 0.38));  /* C5: 改用暖色遮罩令牌，与设计系统一致 */
   z-index: 999;
   opacity: 0;
   pointer-events: none;

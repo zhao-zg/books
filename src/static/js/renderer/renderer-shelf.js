@@ -356,6 +356,7 @@
   var ICON_DESKTOP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
   var ICON_TRASH  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
   var ICON_NOTE   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
+  var ICON_EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>';
 
   // 书籍来源描述（用于「书籍详情」面板；缺失则空串）
   function _bookSourceText(book) {
@@ -457,6 +458,100 @@
 
   var _shelfQuickLockCleanup = null;
 
+  // ── 导出书籍：格式选择弹框 ──────────────────────────────────────────
+  function _showExportBookMenu(bookId, bookTitle) {
+    // 判断可用格式：PDF 书仅导出 PDF；其他书支持 TXT/MD/EPUB
+    var isPdf = _isPdfBook(bookId);
+    var html = '<div class="bk-dialog" style="width:min(320px,calc(100vw - 40px))">' +
+      '<div class="bk-dialog-title">导出《' + escText(bookTitle) + '》</div>' +
+      '<div class="bk-dialog-body" style="padding:12px 16px">';
+
+    if (isPdf) {
+      // 检查是否有标注数据
+      var hasAnnotations = _pdfBookHasAnnotations(bookId);
+      html += '<button class="bk-ns-export-btn" data-format="pdf"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出原始 PDF</span></button>';
+      if (hasAnnotations) {
+        html += '<button class="bk-ns-export-btn" data-format="pdf_annotated"><span class="bk-row-icon">🖍</span><span class="bk-row-label">导出含标注 PDF</span><span class="bk-row-hint" style="font-size:11px;color:#888;margin-left:6px">高亮/批注/书签</span></button>';
+      }
+    } else {
+      html += '<button class="bk-ns-export-btn" data-format="txt"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出为 TXT</span></button>';
+      html += '<button class="bk-ns-export-btn" data-format="md"><span class="bk-row-icon">📑</span><span class="bk-row-label">导出为 Markdown</span></button>';
+      html += '<button class="bk-ns-export-btn" data-format="epub"><span class="bk-row-icon">📚</span><span class="bk-row-label">导出为 EPUB</span></button>';
+    }
+
+    html += '</div>' +
+      '<div class="bk-dialog-actions"><button class="bk-dialog-cancel" data-action="close">取消</button></div>' +
+      '</div>';
+
+    var dlg = win.BK.openDialog({ id: 'bk-book-export', html: html });
+    if (!dlg) return;
+
+    var btns = dlg.mask.querySelectorAll('[data-format]');
+    for (var i = 0; i < btns.length; i++) {
+      (function (btn) {
+        btn.addEventListener('click', function () {
+          var fmt = btn.getAttribute('data-format');
+          if (win.BK && win.BK.Export && win.BK.Export.exportBook) {
+            win.BK.Export.exportBook(bookId, fmt).catch(function () { /* 已 toast */ });
+          } else {
+            _toast('导出功能未就绪，请重启应用');
+          }
+          if (dlg && dlg.close) dlg.close();
+        });
+      })(btns[i]);
+    }
+
+    var closeBtn = dlg.mask.querySelector('[data-action="close"]');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function () {
+        if (dlg && dlg.close) dlg.close();
+      });
+    }
+  }
+
+  /** 判断是否为 PDF 书籍（chapters 含 pdf_page 类型） */
+  function _isPdfBook(bookId) {
+    var books = win.__bkBooks || [];
+    for (var i = 0; i < books.length; i++) {
+      if (books[i] && (books[i].id === bookId || books[i].bookId === bookId)) {
+        var chapters = books[i].chapters || [];
+        for (var c = 0; c < chapters.length; c++) {
+          var content = chapters[c].content || [];
+          for (var j = 0; j < content.length; j++) {
+            if (content[j] && content[j].type === 'pdf_page') return true;
+          }
+        }
+        return books[i].format === 'pdf';
+      }
+    }
+    return false;
+  }
+
+  /** 判断 PDF 书籍是否有标注数据（高亮/批注/书签） */
+  function _pdfBookHasAnnotations(bookId) {
+    // 检查高亮
+    try {
+      var state = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
+      if (state && typeof state.highlights === 'function') {
+        var hls = state.highlights(bookId);
+        if (hls && hls.length) return true;
+      }
+      var hlRaw = localStorage.getItem('bk_pdf_hl:' + bookId);
+      if (hlRaw) { var parsed = JSON.parse(hlRaw); if (parsed && parsed.length) return true; }
+    } catch (e) {}
+    // 检查书签
+    try {
+      var state2 = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
+      if (state2 && typeof state2.bookmarks === 'function') {
+        var bms = state2.bookmarks(bookId);
+        if (bms && bms.length) return true;
+      }
+      var bmRaw = localStorage.getItem('bk_pdf_bm:' + bookId);
+      if (bmRaw) { var parsed2 = JSON.parse(bmRaw); if (parsed2 && parsed2.length) return true; }
+    } catch (e) {}
+    return false;
+  }
+
   function _openShelfQuickMenu(row) {
     if (!row) return;
     _closeShelfQuickMenu();
@@ -502,6 +597,7 @@
     var hasNote = !!(shelfRec && shelfRec.note);
     actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑笔记' : '添加笔记', act: 'edit-note', hasNote: hasNote });
     actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
+    actions.push({ icon: ICON_EXPORT, label: '导出书籍', act: 'export' });
     actions.push({ icon: ICON_TRASH, label: '移出书架', sel: '.bk-shelf-remove-btn', danger: true });
 
     actions.forEach(function (a) {
@@ -531,6 +627,9 @@
         } else if (a.act === 'desktop') {
           _closeShelfQuickMenu();
           _addBookToDesktop(book);
+        } else if (a.act === 'export') {
+          _closeShelfQuickMenu();
+          _showExportBookMenu(bookId, title);
         }
       });
       sheet.appendChild(b);

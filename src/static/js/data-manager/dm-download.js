@@ -1,6 +1,102 @@
   // ── 书籍下载 ─────────────────────────────────────────────────────────
 
   /**
+   * 字节级流式 fetch：读取 Response body 时持续推送字节进度
+   * 复用 fetchWithRetry 的重试 + 多地址容灾语义，但走 ReadableStream 读取
+   * @param {string} url
+   * @param {function} [onByteProgress] (received, total) => {}
+   * @param {function} [shouldAbort] () => true 表示已取消
+   * @returns {Promise<object>} 解析后的 JSON 对象
+   */
+  function fetchJsonStreamed(url, onByteProgress, shouldAbort) {
+    function attempt(retries) {
+      if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+      return fetch(url, { cache: 'no-cache' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          var ct = r.headers.get('content-type') || '';
+          if (ct.indexOf('text/html') !== -1) {
+            var htmlErr = new Error('HTML_RESPONSE');
+            htmlErr._isHtmlResponse = true;
+            throw htmlErr;
+          }
+          var total = parseInt(r.headers.get('Content-Length') || '0', 10) || 0;
+          var received = 0;
+          var chunks = [];
+          // 不支持 ReadableStream 时 fallback 到 r.text()（仍触发一次进度）
+          if (!r.body || typeof r.body.getReader !== 'function') {
+            return r.text().then(function (text) {
+              if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+              if (onByteProgress) onByteProgress(text.length, total || text.length);
+              return JSON.parse(text);
+            });
+          }
+          var reader = r.body.getReader();
+          function pump() {
+            return reader.read().then(function (result) {
+              if (shouldAbort && shouldAbort()) {
+                try { reader.cancel(); } catch (e) {}
+                throw _makeCancelledErr();
+              }
+              if (result.done) {
+                // 流读取结束：组装 Blob → text → JSON.parse
+                var blob = new Blob(chunks, { type: 'application/json' });
+                return blob.text().then(function (text) {
+                  if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+                  try {
+                    return JSON.parse(text);
+                  } catch (e) {
+                    throw new Error('书籍数据解析失败：' + e.message);
+                  }
+                });
+              }
+              received += result.value.length;
+              if (onByteProgress) onByteProgress(received, total);
+              chunks.push(result.value);
+              return pump();
+            });
+          }
+          return pump();
+        })
+        .catch(function (err) {
+          // 用户取消：直接抛出，不重试
+          if (err && err.code === ERR_CANCELLED) throw err;
+          // HTML 响应：跳过重试，尝试切换备用地址
+          if (!err._isHtmlResponse && retries > 0) {
+            var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
+            console.warn('[DataManager] 流式下载失败，' + delay + 'ms 后重试: ' + url);
+            return new Promise(function (resolve) { setTimeout(resolve, delay); })
+              .then(function () {
+                if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+                return attempt(retries - 1);
+              });
+          }
+          // 切换备用地址
+          if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1) {
+            _currentUrlIndex++;
+            DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
+            console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
+              (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
+            var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
+            var relativePath;
+            if (url.indexOf(oldBase + '/') === 0) {
+              relativePath = url.substring(oldBase.length + 1);
+            } else {
+              relativePath = url.substring(url.lastIndexOf('/') + 1);
+            }
+            var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
+            if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+            return fetchJsonStreamed(newUrl, onByteProgress, shouldAbort);
+          }
+          throw err._isHtmlResponse
+            ? new Error('该书籍数据文件在所有服务器上均不存在')
+            : err;
+        });
+    }
+    return attempt(MAX_RETRIES);
+  }
+
+  /**
    * 下载单本书，返回转换后的书籍数据
    * @param {string} bookId  如 "lee8-01"
    * @param {string} series  如 "lee8"
@@ -11,10 +107,16 @@
    *   - 在 fetch 前/响应后/解析后/写入前/完成前等关键节点校验 myToken === _singleDlToken
    *   - 被取消时抛出带 code: 'CANCELLED' 的错误，UI 层据此做无声清理
    *   - 启动新的单本下载不会推进 _singleDlToken，因此不会误取消其他进行中的单本下载
+   *
+     * ★ 字节级进度优化：用 ReadableStream 读取 body，按 received/total 实时推送百分比，
+     *   在 0%-95% 区间推送字节进度，96-98 解析、98-100 入库，100 完成。
+     *   无论单本还是批次下载，都会刷新 _dlBytesReceived/_dlBytesTotal/_dlCurrentBookPercent/_dlStage，
+     *   downloadSeries/downloadAll 在 onProgress 里聚合为总进度。
    */
   function downloadBook(bookId, series, onProgress) {
     // capture 当前 token：cancelDownload 推进 _singleDlToken 后，myToken !== _singleDlToken 即表示已被取消
     var myToken = _singleDlToken;
+    var isBatch = _dlTotal > 0;  // 是否在批次下载中（影响是否更新全局状态）
 
     // 使用公共方法查找 series
     var resolvePromise = series
@@ -33,23 +135,46 @@
       var url = buildUrl(resolvedSeries + '/' + bookId + '.json');
       console.log('[DataManager] 下载书籍: ' + bookId + ' → ' + url);
       if (onProgress) onProgress(0, '开始下载...');
+      _dlStage = '下载中';
 
-      // ★ M1修复：将取消校验下沉到 fetchWithRetry，使其在重试 setTimeout 间隔内
-      //   也能提前识别取消，避免用户取消后仍继续发起重试请求浪费网络/时间。
-      //   下游各 .then 节点的校验保留作为兜底（应对 fetch 进行中无法中断的限制）。
-      return fetchWithRetry(url, undefined, {
-        shouldAbort: function () { return myToken !== _singleDlToken; }
+      // ★ 字节级流式读取：在 0-95 区间推送百分比
+      //   总进度 = 95 * received/total（无 Content-Length 时按 33%~95% 渐进，避免一直 0）
+      function _onByteProgress(received, total) {
+        _dlBytesReceived = received;
+        _dlBytesTotal = total;
+        if (total > 0) {
+          _dlCurrentBookPercent = Math.min(95, Math.floor(received / total * 95));
+        } else {
+          // 无 Content-Length：用对数曲线模拟渐进，到 95% 封顶
+          _dlCurrentBookPercent = Math.min(95, 33 + Math.floor(Math.log10(received + 1) * 8));
+        }
+        _calcSpeedBps(isBatch ? _dlBatchBytesReceived + received : received);
+        if (isBatch && _dlTotal > 0) {
+          _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+        }
+        if (onProgress) {
+          onProgress(
+            _dlCurrentBookPercent,
+            '下载中 ' + formatSize(received) + (total > 0 ? ' / ' + formatSize(total) : '')
+          );
+        }
+      }
+
+      return fetchJsonStreamed(url, _onByteProgress, function () {
+        return myToken !== _singleDlToken;
       })
-        .then(function (r) {
-          // ★ 校验取消（fetch 期间可能已被取消）
-          if (myToken !== _singleDlToken) throw _makeCancelledErr();
-          if (onProgress) onProgress(50, '解析数据...');
-          return r.json();
-        })
         .then(function (rawBook) {
-          // ★ 校验取消（json 解析期间可能已被取消）
+          // ★ 校验取消（流式读取期间可能已被取消）
           if (myToken !== _singleDlToken) throw _makeCancelledErr();
+          // 96%：解析数据
+          _dlCurrentBookPercent = 96;
+          _dlStage = '解析数据';
+          if (onProgress) onProgress(96, '解析数据...');
           var converted = convertBookData(rawBook);
+          // 98%：写入 IndexedDB
+          _dlCurrentBookPercent = 98;
+          _dlStage = '写入本地';
+          if (onProgress) onProgress(98, '写入本地...');
           return storeSet(KEY_BOOK_PREFIX + bookId, converted)
             .then(function () {
               // ★ 校验取消（IndexedDB 写入期间可能已被取消）
@@ -65,6 +190,8 @@
               addToBookIndex(converted);
               // 失效占用缓存（书籍数据已变更）
               _invalidateBookSizeCache();
+              _dlCurrentBookPercent = 100;
+              _dlStage = '完成';
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
               return converted;
@@ -234,12 +361,21 @@
     _dlCompleted = 0;
     _dlTotal = 0;
     _dlCurrentTitle = '';
+    // ★ 重置批次进度状态
+    _resetBatchProgressState();
 
     // 支持单个或多个系列 ID
     var seriesIds = Array.isArray(seriesId) ? seriesId : [seriesId];
     var isPickup = seriesIds.indexOf('sy_auto') !== -1;
 
     console.log('[DataManager] 开始批量下载系列: ' + seriesIds.join(', '));
+
+    // 内部进度封装：在 downloadBook 流式回调之外，把批次级状态推给业务层
+    function _broadcastProgress() {
+      if (onProgress) {
+        onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
+      }
+    }
 
     // 使用全局索引查找书籍（已加载，无需额外 HTTP 请求）
     var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
@@ -294,11 +430,24 @@
           }
 
           // 构建任务列表（downloadBook 会自动查找 series）
+          // ★ 字节级进度：在每本任务内部用 onProgress 把单本进度合并到批次总进度，
+          //   并主动广播 _broadcastProgress，供 UI 实时刷新
           var tasks = filtered.map(function (book) {
             var fn = function () {
+              // 任务开始：重置当前本书进度状态
+              _resetBookProgressState();
               _dlCurrentTitle = book.title || book.id;
-              if (onProgress) onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
-              return downloadBook(book.id, book.series);
+              _dlStage = '下载中';
+              _broadcastProgress();
+              return downloadBook(book.id, book.series, function (percent, status) {
+                // downloadBook 在 0/96/98/100/字节区间都会回调；percent 是单本百分比
+                // 这里不直接更新 _dlCompleted，只刷新 _dlBytesReceived/_dlBytesTotal/_dlCurrentBookPercent（已在 downloadBook 内完成）
+                // 重新计算批次总进度并广播
+                if (_dlTotal > 0) {
+                  _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+                }
+                _broadcastProgress();
+              });
             };
             fn._bookTitle = book.title || book.id;
             return fn;
@@ -306,7 +455,12 @@
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
-            if (onProgress) onProgress(completed, total, _dlCurrentTitle);
+            // 书完成时累加批次字节（用本本的 _dlBytesTotal 近似）
+            if (_dlBytesTotal > 0) {
+              _dlBatchBytesReceived += _dlBytesTotal;
+            }
+            _dlTotalPercent = _calcTotalPercent(completed, total);
+            _broadcastProgress();
           }, myToken).then(function (result) {
             // 收集首轮失败的书名
             var acc = {
@@ -328,6 +482,9 @@
             if (myToken === _dlActiveToken) {
               _isDownloading = false;
               _dlCurrentTitle = '';
+              _dlTotalPercent = 100;
+              _dlCurrentBookPercent = 100;
+              _dlStage = '完成';
             }
             console.log('[DataManager] 系列 ' + seriesIds.join(',') + ' 下载完成: 成功=' +
               result.success + ' 失败=' + result.failed);
@@ -366,8 +523,17 @@
     _dlCompleted = 0;
     _dlTotal = 0;
     _dlCurrentTitle = '';
+    // ★ 重置批次进度状态
+    _resetBatchProgressState();
 
     console.log('[DataManager] 开始下载全部书籍');
+
+    // 内部进度封装
+    function _broadcastProgress() {
+      if (onProgress) {
+        onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
+      }
+    }
 
     // 先加载全局索引
     var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
@@ -397,9 +563,16 @@
 
           var tasks = toDownload.map(function (book) {
             var fn = function () {
+              _resetBookProgressState();
               _dlCurrentTitle = book.title || book.id;
-              if (onProgress) onProgress(_dlCompleted, _dlTotal, _dlCurrentTitle);
-              return downloadBook(book.id, book.series);
+              _dlStage = '下载中';
+              _broadcastProgress();
+              return downloadBook(book.id, book.series, function (percent, status) {
+                if (_dlTotal > 0) {
+                  _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+                }
+                _broadcastProgress();
+              });
             };
             fn._bookTitle = book.title || book.id;
             return fn;
@@ -407,7 +580,11 @@
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
-            if (onProgress) onProgress(completed, total, _dlCurrentTitle);
+            if (_dlBytesTotal > 0) {
+              _dlBatchBytesReceived += _dlBytesTotal;
+            }
+            _dlTotalPercent = _calcTotalPercent(completed, total);
+            _broadcastProgress();
           }, myToken).then(function (result) {
             var acc = {
               success: result.success,
@@ -427,6 +604,9 @@
             if (myToken === _dlActiveToken) {
               _isDownloading = false;
               _dlCurrentTitle = '';
+              _dlTotalPercent = 100;
+              _dlCurrentBookPercent = 100;
+              _dlStage = '完成';
             }
             console.log('[DataManager] 全部下载完成: 成功=' +
               result.success + ' 失败=' + result.failed);

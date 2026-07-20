@@ -1,0 +1,329 @@
+/*!
+ * pdf-gesture.js - PDF 触摸手势控制器
+ *
+ * 职责：
+ *   - Pinch 实时缩放：touchmove 期间用 CSS transform:scale 实时缩放（零延迟反馈），
+ *     touchend 后触发高清重渲染
+ *   - 手势委托：监听器绑定到容器而非逐页（性能优化，避免长 PDF 绑数百个监听器）
+ *   - 双击缩放：1x ↔ 2x 切换
+ *   - 长按选词优化：移动端长按触发文本选择
+ *   - rAF 节流：pinch touchmove 用 requestAnimationFrame 节流，避免高频主线程卡顿
+ *
+ * 依赖：pdf-state.js, pdf-core.js, renderer-pdf.js（需要 _internal.zoom）
+ * 挂载：window.BKPdf._internal.gesture
+ */
+(function (win) {
+  'use strict';
+
+  var doc = win.document;
+  var S = win.BKPdf._internal.state;
+
+  // ==================== 状态 ====================
+
+  var _gestureEl = null;       // 手势监听绑定的容器元素
+  var _gestureBookId = null;   // 当前 PDF 书 ID
+  var _pinchState = null;      // pinch 状态
+  var _dblTapState = null;     // 双击检测状态
+  var _longPressTimer = null;  // 长按定时器
+  var _rafScheduled = false;   // rAF 节流标志
+
+  // ==================== Pinch 实时缩放 ====================
+
+  /**
+   * Pinch 状态
+   * @typedef {Object} PinchState
+   * @property {number} startDist - 双指起始距离
+   * @property {number} startZoom - 起始 zoom 值
+   * @property {number} currentZoom - 当前实时 zoom（touchmove 期间更新）
+   * @property {boolean} active - 是否激活
+   * @property {HTMLElement} targetPage - pinch 起始时的 .bk-pdf-page 元素
+   */
+
+  function _onTouchStart(e) {
+    if (e.touches.length === 2) {
+      // 双指开始 → pinch
+      _startPinch(e);
+    } else if (e.touches.length === 1) {
+      // 单指开始 → 检测长按选词
+      _startLongPressCheck(e);
+    }
+  }
+
+  function _onTouchMove(e) {
+    if (_pinchState && _pinchState.active && e.touches.length === 2) {
+      e.preventDefault();
+      _updatePinch(e);
+    } else if (_pinchState && _pinchState.active && e.touches.length !== 2) {
+      // 从双指变单指，结束 pinch
+      _endPinch();
+    }
+  }
+
+  function _onTouchEnd(e) {
+    if (_pinchState && _pinchState.active) {
+      _endPinch();
+    }
+    // 双击检测
+    _checkDoubleTap(e);
+    // 清除长按
+    _cancelLongPress();
+  }
+
+  function _onTouchCancel() {
+    if (_pinchState && _pinchState.active) {
+      _endPinch();
+    }
+    _cancelLongPress();
+  }
+
+  /**
+   * 开始 pinch
+   */
+  function _startPinch(e) {
+    var t0 = e.touches[0];
+    var t1 = e.touches[1];
+    var dx = t0.clientX - t1.clientX;
+    var dy = t0.clientY - t1.clientY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 找到 pinch 中心所在的 .bk-pdf-page
+    var midX = (t0.clientX + t1.clientX) / 2;
+    var midY = (t0.clientY + t1.clientY) / 2;
+    var targetPage = doc.elementFromPoint(midX, midY);
+    if (targetPage) {
+      targetPage = targetPage.closest('.bk-pdf-page');
+    }
+
+    _pinchState = {
+      startDist: dist,
+      startZoom: S.zoom(_gestureBookId),
+      currentZoom: S.zoom(_gestureBookId),
+      active: true,
+      targetPage: targetPage
+    };
+  }
+
+  /**
+   * 实时更新 pinch（rAF 节流）
+   * touchmove 期间用 CSS transform:scale 实时缩放 canvas，零延迟反馈
+   */
+  function _updatePinch(e) {
+    if (!_pinchState || !_pinchState.active) return;
+    var t0 = e.touches[0];
+    var t1 = e.touches[1];
+    var dx = t0.clientX - t1.clientX;
+    var dy = t0.clientY - t1.clientY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (_pinchState.startDist > 0) {
+      var ratio = dist / _pinchState.startDist;
+      var newZoom = _pinchState.startZoom * ratio;
+      // 钳制范围
+      newZoom = Math.max(S.MIN_ZOOM, Math.min(S.MAX_ZOOM, newZoom));
+      _pinchState.currentZoom = newZoom;
+
+      // rAF 节流：每帧只更新一次 transform
+      if (!_rafScheduled) {
+        _rafScheduled = true;
+        (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+          _rafScheduled = false;
+          _applyPinchTransform();
+        });
+      }
+    }
+  }
+
+  /**
+   * 应用 pinch 实时缩放transform
+   * 对当前页面的 canvas 应用 CSS transform:scale，不触发重渲染
+   */
+  function _applyPinchTransform() {
+    if (!_pinchState || !_pinchState.active) return;
+    var zoom = _pinchState.currentZoom;
+    var startZoom = _pinchState.startZoom;
+
+    // 更新 zoom 控件显示
+    var zoomVal = doc.querySelector('.bk-pdf-zoom-value');
+    if (zoomVal) zoomVal.textContent = Math.round(zoom * 100) + '%';
+
+    // 如果 zoom 没变化，不需要 transform
+    if (Math.abs(zoom - startZoom) < 0.01) return;
+
+    // 对所有可见的 .bk-pdf-canvas-wrap 应用 transform
+    // transform-origin 设为 pinch 中心点更自然，但为简化用 center
+    var scaleRatio = zoom / startZoom;
+    var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-rendered="1"]');
+    for (var i = 0; i < pages.length; i++) {
+      var rect = pages[i].getBoundingClientRect();
+      var inView;
+      if (S.mode() === S.MODE_SINGLE) {
+        var vw = win.innerWidth || doc.documentElement.clientWidth;
+        inView = rect.right > 0 && rect.left < vw;
+      } else {
+        var vh = win.innerHeight || doc.documentElement.clientHeight;
+        inView = rect.bottom > 0 && rect.top < vh;
+      }
+      if (inView) {
+        var wrap = pages[i].querySelector('.bk-pdf-canvas-wrap');
+        if (wrap) {
+          wrap.style.transform = 'scale(' + scaleRatio + ')';
+          wrap.style.transformOrigin = 'center center';
+          wrap.style.transition = 'none';
+        }
+        // zoom > 1 时加 zoomed class 让容器可滚动
+        if (zoom > 1.0) {
+          pages[i].classList.add('bk-pdf-zoomed');
+        } else {
+          pages[i].classList.remove('bk-pdf-zoomed');
+        }
+      }
+    }
+  }
+
+  /**
+   * 结束 pinch：清除 transform，触发高清重渲染
+   */
+  function _endPinch() {
+    if (!_pinchState || !_pinchState.active) return;
+    _pinchState.active = false;
+    var finalZoom = _pinchState.currentZoom;
+
+    // 清除所有 transform
+    var wraps = doc.querySelectorAll('.bk-pdf-canvas-wrap');
+    for (var i = 0; i < wraps.length; i++) {
+      wraps[i].style.transform = '';
+      wraps[i].style.transformOrigin = '';
+      wraps[i].style.transition = '';
+    }
+
+    // 更新 zoom 状态并触发高清重渲染
+    var zoomApi = win.BKPdf._internal.zoom;
+    if (zoomApi) {
+      zoomApi.setZoom(_gestureBookId, finalZoom);
+      zoomApi.applyZoomToVisible(_gestureBookId);
+    }
+
+    _pinchState = null;
+  }
+
+  // ==================== 双击缩放 ====================
+
+  /**
+   * 双击检测：350ms 内两次 touchend → 切换 1x ↔ 2x
+   */
+  function _checkDoubleTap(e) {
+    var now = Date.now();
+    var touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) return;
+
+    if (_dblTapState && (now - _dblTapState.time < 350)) {
+      var dx = Math.abs(touch.clientX - _dblTapState.x);
+      var dy = Math.abs(touch.clientY - _dblTapState.y);
+      if (dx < 30 && dy < 30) {
+        // 双击！
+        e.preventDefault();
+        e.stopPropagation();
+        var cur = S.zoom(_gestureBookId);
+        var zoomApi = win.BKPdf._internal.zoom;
+        if (cur > 1.0) {
+          zoomApi.setZoom(_gestureBookId, 1.0);
+        } else {
+          zoomApi.setZoom(_gestureBookId, 2.0);
+        }
+        zoomApi.applyZoomToVisible(_gestureBookId);
+        _dblTapState = null;
+        return;
+      }
+    }
+    _dblTapState = { time: now, x: touch.clientX, y: touch.clientY };
+  }
+
+  // ==================== 长按选词优化 ====================
+
+  /**
+   * 长按检测：500ms 不移动 → 触发文本选择模式
+   * 优化移动端 textLayer 选词体验，让用户长按后可直接选择文本
+   */
+  function _startLongPressCheck(e) {
+    var touch = e.touches[0];
+    if (!touch) return;
+    var startX = touch.clientX;
+    var startY = touch.clientY;
+
+    _cancelLongPress();
+    _longPressTimer = setTimeout(function () {
+      // 长按触发：找到 textLayer 并尝试选中附近文本
+      var el = doc.elementFromPoint(startX, startY);
+      if (!el) return;
+      var page = el.closest('.bk-pdf-page');
+      if (!page) return;
+      var textLayer = page.querySelector('[data-pdf-text-layer]');
+      if (!textLayer) return;
+
+      // 标记长按激活，让 textLayer 可选中
+      textLayer.classList.add('bk-pdf-text-selecting');
+      page.classList.add('bk-pdf-long-press');
+
+      // 尝试选中 touch 点附近的 span
+      var targetEl = doc.elementFromPoint(startX, startY);
+      if (targetEl && textLayer.contains && textLayer.contains(targetEl)) {
+        // 使用 Selection API 尝试选词
+        try {
+          var range = doc.createRange();
+          range.selectNodeContents(targetEl);
+          var sel = win.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } catch (err) {}
+      }
+    }, 500);
+  }
+
+  function _cancelLongPress() {
+    if (_longPressTimer) {
+      clearTimeout(_longPressTimer);
+      _longPressTimer = null;
+    }
+    // 移除长按标记
+    var selecting = doc.querySelectorAll('.bk-pdf-text-selecting, .bk-pdf-long-press');
+    for (var i = 0; i < selecting.length; i++) {
+      selecting[i].classList.remove('bk-pdf-text-selecting', 'bk-pdf-long-press');
+    }
+  }
+
+  // ==================== init / cleanup ====================
+
+  function init(containerEl, bookId) {
+    _gestureEl = containerEl;
+    _gestureBookId = bookId;
+
+    // 手势委托：监听器绑到容器，而非逐页绑定（性能优化）
+    // passive: false 让 touchmove 可 preventDefault（pinch 需要）
+    containerEl.addEventListener('touchstart', _onTouchStart, { passive: true });
+    containerEl.addEventListener('touchmove', _onTouchMove, { passive: false });
+    containerEl.addEventListener('touchend', _onTouchEnd, { passive: false });
+    containerEl.addEventListener('touchcancel', _onTouchCancel, { passive: true });
+  }
+
+  function cleanup() {
+    if (_gestureEl) {
+      _gestureEl.removeEventListener('touchstart', _onTouchStart);
+      _gestureEl.removeEventListener('touchmove', _onTouchMove);
+      _gestureEl.removeEventListener('touchend', _onTouchEnd);
+      _gestureEl.removeEventListener('touchcancel', _onTouchCancel);
+    }
+    _gestureEl = null;
+    _gestureBookId = null;
+    _pinchState = null;
+    _dblTapState = null;
+    _cancelLongPress();
+  }
+
+  // ==================== 导出 ====================
+
+  win.BKPdf._internal.gesture = {
+    init: init,
+    cleanup: cleanup
+  };
+
+})(window);

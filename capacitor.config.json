@@ -2,8 +2,10 @@
   "appId": "com.books.app",
   "appName": "书报",
   "webDir": "output",
+  "backgroundColor": "#F5F4F1ff",
   "android": {
     "allowMixedContent": true,
-    "webContentsDebuggingEnabled": false
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#F5F4F1ff"
   }
 }

@@ -33,6 +33,7 @@ const PRECACHE_URLS = [
   './js/data-manager/dm-download.js',
   './js/data-manager/dm-book-ops.js',
   './js/data-manager/dm-api.js',
+  './js/background-download.js',
   './js/renderer/renderer-shared.js',
   './js/renderer/renderer-utils.js',
   './js/renderer/renderer-data.js',

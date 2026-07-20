@@ -242,9 +242,37 @@
 
   /**
    * 获取下载状态
-   * 返回 { isDownloading, isPaused, progress: { completed, total, currentTitle } }
+   * 返回 {
+   *   isDownloading, isPaused, isCancelled,
+   *   progress: { completed, total, currentTitle,                // 本数级（已有）
+   *               currentBookPercent, bytesReceived, bytesTotal, // 当前本字节级
+   *               speedBps, etaSeconds,                          // 速度/剩余时间
+   *               totalPercent, stage }                          // 批次总进度百分比与阶段文案
+   * }
+   *
+   * ★ 字节级进度优化后的新增字段：
+   *   - currentBookPercent: 当前这本书的下载百分比 0-100
+   *   - bytesReceived / bytesTotal: 当前本已接收/总字节（无 Content-Length 时 bytesTotal=0）
+   *   - speedBps: 瞬时速度（B/s），已做 0.5 平滑
+   *   - totalPercent: 整个批次总进度（已含当前本字节加权）0-100
+   *   - stage: 当前阶段文案（'下载中' / '解析数据' / '写入本地' / '完成'）
+   *           UI 可根据 stage 显示不同状态
+   *   - etaSeconds: 剩余时间（秒），基于 speedBps 与未下载字节估算；无可用数据时为 -1
    */
   function getDownloadStatus() {
+    // 计算 etaSeconds：仅在有总进度且速度大于阈值时计算
+    var etaSeconds = -1;
+    if (_dlSpeedBps > 1024 && _dlTotal > 0) {
+      // 估算剩余本数的字节数：用已接收字节平均到 completed，得到每本平均大小
+      var avgBookBytes = _dlCompleted > 0
+        ? (_dlBatchBytesReceived + _dlBytesReceived) / _dlCompleted
+        : _dlBytesTotal;
+      var remainBooks = _dlTotal - _dlCompleted;
+      var remainBytes = remainBooks * avgBookBytes + (_dlBytesTotal - _dlBytesReceived);
+      if (remainBytes > 0) {
+        etaSeconds = Math.ceil(remainBytes / _dlSpeedBps);
+      }
+    }
     return {
       isDownloading: _isDownloading,
       isPaused: _isPaused,
@@ -252,7 +280,14 @@
       progress: {
         completed: _dlCompleted,
         total: _dlTotal,
-        currentTitle: _dlCurrentTitle
+        currentTitle: _dlCurrentTitle,
+        currentBookPercent: _dlCurrentBookPercent,
+        bytesReceived: _dlBytesReceived,
+        bytesTotal: _dlBytesTotal,
+        speedBps: _dlSpeedBps,
+        etaSeconds: etaSeconds,
+        totalPercent: _dlTotalPercent,
+        stage: _dlStage
       }
     };
   }

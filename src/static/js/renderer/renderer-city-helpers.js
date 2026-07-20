@@ -45,11 +45,20 @@
     // 同步完成状态，确保续读列表不会出现「进度100%但仍未标记已读」的书
     _syncAllBookCompletion();
 
+    // ★ 续读列表只显示「仍在书架中」的书。
+    //   设计意图：移出书架后该书应立即从"继续阅读"消失，与"最近阅读"语义对齐；
+    //   但底层 bk_progress 仍保留（purgeBook 不清进度），便于重新加入书架时无缝续读。
+    //   兜底：BKShelf 未加载时不做过滤，避免误伤阅读历史显示。
+    var _bkShelf = win.BKShelf;
+    var _hasShelf = !!(_bkShelf && typeof _bkShelf.isCollected === 'function');
+
     var items = [];
     for (var i = 0; i < _zlBooks.length; i++) {
       var b = _zlBooks[i];
       var prog = getReadingProgress(b.id);
       if (prog > 0) {
+        // ★ 不在书架的书跳过（移出书架 = 从最近阅读消失）
+        if (_hasShelf && !_bkShelf.isCollected(b.id)) continue;
         var chapterCount = b.chapter_count || 0;
         // 基于滚动完成度计算已读百分比
         var _readChCount = 0;
@@ -289,7 +298,13 @@
       }
       if (!iconEl) return;
       var pct = (percent > 100 ? 100 : percent) | 0;
-      iconEl.textContent = '⏳ ' + (status || '下载中') + (pct < 100 ? ' ' + pct + '%' : '');
+      // ★ 字节级进度优化后 status 会带 "下载中 X KB / Y KB" 长字符串，
+      //   卡片角标空间有限，只显示阶段短文案 + 百分比
+      var shortStatus = '下载中';
+      if (pct >= 96 && pct < 100) {
+        shortStatus = (pct >= 98) ? '写入' : '解析';
+      }
+      iconEl.textContent = '⏳ ' + shortStatus + (pct < 100 ? ' ' + pct + '%' : '');
     })
       .then(function () {
         // 下载成功
@@ -432,7 +447,19 @@
           '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>' +
           '<div class="download-progress" id="dlProgressWrap" style="display:none">' +
             '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>' +
+            '<span class="download-progress-pct" id="dlProgressPct">0%</span>' +
           '</div>' +
+          '<div class="download-progress-detail" id="dlProgressDetail" style="display:none">' +
+            '<div class="dl-detail-line1" id="dlDetailLine1">准备中...</div>' +
+            '<div class="dl-detail-line2" id="dlDetailLine2"></div>' +
+            '<div class="dl-current-book" id="dlCurrentBookWrap" style="display:none">' +
+              '<div class="dl-current-book-bar-wrap">' +
+                '<div class="dl-current-book-bar" id="dlCurrentBookBar" style="width:0%"></div>' +
+              '</div>' +
+              '<span class="dl-current-book-pct" id="dlCurrentBookPct">0%</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="download-bg-hint" id="dlBgHint" style="display:none">支持后台下载：切到其他应用或锁屏，下载会继续进行</div>' +
           '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
           '<div class="download-controls" id="dlControls" style="display:none">' +
             '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
@@ -449,6 +476,12 @@
       onClose: function () {
         _dlDialog = null;
         _stopProgressPolling();
+        // ★ 关闭面板时若下载仍在进行则保持后台保活，仅结束/取消时才 release
+        //   若下载已结束 _onDownloadComplete / _onDownloadError 已 release，此处无副作用
+        if (win.BK && win.BK.BackgroundDownload && win.BK.BackgroundDownload.isActive()) {
+          // 下载还在进行：保持 WakeLock，仅 UI 不可见，下载后台继续
+          console.log('[下载面板] 关闭面板，下载继续在后台进行');
+        }
       }
     });
 
@@ -473,6 +506,9 @@
     if (dlCancel) dlCancel.addEventListener('click', function () {
       if (win.DataManager) win.DataManager.cancelDownload();
       _stopProgressPolling();
+      // ★ 取消时释放后台保活
+      _releaseBackgroundDownload();
+      _hideDownloadProgress();
     });
 
     // 渲染内容
@@ -605,16 +641,20 @@
   function _startSeriesDownload(seriesId) {
     if (!_zlDmReady || !win.DataManager) return;
     _showDownloadProgress();
+    _acquireBackgroundDownload();
     var seriesTitle = _getSeriesTitle(seriesId);
 
     win.DataManager.downloadSeries(seriesId, function (completed, total, currentTitle) {
-      _updateDownloadProgressUI(completed, total, currentTitle);
+      // ★ onProgress 触发时立即拉取完整状态并刷新 UI（节流）
+      _scheduleProgressUiUpdate();
     }).then(function (result) {
       _onDownloadComplete(result, seriesTitle);
     }).catch(function (err) {
       // ★ busy 错误仅 toast 提示，不杀现有进度轮询与控件，避免污染进行中的下载
       if (err && err.code === 'BUSY') {
         _toast(err.message || '已有下载任务正在进行');
+        _releaseBackgroundDownload();
+        _hideDownloadProgress();
         return;
       }
       _onDownloadError(err);
@@ -627,14 +667,17 @@
   function _startAllDownload() {
     if (!_zlDmReady || !win.DataManager) return;
     _showDownloadProgress();
+    _acquireBackgroundDownload();
 
     win.DataManager.downloadAll(function (completed, total, currentTitle) {
-      _updateDownloadProgressUI(completed, total, currentTitle);
+      _scheduleProgressUiUpdate();
     }).then(function (result) {
       _onDownloadComplete(result, '全部');
     }).catch(function (err) {
       if (err && err.code === 'BUSY') {
         _toast(err.message || '已有下载任务正在进行');
+        _releaseBackgroundDownload();
+        _hideDownloadProgress();
         return;
       }
       _onDownloadError(err);
@@ -646,29 +689,167 @@
    */
   function _showDownloadProgress() {
     var wrap = document.getElementById('dlProgressWrap');
-    var text = document.getElementById('dlProgressText');
+    var pct = document.getElementById('dlProgressPct');
+    var detail = document.getElementById('dlProgressDetail');
+    var bgHint = document.getElementById('dlBgHint');
     var controls = document.getElementById('dlControls');
-    if (wrap) wrap.style.display = '';
-    if (text) { text.style.display = ''; text.textContent = '准备中...'; }
-    if (controls) controls.style.display = '';
+    if (wrap) { wrap.style.display = ''; }
+    if (pct) { pct.textContent = '0%'; }
+    if (detail) { detail.style.display = ''; }
+    if (bgHint) { bgHint.style.display = ''; }
+    if (controls) { controls.style.display = ''; }
+    var line1 = document.getElementById('dlDetailLine1');
+    if (line1) line1.textContent = '准备中...';
     // 重置暂停按钮
     var pauseBtn = document.getElementById('dlPauseBtn');
     if (pauseBtn) pauseBtn.textContent = '暂停';
-    // 启动进度轮询
+    // 启动进度轮询（兜底，主驱动靠 onProgress + RAF 节流）
     _startProgressPolling();
   }
 
   /**
-   * 更新下载进度 UI
+   * 隐藏进度区域（取消/结束时调用）
    */
-  function _updateDownloadProgressUI(completed, total, currentTitle) {
+  function _hideDownloadProgress() {
+    var detail = document.getElementById('dlProgressDetail');
+    var bgHint = document.getElementById('dlBgHint');
+    var controls = document.getElementById('dlControls');
+    var currentBookWrap = document.getElementById('dlCurrentBookWrap');
+    if (detail) detail.style.display = 'none';
+    if (bgHint) bgHint.style.display = 'none';
+    if (controls) controls.style.display = 'none';
+    if (currentBookWrap) currentBookWrap.style.display = 'none';
+  }
+
+  /**
+   * 用 RAF 节流的 UI 更新调度：onProgress 高频回调时不每帧都重绘，
+   * 只在下一帧统一刷新一次，避免高频字节回调造成 DOM 抖动
+   */
+  var _dlRafPending = false;
+  function _scheduleProgressUiUpdate() {
+    if (_dlRafPending) return;
+    _dlRafPending = true;
+    var raf = win.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); };
+    raf(function () {
+      _dlRafPending = false;
+      if (!win.DataManager) return;
+      var status = win.DataManager.getDownloadStatus();
+      _applyStatusToUI(status);
+    });
+  }
+
+  /**
+   * 把 getDownloadStatus 的完整状态渲染到面板（百分比/速度/剩余时间/当前本小进度）
+   */
+  function _applyStatusToUI(status) {
+    if (!status) return;
+    var p = status.progress || {};
+    var totalPct = p.totalPercent || 0;
+    // 主进度条
     var bar = document.getElementById('dlProgressBar');
-    var text = document.getElementById('dlProgressText');
-    if (total > 0 && bar) {
-      bar.style.width = Math.round(completed / total * 100) + '%';
+    var pctEl = document.getElementById('dlProgressPct');
+    if (bar) bar.style.width = totalPct + '%';
+    if (pctEl) pctEl.textContent = Math.round(totalPct) + '%';
+
+    // 第一行：本数进度 + 阶段
+    var line1 = document.getElementById('dlDetailLine1');
+    if (line1) {
+      var stageText = p.stage ? '「' + p.stage + '」' : '';
+      var titlePart = p.currentTitle ? ' — ' + p.currentTitle : '';
+      if (p.total > 0) {
+        line1.textContent = p.completed + ' / ' + p.total + ' 本' + stageText + titlePart;
+      } else {
+        line1.textContent = stageText + titlePart || '准备中...';
+      }
     }
-    if (text) {
-      text.textContent = completed + ' / ' + total + (currentTitle ? ' — ' + currentTitle : '');
+
+    // 第二行：字节进度 + 速度 + 剩余时间
+    var line2 = document.getElementById('dlDetailLine2');
+    if (line2) {
+      var parts = [];
+      if (p.bytesTotal > 0) {
+        parts.push(formatSize(p.bytesReceived) + ' / ' + formatSize(p.bytesTotal));
+      } else if (p.bytesReceived > 0) {
+        parts.push('已接收 ' + formatSize(p.bytesReceived));
+      }
+      if (p.speedBps > 1024) {
+        parts.push(_formatSpeed(p.speedBps));
+      }
+      if (p.etaSeconds > 0) {
+        parts.push('剩余 ' + _formatEta(p.etaSeconds));
+      }
+      line2.textContent = parts.join(' · ');
+    }
+
+    // 当前本小进度条
+    var currentBookWrap = document.getElementById('dlCurrentBookWrap');
+    var currentBookBar = document.getElementById('dlCurrentBookBar');
+    var currentBookPct = document.getElementById('dlCurrentBookPct');
+    if (currentBookWrap && currentBookBar && currentBookPct) {
+      if (p.currentBookPercent > 0 && p.currentBookPercent < 100) {
+        currentBookWrap.style.display = '';
+        currentBookBar.style.width = p.currentBookPercent + '%';
+        currentBookPct.textContent = Math.round(p.currentBookPercent) + '%';
+      } else {
+        currentBookWrap.style.display = 'none';
+      }
+    }
+
+    // 暂停状态展示
+    if (status.isPaused) {
+      var pauseBtn = document.getElementById('dlPauseBtn');
+      if (pauseBtn && pauseBtn.textContent !== '恢复') pauseBtn.textContent = '恢复';
+    }
+  }
+
+  /**
+   * 格式化速度
+   */
+  function _formatSpeed(bps) {
+    if (bps >= 1024 * 1024) return (bps / 1024 / 1024).toFixed(2) + ' MB/s';
+    if (bps >= 1024) return (bps / 1024).toFixed(1) + ' KB/s';
+    return Math.round(bps) + ' B/s';
+  }
+
+  /**
+   * 格式化剩余时间
+   */
+  function _formatEta(sec) {
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + '分' + (sec % 60) + '秒';
+    return Math.floor(sec / 3600) + '时' + Math.floor((sec % 3600) / 60) + '分';
+  }
+
+  /**
+   * 获取后台下载模块并激活（下载开始时调用）
+   * - 激活 WakeLock 保持屏幕常亮
+   * - 监听 appStateChange，切后台时记录、回前台时重同步 UI
+   */
+  function _acquireBackgroundDownload() {
+    if (!win.BK || !win.BK.BackgroundDownload) return;
+    if (win.BK.BackgroundDownload.isActive()) return;
+    win.BK.BackgroundDownload.acquire({
+      onBackground: function () {
+        // 切到后台：纯提示，不中断下载（Promise 链继续运行）
+        console.log('[下载面板] 切到后台，下载继续');
+      },
+      onForeground: function (bgMs) {
+        // 回到前台：立即同步一次 UI（后台期间 onProgress 可能没机会刷新 DOM）
+        if (bgMs > 1000 && win.DataManager) {
+          var status = win.DataManager.getDownloadStatus();
+          _applyStatusToUI(status);
+        }
+      }
+    });
+  }
+
+  /**
+   * 释放后台保活（下载完成/失败/取消时调用）
+   */
+  function _releaseBackgroundDownload() {
+    if (!win.BK || !win.BK.BackgroundDownload) return;
+    if (win.BK.BackgroundDownload.isActive()) {
+      win.BK.BackgroundDownload.release();
     }
   }
 
@@ -677,11 +858,16 @@
    */
   function _onDownloadComplete(result, label) {
     _stopProgressPolling();
+    _releaseBackgroundDownload();
     var bar = document.getElementById('dlProgressBar');
-    var text = document.getElementById('dlProgressText');
+    var pctEl = document.getElementById('dlProgressPct');
+    var line1 = document.getElementById('dlDetailLine1');
+    var line2 = document.getElementById('dlDetailLine2');
+    var currentBookWrap = document.getElementById('dlCurrentBookWrap');
     var controls = document.getElementById('dlControls');
     if (bar) bar.style.width = '100%';
-    if (text) {
+    if (pctEl) pctEl.textContent = '100%';
+    if (line1) {
       var msg = label + ' 下载完成: 成功 ' + result.success + ' 本';
       if (result.failed) {
         msg += '，失败 ' + result.failed + ' 本';
@@ -692,9 +878,14 @@
           msg += '（' + shown + '）';
         }
       }
-      text.textContent = msg;
+      line1.textContent = msg;
     }
+    if (line2) line2.textContent = '';
+    if (currentBookWrap) currentBookWrap.style.display = 'none';
     if (controls) controls.style.display = 'none';
+    // 兼容旧 dlProgressText（如有外部引用）
+    var text = document.getElementById('dlProgressText');
+    if (text) text.textContent = '';
     // 刷新已下载列表和书籍网格
     _refreshAfterDownload();
   }
@@ -704,14 +895,23 @@
    */
   function _onDownloadError(err) {
     _stopProgressPolling();
-    var text = document.getElementById('dlProgressText');
+    _releaseBackgroundDownload();
+    var line1 = document.getElementById('dlDetailLine1');
+    var line2 = document.getElementById('dlDetailLine2');
+    var currentBookWrap = document.getElementById('dlCurrentBookWrap');
     var controls = document.getElementById('dlControls');
-    if (text) text.textContent = '下载出错: ' + (err.message || err);
+    if (line1) line1.textContent = '下载出错: ' + (err.message || err);
+    if (line2) line2.textContent = '';
+    if (currentBookWrap) currentBookWrap.style.display = 'none';
     if (controls) controls.style.display = 'none';
+    var text = document.getElementById('dlProgressText');
+    if (text) text.textContent = '';
   }
 
   /**
-   * 启动进度轮询（作为 onProgress 回调的补充）
+   * 启动进度轮询（作为 onProgress + RAF 的兜底，1s 间隔足够）
+   * ★ 兜底意义：onProgress 回调链若因某种原因卡住（如 fetch 在 stream 中段但未触发 read），
+   *   轮询仍能每秒刷新一次 UI，避免面板看似"卡死"。
    */
   function _startProgressPolling() {
     _stopProgressPolling();
@@ -722,7 +922,7 @@
         _stopProgressPolling();
         return;
       }
-      _updateDownloadProgressUI(status.progress.completed, status.progress.total, status.progress.currentTitle);
+      _applyStatusToUI(status);
     }, 1000);
   }
 

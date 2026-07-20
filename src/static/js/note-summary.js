@@ -996,19 +996,34 @@
                 }
             }
 
-            // 触发下载
-            var blob = new Blob([content], { type: format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8' });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function () {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
+            // 统一走 BK.Export：原生走 Filesystem+Share，Web 走 a.download（含 UTF-8 BOM）
+            var mime = format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8';
+            var count = notes.length;
+            if (win.BK && win.BK.Export && win.BK.Export.exportText) {
+                win.BK.Export.exportText(content, filename, mime, {
+                    successMsg: '已导出 ' + count + ' 条标记',
+                    errorMsg: '导出失败，请重试'
+                }).catch(function () { /* 已 toast，无需二次处理 */ });
+            } else {
+                // 兜底：export-core 未加载时回退到原始下载（不应发生，保留以防脚本顺序异常）
+                try {
+                    var blob = new Blob([content], { type: mime });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(function () {
+                        if (a.parentNode) a.parentNode.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                } catch (e) {
+                    console.error('[note-summary] 导出失败：', e);
+                    win.alert('导出失败，请重试');
+                }
+            }
         },
 
         // ─── 辅助方法 ─────────────────────────────────────────────────

@@ -177,8 +177,17 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .dl-ov-label { font-size: var(--text-xs); color: var(--text-muted, #9A958C); margin-top: 2px; }
 .download-storage-info { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 10px; }
 .download-resource-summary { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 8px; }
-.download-progress { height: 4px; background: var(--border); border-radius: 2px; margin: 8px 0; overflow: hidden; }
-.download-progress-bar { height: 100%; background: var(--accent-color, #3D8A5A); border-radius: 2px; transition: width 0.3s; }
+.download-progress { height: 18px; background: var(--border); border-radius: 9px; margin: 8px 0 4px; overflow: hidden; position: relative; }
+.download-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-color, #3D8A5A), var(--brand, #3D8A5A)); border-radius: 9px; transition: width 0.2s ease-out; }
+.download-progress-pct { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 700; color: var(--text); mix-blend-mode: difference; pointer-events: none; letter-spacing: 0.3px; }
+.download-progress-detail { font-size: var(--text-sm); color: var(--text-muted); margin: 6px 0 4px; }
+.dl-detail-line1 { color: var(--text); font-weight: 500; word-break: break-word; line-height: 1.4; }
+.dl-detail-line2 { color: var(--text-muted); font-size: var(--text-xs); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dl-current-book { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.dl-current-book-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.dl-current-book-bar { height: 100%; background: var(--brand, #3D8A5A); border-radius: 2px; transition: width 0.2s ease-out; }
+.dl-current-book-pct { font-size: var(--text-xs); color: var(--text-muted); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.download-bg-hint { font-size: 11px; color: var(--text-muted); background: var(--surface-alt, #f7f6f2); border-radius: 6px; padding: 6px 10px; margin: 6px 0 8px; line-height: 1.4; }
 .download-progress-text { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 8px; }
 .download-controls { display: flex; gap: 8px; margin-bottom: 10px; }
 .dl-ctrl-btn { padding: 6px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-size: var(--text-sm); cursor: pointer; transition: background .15s; }
@@ -221,4 +230,19 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 @keyframes overflowFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 .home-overflow-item { display: block; width: 100%; padding: 10px 18px; background: none; border: none; color: var(--text); font-size: var(--text-base); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .12s; font: inherit; }
 .home-overflow-item:active { background: var(--nav-hover); }
+
+/* ── 渲染性能优化：content-visibility ─────────────────── */
+/* 让浏览器跳过屏幕外元素的渲染，回前台时只需重建可见区域
+   compatible: Chromium 85+ / Android WebView 9+ / Safari 18+
+   旧浏览器自动忽略（fallback: 正常渲染）。contain-intrinsic-size
+   防止滚动条跳动，给出合理占位高度 */
+@supports (content-visibility: auto) {
+  .book-card,
+  .series-item,
+  .chapter-item,
+  .book-grid > * {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 110px;
+  }
+}
 

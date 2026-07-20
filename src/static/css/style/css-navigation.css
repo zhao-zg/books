@@ -34,6 +34,9 @@ body:has(.bk-pdf-mode) .bk-float-tts-bar,
 body.bk-pdf-reading .bk-float-tts-bar,
 body:has(.bk-pdf-mode) .bottom-control-bar,
 body.bk-pdf-reading .bottom-control-bar { display: none !important; }
+/* PDF 阅读模式下隐藏主应用浮动栏（由 PDF 阅读器自带顶栏/功能按钮接管） */
+body.bk-pdf-reading .bk-float-nav,
+body.bk-pdf-reading .bk-float-bottom { display: none !important; }
 .bk-float-tts-bar .bottom-control-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; border-radius: 16px; border: 1px solid var(--border, #E5E2DD); box-shadow: var(--shadow-card, 0 2px 8px rgba(60,40,10,.06)); background: var(--card-bg, #fff); -webkit-backdrop-filter: none; backdrop-filter: none; padding: 10px 14px; }
 .bk-float-tts-bar .tts-title { flex-basis: 100%; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--brand, #3D8A5A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 [data-theme="dark"] .bk-float-tts-bar .bottom-control-bar { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }
