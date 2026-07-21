@@ -20,11 +20,11 @@
   Cache-Control: no-cache
   Content-Type: application/manifest+json
 
-# APK 文件: CORS + 正确 Content-Type（当 APK 较小可以部署到 Pages 时使用）
+# APK 文件: CORS + 正确 Content-Type（不缓存，确保用户始终下载最新版本）
 /*.apk
   Access-Control-Allow-Origin: *
   Content-Type: application/vnd.android.package-archive
-  Cache-Control: public, max-age=86400
+  Cache-Control: no-cache, no-store, must-revalidate
 
 # changelog.json: 不缓存
 /changelog.json
