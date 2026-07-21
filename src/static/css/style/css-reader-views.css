@@ -191,19 +191,10 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
   justify-content: safe center;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  /* 亮色模式滚动条 */
-  scrollbar-color: rgba(0,0,0,.18) transparent;
+  /* 隐藏滚动条：去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
+  scrollbar-width: none;          /* Chrome 121+, Firefox */
 }
-
-.bk-carousel-page::-webkit-scrollbar { width: 6px; }
-.bk-carousel-page::-webkit-scrollbar-track { background: transparent; }
-.bk-carousel-page::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
-.bk-carousel-page::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.28); }
-
-/* 深色模式：阅读区暗色滚动条 */
-[data-theme="dark"] .bk-carousel-page { scrollbar-color: rgba(255,255,255,.22) transparent; }
-[data-theme="dark"] .bk-carousel-page::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); }
-[data-theme="dark"] .bk-carousel-page::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); }
+.bk-carousel-page::-webkit-scrollbar { display: none; }  /* Chrome < 121, Edge, Safari */
 
 /* 深色模式：全局暗色滚动条（目录抽屉、搜索面板等可滚动区域） */
 [data-theme="dark"] .bk-toc-drawer,

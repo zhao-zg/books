@@ -1831,15 +1831,9 @@ body.bk-pdf-night .bk-pdf-continuous-view {
   /* 连续视图本身不应用滤镜，滤镜只作用于 canvas-wrap / text-layer */
 }
 
-/* 连续视图滚动条样式 */
-.bk-pdf-continuous-view::-webkit-scrollbar { width: 6px; }
-.bk-pdf-continuous-view::-webkit-scrollbar-track { background: transparent; }
-.bk-pdf-continuous-view::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 3px; }
-.bk-pdf-continuous-view::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.28); }
-
-[data-theme="dark"] .bk-pdf-continuous-view { scrollbar-color: rgba(255,255,255,.22) transparent; }
-[data-theme="dark"] .bk-pdf-continuous-view::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); }
-[data-theme="dark"] .bk-pdf-continuous-view::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); }
+/* 连续视图滚动条：隐藏以去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
+.bk-pdf-continuous-view { scrollbar-width: none; }                     /* Chrome 121+, Firefox */
+.bk-pdf-continuous-view::-webkit-scrollbar { display: none; }         /* Chrome < 121, Edge, Safari */
 
 /* ── 19. 阅读模式 body 标记（仅用于全局识别，本身无样式）────────── */
 body.bk-pdf-reading {
@@ -2022,6 +2016,8 @@ body.bk-pdf-reading {
   padding: 16px 18px calc(env(safe-area-inset-bottom, 0px) + 16px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* 隐藏滚动条：去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
+  scrollbar-width: none;          /* Chrome 121+, Firefox */
   line-height: 1.75;
   font-size: 16px;
   color: var(--text);
@@ -2033,6 +2029,8 @@ body.bk-pdf-reading {
   /* 首行缩进继承到段落 */
   text-align: left;
 }
+/* Reflow 视图滚动条隐藏（Chromium 旧版 / Edge / Safari） */
+.bk-pdf-reflow-view::-webkit-scrollbar { display: none; }
 
 /* 段落（P1-2: 紧凑行距，让正文连贯） */
 .bk-pdf-reflow-para {

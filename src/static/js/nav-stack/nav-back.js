@@ -75,9 +75,9 @@
                     }
                     if (parts.length >= 2) {
                         // 阅读视图 → 章节目录
-                        // ★ 单章书目录页会被 renderChapterList 自动跳进阅读视图，
+                        // ★ 单章书/PDF 的目录页会被 renderChapterList 自动跳进阅读视图，
                         //   返回键回目录页=循环，故直接回书架
-                        if (window.__bkIsSingleChapter) {
+                        if (window.__bkIsSingleChapter || window.__bkSkipChapterList) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                         } else {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
@@ -111,9 +111,9 @@
                             // 已在最外层主页
                         } else if (parts.length >= 2) {
                             // 阅读视图 → 章节目录
-                            // ★ 单章书目录页会被 renderChapterList 自动跳进阅读视图，
+                            // ★ 单章书/PDF 的目录页会被 renderChapterList 自动跳进阅读视图，
                             //   返回键回目录页=循环，故直接回书架
-                            if (window.__bkIsSingleChapter) {
+                            if (window.__bkIsSingleChapter || window.__bkSkipChapterList) {
                                 if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                             } else {
                                 if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }

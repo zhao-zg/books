@@ -219,6 +219,33 @@
     _pinchVisiblePages = null;
   }
 
+  // ==================== 缩放后定位滚动 ====================
+
+  /**
+   * 缩放后让双击/双击位置保持可见：
+   * 放大时 — 找到点击所在 .bk-pdf-page，让该 page 的 scrollTop/left 对准点击位置；
+   * 缩小时 — 无需特殊处理（页面已 fit-to-screen）
+   */
+  function _scrollToZoomPoint(clientX, clientY, newZoom) {
+    if (newZoom <= 1.0) return;  // 缩小无需定位
+    var el = doc.elementFromPoint(clientX, clientY);
+    if (!el) return;
+    var page = el.closest('.bk-pdf-page');
+    if (!page) return;
+    // 计算点击在 page 内的偏移比例，让放大后此位置仍可见
+    var pageRect = page.getBoundingClientRect();
+    var ratioX = (clientX - pageRect.left) / pageRect.width;
+    var ratioY = (clientY - pageRect.top) / pageRect.height;
+    // 放大后 page 变 overflow:auto，可独立滚动
+    // 延迟一帧等渲染完成后再调整滚动位置
+    (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+      var scrollW = page.scrollWidth - page.clientWidth;
+      var scrollH = page.scrollHeight - page.clientHeight;
+      if (scrollW > 0) page.scrollLeft = Math.round(ratioX * scrollW);
+      if (scrollH > 0) page.scrollTop = Math.round(ratioY * scrollH);
+    });
+  }
+
   // ==================== 双击缩放 ====================
 
   /**
@@ -244,11 +271,34 @@
           zoomApi.setZoom(_gestureBookId, 2.0);
         }
         zoomApi.applyZoomToVisible(_gestureBookId);
+        // 双击缩放后滚动到点击位置（让点击点保持可见）
+        _scrollToZoomPoint(touch.clientX, touch.clientY, cur > 1.0 ? 1.0 : 2.0);
         _dblTapState = null;
         return;
       }
     }
     _dblTapState = { time: now, x: touch.clientX, y: touch.clientY };
+  }
+
+  // ==================== 桌面端双击缩放 ====================
+
+  /**
+   * 桌面端 dblclick：1x ↔ 2x 切换
+   * 移动端由 _checkDoubleTap（touchend 时间戳差值）处理，桌面端走此路径
+   */
+  function _onDblClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var cur = S.zoom(_gestureBookId);
+    var zoomApi = win.BKPdf._internal.zoom;
+    if (cur > 1.0) {
+      zoomApi.setZoom(_gestureBookId, 1.0);
+    } else {
+      zoomApi.setZoom(_gestureBookId, 2.0);
+    }
+    zoomApi.applyZoomToVisible(_gestureBookId);
+    // 双击缩放后滚动到点击位置（让点击点保持可见）
+    _scrollToZoomPoint(e.clientX, e.clientY, cur > 1.0 ? 1.0 : 2.0);
   }
 
   // ==================== 长按选词优化 ====================
@@ -316,6 +366,8 @@
     containerEl.addEventListener('touchmove', _onTouchMove, { passive: false });
     containerEl.addEventListener('touchend', _onTouchEnd, { passive: false });
     containerEl.addEventListener('touchcancel', _onTouchCancel, { passive: true });
+    // 桌面端双击缩放：touch 事件在桌面不触发，需监听 dblclick
+    containerEl.addEventListener('dblclick', _onDblClick);
   }
 
   function cleanup() {
@@ -324,6 +376,7 @@
       _gestureEl.removeEventListener('touchmove', _onTouchMove);
       _gestureEl.removeEventListener('touchend', _onTouchEnd);
       _gestureEl.removeEventListener('touchcancel', _onTouchCancel);
+      _gestureEl.removeEventListener('dblclick', _onDblClick);
     }
     _gestureEl = null;
     _gestureBookId = null;

@@ -31,8 +31,13 @@
     S.zoomState()[pdfBookId] = S.zoomState()[pdfBookId] || {};
     S.zoomState()[pdfBookId].zoom = zoom;
     _updateZoomControls(zoom);
-    // zoom > 1 时让 .bk-pdf-page 变为可滚动容器
-    var pages = doc.querySelectorAll('.bk-pdf-page');
+    // zoom > 1 时让当前书的 .bk-pdf-page 变为可滚动容器
+    // 通过 data-pdf-book 过滤，避免影响其他书的页面
+    var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-book="' + pdfBookId + '"]');
+    if (!pages.length) {
+      // 回退：没有 data-pdf-book 时操作所有 page
+      pages = doc.querySelectorAll('.bk-pdf-page');
+    }
     for (var i = 0; i < pages.length; i++) {
       if (zoom > 1.0) {
         pages[i].classList.add('bk-pdf-zoomed');
@@ -625,6 +630,17 @@
     // F5：清理撤销栈
     if (subs.undo && subs.undo.reset) subs.undo.reset();
 
+    // 重置 zoom 状态（避免切换模式时 .bk-pdf-zoomed class 残留）
+    var zoomedPages = doc.querySelectorAll('.bk-pdf-page.bk-pdf-zoomed');
+    for (var zi = 0; zi < zoomedPages.length; zi++) {
+      zoomedPages[zi].classList.remove('bk-pdf-zoomed');
+    }
+    // 重置 zoom 值（模式切换后页面尺寸变化，旧 zoom 值无意义）
+    var bookId = S.currentBookId();
+    if (bookId && S.zoomState()[bookId]) {
+      S.zoomState()[bookId].zoom = 1.0;
+    }
+
     S.setCurrentBookId(null);
     S.setInitialized(false);
 
@@ -769,13 +785,32 @@
       if (wasReflow) _exitReflowView();
 
       if (_continuousViewEl) {
-        // 连续视图容器仍在（进入 reflow 前保留的），恢复可见 + 重初始化子模块
+        // 连续视图容器仍在（进入 reflow 前保留的），恢复可见 + 重初始化所有子模块
         _continuousViewEl.style.display = '';
         var track = doc.querySelector('.bk-carousel-track');
         if (track) track.style.display = 'none';
+        // 清理旧子模块状态（Reflow 模式下只有 nav/ui/highlight 被初始化）
         var subs = win.BKPdf._internal;
-        if (subs.nav && subs.nav.init) subs.nav.init(_continuousViewEl, S.currentBookId());
-        if (subs.ui && subs.ui.init) subs.ui.init(_continuousViewEl, S.currentBookId());
+        if (subs.gesture && subs.gesture.cleanup) subs.gesture.cleanup();
+        if (subs.nav && subs.nav.cleanup) subs.nav.cleanup();
+        if (subs.links && subs.links.cleanup) subs.links.cleanup();
+        if (subs.ui && subs.ui.cleanup) subs.ui.cleanup();
+        if (subs.thumbs && subs.thumbs.cleanup) subs.thumbs.cleanup();
+        if (subs.outline && subs.outline.cleanup) subs.outline.cleanup();
+        if (subs.search && subs.search.cleanup) subs.search.cleanup();
+        if (subs.bookmark && subs.bookmark.cleanup) subs.bookmark.cleanup();
+        if (subs.highlight && subs.highlight.cleanup) subs.highlight.cleanup();
+        // 在连续视图容器上重新初始化所有子模块
+        var bookId = S.currentBookId();
+        if (subs.gesture && subs.gesture.init) subs.gesture.init(_continuousViewEl, bookId);
+        if (subs.nav && subs.nav.init) subs.nav.init(_continuousViewEl, bookId);
+        if (subs.links && subs.links.init) subs.links.init(_continuousViewEl, bookId);
+        if (subs.ui && subs.ui.init) subs.ui.init(_continuousViewEl, bookId);
+        if (subs.thumbs && subs.thumbs.init) subs.thumbs.init(_continuousViewEl, bookId);
+        if (subs.outline && subs.outline.init) subs.outline.init(_continuousViewEl, bookId);
+        if (subs.search && subs.search.init) subs.search.init(_continuousViewEl, bookId);
+        if (subs.bookmark && subs.bookmark.init) subs.bookmark.init(_continuousViewEl, bookId);
+        if (subs.highlight && subs.highlight.init) subs.highlight.init(_continuousViewEl, bookId);
         // 恢复 PDF 阅读模式 body class（从 Reflow 切回 Continuous 时
         // 不走主 init()，bk-pdf-reading 缺失导致应用浮栏误显示）
         doc.body.classList.add('bk-pdf-reading');
@@ -792,6 +827,7 @@
         _exitContinuousView();
       } else if (S.initialized()) {
         // 从 reflow 或其他状态恢复到 single/carousel
+        // Reflow→Single 需要完整 cleanup + init（因为 Reflow 只初始化了 nav/ui/highlight）
         var currContent = doc.getElementById('chapterContent');
         if (currContent) {
           cleanup();

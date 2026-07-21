@@ -525,6 +525,7 @@
           var chNum = chapters.length === 1 ? (chapters[0].number || 1) : 1;
           // ★ 同步设置单章标记（renderReadingView 的 loadBook 回调会再次确认）
           win.__bkIsSingleChapter = true;
+          win.__bkSkipChapterList = true;
           // ★ 用 navigateReplace 更新 URL 为 2 段（#/{bookId}/{chNum}），
           //   使 URL hash 与 renderReadingView 设置的 __bkCurrentPath 一致，
           //   避免系统返回键"阅读视图→目录页→(自动跳回)阅读视图"的循环
@@ -535,8 +536,26 @@
           }
           return;
         }
+
+        // PDF 格式书跳过目录页，直接进入阅读视图
+        // 原因：PDF 阅读器自带大纲/目录抽屉，不需要软件的章节列表目录页；
+        //       多页 PDF 的"每页=一章"目录页对用户无意义
+        if (book.format === 'pdf') {
+          var progress = getReadingProgress(bookId);
+          var pdfChNum = progress > 0 ? progress : (chapters[0].number || 1);
+          win.__bkIsSingleChapter = false;
+          win.__bkSkipChapterList = true;
+          if (win.BKRouter) {
+            win.BKRouter.navigateReplace(bookId + '/' + pdfChNum);
+          } else {
+            BKRenderer.renderReadingView(bookId, pdfChNum);
+          }
+          return;
+        }
+
         // 多章书：重置单章标记，避免上一本书的残留
         win.__bkIsSingleChapter = false;
+        win.__bkSkipChapterList = false;
         var progress = getReadingProgress(bookId);
 
         var html = '<div class="bk-chapter-list-view">';
@@ -680,6 +699,8 @@
         // ★ 单章书标记：供系统返回键跳过目录页直达书架
         //   （单章书目录页会被 renderChapterList 自动跳进阅读视图，返回键回目录页=循环）
         win.__bkIsSingleChapter = (uniqueChapters.length <= 1);
+        // ★ PDF 跳过目录页标记：PDF 阅读器自带大纲抽屉，不需要章节列表
+        win.__bkSkipChapterList = (uniqueChapters.length <= 1 || book.format === 'pdf');
         try {
           localStorage.setItem('bk_last_read', bookId);
           // 记录「最近阅读」时间戳（供书架按 max(入架,阅读) 排序置顶）
