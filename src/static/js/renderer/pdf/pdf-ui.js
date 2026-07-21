@@ -247,21 +247,22 @@
       _updateNightBtnIcon();
     }
 
-    // 模式切换（三态循环：single → continuous → reflow → single）
+    // 模式切换（默认三态循环：single → continuous → reflow → single）
+    // 扫描型 PDF（无文字层）自动二态：single ↔ continuous
     var modeBtn = _bottomBar.querySelector('.bk-pdf-tb-mode');
     if (modeBtn) {
       modeBtn.addEventListener('click', function () {
         var cur = S.mode();
         var newMode;
+        var reflowOk = S.hasTextLayer();
         if (cur === S.MODE_SINGLE) newMode = S.MODE_CONTINUOUS;
-        else if (cur === S.MODE_CONTINUOUS) newMode = S.MODE_REFLOW;
+        else if (cur === S.MODE_CONTINUOUS) newMode = reflowOk ? S.MODE_REFLOW : S.MODE_SINGLE;
         else newMode = S.MODE_SINGLE;
         win.BKPdf.setMode(newMode);
-        modeBtn.textContent = newMode === S.MODE_SINGLE ? '📜' : (newMode === S.MODE_CONTINUOUS ? '📄' : '⇶');
+        _updateModeBtnIcon(modeBtn);
       });
       // 初始状态
-      var curMode = S.mode();
-      modeBtn.textContent = curMode === S.MODE_SINGLE ? '📜' : (curMode === S.MODE_CONTINUOUS ? '📄' : '⇶');
+      _updateModeBtnIcon(modeBtn);
     }
 
     // 缩放控件（嵌入底栏，移动端 <768px 隐藏改用 pinch）
@@ -293,6 +294,39 @@
     else if (mode === S.NIGHT_SEPIA) nightBtn.textContent = '📙';
     else if (mode === S.NIGHT_GREEN) nightBtn.textContent = '🌿';
     else nightBtn.textContent = '🌙';
+  }
+
+  /**
+   * 模式按钮图标同步（Reflow 仅在 PDF 有文字层时显示）
+   */
+  function _updateModeBtnIcon(btn) {
+    if (!btn) btn = _bottomBar ? _bottomBar.querySelector('.bk-pdf-tb-mode') : null;
+    if (!btn) return;
+    var cur = S.mode();
+    var reflowOk = S.hasTextLayer();
+    // 扫描型 PDF 隐藏 Reflow 图标，按钮仍可见（二态循环）
+    if (!reflowOk && cur === S.MODE_REFLOW) {
+      // 不应发生（setMode 已拦截），保险
+      cur = S.MODE_CONTINUOUS;
+    }
+    btn.textContent = cur === S.MODE_SINGLE ? '📜' : (cur === S.MODE_CONTINUOUS ? '📄' : '⇶');
+    btn.setAttribute('aria-label',
+      !reflowOk ? '切换模式（单页 / 连续）' : '切换模式（单页 / 连续 / 重排）');
+  }
+
+  /**
+   * 文字层探测完毕后刷新模式按钮
+   * 若当前模式是 Reflow 但探测结果显示无文字层，回退到 Continuous
+   */
+  function _refreshModeBtn() {
+    var btn = _bottomBar ? _bottomBar.querySelector('.bk-pdf-tb-mode') : null;
+    if (!btn) return;
+    var reflowOk = S.hasTextLayer();
+    // 当前在 Reflow 但探测结果显示无文字层 → 回退到 Continuous
+    if (!reflowOk && S.mode() === S.MODE_REFLOW) {
+      win.BKPdf.setMode(S.MODE_CONTINUOUS);
+    }
+    _updateModeBtnIcon(btn);
   }
 
   /**
@@ -568,7 +602,8 @@
     updateBookmarkBtn: updateBookmarkBtn,
     showUI: _showUI,
     hideUI: _hideUI,
-    toggleUI: _toggleUI
+    toggleUI: _toggleUI,
+    _refreshModeBtn: _refreshModeBtn
   };
 
 })(window);

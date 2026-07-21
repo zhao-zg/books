@@ -119,6 +119,47 @@
   // ==================== 连续滚动模式 ====================
 
   /**
+   * 探测 PDF 是否有可重排文字层
+   * 用前 3 页的 getTextContent items 数判断，全部为 0 视为扫描型 PDF
+   * 探测完毕后写入 state，并通知 UI 刷新模式按钮
+   */
+  function _probeTextLayer(bookId) {
+    if (!bookId) return;
+    var core = win.BKPdf._internal.core;
+    if (!core || !core.getPdfDoc) return;
+
+    core.getPdfDoc(bookId).then(function (pdf) {
+      var probePages = Math.min(3, pdf.numPages || 1);
+      var p = Promise.resolve();
+      var totalItems = 0;
+      for (var i = 1; i <= probePages; i++) {
+        (function (pageNum) {
+          p = p.then(function () {
+            return pdf.getPage(pageNum).then(function (page) {
+              return page.getTextContent({
+                includeMarkedContent: false,
+                disableCombineTextItems: false
+              }).then(function (tc) {
+                totalItems += (tc.items || []).length;
+              });
+            });
+          });
+        })(i);
+      }
+      return p.then(function () {
+        var hasText = totalItems > 0;
+        S.setHasTextLayer(bookId, hasText);
+        // 通知 UI 刷新模式按钮可见性
+        var ui = win.BKPdf._internal.ui;
+        if (ui && ui._refreshModeBtn) ui._refreshModeBtn();
+      });
+    }).catch(function () {
+      // 探测失败：按默认（支持 Reflow）处理，避免误隐藏
+      S.setHasTextLayer(bookId, true);
+    });
+  }
+
+  /**
    * 进入连续滚动模式：隐藏 Carousel，创建全屏滚动容器，一次性渲染所有 PDF 页面
    * 异步执行（需要从 PDF 文档获取总页数），完成后自动 cleanup + init
    */
@@ -373,6 +414,9 @@
       }).then(function (labels) {
         if (labels && labels.length) S.setPageLabels(labels);
       }).catch(function () { /* 静默：无标签不影响功能 */ });
+
+      // 异步探测文字层：扫描型 PDF（items=0）不支持 Reflow，需隐藏 Reflow 按钮
+      _probeTextLayer(pdfBookId);
     }
     S.setInitialized(true);
 

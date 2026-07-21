@@ -63,6 +63,8 @@
   var _pdfHighlights = {};          // bookId → [{ id, page, text, rects, color, timestamp }]
   var _pdfInitialized = false;      // 是否已初始化
   var _themeUserOverride = false;   // 用户是否手动切换过护眼模式（true 时忽略主题联动）
+  var _pdfBookTextLayer = {};       // bookId → boolean（PDF 是否有可重排文字层）
+  var _pdfTextLayerProbed = {};     // bookId → boolean（是否已完成文字层探测）
 
   // ==================== 工具函数 ====================
 
@@ -97,11 +99,35 @@
    */
   function setMode(mode) {
     if (mode !== MODE_SINGLE && mode !== MODE_CONTINUOUS && mode !== MODE_REFLOW) return;
+    // 扫描型 PDF（无可重排文字层）回退到 Continuous，避免 Reflow 空白
+    if (mode === MODE_REFLOW && _pdfCurrentBookId && _pdfBookTextLayer[_pdfCurrentBookId] === false) {
+      mode = MODE_CONTINUOUS;
+    }
     _pdfMode = mode;
     // 持久化用户偏好
     try {
       localStorage.setItem('bk_pdf_mode', mode);
     } catch (e) {}
+  }
+
+  /**
+   * 查询某本书是否支持 Reflow（有可重排的文字层）
+   * 未探测完毕时返回 true（默认允许 Reflow，避免误隐藏）
+   */
+  function hasTextLayer(bookId) {
+    if (!bookId) bookId = _pdfCurrentBookId;
+    if (!bookId) return true;
+    if (_pdfTextLayerProbed[bookId] !== true) return true; // 未探测完毕默认允许
+    return _pdfBookTextLayer[bookId] !== false;
+  }
+
+  /**
+   * 标记某本书的文字层探测结果
+   */
+  function setHasTextLayer(bookId, has) {
+    if (!bookId) return;
+    _pdfBookTextLayer[bookId] = !!has;
+    _pdfTextLayerProbed[bookId] = true;
   }
 
   /**
@@ -614,6 +640,9 @@
     thumbnailsRendered: function () { return _pdfThumbnailsRendered; },
     initialized: function () { return _pdfInitialized; },
     setInitialized: function (v) { _pdfInitialized = v; },
+    // 文字层探测（扫描型 PDF 不支持 Reflow）
+    hasTextLayer: hasTextLayer,
+    setHasTextLayer: setHasTextLayer,
     // 抽屉互斥工具
     closeAllDrawersExcept: closeAllDrawersExcept,
     // 工具
