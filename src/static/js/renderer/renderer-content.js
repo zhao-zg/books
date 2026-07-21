@@ -141,12 +141,11 @@
         if (win.BKPdf && win.BKPdf.generatePageHTML) {
           html = win.BKPdf.generatePageHTML(item);
         } else {
-          // 回退：BKPdf 尚未加载时生成基础结构
+          // 回退：BKPdf 尚未加载时生成骨架壳（与 S2 generatePageHTML 对齐）
           var pgNum = item.pageNumber || 1;
           var pdfBkId = item.pdfBookId || '';
           html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '">' +
-            '<div class="bk-pdf-page-placeholder"><span>第 ' + pgNum + ' 页</span></div>' +
-            '<canvas class="bk-pdf-canvas"></canvas>' +
+            '<div class="bk-pdf-page-placeholder"><span class="bk-pdf-page-num">第 ' + pgNum + ' 页</span></div>' +
             '</div>';
         }
         break;
@@ -519,6 +518,11 @@
   function _cleanupPdfCache() {
     if (win.BKPdf && win.BKPdf.cleanup) {
       win.BKPdf.cleanup();
+    }
+    // 退出阅读时销毁 PDF 文档缓存（释放 pdf.js PDFDocumentProxy 内存）；
+    // 模式切换内部只调 cleanup() 保留 docCache，避免重新解析 PDF（S3 优化）
+    if (win.BKPdf && win.BKPdf.destroyPdfCache) {
+      win.BKPdf.destroyPdfCache();
     }
   }
 

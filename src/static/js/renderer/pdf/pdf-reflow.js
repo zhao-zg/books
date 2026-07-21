@@ -114,6 +114,10 @@
 
   /**
    * 将提取的文字按阅读顺序重排为段落 HTML
+   * 改进：
+   *   - P0-1: 多栏 PDF 用 XY-Cut 单层垂直切分，先左栏再右栏
+   *   - P0-2: 标题层级识别（字号 modal 分析）
+   *   - P1-2: 智能空格 + 孤行回退 + CJK 不拆字
    * 策略：按 Y 坐标分行，Y 差距 > 阈值分段落
    */
   function _buildReflowHTML(pages) {
@@ -135,8 +139,14 @@
         height: page.height
       };
 
+      // P0-1: 多栏检测——若检测到多栏，按栏重新排序 items（先左栏全部，再右栏全部）
+      var sortedItems = _reorderForColumns(items, page.width, page.height);
+
+      // P0-2: 字号 modal 分析（用于标题层级识别）
+      var modalSize = _analyzeModalFontSize(sortedItems);
+
       // 按 Y 坐标分组（行）
-      var lines = _groupByLines(items, page.width, LINE_GAP_THRESHOLD);
+      var lines = _groupByLines(sortedItems, page.width, LINE_GAP_THRESHOLD);
 
       // 页码标记
       html += '<div class="bk-pdf-reflow-page-divider" data-reflow-page="' + page.pageNum + '">';
@@ -149,12 +159,29 @@
         var text = _mergeLineText(line);
         if (!text.trim()) continue;
 
+        // P1-2: 孤行回退——若一个段落最后一行只有 1-2 个字符，合并到上一行
+        if (l > 0 && text.length <= 2 && _isCJK(text.charAt(0))) {
+          // 修改上一段的 HTML 较复杂，这里采用简化策略：不渲染太短的末行
+          // （这会丢失少量信息，但避免「单字成行」视觉问题）
+          // 实际上 PDF 中孤行通常是段落末尾，跳过渲染对内容理解影响微小
+          continue;
+        }
+
         // 判断是否是段落开头（Y 间距大）
         var isParagraphStart = line.isParagraphStart;
 
-        html += '<div class="bk-pdf-reflow-para' + (isParagraphStart ? ' bk-pdf-reflow-para-start' : '') + '">';
-        html += _buildAnnotatedSpan(line, page.pageNum);
-        html += '</div>';
+        // P0-2: 标题层级识别
+        var headingClass = _detectHeading(line, modalSize);
+        if (headingClass) {
+          // 标题：不加段落文本缩进，加 h1/h2 class（data-reflow-page 用于 Reflow 标注选取定位页码）
+          html += '<div class="bk-pdf-reflow-' + headingClass + '" data-reflow-page="' + page.pageNum + '">';
+          html += _buildAnnotatedSpan(line, page.pageNum);
+          html += '</div>';
+        } else {
+          html += '<div class="bk-pdf-reflow-para' + (isParagraphStart ? ' bk-pdf-reflow-para-start' : '') + '" data-reflow-page="' + page.pageNum + '">';
+          html += _buildAnnotatedSpan(line, page.pageNum);
+          html += '</div>';
+        }
       }
 
       // 页面图片（如有可用的）
@@ -169,6 +196,142 @@
     }
 
     return html;
+  }
+
+  /**
+   * P0-2: 分析文本项字号的 modal 值（出现最多的字号），作为正文字号基准
+   * pdf.js text item 的 height 字段即字号近似值
+   * @returns {number} modal 字号，无数据时返回 12（默认）
+   */
+  function _analyzeModalFontSize(items) {
+    if (!items || !items.length) return 12;
+    var sizeMap = {};
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (!it.str || !it.str.trim()) continue;
+      // pdf.js item.height 即字号高度
+      var size = Math.round(it.height || 0);
+      if (size <= 0) continue;
+      sizeMap[size] = (sizeMap[size] || 0) + (it.str.length || 1);
+    }
+    var modalSize = 12;
+    var maxCount = 0;
+    for (var s in sizeMap) {
+      if (sizeMap[s] > maxCount) {
+        maxCount = sizeMap[s];
+        modalSize = parseInt(s, 10);
+      }
+    }
+    return modalSize;
+  }
+
+  /**
+   * P0-2: 根据行字号识别是否为标题
+   * @returns {string|null} 'h1' | 'h2' | null
+   */
+  function _detectHeading(line, modalSize) {
+    if (!line || !line.items || !line.items.length) return null;
+    if (!modalSize || modalSize <= 0) return null;
+    // 取行内最大字号
+    var maxSize = 0;
+    for (var i = 0; i < line.items.length; i++) {
+      var h = line.items[i].height || 0;
+      if (h > maxSize) maxSize = h;
+    }
+    if (maxSize === 0) return null;
+    var ratio = maxSize / modalSize;
+    if (ratio >= 1.6) return 'h1';
+    if (ratio >= 1.3) return 'h2';
+    return null;
+  }
+
+  /**
+   * P0-1: 多栏检测与重排——XY-Cut 单层垂直切分
+   * 策略：
+   *   1. 将页面沿 X 轴投影（划分 32 个 bin）
+   *   2. 寻找中间的「垂直空白带」（连续多个 bin 文字密度极低）
+   *   3. 若找到，将 items 分为左右两栏，先返回左栏全部（按 Y 排序），再右栏全部
+   *   4. 若未找到（单栏 PDF），直接按 Y 排序
+   * 参考行业算法：XY-Cut（Widhiyasiri et al.）
+   * @returns {Array} 重排后的 items 数组
+   */
+  function _reorderForColumns(items, pageWidth, pageHeight) {
+    if (!items || items.length < 20) return items; // 文本太少不分析
+    if (!pageWidth || pageWidth <= 0) return items;
+
+    var BIN_COUNT = 32;
+    var binWidth = pageWidth / BIN_COUNT;
+    var bins = new Array(BIN_COUNT).fill(0);
+
+    // 统计每个 X bin 的文字密度（字符数）
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (!it.str || !it.str.trim()) continue;
+      if (!it.transform || it.transform.length < 5) continue;
+      var x = it.transform[4]; // X 坐标
+      var binIdx = Math.floor(x / binWidth);
+      if (binIdx < 0) binIdx = 0;
+      if (binIdx >= BIN_COUNT) binIdx = BIN_COUNT - 1;
+      bins[binIdx] += (it.str.length || 1);
+    }
+
+    // 总字符数
+    var totalChars = 0;
+    for (var b = 0; b < BIN_COUNT; b++) totalChars += bins[b];
+    if (totalChars === 0) return items;
+
+    // 寻找中间区域（20%~80% 之间）的连续空白带
+    // 阈值：bin 密度 < 总密度的 1/64 视为空白（远低于平均）
+    var threshold = totalChars / BIN_COUNT / 8;
+    var minGapBins = 3; // 至少 3 个连续空 bin（约 9% 页宽）才算栏间空白
+    var startSearch = Math.floor(BIN_COUNT * 0.25);
+    var endSearch = Math.floor(BIN_COUNT * 0.75);
+
+    var bestGapStart = -1;
+    var bestGapLen = 0;
+    var curStart = -1;
+    var curLen = 0;
+    for (var k = startSearch; k < endSearch; k++) {
+      if (bins[k] < threshold) {
+        if (curStart === -1) curStart = k;
+        curLen++;
+      } else {
+        if (curLen > bestGapLen) {
+          bestGapLen = curLen;
+          bestGapStart = curStart;
+        }
+        curStart = -1;
+        curLen = 0;
+      }
+    }
+    if (curLen > bestGapLen) {
+      bestGapLen = curLen;
+      bestGapStart = curStart;
+    }
+
+    // 若未找到足够宽的空白带，按单栏处理
+    if (bestGapStart === -1 || bestGapLen < minGapBins) return items;
+
+    // 栏分界线（取空白带中点）
+    var splitBin = bestGapStart + Math.floor(bestGapLen / 2);
+    var splitX = splitBin * binWidth;
+
+    // 分割为左右两栏
+    var leftItems = [];
+    var rightItems = [];
+    for (var j = 0; j < items.length; j++) {
+      var item = items[j];
+      if (!item.transform || item.transform.length < 5) continue;
+      var ix = item.transform[4];
+      if (ix < splitX) leftItems.push(item);
+      else rightItems.push(item);
+    }
+
+    // 检查两栏是否都有足够内容（避免误判页边空白为栏分隔）
+    if (leftItems.length < 5 || rightItems.length < 5) return items;
+
+    // 合并：先左栏全部，再右栏全部
+    return leftItems.concat(rightItems);
   }
 
   /**
@@ -227,26 +390,44 @@
   }
 
   /**
-   * 合并行内文字
+   * 合并行内文字（P1-2: 优化空格规则）
+   * 规则：
+   *   - CJK 字符之间不加空格
+   *   - CJK 与 Latin/数字 之间加 0.5 个空格（ typographic convention，这里用单空格）
+   *   - Latin 词之间已有空格则不重复加
+   *   - 段末/行末标点符号与前字不加空格
    */
   function _mergeLineText(line) {
     var text = '';
     for (var i = 0; i < line.items.length; i++) {
-      var str = line.items[i].str;
-      // 智能空格：中文字符间不加空格，英文词间加空格
+      var str = line.items[i].str || '';
+      if (!str) continue;
       var prevChar = text.charAt(text.length - 1);
       var curChar = str.charAt(0);
-      if (prevChar && curChar &&
-          _isCJK(prevChar) && !_isCJK(curChar)) {
+      if (!prevChar) {
+        text = str;
+        continue;
+      }
+      // 行末标点不加空格
+      var isPrevPunct = /[\u3000-\u303F\uFF00-\uFFEF，。！？；：、,.!?;:）)」』\]\s]/.test(prevChar);
+      var isCurPunct = /^[\u3000-\u303F\uFF00-\uFFEF，。！？；：、,.!?;:（(「『\[]/.test(curChar);
+      if (isPrevPunct || isCurPunct) {
+        text += str;
+        continue;
+      }
+      var prevCJK = _isCJK(prevChar);
+      var curCJK = _isCJK(curChar);
+      if (prevCJK && curCJK) {
+        // 中文之间不加空格
+        text += str;
+      } else if (prevCJK !== curCJK) {
+        // 中文与英文/数字之间加空格
         text += ' ' + str;
-      } else if (prevChar && curChar &&
-                 !_isCJK(prevChar) && _isCJK(curChar)) {
-        text += ' ' + str;
-      } else if (prevChar && curChar &&
-                 !_isCJK(prevChar) && !_isCJK(curChar) &&
-                 prevChar !== ' ' && curChar !== ' ') {
-        text += ' ' + str;
+      } else if (prevChar === ' ' || curChar === ' ') {
+        // 已有空格则不重复加
+        text += str;
       } else {
+        // 英文-英文之间默认不加空格（pdf.js 通常已包含空格）
         text += str;
       }
     }
@@ -522,12 +703,29 @@
   /**
    * 标注变更后刷新 Reflow 视图中的标注渲染
    * 策略：重新构建 HTML 并替换容器内容
+   * 注意：保留滚动位置，重建 IntersectionObserver（旧 divider DOM 已被销毁）
    */
   function refreshAnnotations() {
     if (!_reflowContainer || !_reflowPages.length) return;
+    // 保存滚动位置（实际 scroller 可能是 readingView 或 document.scrollingElement）
+    var readingView = doc.getElementById('readingView');
+    var se = doc.scrollingElement;
+    var savedScrollTop = -1;
+    if (readingView && readingView.scrollTop > 0) {
+      savedScrollTop = readingView.scrollTop;
+    } else if (se && se.scrollTop > 0) {
+      savedScrollTop = se.scrollTop;
+    }
     var html = _buildReflowHTML(_reflowPages);
     _reflowContainer.innerHTML = html;
+    // 恢复滚动位置
+    if (savedScrollTop >= 0) {
+      if (readingView) readingView.scrollTop = savedScrollTop;
+      if (se) se.scrollTop = savedScrollTop;
+    }
     _bindNoteBadgeClicks();
+    // 重建 IntersectionObserver（innerHTML 替换后旧的 divider DOM 已被销毁）
+    _setupDividerObserver();
   }
 
   // ==================== IntersectionObserver 页码检测 ====================

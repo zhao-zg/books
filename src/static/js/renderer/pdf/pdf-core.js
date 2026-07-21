@@ -70,8 +70,33 @@
   // ==================== 页面 HTML 生成 ====================
 
   /**
-   * 生成 PDF 页面的占位 HTML（供 renderer-content.js 调用）
-   * 结构：.bk-pdf-page > [placeholder(含 spinner), .bk-pdf-canvas-wrap > canvas + textLayer + annotationLayer]
+   * 生成页面内部完整结构 HTML（placeholder 含 spinner + canvas-wrap）
+   * 供 _ensurePageStructure 在页面进入视口时延迟填充。
+   */
+  function _pageInnerHTML(pgNum) {
+    var safePg = String(parseInt(pgNum, 10) || 1);
+    return '' +
+      '<div class="bk-pdf-page-placeholder">' +
+        '<div class="bk-pdf-spinner" aria-hidden="true">' +
+          '<svg class="bk-pdf-spinner-svg" viewBox="0 0 50 50">' +
+            '<circle cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke-linecap="round"/>' +
+          '</svg>' +
+        '</div>' +
+        '<span class="bk-pdf-page-num">第 ' + safePg + ' 页</span>' +
+      '</div>' +
+      '<div class="bk-pdf-canvas-wrap">' +
+        '<canvas class="bk-pdf-canvas"></canvas>' +
+        '<div class="bk-pdf-text-layer" data-pdf-text-layer></div>' +
+        '<div class="bk-pdf-annotation-layer" data-pdf-annotation-layer></div>' +
+      '</div>';
+  }
+
+  /**
+   * 生成 PDF 页面的占位 HTML（供 renderer-content.js / _enterContinuousView 调用）
+   * S2 优化：只生成轻量骨架壳（placeholder 仅含页码文字，无 spinner/canvas），
+   * 内部完整结构延迟到进入视口时由 _ensurePageStructure 填充。
+   * 初次进入连续模式时 300 页从 ~2100 节点降到 ~600 节点，消除 innerHTML 同步阻塞。
+   * 配合 CSS content-visibility:auto + contain-intrinsic-size:90vh 保证滚动条不跳动。
    */
   function generatePageHTML(item) {
     var pgNum = item.pageNumber || 1;
@@ -81,24 +106,26 @@
     return '' +
       '<div class="bk-pdf-page" data-pdf-page="' + safePg + '" data-pdf-book="' + safeId + '">' +
         '<div class="bk-pdf-page-placeholder">' +
-          '<div class="bk-pdf-spinner" aria-hidden="true">' +
-            '<svg class="bk-pdf-spinner-svg" viewBox="0 0 50 50">' +
-              '<circle cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke-linecap="round"/>' +
-            '</svg>' +
-          '</div>' +
           '<span class="bk-pdf-page-num">第 ' + safePg + ' 页</span>' +
         '</div>' +
-        '<div class="bk-pdf-canvas-wrap">' +
-          '<canvas class="bk-pdf-canvas"></canvas>' +
-          '<div class="bk-pdf-text-layer" data-pdf-text-layer></div>' +
-          '<div class="bk-pdf-annotation-layer" data-pdf-annotation-layer></div>' +
-        '</div>' +
       '</div>';
+  }
+
+  /**
+   * S2：确保页面内部结构已填充（幂等）
+   * 骨架壳进入视口时由 renderPage 入口调用，填充 placeholder(含spinner) + canvas-wrap，
+   * 使后续 canvas/placeholder/textLayer 查询可用。已填充则跳过（O(1) 检测）。
+   */
+  function _ensurePageStructure(el) {
+    if (el.querySelector('.bk-pdf-canvas-wrap')) return; // 已填充完整结构
+    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
+    el.innerHTML = _pageInnerHTML(pgNum);
   }
 
   // ==================== HiDPI 渲染核心 ====================
 
   function renderPage(el, isRetry) {
+    _ensurePageStructure(el);
     var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
     var pdfBkId = el.getAttribute('data-pdf-book') || '';
     var canvas = el.querySelector('.bk-pdf-canvas');
@@ -497,20 +524,16 @@
   function _recyclePage(el) {
     _cancelRender(el);
     el.removeAttribute('data-pdf-rendered');
-    var canvas = el.querySelector('.bk-pdf-canvas');
-    if (canvas) {
-      canvas.width = 0;
-      canvas.height = 0;
-      canvas.style.opacity = '0';
-    }
-    var textLayer = el.querySelector('[data-pdf-text-layer]');
-    if (textLayer) textLayer.innerHTML = '';
-    var annLayer = el.querySelector('[data-pdf-annotation-layer]');
-    if (annLayer) annLayer.innerHTML = '';
-    var placeholder = el.querySelector('.bk-pdf-page-placeholder');
-    if (placeholder) {
-      placeholder.style.display = '';
-    }
+    el.removeAttribute('data-pdf-rendering'); // 修复：cancel 后 promise 链提前 return 不走 _setRenderingState(false)，若不清理则 observer 会因 data-pdf-rendering="1" 跳过该页，导致回收后永不重渲染
+    // S2 激进回收：直接清空 innerHTML 恢复为骨架壳，
+    // 释放 canvas/textLayer/annotationLayer 等所有子节点内存（含 canvas GPU 纹理，比手动 width=0 更彻底）。
+    // CSS content-visibility:auto + contain-intrinsic-size:90vh 保证占位高度不变，滚动条不跳动。
+    // 再次进入视口时 renderPage 入口的 _ensurePageStructure 会重新填充完整结构。
+    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
+    el.innerHTML =
+      '<div class="bk-pdf-page-placeholder">' +
+        '<span class="bk-pdf-page-num">第 ' + pgNum + ' 页</span>' +
+      '</div>';
     if (S.observer()) {
       S.observer().observe(el);
     }

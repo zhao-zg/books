@@ -38,6 +38,18 @@
         return null;
     }
 
+    // 判断是否为 PDF 书籍（PDF 走自带 outline 目录，禁用通用目录按钮）
+    function _isPdfBook(bookId) {
+        var books = window.__bkBooks || [];
+        for (var i = 0; i < books.length; i++) {
+            var b = books[i];
+            if (b && (b.id === bookId || b.bookId === bookId)) {
+                return b.format === 'pdf';
+            }
+        }
+        return false;
+    }
+
     // ── 顶部浮动栏 ──────────────────────────────────────────
 
     function ensureEl() {
@@ -73,6 +85,8 @@
         // ★ decode URL 编码的中文 bookId（location.hash 可能保留 % 编码）
         var bookId = m[1];
         try { bookId = decodeURIComponent(bookId); } catch (e) {}
+        // PDF 走自带工具栏，阅读页不显示软件浮栏（顶栏 + 底栏）
+        if (pageType === 'reading' && _isPdfBook(bookId)) return false;
         var chapterNum = m[2] ? parseInt(m[2], 10) : null;
 
         // 获取书名

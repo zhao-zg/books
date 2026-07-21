@@ -77,59 +77,42 @@
     _applyZoomToVisible(pdfBookId);
   }
 
-  // ==================== 缩放控件（临时实现，后续迁移到 ui）====================
+  // ==================== 缩放控件（嵌入底栏，不再独立创建胶囊）====================
+  // 历史背景：原为右下角独立浮动胶囊 .bk-pdf-zoom-bar，现迁移到 ui 模块的全宽底栏中。
+  // 本模块只负责：查询底栏引用 + 更新百分比文字 + 维护 bookId。
 
   function _ensureZoomControls() {
+    // 底栏的缩放区由 ui 模块创建，这里只查询引用
     if (_pdfZoomControls) return _pdfZoomControls;
-    var bar = doc.createElement('div');
-    bar.className = 'bk-pdf-zoom-bar';
-    bar.innerHTML =
-      '<button class="bk-pdf-zoom-btn" data-pdf-zoom="out" aria-label="缩小">−</button>' +
-      '<span class="bk-pdf-zoom-value">100%</span>' +
-      '<button class="bk-pdf-zoom-btn" data-pdf-zoom="in" aria-label="放大">＋</button>' +
-      '<button class="bk-pdf-zoom-btn" data-pdf-zoom="reset" aria-label="重置">⊙</button>';
-    doc.body.appendChild(bar);
-
-    bar.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-pdf-zoom]');
-      if (!btn) return;
-      if (!_pdfCurrentBookId) return;
-      var action = btn.getAttribute('data-pdf-zoom');
-      if (action === 'in') zoomIn(_pdfCurrentBookId);
-      else if (action === 'out') zoomOut(_pdfCurrentBookId);
-      else if (action === 'reset') resetZoom(_pdfCurrentBookId);
-    });
-
-    _pdfZoomControls = bar;
-    return bar;
+    var bottomBar = doc.querySelector('.bk-pdf-bottom-bar');
+    if (bottomBar) {
+      _pdfZoomControls = bottomBar.querySelector('.bk-pdf-bottom-zoom') || bottomBar;
+    }
+    return _pdfZoomControls;
   }
 
   function _showZoomControls(pdfBookId) {
     _pdfCurrentBookId = pdfBookId;
-    var bar = _ensureZoomControls();
-    bar.style.display = 'flex';
+    // 底栏显隐由 ui 模块统一管理，这里只同步百分比文字
+    // （若 ui.init 尚未创建底栏，_updateZoomControls 查询会安全跳过）
     _updateZoomControls(S.zoom(pdfBookId));
   }
 
   function _hideZoomControls() {
-    if (_pdfZoomControls) _pdfZoomControls.style.display = 'none';
     _pdfCurrentBookId = null;
   }
 
   /**
-   * 彻底从 DOM 移除缩放控件（cleanup 时调用，避免大量隐藏节点残留）
+   * 清空内部引用（底栏 DOM 由 ui 模块 lifecycle 管理移除，不需在此处理）
    */
   function _detachZoomControls() {
-    if (_pdfZoomControls && _pdfZoomControls.parentNode) {
-      _pdfZoomControls.parentNode.removeChild(_pdfZoomControls);
-    }
     _pdfZoomControls = null;
     _pdfCurrentBookId = null;
   }
 
   function _updateZoomControls(zoom) {
-    if (!_pdfZoomControls) return;
-    var val = _pdfZoomControls.querySelector('.bk-pdf-zoom-value');
+    // 直接查询底栏中的百分比文字（防止 _pdfZoomControls 引用过期）
+    var val = doc.querySelector('.bk-pdf-bottom-bar .bk-pdf-zoom-value');
     if (val) val.textContent = Math.round(zoom * 100) + '%';
   }
 
@@ -151,10 +134,12 @@
       var track = doc.querySelector('.bk-carousel-track');
       if (track) track.style.display = 'none';
 
-       // 创建全屏滚动容器
+      // 创建全屏滚动容器
       var container = doc.createElement('div');
       container.id = 'bkPdfContinuousView';
       container.className = 'bk-pdf-continuous-view bk-pdf-mode';
+      // T1: 单页 PDF 在连续模式下垂直居中，避免顶部贴齐+底部大片灰色空白
+      if (totalPages === 1) container.classList.add('bk-pdf-continuous-single');
 
       // 生成所有 PDF 页面 HTML
       var html = '';
@@ -250,6 +235,11 @@
     if (track2) track2.style.display = 'none';
     if (_continuousViewEl) _continuousViewEl.style.display = 'none';
 
+    // F：恢复 bookId（cleanup 会清空 _pdfCurrentBookId，但 Reflow 模式下高亮/批注等
+    // 子模块仍需通过 S.currentBookId() 拿到当前书 ID；Reflow DOM 没有 data-pdf-book
+    // 属性，无法像普通模式那样从 pages[0] 重新推断）
+    S.setCurrentBookId(bookId);
+
     var reflow = win.BKPdf._internal.reflow;
     if (!reflow || !reflow.enterReflowView) {
       console.warn('[PDF] reflow module not loaded');
@@ -259,10 +249,18 @@
     reflow.enterReflowView(bookId).then(function (container) {
       _reflowViewEl = container;
 
-      // 初始化子模块（仅 ui 和 nav，其余在 Reflow 模式下无意义）
+      // 初始化子模块（ui/nav/highlight 在 Reflow 模式下有意义）
+      // - nav：页码跳转/位置恢复
+      // - ui：底栏工具按钮（含高亮列表抽屉）
+      // - highlight：Reflow 文字选取 → 标注菜单 → 新建高亮/批注（文本匹配渲染）
       var subs = win.BKPdf._internal;
       if (subs.nav && subs.nav.init) subs.nav.init(container, bookId);
       if (subs.ui && subs.ui.init) subs.ui.init(container, bookId);
+      if (subs.highlight && subs.highlight.init) subs.highlight.init(container, bookId);
+
+      // 标记为已初始化（Reflow 模式下 setMode 切换依赖 initialized 状态，
+      // 缺失会导致 Reflow→Single/Continuous 切换时 cleanup+init 不执行）
+      S.setInitialized(true);
 
       // 恢复阅读位置
       var savedPage = S.restoreReadingPosition(bookId);
@@ -318,10 +316,9 @@
     var pages = containerEl.querySelectorAll('.bk-pdf-page');
     if (!pages.length) return;
 
-    // 恢复用户偏好（阅读模式、夜间模式、亮度）
+    // 恢复用户偏好（阅读模式、夜间模式）
     S.restoreMode();
     S.restoreNightMode();
-    S.restoreBrightness();
 
     // 主题联动：根据主应用 data-theme 同步护眼模式（仅在用户未手动覆盖时）
     S.syncFromAppTheme();
@@ -407,6 +404,20 @@
       S.observer().observe(pages[i]);
     }
 
+    // 创建当前页检测 observer（J2优化：rootMargin:0 + 多阈值，替代 nav 滚动 O(n) 遍历）
+    if (!S.currentPageObserver()) {
+      S.setCurrentPageObserver(new IntersectionObserver(function (entries) {
+        var nav = win.BKPdf._internal.nav;
+        if (nav && nav._onCurrentPageObserved) nav._onCurrentPageObserved(entries);
+      }, {
+        rootMargin: '0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1]
+      }));
+    }
+    for (var j = 0; j < pages.length; j++) {
+      S.currentPageObserver().observe(pages[j]);
+    }
+
     // 恢复阅读位置
     if (pdfBookId) {
       var savedPage = S.restoreReadingPosition(pdfBookId);
@@ -483,13 +494,18 @@
     }
     S.renderAbort() && (keys.length = 0);
 
-    // 销毁 PDF 文档缓存
-    core.destroyDocCache();
+    // 注意：docCache 销毁已拆分到 destroyPdfCache() 公共 API。模式切换内部仅调 cleanup()，
+    // 保留 docCache 以免重新解析 PDF（大文档 2~5s）；仅退出阅读（_cleanupPdfCache）时才销毁。
 
     // 清理观察器
     if (S.observer()) {
       S.observer().disconnect();
       S.setObserver(null);
+    }
+    // 清理当前页检测 observer（J2）
+    if (S.currentPageObserver()) {
+      S.currentPageObserver().disconnect();
+      S.setCurrentPageObserver(null);
     }
 
     // 释放所有已渲染 canvas
@@ -542,11 +558,6 @@
     _unhookSetTheme();
     // 重置主题联动 override 标记
     S.setThemeUserOverride(false);
-    // 清除亮度滤镜（可能作用在 chapterContent 或 continuous view 上）
-    var content = doc.getElementById('chapterContent');
-    if (content) content.style.filter = '';
-    var contView = doc.getElementById('bkPdfContinuousView');
-    if (contView) contView.style.filter = '';
 
     // 隐藏 zoom 控件
     _detachZoomControls();
@@ -677,6 +688,8 @@
 
   win.BKPdf.init = init;
   win.BKPdf.cleanup = cleanup;
+  // 退出阅读专用：销毁 pdf.js PDFDocumentProxy 释放内存。模式切换不要调用此 API（仅调 cleanup）。
+  win.BKPdf.destroyPdfCache = function () { core.destroyDocCache(); };
   win.BKPdf.renderPage = core.renderPage;
   win.BKPdf.getPdfDoc = core.getPdfDoc;
   win.BKPdf.generatePageHTML = core.generatePageHTML;
@@ -691,7 +704,8 @@
     setZoom: _setZoom,
     applyZoomToVisible: _applyZoomToVisible,
     getZoom: S.zoom,
-    detachControls: _detachZoomControls
+    detachControls: _detachZoomControls,
+    updateZoomControls: _updateZoomControls
   };
 
   // 新增公共 API（供 UI / 外部调用）

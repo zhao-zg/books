@@ -39,6 +39,7 @@
 
   var _pdfDocCache = {};            // pdfBookId → Promise<PDFDocument>
   var _pdfRenderObserver = null;    // IntersectionObserver
+  var _pdfCurrentPageObserver = null; // 当前页检测 IntersectionObserver（rootMargin:0，J2优化）
   var _pdfZoomState = {};           // pdfBookId → { zoom }
   var _pdfActivePages = [];         // 当前已渲染的页面元素列表（用于回收）
   var _pdfRenderAbort = {};         // elKey → AbortController（取消进行中的渲染）
@@ -59,7 +60,6 @@
   var _pdfSearchState = null;       // 搜索状态 { query, matches, currentIdx, highlights }
   var _pdfThumbnailsRendered = {};  // 已渲染的缩略图 pageNum → true
   var _pdfBookmarks = {};           // bookId → [{ page, title, timestamp }]
-  var _pdfBrightness = 100;         // 亮度百分比 30~100，默认 100
   var _pdfHighlights = {};          // bookId → [{ id, page, text, rects, color, timestamp }]
   var _pdfInitialized = false;      // 是否已初始化
   var _themeUserOverride = false;   // 用户是否手动切换过护眼模式（true 时忽略主题联动）
@@ -524,10 +524,6 @@
       var mod = subs[drawerNames[i]];
       if (mod && mod.hide) mod.hide();
     }
-    // 亮度条由 ui 模块管理
-    if (except !== 'brightness') {
-      if (subs.ui && subs.ui.hideBrightnessBar) subs.ui.hideBrightnessBar();
-    }
   }
 
   // ==================== 导出 ====================
@@ -558,6 +554,8 @@
     setDocCache: function (v) { _pdfDocCache = v; },
     observer: function () { return _pdfRenderObserver; },
     setObserver: function (v) { _pdfRenderObserver = v; },
+    currentPageObserver: function () { return _pdfCurrentPageObserver; },
+    setCurrentPageObserver: function (v) { _pdfCurrentPageObserver = v; },
     zoomState: function () { return _pdfZoomState; },
     setZoomState: function (v) { _pdfZoomState = v; },
     activePages: function () { return _pdfActivePages; },
@@ -590,21 +588,6 @@
     pageLabels: function () { return _pdfPageLabels; },
     setPageLabels: function (v) { _pdfPageLabels = v; },
     getDisplayPageLabel: getDisplayPageLabel,
-    // 亮度
-    brightness: function () { return _pdfBrightness; },
-    setBrightness: function (v) {
-      _pdfBrightness = Math.max(30, Math.min(100, v));
-      try { localStorage.setItem('bk_pdf_brightness', _pdfBrightness); } catch (e) {}
-      _applyBrightness();
-    },
-    restoreBrightness: function () {
-      try {
-        var saved = localStorage.getItem('bk_pdf_brightness');
-        if (saved !== null) _pdfBrightness = Math.max(30, Math.min(100, parseInt(saved, 10) || 100));
-      } catch (e) {}
-      _applyBrightness();
-      return _pdfBrightness;
-    },
     // 用户书签
     bookmarks: getBookmarks,
     addBookmark: addBookmark,
@@ -656,19 +639,5 @@
     }
   }
 
-  /**
-   * 应用亮度滤镜到 PDF 内容区
-   */
-  function _applyBrightness() {
-    // 亮度滤镜目标：连续视图优先，否则 chapterContent
-    var target = doc.getElementById('bkPdfContinuousView') || doc.getElementById('chapterContent');
-    if (!target) return;
-    var b = _pdfBrightness / 100;
-    if (b >= 1) {
-      target.style.filter = '';
-    } else {
-      target.style.filter = 'brightness(' + b + ')';
-    }
-  }
 
 })(window);

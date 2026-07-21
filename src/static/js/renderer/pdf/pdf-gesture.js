@@ -26,6 +26,7 @@
   var _dblTapState = null;     // 双击检测状态
   var _longPressTimer = null;  // 长按定时器
   var _rafScheduled = false;   // rAF 节流标志
+  var _pinchVisiblePages = null; // pinch 期间缓存的可见已渲染页（避免每帧 querySelectorAll + getBoundingClientRect）
 
   // ==================== Pinch 实时缩放 ====================
 
@@ -101,6 +102,9 @@
       active: true,
       targetPage: targetPage
     };
+    // 缓存当前视口内已渲染页：pinch 期间复用此引用列表，
+    // 避免 _applyPinchTransform 每帧 querySelectorAll + getBoundingClientRect 触发布局抖动
+    _pinchVisiblePages = _collectVisibleRenderedPages();
   }
 
   /**
@@ -149,35 +153,43 @@
     // 如果 zoom 没变化，不需要 transform
     if (Math.abs(zoom - startZoom) < 0.01) return;
 
-    // 对所有可见的 .bk-pdf-canvas-wrap 应用 transform
-    // transform-origin 设为 pinch 中心点更自然，但为简化用 center
+    // 复用 pinch 开始时缓存的可见页引用，避免每帧 querySelectorAll + getBoundingClientRect 触发布局抖动
     var scaleRatio = zoom / startZoom;
-    var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-rendered="1"]');
+    var pages = _pinchVisiblePages || [];
     for (var i = 0; i < pages.length; i++) {
-      var rect = pages[i].getBoundingClientRect();
-      var inView;
-      if (S.mode() === S.MODE_SINGLE) {
-        var vw = win.innerWidth || doc.documentElement.clientWidth;
-        inView = rect.right > 0 && rect.left < vw;
-      } else {
-        var vh = win.innerHeight || doc.documentElement.clientHeight;
-        inView = rect.bottom > 0 && rect.top < vh;
+      var wrap = pages[i].querySelector('.bk-pdf-canvas-wrap');
+      if (wrap) {
+        wrap.style.transform = 'scale(' + scaleRatio + ')';
+        wrap.style.transformOrigin = 'center center';
+        wrap.style.transition = 'none';
       }
-      if (inView) {
-        var wrap = pages[i].querySelector('.bk-pdf-canvas-wrap');
-        if (wrap) {
-          wrap.style.transform = 'scale(' + scaleRatio + ')';
-          wrap.style.transformOrigin = 'center center';
-          wrap.style.transition = 'none';
-        }
-        // zoom > 1 时加 zoomed class 让容器可滚动
-        if (zoom > 1.0) {
-          pages[i].classList.add('bk-pdf-zoomed');
-        } else {
-          pages[i].classList.remove('bk-pdf-zoomed');
-        }
+      // zoom > 1 时加 zoomed class 让容器可滚动
+      if (zoom > 1.0) {
+        pages[i].classList.add('bk-pdf-zoomed');
+      } else {
+        pages[i].classList.remove('bk-pdf-zoomed');
       }
     }
+  }
+
+  /**
+   * 收集当前视口内已渲染的 PDF 页面（pinch 开始时调用一次，pinch 期间复用）
+   * @returns {Array<HTMLElement>}
+   */
+  function _collectVisibleRenderedPages() {
+    var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-rendered="1"]');
+    var result = [];
+    var isSingle = S.mode() === S.MODE_SINGLE;
+    var vw = win.innerWidth || doc.documentElement.clientWidth;
+    var vh = win.innerHeight || doc.documentElement.clientHeight;
+    for (var i = 0; i < pages.length; i++) {
+      var rect = pages[i].getBoundingClientRect();
+      var inView = isSingle
+        ? (rect.right > 0 && rect.left < vw)
+        : (rect.bottom > 0 && rect.top < vh);
+      if (inView) result.push(pages[i]);
+    }
+    return result;
   }
 
   /**
@@ -204,6 +216,7 @@
     }
 
     _pinchState = null;
+    _pinchVisiblePages = null;
   }
 
   // ==================== 双击缩放 ====================
@@ -315,6 +328,7 @@
     _gestureEl = null;
     _gestureBookId = null;
     _pinchState = null;
+    _pinchVisiblePages = null;
     _dblTapState = null;
     _cancelLongPress();
   }

@@ -25,17 +25,57 @@
   var _drawer = null;
   var _drawerBody = null;
   var _drawerVisible = false;
+  var _pageObserver = null; // MutationObserver 引用（防止内存泄漏）
 
   // ==================== 文本选中监听 ====================
 
   function init(containerEl, bookId) {
-    // 监听所有 text layer 的 mouseup/touchend
+    // 普通模式：监听所有 text layer 的 mouseup/touchend
     var textLayers = containerEl.querySelectorAll('.bk-pdf-text-layer');
     for (var i = 0; i < textLayers.length; i++) {
       _bindTextLayer(textLayers[i], bookId);
     }
     // 也监听后续渲染的页面（通过 MutationObserver）
-    _observeNewPages(containerEl, bookId);
+    // Reflow 模式不需要 observer：没有 .bk-pdf-text-layer 子元素会被动态添加
+    if (!_isReflowMode()) {
+      _observeNewPages(containerEl, bookId);
+    }
+
+    // Reflow 模式：监听 Reflow 容器（选取文字 → 弹标注菜单 → 新建标注）
+    var reflowEl = (containerEl.id === 'bkPdfReflowView')
+      ? containerEl
+      : containerEl.querySelector('#bkPdfReflowView');
+    if (reflowEl) {
+      _bindReflowContainer(reflowEl, bookId);
+    }
+  }
+
+  /**
+   * Reflow 模式下是否处于激活状态
+   */
+  function _isReflowMode() {
+    return S.mode() === S.MODE_REFLOW;
+  }
+
+  /**
+   * Reflow 模式下刷新标注渲染（重建 Reflow HTML 以触发文本匹配）
+   */
+  function _refreshReflowAnnotations() {
+    var reflow = win.BKPdf._internal.reflow;
+    if (reflow && reflow.refreshAnnotations) reflow.refreshAnnotations();
+  }
+
+  /**
+   * 绑定 Reflow 容器的选取监听
+   * Reflow 段落是真实 DOM 文本，mouseup/touchend 后检查 selection
+   */
+  function _bindReflowContainer(reflowEl, bookId) {
+    reflowEl.addEventListener('mouseup', function () {
+      setTimeout(function () { _checkSelection(reflowEl, bookId); }, 50);
+    });
+    reflowEl.addEventListener('touchend', function () {
+      setTimeout(function () { _checkSelection(reflowEl, bookId); }, 150);
+    });
   }
 
   function _bindTextLayer(textLayerEl, bookId) {
@@ -48,7 +88,9 @@
   }
 
   function _observeNewPages(containerEl, bookId) {
-    var observer = new MutationObserver(function (mutations) {
+    // 先断开旧 observer（防止模式切换/换书时累积泄漏）
+    if (_pageObserver) _pageObserver.disconnect();
+    _pageObserver = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
         for (var j = 0; j < mutations[i].addedNodes.length; j++) {
           var node = mutations[i].addedNodes[j];
@@ -64,10 +106,10 @@
         }
       }
     });
-    observer.observe(containerEl, { childList: true, subtree: true });
+    _pageObserver.observe(containerEl, { childList: true, subtree: true });
   }
 
-  function _checkSelection(textLayerEl, bookId) {
+  function _checkSelection(containerEl, bookId) {
     var sel = win.getSelection();
     if (!sel || sel.isCollapsed || !sel.toString().trim()) {
       _hideActionPanel();
@@ -78,11 +120,39 @@
     var text = sel.toString().trim();
     if (!text) return;
 
+    // === Reflow 模式分支 ===
+    // Reflow 段落带 data-reflow-page 属性，向上 closest 可拿到页码
+    if (_isReflowMode()) {
+      var range = sel.getRangeAt(0);
+      var startNode = range.startContainer;
+      var endNode = range.endContainer;
+      var startEl = (startNode.nodeType === 1) ? startNode : startNode.parentNode;
+      var endEl = (endNode.nodeType === 1) ? endNode : endNode.parentNode;
+      var reflowPara = startEl.closest ? startEl.closest('[data-reflow-page]') : null;
+      var endPara = endEl.closest ? endEl.closest('[data-reflow-page]') : null;
+      // 跨段选取拦截：Reflow 文本匹配是逐行 indexOf，跨段文字无法匹配渲染
+      if (reflowPara && endPara && reflowPara !== endPara) {
+        _hideActionPanel();
+        _currentSelection = null;
+        return;
+      }
+      if (!reflowPara) {
+        _hideActionPanel();
+        return;
+      }
+      var reflowPageNum = parseInt(reflowPara.getAttribute('data-reflow-page'), 10) || 1;
+      // Reflow 下 rects 留空（文本匹配渲染不需要坐标）
+      _currentSelection = { page: reflowPageNum, text: text, rects: [] };
+      _showActionPanel(range, reflowPara);
+      return;
+    }
+
+    // === 普通模式分支 ===
     // 找到所属的 .bk-pdf-page 元素
-    var pageEl = textLayerEl.closest ? textLayerEl.closest('.bk-pdf-page') : null;
+    var pageEl = containerEl.closest ? containerEl.closest('.bk-pdf-page') : null;
     if (!pageEl) {
       // fallback: 向上遍历
-      var p = textLayerEl.parentNode;
+      var p = containerEl.parentNode;
       while (p && !p.classList.contains('bk-pdf-page')) p = p.parentNode;
       pageEl = p;
     }
@@ -91,13 +161,13 @@
     var pageNum = parseInt(pageEl.getAttribute('data-pdf-page'), 10) || 1;
 
     // 获取选中区域的矩形
-    var range = sel.getRangeAt(0);
-    var rects = _getNormalizedRects(range, textLayerEl);
+    var range2 = sel.getRangeAt(0);
+    var rects = _getNormalizedRects(range2, containerEl);
 
     _currentSelection = { page: pageNum, text: text, rects: rects, bookId: bookId };
 
     // 显示操作面板（在选区上方）
-    _showActionPanel(range, textLayerEl);
+    _showActionPanel(range2, containerEl);
   }
 
   /**
@@ -333,6 +403,8 @@
     _hideNotePanel();
     // 刷新抽屉（如打开）
     if (_drawerVisible) _populateDrawer();
+    // Reflow 模式下重建 HTML 以刷新徽章
+    if (_isReflowMode()) _refreshReflowAnnotations();
   }
 
   function _doHighlightWithNote() {
@@ -353,35 +425,45 @@
     // F5：记录撤销（含 note 变化，所以同时记 add + note 初始为空）
     var U = win.BKPdf._internal.undo;
     if (U && hlId) U.recordAdd(bookId, hl);
-    _renderHighlightOnPage(_currentSelection.page);
-    win.getSelection().removeAllRanges();
 
     // 立即弹出批注输入框
     var sel = _currentSelection;
     _currentSelection = null;
 
-    // 用选中区域最后的 rect 作为锚点定位
+    // Reflow 模式：用选区 range rect 作为锚点；普通模式：用 text layer + rects 计算
     var anchorRect = null;
-    try {
-      var pageEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + sel.page + '"]');
-      if (pageEl) {
-        var textLayer = pageEl.querySelector('.bk-pdf-text-layer');
-        if (textLayer) {
-          var tlRect = textLayer.getBoundingClientRect();
-          // 用 rects 数组最后一个作为近似位置
-          var lastRect = sel.rects.length ? sel.rects[sel.rects.length - 1] : null;
-          if (lastRect) {
-            anchorRect = {
-              left: tlRect.left + lastRect.left * tlRect.width,
-              top: tlRect.top + lastRect.top * tlRect.height,
-              width: lastRect.width * tlRect.width,
-              height: lastRect.height * tlRect.height,
-              bottom: tlRect.top + (lastRect.top + lastRect.height) * tlRect.height
-            };
+    if (_isReflowMode()) {
+      _refreshReflowAnnotations();
+      win.getSelection().removeAllRanges();
+      // Reflow 下没有 rects，用第一段已渲染的高亮 span 作为近似锚点
+      var hlSpan = doc.querySelector('.bk-pdf-reflow-hl[data-reflow-hl-id="' + hlId + '"]');
+      if (hlSpan) {
+        var r = hlSpan.getBoundingClientRect();
+        anchorRect = { left: r.left, top: r.top, width: r.width, height: r.height, bottom: r.bottom };
+      }
+    } else {
+      _renderHighlightOnPage(sel.page);
+      win.getSelection().removeAllRanges();
+      try {
+        var pageEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + sel.page + '"]');
+        if (pageEl) {
+          var textLayer = pageEl.querySelector('.bk-pdf-text-layer');
+          if (textLayer) {
+            var tlRect = textLayer.getBoundingClientRect();
+            var lastRect = sel.rects.length ? sel.rects[sel.rects.length - 1] : null;
+            if (lastRect) {
+              anchorRect = {
+                left: tlRect.left + lastRect.left * tlRect.width,
+                top: tlRect.top + lastRect.top * tlRect.height,
+                width: lastRect.width * tlRect.width,
+                height: lastRect.height * tlRect.height,
+                bottom: tlRect.top + (lastRect.top + lastRect.height) * tlRect.height
+              };
+            }
           }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
     _showNotePanel(hlId, '', anchorRect);
   }
@@ -404,7 +486,11 @@
     // F5：记录撤销
     var U = win.BKPdf._internal.undo;
     if (U && hlId) U.recordAdd(bookId, hl);
-    _renderHighlightOnPage(_currentSelection.page);
+    if (_isReflowMode()) {
+      _refreshReflowAnnotations();
+    } else {
+      _renderHighlightOnPage(_currentSelection.page);
+    }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
   }
@@ -424,7 +510,11 @@
     var hlId = S.addHighlight(bookId, hl);
     var U = win.BKPdf._internal.undo;
     if (U && hlId) U.recordAdd(bookId, hl);
-    _renderHighlightOnPage(_currentSelection.page);
+    if (_isReflowMode()) {
+      _refreshReflowAnnotations();
+    } else {
+      _renderHighlightOnPage(_currentSelection.page);
+    }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
   }
@@ -444,7 +534,11 @@
     var hlId = S.addHighlight(bookId, hl);
     var U = win.BKPdf._internal.undo;
     if (U && hlId) U.recordAdd(bookId, hl);
-    _renderHighlightOnPage(_currentSelection.page);
+    if (_isReflowMode()) {
+      _refreshReflowAnnotations();
+    } else {
+      _renderHighlightOnPage(_currentSelection.page);
+    }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
   }
@@ -700,7 +794,11 @@
       if (U && snapshot) U.recordRemove(bookId, snapshot);
       _populateDrawer();
       // 重新渲染高亮覆盖层
-      renderAllVisibleHighlights();
+      if (_isReflowMode()) {
+        _refreshReflowAnnotations();
+      } else {
+        renderAllVisibleHighlights();
+      }
     }
   }
 
@@ -790,6 +888,8 @@
     }
     _highlightOverlays = {};
     _currentSelection = null;
+    // 断开 MutationObserver（防止内存泄漏）
+    if (_pageObserver) { _pageObserver.disconnect(); _pageObserver = null; }
   }
 
   // ==================== 导出 ====================

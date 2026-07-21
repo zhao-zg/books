@@ -24,6 +24,7 @@
   var _navBookId = null;
   var _scrollTimer = null;      // 滚动防抖定时器
   var _isProgrammaticScroll = false;  // 程序触发的滚动（不记录位置）
+  var JUMP_THRESHOLD = 5;             // 超过此页数跨度的跳转改用瞬时滚动，避免 smooth 扫过中间页触发大量渲染
 
   // ==================== 模式切换 ====================
 
@@ -74,13 +75,18 @@
 
     _isProgrammaticScroll = true;
 
+    // 远距离跳转用瞬时滚动（behavior:'auto'），避免 smooth 扫过中间页进入 observer rootMargin 边界触发大量中间页渲染卡顿；
+    // 近距离（≤JUMP_THRESHOLD 页）保持 smooth 平滑体验。瞬时跳转后 IntersectionObserver 仅对状态变化的页回调，中间页不触发渲染。
+    var distance = Math.abs(pageNum - S.currentPage());
+    var behavior = distance > JUMP_THRESHOLD ? 'auto' : 'smooth';
+
     if (S.mode() === S.MODE_SINGLE) {
       // 单页模式：横向 scroll-snap，scrollLeft 跳转
       var scrollEl = _getScrollContainer();
       if (scrollEl) {
         // 计算目标页的 offsetLeft
         var targetLeft = target.offsetLeft;
-        scrollEl.scrollTo({ left: targetLeft, behavior: 'smooth' });
+        scrollEl.scrollTo({ left: targetLeft, behavior: behavior });
       }
     } else {
       // 连续模式：垂直滚动
@@ -89,9 +95,9 @@
       var scrollEl = _getScrollContainer();
       if (scrollEl) {
         var targetTop = target.offsetTop;
-        scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+        scrollEl.scrollTo({ top: targetTop, behavior: behavior });
       } else {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({ behavior: behavior, block: 'start' });
       }
     }
 
@@ -153,9 +159,59 @@
   function _onScroll() {
     if (_scrollTimer) clearTimeout(_scrollTimer);
     _scrollTimer = setTimeout(function () {
-      _detectCurrentPage();
+      // J2优化：若 current-page observer 已接管检测则跳过 O(n) 遍历，由 observer 回调负责
+      if (!S.currentPageObserver()) {
+        _detectCurrentPage();
+      }
       _scrollTimer = null;
     }, 150);
+  }
+
+  /**
+   * IntersectionObserver 回调：检测当前页（J2优化，替代 _detectCurrentPage 的 O(n) 遍历）
+   * 取交叉 entries 里 intersectionRatio 最大的页作为当前页。
+   * 滚动时仅状态变化的页进入 entries，开销 O(k)（k 通常 1~3），远低于遍历全部页 + getBoundingClientRect。
+   * _detectCurrentPage 作为 observer 不可用时的 fallback 保留。
+   */
+  function _onCurrentPageObserved(entries) {
+    if (!_navContainer) return;
+
+    // Reflow 模式：容器结构不同，仍委托 reflow 模块检测
+    if (S.mode() === S.MODE_REFLOW) {
+      var reflow = win.BKPdf._internal.reflow;
+      if (reflow && reflow.detectCurrentPage) {
+        var rpage = reflow.detectCurrentPage();
+        if (rpage !== S.currentPage()) {
+          S.setCurrentPage(rpage);
+          _notifyPageChange(rpage);
+          if (!_isProgrammaticScroll && _navBookId) {
+            S.saveReadingPosition(_navBookId, rpage);
+          }
+        }
+      }
+      return;
+    }
+
+    // 取 entries 中 intersectionRatio 最大的页作为当前页
+    var bestPage = 0;
+    var bestRatio = -1;
+    for (var i = 0; i < entries.length; i++) {
+      if (!entries[i].isIntersecting) continue;
+      var pgNum = parseInt(entries[i].target.getAttribute('data-pdf-page'), 10) || 0;
+      if (pgNum <= 0) continue;
+      if (entries[i].intersectionRatio > bestRatio) {
+        bestRatio = entries[i].intersectionRatio;
+        bestPage = pgNum;
+      }
+    }
+
+    if (bestPage > 0 && bestPage !== S.currentPage()) {
+      S.setCurrentPage(bestPage);
+      _notifyPageChange(bestPage);
+      if (!_isProgrammaticScroll && _navBookId) {
+        S.saveReadingPosition(_navBookId, bestPage);
+      }
+    }
   }
 
   /**
@@ -284,6 +340,7 @@
     init: init,
     cleanup: cleanup,
     applyMode: applyMode,
+    _onCurrentPageObserved: _onCurrentPageObserved,
     goToPage: goToPage,
     goToNext: goToNext,
     goToPrev: goToPrev,
