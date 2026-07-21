@@ -8,6 +8,8 @@
   line-height: 1;
   text-decoration: none;
   margin: 0 1px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 /* 回退文本符号 †（无 img 子节点时的占位）：上移 + 加粗，与图标视觉对齐 */
 .bk-epub-fn-ref-text {

@@ -130,6 +130,12 @@
       var endEl = (endNode.nodeType === 1) ? endNode : endNode.parentNode;
       var reflowPara = startEl.closest ? startEl.closest('[data-reflow-page]') : null;
       var endPara = endEl.closest ? endEl.closest('[data-reflow-page]') : null;
+      // 页码分隔符不参与标注（仅有 data-reflow-page 但不是正文段落）
+      if (reflowPara && reflowPara.classList.contains('bk-pdf-reflow-page-divider')) {
+        _hideActionPanel();
+        _currentSelection = null;
+        return;
+      }
       // 跨段选取拦截：Reflow 文本匹配是逐行 indexOf，跨段文字无法匹配渲染
       if (reflowPara && endPara && reflowPara !== endPara) {
         _hideActionPanel();

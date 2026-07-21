@@ -95,6 +95,7 @@
           modal.overlay.setAttribute('aria-hidden', 'true');
         }
         if (_spLockCleanup) { _spLockCleanup(); _spLockCleanup = null; }
+        if (typeof _clearOpening === 'function') _clearOpening();
       }
     };
   }

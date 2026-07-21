@@ -262,6 +262,11 @@
       // 缺失会导致 Reflow→Single/Continuous 切换时 cleanup+init 不执行）
       S.setInitialized(true);
 
+      // 恢复 PDF 阅读模式 body class（cleanup() 移除了 bk-pdf-reading，
+      // 但 Reflow 不走主 init() 不会重新添加，导致 CSS 防护失效、
+      // 点击屏幕弹出应用级工具栏而非 PDF 工具栏）
+      doc.body.classList.add('bk-pdf-reading');
+
       // 恢复阅读位置
       var savedPage = S.restoreReadingPosition(bookId);
       if (savedPage && savedPage > 1) {
@@ -727,6 +732,9 @@
         var subs = win.BKPdf._internal;
         if (subs.nav && subs.nav.init) subs.nav.init(_continuousViewEl, S.currentBookId());
         if (subs.ui && subs.ui.init) subs.ui.init(_continuousViewEl, S.currentBookId());
+        // 恢复 PDF 阅读模式 body class（从 Reflow 切回 Continuous 时
+        // 不走主 init()，bk-pdf-reading 缺失导致应用浮栏误显示）
+        doc.body.classList.add('bk-pdf-reading');
       } else if (S.initialized()) {
         // 从 single/carousel 进入连续模式
         _enterContinuousView();

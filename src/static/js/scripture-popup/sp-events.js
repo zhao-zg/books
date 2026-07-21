@@ -1,3 +1,15 @@
+  /* ── 清除弹框打开时残留的 hover/active 动画 ── */
+  var _openingRef = null;
+  function _markOpening(el) {
+    _clearOpening();
+    if (el && el.classList) el.classList.add('scripture-ref--opening');
+    _openingRef = el;
+  }
+  function _clearOpening() {
+    if (_openingRef && _openingRef.classList) _openingRef.classList.remove('scripture-ref--opening');
+    _openingRef = null;
+  }
+
   /* ═══════════════════════════ 弹框开关 ═══════════════════════════ */
   function openModal(refs, labelText) {
     var m = getModal();
@@ -16,6 +28,7 @@
     modal.overlay.classList.remove('scripture-popup-overlay--open');
     modal.overlay.setAttribute('aria-hidden', 'true');
     for (var i = 0; i < n; i++) window.BK.backStack.pop();
+    _clearOpening();
   }
 
   /* ── ESC 关闭 ── */
@@ -81,6 +94,7 @@
         if (insidePopup) {
           navPush({ type: 'verses', refs: t.dataset.refs, label: t.textContent.trim() });
         } else {
+          _markOpening(t);
           openModal(t.dataset.refs, t.textContent.replace(/^[—─\*\s]+/,'').trim());
         }
         return;

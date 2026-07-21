@@ -62,13 +62,22 @@
   cursor: pointer; color: var(--accent-color, #3D8A5A);
   text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px;
   transition: color .15s, text-decoration-color .15s;
+  -webkit-tap-highlight-color: transparent; user-select: none;
 }
 .scripture-ref[data-refs]:hover { color: var(--brand, #3D8A5A); text-decoration-style: solid; }
+/* 弹框打开期间：覆盖残留 hover/active 状态，阻止点击动画透过遮罩 */
+.scripture-ref--opening,
+.scripture-ref--opening:hover {
+  color: var(--accent-color, #3D8A5A);
+  text-decoration-style: dotted;
+  pointer-events: none;
+}
 [data-theme="dark"] .scripture-ref[data-refs] { color: var(--brand, #5EAE7E); }
 [data-theme="dark"] .scripture-ref[data-refs]:hover { color: #9FD3B4; }
 .verse-ref {
   color: var(--brand, #3D8A5A); text-decoration: underline; text-decoration-style: dotted;
   text-underline-offset: 2px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 /* ── 经文弹框（scripture-popup.js）──────────────────────────── */

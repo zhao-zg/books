@@ -203,19 +203,8 @@
     var pageTitle = chapter.title || ('第' + (chapter.number != null ? chapter.number : '') + '章');
     html += '<h1 class="bk-page-title">' + escText(pageTitle) + '</h1>';
 
-    // 从章节标题提取初始经文上下文
-    // 例如标题 "约翰福音" → scanCtx 可识别出 "约" 书卷
-    // 例如标题 "第十三章" → 在已有书卷基础上识别章号
+    // ★ 严格模式：不传递经文上下文，每个引用必须自包含（书名+章名+节数）
     var ctx = '';
-    if (win.BKRef && win.BKRef.scanCtx) {
-      // 先尝试从 chapter 元数据获取 scripture 字段（cx 兼容）
-      if (chapter.scripture) {
-        ctx = chapter.scripture;
-      } else if (chapter.title) {
-        // 从标题中提取：如果标题含书卷名（如"约翰福音"、"创世记"）
-        ctx = win.BKRef.scanCtx(chapter.title, '');
-      }
-    }
 
     // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
     if (typeof contentArr === 'string') {
@@ -230,41 +219,22 @@
           var level = Math.min(headingMatch[1].length, 6);
           var hText = headingMatch[2].trim();
           html += '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(hText, ctx) + '</h' + level + '>';
-          // heading 通常包含书卷名或章节信息，优先更新上下文
-          if (win.BKRef && win.BKRef.scanCtx) {
-            ctx = win.BKRef.scanCtx(hText, ctx);
-          }
+          // ★ 严格模式：不更新上下文
         } else {
           html += '<p class="bk-paragraph">' + wrapRefs(line, ctx) + '</p>';
-          // 段落也更新上下文
-          if (win.BKRef && win.BKRef.scanCtx) {
-            ctx = win.BKRef.scanCtx(line, ctx);
-          }
+          // ★ 严格模式：不更新上下文
         }
       }
       return html;
     }
 
-    // 预扫描：如果初始 ctx 为空，从第一个 heading 项提取上下文
-    if (!ctx && win.BKRef && win.BKRef.scanCtx) {
-      for (var pi = 0; pi < contentArr.length; pi++) {
-        var pItem = contentArr[pi];
-        if (pItem && pItem.type === 'heading' && pItem.text) {
-          ctx = win.BKRef.scanCtx(pItem.text, '');
-          if (ctx) break;
-        }
-        // 如果已经遇到非 heading 的内容，停止预扫描
-        if (pItem && pItem.type !== 'heading' && pItem.text) break;
-      }
-    }
+    // ★ 严格模式：不做预扫描上下文提取
+    // 原逻辑: if (!ctx && win.BKRef && win.BKRef.scanCtx) { ... }
 
     for (var i = 0; i < contentArr.length; i++) {
       var item = contentArr[i];
       html += renderContentItem(item, ctx, eager);
-      // 对有文本内容的项更新经文上下文
-      if (item && item.text && win.BKRef && win.BKRef.scanCtx) {
-        ctx = win.BKRef.scanCtx(item.text, ctx);
-      }
+      // ★ 严格模式：不更新经文上下文（原逻辑: scanCtx 更新 book/ch）
     }
     // 脚注区域
     var footnotes = chapter.footnotes || [];

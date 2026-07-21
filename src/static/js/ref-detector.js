@@ -266,8 +266,9 @@
       if (/^[一二三四五六七八九]([上中下]半?)?$/.test(p)) continue;
       var m;
       // F4: arabic chapter:verse
+      // ★ 严格模式：书卷不可省略（原逻辑: m[1] || book）
       if ((m = F4.exec(p))) {
-        var b4 = m[1] || book; if (!b4) continue;
+        var b4 = m[1]; if (!b4) continue;
         book = b4; ch = parseInt(m[2],10);
         emitRange(book, ch, parseInt(m[3],10), m[4]||'', m[5]?parseInt(m[5],10):0, m[6]||'');
         continue;
@@ -287,27 +288,26 @@
         continue;
       }
       // F5: 章节式（含章范围、书卷+的+章）
+      // ★ 严格模式：书卷不可省略，且必须有具体节数（整章引用跳过）
       if ((m = F5.exec(p))) {
-        var b5 = m[1] ? normalizeBookNames(m[1]) : book; if (!b5) continue;
+        var b5 = m[1] ? normalizeBookNames(m[1]) : ''; if (!b5) continue;
         // 「篇」仅适用于诗篇
         if (m[4] === '篇' && b5 !== '诗') continue;
         var c5 = cnToInt(m[2]); if (!c5 || c5 > 150) continue;
         var c5end = m[3] ? cnToInt(m[3]) : c5;
         if (!c5end || c5end < c5 || c5end > 150) c5end = c5;
+        // ★ 严格模式：必须有具体节数（m[5]），整章引用（无节号）跳过
+        if (!m[5]) continue;
         book = b5; ch = c5end;
-        if (m[5]) {
-          var v1_5 = cnToInt(m[5]), v2_5 = m[6] ? cnToInt(m[6]) : v1_5;
-          var mod5 = m[7] ? m[7][0] : '';  // 取首字上/下
-          if (v1_5) emitRange(book, c5, v1_5, mod5, v2_5, '');
-        } else {
-          for (var ci5 = c5; ci5 <= c5end; ci5++) refs.push(book + ci5 + ':0');
-        }
+        var v1_5 = cnToInt(m[5]), v2_5 = m[6] ? cnToInt(m[6]) : v1_5;
+        var mod5 = m[7] ? m[7][0] : '';  // 取首字上/下
+        if (v1_5) emitRange(book, c5, v1_5, mod5, v2_5, '');
         continue;
       }
       // F1x: book + cn_chapter1 + arabic_verse1 ~ cn_chapter2 + arabic_verse2 (跨章范围)
-      // 书卷可省略，省略时回退到上下文 book
+      // ★ 严格模式：书卷不可省略，省略时跳过（原逻辑回退到上下文 book）
       if ((m = F1x.exec(p))) {
-        var bx = m[1] || book; var c1x = cnToInt(m[2]); var v1x = parseInt(m[3], 10);
+        var bx = m[1]; var c1x = cnToInt(m[2]); var v1x = parseInt(m[3], 10);
         var c2x = cnToInt(m[4]); var v2x = parseInt(m[5], 10);
         if (!bx || !c1x || !c2x || c1x > 150 || c2x > 150) continue;
         book = bx; ch = c2x;
@@ -321,85 +321,42 @@
         continue;
       }
       // F2: cn_chapter + arabic_verse (relative)
-      if (book && (m = F2.exec(p))) {
-        var c2 = cnToInt(m[1]); if (!c2 || c2 > 150) continue;
-        ch = c2;
-        emitRange(book, ch, parseInt(m[2],10), m[3]||'', m[4]?parseInt(m[4],10):0, m[5]||'');
-        continue;
-      }
+      // ★ 严格模式：必须有显式书卷名，不支持相对章节引用
+      // 原逻辑: if (book && (m = F2.exec(p)))
+      // 新逻辑: 不使用上下文推断的 book，跳过 F2
+      // （F2 如 "四5" 缺少书名，不符合书名+章名+节数三要素要求）
+
       // F3: pure arabic verse (continuation)
-      if (book && ch && (m = F3.exec(p))) {
-        // m[2]: 上下在节前  m[3]: 上下/上半/下半在节后; 取首字统一为修饰副
-        var mod1f = (m[2] || (m[3] ? m[3][0] : ''));
-        var v1f = parseInt(m[1],10), v2f = m[4] ? parseInt(m[4],10) : v1f;
-        var mod2f = (m[5] || (m[6] ? m[6][0] : ''));
-        emitRange(book, ch, v1f, mod1f, v2f, mod2f);
-        continue;
-      }
+      // ★ 严格模式：纯阿拉伯节号属于续接引用，缺少书名+章名，跳过
+      // 原逻辑: if (book && ch && (m = F3.exec(p)))
+      // 新逻辑: 跳过 F3（"13" "13上" "11下~13" 等仅有节数）
       // Fvc: 纯阿拉伯节 ~ 中文章+阿拉伯节（跨章范围）e.g. 12~八13 / 1~四15
-      // 表示：当前章第v1节 到 第c2章第v2节
-      var F_vc = book && ch ? new RegExp('^(\\d+)[~～\\-](' + CN_N + ')(\\d+)$') : null;
-      if (F_vc && (m = F_vc.exec(p))) {
-        var v1vc = parseInt(m[1], 10); var c2vc = cnToInt(m[2]); var v2vc = parseInt(m[3], 10);
-        if (v1vc && c2vc && c2vc <= 150) {
-          refs.push(book + ch + ':' + v1vc + '-' + c2vc + ':' + v2vc);
-          ch = c2vc;
-          continue;
-        }
-      }
+      // ★ 严格模式：依赖上下文 book+ch，缺少书名，跳过
+      // 原逻辑: var F_vc = book && ch ? new RegExp(...) : null; if (F_vc && ...)
+      // 新逻辑: 不使用上下文推断的 book/ch，跳过 F_vc
+
       // F7: 纯中文节号续（同书卷+同章）e.g. 三十七节 / 三十六至三十七节
-      // 须有显式「节」字：裸中文数字（如「十六」）优先由 F8 解析为整章，而非误作节号
-      if (!_hymnCtx && book && ch && /节/.test(p) && (m = F7.exec(p))) {
-        var v1_7 = cnToInt(m[1]), v2_7 = m[3] ? cnToInt(m[3]) : v1_7;
-        var mod1_7 = m[2] ? m[2][0] : '', mod2_7 = m[4] ? m[4][0] : '';
-        // 节号>176（诗119:176 为圣经最大节数）→ 可能是页码等非经文编号，跳过
-        if (v1_7 && v1_7 <= 176 && v2_7 <= 176) emitRange(book, ch, v1_7, mod1_7, v2_7, mod2_7);
-        continue;
-      }
+      // ★ 严格模式：纯中文节号缺少书名+章名，跳过
+      // 原逻辑: if (!_hymnCtx && book && ch && /节/.test(p) && (m = F7.exec(p)))
+      // 新逻辑: 跳过 F7（"三十七节" 等仅有节数）
       // F9: book + chapter + 「标题」 e.g. 诗二二标题 → 诗22:0T（T=title-only，区别于整章 :0）
-      if ((m = F9.exec(p))) {
-        var b9 = normalizeBookNames(m[1]);
-        var c9 = m[2] ? cnToInt(m[2]) : parseInt(m[3], 10);
-        if (!b9 || !c9 || c9 > 150) continue;
-        book = b9; ch = c9;
-        refs.push(book + ch + ':0T');
-        continue;
-      }
+      // ★ 严格模式：标题引用缺少具体节数，不符合"书名+章名+节数"三要素要求，跳过
+      // 原逻辑: if ((m = F9.exec(p))) { ... }
+      // 新逻辑: 标题引用不识别（无具体节号）
+      // 注：F1x（跨章范围，如"伯二11~三二1"）有书名+章名+节数，仍然保留
       // F8: book + CN_chapter（整章速记）e.g. 但二 → 但2:0 / 腓四～五 → 腓4:0,腓5:0
-      // 书卷可省略，省略时回退到上下文 book（如「十二~十六」在罗马书上下文中）
-      if ((m = F8.exec(p))) {
-        var b8 = normalizeBookNames(m[1] || '') || book; var c8 = cnToInt(m[2]);
-        if (!b8 || !c8 || c8 > 150) continue;
-        book = b8; ch = c8;
-        if (m[3]) {
-          var c8end = cnToInt(m[3]);
-          if (c8end && c8end >= c8 && c8end <= 150) {
-            for (var ci8 = c8; ci8 <= c8end; ci8++) refs.push(book + ci8 + ':0');
-            ch = c8end;
-          } else { refs.push(book + ch + ':0'); }
-        } else {
-          refs.push(book + ch + ':0');
-        }
-        continue;
-      }
+      // ★ 严格模式：整章引用缺少具体节数，不符合"书名+章名+节数"三要素要求，跳过
+      // 原逻辑: if ((m = F8.exec(p))) { var b8 = normalizeBookNames(m[1] || '') || book; ... }
+      // 新逻辑: 整章引用不识别（无具体节号）
+      // 注：即使有显式书卷名（如"但二"），也因为没有具体节数而不识别
       // F12: 阿拉伯节1 + 范围符 + CN章2 + 阿拉伯节2（跨章范围，依赖 book+ch 上下文）
-      // e.g. 「1～十一13」在启10上下文 → [启10:1, 启11:13]
-      if (book && ch && (m = F12.exec(p))) {
-        var v1_12 = parseInt(m[1], 10), c2_12 = cnToInt(m[3]), v2_12 = parseInt(m[4], 10);
-        if (v1_12 >= 1 && c2_12 >= 1 && c2_12 <= 150 && v2_12 >= 1 && v2_12 <= 176) {
-          refs.push(book + ch + ':' + v1_12 + '-' + c2_12 + ':' + v2_12);
-          ch = c2_12;
-        }
-        continue;
-      }
+      // ★ 严格模式：依赖上下文 book+ch，缺少书名，跳过
+      // 原逻辑: if (book && ch && (m = F12.exec(p)))
+      // 新逻辑: 跳过 F12（"1～十一13" 等缺少当前章的显式书名）
       // F11: 纯阿拉伯节号（续接引用），仅在 book+ch 上下文已确立时生效
-      // 例：「(约一1，4，十一25，十四6)」中 "4" = 约1:4（在 F1 处理「约一1」后 book=约 ch=1）
-      // 适用于中文注解括号内「，N」形式的中间节号省略写法
-      if (book && ch && (m = /^(\d{1,3})([上中下]半?)?$/.exec(p))) {
-        var v11 = parseInt(m[1], 10);
-        if (v11 >= 1 && v11 <= 176) emitRange(book, ch, v11, m[2]||'', 0, '');
-        continue;
-      }
+      // ★ 严格模式：纯阿拉伯节号缺少书名+章名，跳过
+      // 原逻辑: if (book && ch && (m = /^(\d{1,3})([上中下]半?)?$/.exec(p)))
+      // 新逻辑: 跳过 F11（"4" "13" 等仅有节数）
     }
     return refs;
   }
@@ -416,9 +373,12 @@
   // ── 主函数：将文本中的经文引用包裹为 <span> ────────────────────────────
   // ctxStr: 初始上下文字符串，如"弗4:17"（来自 section.ctx_scripture）
   // 处理：括号引用（弗四23）、破折号末尾引用 —腓四5
+  //
+  // ★ 严格模式：不使用上下文推断，引用必须包含书名+章名+节数三者缺一不可
   function wrapRefs(text, ctxStr, opts) {
     if (!text) return '';
-    var ctx = parseCtx(ctxStr);
+    // 严格模式：忽略上下文字符串，不通过上下文推断缺省书卷/章号
+    var ctx = parseCtx('');
     var book = ctx.book, ch = ctx.chapter;
     var _lockBook = !!(opts && opts.lockBook);
     var _origBook = book, _origCh = ch;
@@ -496,6 +456,7 @@
       }
       // 延伸：吸收紧随其后的「、N」「、N~M」续接节号（同书同章接续引用）
       // 例："弗三2、8~9" 中 _INLINE_F5_RE 只匹配"弗三2"，「、8~9」通过此步并入同一 span
+      // ★ 严格模式下保留：主匹配已包含完整书名+章名+节数，续接节号继承同书同章
       // 两个子模式：① 有范围符（N~M）—— 无需后置汉字限制；② 纯数字N —— 后不跟量词/日期词（防误吸"19日""10月"等）
       // 注："的""章""节"等不在排除列表，如"八2、6、10的生命"中"10"后跟"的"仍应被吸收
       var CONT_VERSE_RE = /^[、，](?:\d+[~～\-]\d+[上中下]?|\d+[上中下]?(?![个种们位只件份次些条样封月日年]))/;
@@ -525,13 +486,9 @@
         var fm = filtered[fi];
         result.push(escHtml(seg.slice(last2, fm.index)));
         last2 = fm.index + fm.text.length;
-        // 《书名》：更新上下文，原文直接输出
-        // 书卷未变时保留章号（如注解正文含"但以理"，ch 仍应是当前章，而非重置为 0）
+        // 《书名》：严格模式下不更新上下文，原文直接输出
         if (fm.ctxBook !== undefined) {
-          if (!suppressCtx && !_lockBook) {
-            if (fm.ctxBook !== book) ch = 0;
-            book = fm.ctxBook;
-          }
+          // ★ 严格模式：不更新 book/ch 上下文
           result.push(escHtml(fm.text));
           continue;
         }
@@ -601,10 +558,7 @@
             result.push(escHtml(fm.text));
             continue;
           }
-          if (!suppressCtx && ilm && !_lockBook) {
-            book = ilm[1];
-            ch = parseInt(ilm[2], 10);
-          }
+          // ★ 严格模式：不更新 book/ch 上下文
           result.push(makeSpan(fm.text, irefs, suppressCtx));
         } else {
           result.push(escHtml(fm.text));
@@ -618,19 +572,9 @@
       // 括号前的文字：先扫描行内引用再转义
       pushPlain(mainText.slice(last, m.index));
       // 括号内「见18注2 / 见十八注2」：识别为注解链接（fn-ref）
-      // 语义是「当前上下文书卷+章」的第18节注2
-      var _inner = (m[1] || '').trim();
-      var _fnOnly = /^[见参]?\s*(?:第)?(\d{1,3}|[一二三四五六七八九十百〇○]+)(?:节)?\s*注(\d+)\s*$/.exec(_inner);
-      if (_fnOnly && book && ch) {
-        var _vRaw = _fnOnly[1];
-        var _vNum = /^\d+$/.test(_vRaw) ? parseInt(_vRaw, 10) : cnToInt(_vRaw);
-        if (_vNum && _vNum >= 1 && _vNum <= 176) {
-          var _vKey = book + ch + ':' + _vNum;
-          result.push('<span class="scripture-ref fn-ref" data-vkey="' + escHtml(_vKey) + '" data-fn="' + escHtml(_fnOnly[2]) + '">' + escHtml(m[0]) + '</span>');
-          last = m.index + m[0].length;
-          continue;
-        }
-      }
+      // ★ 严格模式：注解链接依赖上下文 book+ch，缺少书名+章名，跳过
+      // 原逻辑: if (_fnOnly && book && ch)
+      // 新逻辑: 不使用上下文推断的 book/ch，跳过注解链接
       // 含"页"字的括号是页码/书页引用，非经文，直接回退渲染（如"创世记L-S，四五五页"）
       if (m[1].indexOf('页') >= 0) {
         result.push(escHtml(m[0][0]));
