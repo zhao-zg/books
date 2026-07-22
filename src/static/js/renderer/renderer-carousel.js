@@ -142,12 +142,20 @@
     function onTouchStart(e) {
       if (e.touches.length > 1) return;
       if (_swipeAnimating) return;   // 动画进行中不响应新滑动
-      // PDF 单页横向滑动模式下手势冲突避让：
-      // .bk-pdf-single 容器自身是横向 scroll-snap 容器，需要横向手势翻 PDF 页。
-      // carousel 若抢夺 touchmove + preventDefault 会阻止 PDF 翻页，导致横滑切章而非翻页。
-      // 此处直接放弃建立 swipeState，让 PDF 容器自己处理横向滚动；
-      // 连续模式（无 .bk-pdf-single class）下 carousel 行为不受影响。
-      if (e.target && e.target.closest && (e.target.closest('.bk-pdf-single') || e.target.closest('.bk-pdf-continuous-view'))) return;
+      // PDF 横滑让位策略（智能版，覆盖两种 PDF 章节结构）：
+      // - 连续模式 .bk-pdf-continuous-view：始终让位，nav 接管横向滚动
+      // - 单页模式 .bk-pdf-single：仅当前 chapter 含多页 PDF 时让位，让 nav 翻同章内页
+      //   单页 chapter（无大纲 PDF 每页=1章）不让位，让 carousel 切章——等同切到下一 PDF 页
+      // 这样两种 PDF 结构的横滑都能翻页：无大纲切章=切PDF页；大纲 PDF 同章内翻多页+跨章切章并存
+      if (e.target && e.target.closest) {
+        if (e.target.closest('.bk-pdf-continuous-view')) return;
+        var singleEl = e.target.closest('.bk-pdf-single');
+        if (singleEl) {
+          var cc = document.getElementById('chapterContent');
+          if (cc && cc.querySelectorAll('.bk-pdf-page').length > 1) return;
+          // 单页 chapter：让 carousel 接管横滑以切章（即切到下一 PDF 页）
+        }
+      }
       var t = e.touches[0];
       _swipeState = {
         startX: t.clientX,

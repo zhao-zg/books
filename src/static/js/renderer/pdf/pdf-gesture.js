@@ -27,6 +27,11 @@
   var _longPressTimer = null;  // 长按定时器
   var _rafScheduled = false;   // rAF 节流标志
   var _pinchVisiblePages = null; // pinch 期间缓存的可见已渲染页（避免每帧 querySelectorAll + getBoundingClientRect）
+  var _zoomAnimating = false;  // 双击缩放过渡动画进行中（防止重入 + 阻止 pinch 抢占）
+  var _zoomAnimTimer = null;   // 过渡动画兜底定时器
+  var _zoomOnEnd = null;       // 过渡动画 transitionend 监听器引用（供 cleanup 显式移除）
+  var _zoomOnEndWrap = null;   // transitionend 监听的目标 wrap 元素
+  var ZOOM_TRANSITION_MS = 280; // 双击缩放 CSS 过渡时长（与 --ease-out 对齐）
 
   // ==================== Pinch 实时缩放 ====================
 
@@ -42,6 +47,8 @@
 
   function _onTouchStart(e) {
     if (e.touches.length === 2) {
+      // 双击缩放过渡动画进行中：忽略新 pinch，避免动画与 pinch transform 冲突
+      if (_zoomAnimating) return;
       // 双指开始 → pinch
       _startPinch(e);
     } else if (e.touches.length === 1) {
@@ -219,6 +226,108 @@
     _pinchVisiblePages = null;
   }
 
+  // ==================== 双击缩放过渡动画 ====================
+
+  /**
+   * 双击缩放过渡：用 CSS transform:scale 实现 280ms 平滑视觉过渡，
+   * 过渡结束后清除 transform 并调用 onComplete 触发高清重渲染。
+   *
+   * 为什么要过渡：原直接 setZoom+applyZoomToVisible 是同步重渲染，
+   * 用户会看到内容从 1x 瞬间跳到 2x 的硬切感，且重渲染阻塞主线程造成卡顿。
+   * 改用 transform 过渡后：先视觉平滑放大，再异步高清重渲染，体验更流畅。
+   *
+   * @param {number} fromZoom - 起始 zoom 值
+   * @param {number} toZoom - 目标 zoom 值
+   * @param {Function} onComplete - 过渡结束后回调（应在此回调内 setZoom + applyZoomToVisible）
+   */
+  function _animateZoomTransition(fromZoom, toZoom, onComplete) {
+    var pages = _collectVisibleRenderedPages();
+    if (!pages.length || Math.abs(toZoom - fromZoom) < 0.01) {
+      // 无可见页或无变化：跳过过渡直接完成
+      onComplete();
+      return;
+    }
+    var scaleRatio = toZoom / fromZoom;
+
+    // 放大目标立即加 zoomed class 让容器变 overflow:auto
+    if (toZoom > 1.0) {
+      for (var i = 0; i < pages.length; i++) pages[i].classList.add('bk-pdf-zoomed');
+    }
+
+    // 应用 transform + transition 到所有可见页的 canvas-wrap
+    for (var j = 0; j < pages.length; j++) {
+      var wrap = pages[j].querySelector('.bk-pdf-canvas-wrap');
+      if (wrap) {
+        wrap.style.transform = 'scale(' + scaleRatio + ')';
+        wrap.style.transformOrigin = 'center center';
+        wrap.style.transition = 'transform ' + ZOOM_TRANSITION_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
+      }
+    }
+
+    _zoomAnimating = true;
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (_zoomAnimTimer) { clearTimeout(_zoomAnimTimer); _zoomAnimTimer = null; }
+      // 清除 transform + transition，让 setZoom+applyZoomToVisible 之后用真实高清 canvas
+      for (var k = 0; k < pages.length; k++) {
+        var w = pages[k].querySelector('.bk-pdf-canvas-wrap');
+        if (w) {
+          w.style.transform = '';
+          w.style.transformOrigin = '';
+          w.style.transition = '';
+        }
+        // 缩小目标移除 zoomed class
+        if (toZoom <= 1.0) pages[k].classList.remove('bk-pdf-zoomed');
+      }
+      _zoomAnimating = false;
+      // cleanup 已执行时（_gestureEl 为 null）跳过 onComplete，
+      // 避免 onComplete 内用 stale 的 bookId 写入 zoomState 造成 null key 污染
+      if (_gestureEl) onComplete();
+    }
+
+    // 用第一个 wrap 的 transitionend 作为完成信号（监听一次即移除）
+    var firstWrap = pages[0].querySelector('.bk-pdf-canvas-wrap');
+    if (firstWrap) {
+      var onEnd = function (e) {
+        if (e.target !== firstWrap || e.propertyName !== 'transform') return;
+        firstWrap.removeEventListener('transitionend', onEnd);
+        _zoomOnEnd = null;
+        _zoomOnEndWrap = null;
+        finish();
+      };
+      _zoomOnEnd = onEnd;       // 供 cleanup 显式移除
+      _zoomOnEndWrap = firstWrap;
+      firstWrap.addEventListener('transitionend', onEnd);
+    }
+    // 兜底：动画时长 + 40ms 后强制完成（防止 transitionend 未触发）
+    _zoomAnimTimer = setTimeout(finish, ZOOM_TRANSITION_MS + 40);
+  }
+
+  /**
+   * 双击缩放公共入口：1x ↔ 2x 切换，带 280ms transform 过渡动画
+   * @param {number} clientX - 双击位置 X（用于滚动定位）
+   * @param {number} clientY - 双击位置 Y
+   */
+  function _performDoubleTapZoom(clientX, clientY) {
+    if (_zoomAnimating) return;  // 防止重入
+    var bookId = _gestureBookId;  // 捕获到本地，防止 cleanup 置 null 后 onComplete 读到 null
+    if (!bookId) return;
+    var cur = S.zoom(bookId);
+    var targetZoom = cur > 1.0 ? 1.0 : 2.0;
+    var zoomApi = win.BKPdf._internal.zoom;
+    _animateZoomTransition(cur, targetZoom, function () {
+      // 过渡结束后：更新 zoom 状态 + 触发高清重渲染
+      if (zoomApi) {
+        zoomApi.setZoom(bookId, targetZoom);
+        zoomApi.applyZoomToVisible(bookId);
+      }
+      // 让双击位置保持可见
+      _scrollToZoomPoint(clientX, clientY, targetZoom);
+    });
+  }
+
   // ==================== 缩放后定位滚动 ====================
 
   /**
@@ -263,16 +372,7 @@
         // 双击！
         e.preventDefault();
         e.stopPropagation();
-        var cur = S.zoom(_gestureBookId);
-        var zoomApi = win.BKPdf._internal.zoom;
-        if (cur > 1.0) {
-          zoomApi.setZoom(_gestureBookId, 1.0);
-        } else {
-          zoomApi.setZoom(_gestureBookId, 2.0);
-        }
-        zoomApi.applyZoomToVisible(_gestureBookId);
-        // 双击缩放后滚动到点击位置（让点击点保持可见）
-        _scrollToZoomPoint(touch.clientX, touch.clientY, cur > 1.0 ? 1.0 : 2.0);
+        _performDoubleTapZoom(touch.clientX, touch.clientY);
         _dblTapState = null;
         return;
       }
@@ -289,16 +389,7 @@
   function _onDblClick(e) {
     e.preventDefault();
     e.stopPropagation();
-    var cur = S.zoom(_gestureBookId);
-    var zoomApi = win.BKPdf._internal.zoom;
-    if (cur > 1.0) {
-      zoomApi.setZoom(_gestureBookId, 1.0);
-    } else {
-      zoomApi.setZoom(_gestureBookId, 2.0);
-    }
-    zoomApi.applyZoomToVisible(_gestureBookId);
-    // 双击缩放后滚动到点击位置（让点击点保持可见）
-    _scrollToZoomPoint(e.clientX, e.clientY, cur > 1.0 ? 1.0 : 2.0);
+    _performDoubleTapZoom(e.clientX, e.clientY);
   }
 
   // ==================== 长按选词优化 ====================
@@ -383,6 +474,22 @@
     _pinchState = null;
     _pinchVisiblePages = null;
     _dblTapState = null;
+    // 中断可能进行中的缩放动画：移除 transitionend 监听器 + 清除 transform 残留 + 复位标志
+    if (_zoomAnimTimer) { clearTimeout(_zoomAnimTimer); _zoomAnimTimer = null; }
+    if (_zoomOnEnd && _zoomOnEndWrap) {
+      _zoomOnEndWrap.removeEventListener('transitionend', _zoomOnEnd);
+      _zoomOnEnd = null;
+      _zoomOnEndWrap = null;
+    }
+    if (_zoomAnimating) {
+      var wraps = doc.querySelectorAll('.bk-pdf-canvas-wrap');
+      for (var i = 0; i < wraps.length; i++) {
+        wraps[i].style.transform = '';
+        wraps[i].style.transformOrigin = '';
+        wraps[i].style.transition = '';
+      }
+      _zoomAnimating = false;
+    }
     _cancelLongPress();
   }
 
