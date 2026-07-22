@@ -690,7 +690,10 @@
         html += '</div>';
 
         app.innerHTML = html;
-        initPdfPageLazyRender(app);
+        // 修复：只初始化当前章节的 PDF，避免 observer 观察 carousel 相邻页面的 PDF 元素
+        // （传 #app 会导致 IntersectionObserver 误检测相邻 carousel-page 内的 .bk-pdf-page）
+        var chapterContent = app.querySelector('#chapterContent');
+        initPdfPageLazyRender(chapterContent || app);
         document.body.classList.add('bk-reading-page');
         _maybeEnterSplitMode(bookId);
 

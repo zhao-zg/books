@@ -290,7 +290,7 @@
   function _notifyPageChange(pageNum) {
     var ui = win.BKPdf._internal.ui;
     if (ui && ui.updatePageIndicator) {
-      ui.updatePageIndicator(pageNum, _getPageCount());
+      ui.updatePageIndicator(pageNum, S.totalPages() || _getPageCount());
     }
     var thumbs = win.BKPdf._internal.thumbs;
     if (thumbs && thumbs.highlightPage) {
@@ -307,18 +307,19 @@
     // 应用模式
     applyMode();
 
-    // 设置总页数
+    // 设置总页数（仅作为 fallback，异步会从 pdf.numPages 设置正确值）
     var pageEls = containerEl.querySelectorAll('.bk-pdf-page');
-    S.setTotalPages(pageEls.length);
+    if (!S.totalPages()) S.setTotalPages(pageEls.length);
 
-    // 初始化当前页码
-    S.setCurrentPage(1);
+    // 初始化当前页码（从 data-pdf-page 取绝对页码，而非固定 1）
+    var firstPageNum = pageEls.length ? (parseInt(pageEls[0].getAttribute('data-pdf-page'), 10) || 1) : 1;
+    S.setCurrentPage(firstPageNum);
 
     // 绑定滚动监听
     containerEl.addEventListener('scroll', _onScroll, { passive: true });
 
     // 通知初始页码
-    _notifyPageChange(1);
+    _notifyPageChange(firstPageNum);
   }
 
   function cleanup() {

@@ -149,12 +149,15 @@
   color: #666;
 }
 
-/* canvas wrap：作为 文本层/注解层 的定位锚点 */
+/* canvas wrap：作为 文本层/注解层 的定位锚点
+   will-change: transform 提前晋升 GPU 合成层，首次 pinch/双击缩放不掉帧 */
 .bk-pdf-canvas-wrap {
   position: relative;
   display: inline-block;
   margin: 0 auto;
   line-height: 0;
+  will-change: transform;
+  contain: layout style;
 }
 
 .bk-pdf-page.bk-pdf-zoomed .bk-pdf-canvas-wrap {
@@ -165,7 +168,7 @@
   display: block;
   margin: 0 auto;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.15s ease-out;
 }
 
 /* ── 4. 加载 Spinner（SVG 旋转动画）────────────────────────────── */

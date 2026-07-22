@@ -51,17 +51,27 @@
   function _applyZoomToVisible(pdfBookId) {
     var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-rendered="1"], .bk-pdf-page[data-pdf-rendering="1"]');
     var vh = win.innerHeight || doc.documentElement.clientHeight;
+    var vw = win.innerWidth || doc.documentElement.clientWidth;
     for (var i = 0; i < pages.length; i++) {
       var rect = pages[i].getBoundingClientRect();
+      var isVisible;
       // 单页模式检查水平可见，连续模式检查垂直可见
       if (S.mode() === S.MODE_SINGLE) {
-        var vw = win.innerWidth || doc.documentElement.clientWidth;
-        if (rect.right <= 0 || rect.left >= vw) continue;
+        isVisible = !(rect.right <= 0 || rect.left >= vw);
       } else {
-        if (rect.bottom <= 0 || rect.top >= vh) continue;
+        isVisible = !(rect.bottom <= 0 || rect.top >= vh);
       }
-      pages[i].removeAttribute('data-pdf-rendered');
-      core.renderPage(pages[i], true);
+
+      if (isVisible) {
+        // 可见页：立即重渲染（高清 canvas）
+        pages[i].removeAttribute('data-pdf-rendered');
+        core.renderPage(pages[i], true);
+      } else {
+        // ★ 非可见已渲染页：标记为过期，滚进视口时 IntersectionObserver 会自动以新 zoom 重渲染
+        // 只移除 data-pdf-rendered 标记，不立即触发重渲染（避免大量后台渲染阻塞主线程）
+        // 保留旧 canvas 内容作为占位图，等进入视口再替换，比骨架白屏更平滑
+        pages[i].removeAttribute('data-pdf-rendered');
+      }
     }
   }
 
@@ -414,7 +424,14 @@
       S.setCurrentBookId(pdfBookId);
       _showZoomControls(pdfBookId);
       // 异步获取页码标签（如罗马数字等 PDF 内部标签）
+      // 同时设置 PDF 总页数（修复 Single 模式下进度条显示 1/1 的问题）
       core.getPdfDoc(pdfBookId).then(function (pdf) {
+        S.setTotalPages(pdf.numPages);
+        // 重通知 UI 更新进度条（nav.init() 时 totalPages 可能尚为 fallback 值）
+        var ui = win.BKPdf._internal.ui;
+        if (ui && ui.updatePageIndicator) {
+          ui.updatePageIndicator(S.currentPage(), pdf.numPages);
+        }
         return pdf.getPageLabels();
       }).then(function (labels) {
         if (labels && labels.length) S.setPageLabels(labels);

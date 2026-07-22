@@ -31,7 +31,7 @@
   var _zoomAnimTimer = null;   // 过渡动画兜底定时器
   var _zoomOnEnd = null;       // 过渡动画 transitionend 监听器引用（供 cleanup 显式移除）
   var _zoomOnEndWrap = null;   // transitionend 监听的目标 wrap 元素
-  var ZOOM_TRANSITION_MS = 280; // 双击缩放 CSS 过渡时长（与 --ease-out 对齐）
+  var ZOOM_TRANSITION_MS = 220; // 双击缩放 CSS 过渡时长（220ms 对标原生 iOS/Android 缩放节奏）
 
   // ==================== Pinch 实时缩放 ====================
 
@@ -200,37 +200,47 @@
   }
 
   /**
-   * 结束 pinch：清除 transform，触发高清重渲染
+   * 结束 pinch：保留 transform 缩放图，延迟触发高清重渲染（避免手指松开瞬间卡顿）
+   * 流程：松手 → 更新 zoom 状态 → 等空闲 → 清 transform + 高清重渲染
    */
   function _endPinch() {
     if (!_pinchState || !_pinchState.active) return;
     _pinchState.active = false;
     var finalZoom = _pinchState.currentZoom;
+    var bookId = _gestureBookId;
 
-    // 清除所有 transform
-    var wraps = doc.querySelectorAll('.bk-pdf-canvas-wrap');
-    for (var i = 0; i < wraps.length; i++) {
-      wraps[i].style.transform = '';
-      wraps[i].style.transformOrigin = '';
-      wraps[i].style.transition = '';
-    }
-
-    // 更新 zoom 状态并触发高清重渲染
+    // 先更新 zoom 状态（不触发重渲染）
     var zoomApi = win.BKPdf._internal.zoom;
     if (zoomApi) {
-      zoomApi.setZoom(_gestureBookId, finalZoom);
-      zoomApi.applyZoomToVisible(_gestureBookId);
+      zoomApi.setZoom(bookId, finalZoom);
     }
 
     _pinchState = null;
     _pinchVisiblePages = null;
+
+    // 延迟 1 帧：让手指松开的 UI 反馈先完成，再触发高清重渲染
+    // 此时 transform 仍在，用户看到的仍是 pinch 缩放图（视觉连续）
+    (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+      // 清除所有 transform（此时新 canvas 即将渲染，清除 transform 不会闪烁）
+      var wraps = doc.querySelectorAll('.bk-pdf-canvas-wrap');
+      for (var i = 0; i < wraps.length; i++) {
+        wraps[i].style.transform = '';
+        wraps[i].style.transformOrigin = '';
+        wraps[i].style.transition = '';
+      }
+      // 触发高清重渲染
+      if (zoomApi && bookId) {
+        zoomApi.applyZoomToVisible(bookId);
+      }
+    });
   }
 
   // ==================== 双击缩放过渡动画 ====================
 
   /**
-   * 双击缩放过渡：用 CSS transform:scale 实现 280ms 平滑视觉过渡，
-   * 过渡结束后清除 transform 并调用 onComplete 触发高清重渲染。
+   * 双击缩放过渡：用 CSS transform:scale 实现 220ms 平滑视觉过渡，
+   * 过渡结束后**不清 transform**，先触发高清重渲染，
+   * 等新 canvas 就绪后再清除 transform（无缝衔接，无闪跳）。
    *
    * 为什么要过渡：原直接 setZoom+applyZoomToVisible 是同步重渲染，
    * 用户会看到内容从 1x 瞬间跳到 2x 的硬切感，且重渲染阻塞主线程造成卡顿。
@@ -270,21 +280,23 @@
       if (done) return;
       done = true;
       if (_zoomAnimTimer) { clearTimeout(_zoomAnimTimer); _zoomAnimTimer = null; }
-      // 清除 transform + transition，让 setZoom+applyZoomToVisible 之后用真实高清 canvas
-      for (var k = 0; k < pages.length; k++) {
-        var w = pages[k].querySelector('.bk-pdf-canvas-wrap');
-        if (w) {
-          w.style.transform = '';
-          w.style.transformOrigin = '';
-          w.style.transition = '';
-        }
-        // 缩小目标移除 zoomed class
-        if (toZoom <= 1.0) pages[k].classList.remove('bk-pdf-zoomed');
-      }
+      // ★ 不再在此处清 transform！
+      // 先调用 onComplete（setZoom + applyZoomToVisible）触发高清重渲染，
+      // 等新 canvas 绘制完后再清 transform（由 _clearTransformAfterRender 延迟处理）。
+      // 这样过渡视觉 → 新 canvas 出现之间零缝隙，无闪跳。
       _zoomAnimating = false;
       // cleanup 已执行时（_gestureEl 为 null）跳过 onComplete，
       // 避免 onComplete 内用 stale 的 bookId 写入 zoomState 造成 null key 污染
-      if (_gestureEl) onComplete();
+      if (_gestureEl) {
+        onComplete();
+        // onComplete 触发重渲染后，延迟 2 帧等新 canvas 绘制完成再清 transform
+        // 此时新 canvas 已经在 DOM 中，transform 只是视觉缩放了旧 canvas，
+        // 清除后新 canvas 立即显现，视觉无跳变
+        _scheduleClearTransform(pages, toZoom);
+      } else {
+        // cleanup 情况：直接清 transform
+        _clearTransform(pages, toZoom);
+      }
     }
 
     // 用第一个 wrap 的 transitionend 作为完成信号（监听一次即移除）
@@ -306,7 +318,35 @@
   }
 
   /**
-   * 双击缩放公共入口：1x ↔ 2x 切换，带 280ms transform 过渡动画
+   * 延迟清除 transform：等 2 帧（~32ms）让高清 canvas 有时间渲染到屏幕
+   * 再清 transform，视觉上无缝切换（新 canvas 直接替代旧缩放图）
+   */
+  function _scheduleClearTransform(pages, toZoom) {
+    (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+      (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+        _clearTransform(pages, toZoom);
+      });
+    });
+  }
+
+  /**
+   * 清除所有可见页 canvas-wrap 的 transform + transition
+   */
+  function _clearTransform(pages, toZoom) {
+    for (var k = 0; k < pages.length; k++) {
+      var w = pages[k].querySelector('.bk-pdf-canvas-wrap');
+      if (w) {
+        w.style.transform = '';
+        w.style.transformOrigin = '';
+        w.style.transition = '';
+      }
+      // 缩小目标移除 zoomed class
+      if (toZoom <= 1.0) pages[k].classList.remove('bk-pdf-zoomed');
+    }
+  }
+
+  /**
+   * 双击缩放公共入口：1x ↔ 2x 切换，带 220ms transform 过渡动画（无缝衔接）
    * @param {number} clientX - 双击位置 X（用于滚动定位）
    * @param {number} clientY - 双击位置 Y
    */
