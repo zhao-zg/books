@@ -165,17 +165,14 @@
 [data-theme="dark"] .bk-shelf-tab.is-active { color: var(--brand, #5EAE7E); }
 [data-theme="dark"] .bk-shelf-tab-count { color: var(--brand, #5EAE7E); }
 [data-theme="dark"] .bk-shelf-tab.is-active .bk-shelf-tab-count { background: var(--brand, #5EAE7E); color: var(--text, #1A1918); }
-/* 书架：海报网格（移动端 3 列，随屏宽递增；与书城视觉统一） */
+/* 书架：海报网格（与书城 L3 统一 auto-fill 布局，保证卡片大小一致） */
 .bk-shelf-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
   padding: 8px 16px 24px;
   align-items: start;
 }
-@media (min-width: 560px) { .bk-shelf-list { grid-template-columns: repeat(4, 1fr); } }
-@media (min-width: 820px) { .bk-shelf-list { grid-template-columns: repeat(5, 1fr); } }
-@media (min-width: 1100px) { .bk-shelf-list { grid-template-columns: repeat(6, 1fr); } }
 
 /* 海报卡：封面(卡顶) + 信息条(底部)；点封面进阅读，长按弹菜单，编辑态勾选 */
 .bk-shelf-row {
@@ -202,18 +199,18 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 0;
-  font-size: 15px;
+  font-size: 13px;
   box-shadow: none;
 }
 .bk-shelf-row-cover .bk-cover-inner { padding: 14% 13%; }
 .bk-shelf-row .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
-.bk-shelf-row .bk-cover-title { font-size: 1.6em; font-weight: 600; line-height: 1.2; }
+.bk-shelf-row .bk-cover-title { font-size: 1.25em; font-weight: 600; line-height: 1.25; -webkit-line-clamp: 3; }
 .bk-shelf-row .bk-cover-rule,
 .bk-shelf-row .bk-cover-foot { display: none; }
 
-/* 信息条：与书城 L3 .book-caption 结构一致（书名单行 + 单行元数据） */
-.bk-shelf-row-info { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px 10px; min-width: 0; }
-.bk-shelf-row-title { font-size: 14px; font-weight: 600; line-height: 1.28; color: var(--text, #1A1918); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 信息条：去掉冗余书名行（封面已显示书名），只保留元数据（进度/来源） */
+.bk-shelf-row-info { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px 8px; min-width: 0; }
+.bk-shelf-row-title { display: none; }
 .bk-shelf-row-meta { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow: hidden; font-size: 11px; color: var(--text-muted, #9A958C); }
 .bk-shelf-row-no { background: var(--tag-bg, rgba(var(--brand-rgb, 61, 138, 90), .08)); color: var(--brand, #3D8A5A); border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 500; line-height: 1.5; flex-shrink: 0; }
 .bk-shelf-row-progress { font-size: 11px; color: var(--text-muted, #9A958C); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
