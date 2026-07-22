@@ -269,7 +269,9 @@
 
   /**
    * 计算适配 scale
-   * 单页模式：fit-to-screen（取 width 和 height 中较小的 scale，让整页可见）
+   * 单页模式：
+   *   - 纵向 PDF（width <= height）：fit-to-width（按宽度适配，高度超出时竖向滚动）
+   *   - 横向 PDF（width > height）：fit-to-screen（取 width 和 height 中较小的 scale，让整页可见）
    * 连续模式：
    *   - 纵向 PDF（width <= height）：fit-to-width（按宽度适配）
    *   - 横向 PDF（width > height）：fit-to-height（按高度适配），让横向 PDF 保留可读字号，
@@ -278,11 +280,17 @@
   function _computeFitScale(baseViewport, containerWidth, containerHeight) {
     if (!containerWidth || containerWidth <= 0) return 1;
     var widthScale = containerWidth / baseViewport.width;
-    if (S.mode() === S.MODE_SINGLE && containerHeight && containerHeight > 0) {
-      var singleHeightScale = containerHeight / baseViewport.height;
-      // fit-to-screen：取较小值，确保整页在屏幕内
-      // 同时限制不小于 0.3，避免超大页面缩太小
-      return Math.max(0.3, Math.min(widthScale, singleHeightScale));
+    if (S.mode() === S.MODE_SINGLE) {
+      // 纵向 PDF（width <= height）：fit-to-width，填满视口宽度，高度超出时竖向滚动
+      if (baseViewport.width <= baseViewport.height) {
+        return Math.max(0.3, widthScale);
+      }
+      // 横向 PDF（width > height）：fit-to-screen，确保整页可见
+      if (containerHeight && containerHeight > 0) {
+        var singleHeightScale = containerHeight / baseViewport.height;
+        return Math.max(0.3, Math.min(widthScale, singleHeightScale));
+      }
+      return Math.max(0.3, widthScale);
     }
     // 连续模式：检测横向 PDF（宽度 > 高度）
     if (containerHeight && containerHeight > 0 && baseViewport.width > baseViewport.height) {
