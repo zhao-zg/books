@@ -239,13 +239,32 @@
     return (url || '').replace(/\/+$/, '');
   }
 
+  // ── 工具：安全解码 URL 组件（仅当含 %XX 序列时才尝试解码）──────────────
+  function safeDecode(s) {
+    if (!s) return s;
+    if (!/%[0-9A-Fa-f]{2}/.test(s)) return s;  // 无编码序列，原样返回
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
+  // ── 工具：确保路径段已 URL 编码（处理中文等非 ASCII 字符）─────────────
+  // 先尝试解码（兼容已编码路径），再统一编码，避免双重编码
+  function encodePathSegments(path) {
+    if (!path) return path;
+    return path.split('/').map(function (seg) {
+      if (!seg) return seg;
+      try { seg = decodeURIComponent(seg); } catch (e) { /* 已是原始或非法序列，保持原样 */ }
+      return encodeURIComponent(seg);
+    }).join('/');
+  }
+
   // ── 工具：拼接目录 URL ──────────────────────────────────────────────────
   // path 可为 ''（根）、绝对 href（导航进子目录）、或相对路径
   function buildDirUrl(baseUrl, path) {
     baseUrl = trimSlash(baseUrl);
     if (!path) return baseUrl + '/';               // 集合需以 / 结尾
     if (/^[a-z][a-z0-9+.\-]*:/i.test(path)) return path; // 绝对 URL 直接返回
-    return baseUrl + '/' + path.replace(/^\/+/, '');
+    // 对相对路径中的非 ASCII 字符进行 URL 编码（兼容中文路径）
+    return baseUrl + '/' + encodePathSegments(path.replace(/^\/+/, ''));
   }
 
   // ── 工具：解析相对 href 为绝对 URL ─────────────────────────────────────
@@ -392,11 +411,10 @@
       // 旧逻辑 split('/').pop() 为空 → 回退为原始相对 href（如 /dav/sub/，不美观）。
       // 改为取最后一个非空路径段；仍为空才回退「未命名」。对绝对/相对 href 均正确。
       var fallbackName = hrefUrl.split('/').filter(Boolean).pop() || '未命名';
-      // P3-4：decodeURIComponent 包 try-catch，防止非法编码序列抛异常
-      var decodedName;
-      try { decodedName = decodeURIComponent(fallbackName); }
-      catch (e) { decodedName = fallbackName; }
-      var name = nameEl && textOf(nameEl) ? textOf(nameEl) : decodedName;
+      var decodedName = safeDecode(fallbackName);
+      // 部分服务器返回 URL 编码的 displayname（如 %E4%B8%AD），需尝试解码
+      var rawName = nameEl ? textOf(nameEl) : '';
+      var name = rawName ? safeDecode(rawName) : decodedName;
 
       entries.push({
         href: hrefUrl,
@@ -596,7 +614,7 @@
     return getConfigById(source.serverId).then(function (config) {
       if (!config) return Promise.reject(new Error('未找到对应的 WebDAV 服务器配置，可能已被删除'));
       var entry = {
-        name: source.remotePath.split('/').pop() || (book.title || 'book'),
+        name: safeDecode(source.remotePath.split('/').pop()) || (book.title || 'book'),
         mime: mimeForExt(source.remotePath),
         remotePath: source.remotePath
       };

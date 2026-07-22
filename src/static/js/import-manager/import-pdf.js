@@ -82,7 +82,7 @@
         return extractPdfMeta(pdf).then(function(meta) {
           return {
             id: bookId,
-            title: meta.title || bookTitle,
+            title: bookTitle,
             author: meta.author || '',
             format: 'pdf',
             cover: '',           // PDF 封面暂不提取，后续可扩展

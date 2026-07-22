@@ -58,52 +58,28 @@
       }
     }
 
-    // 书名检测：前 5 行中短行（<50字符、无标点结尾）
-    // ★ 排除「作者/Autor」开头的元数据行，避免把"作者：XXX"当成书名
+    // ★ 书名直接使用文件名（去扩展名），不再从内容中智能检测
+    // （内容检测容易把无关短行误识别为书名，导致乱码或错误标题）
     var bookTitle = fileName.replace(/\.txt$/i, '');
-    var titleLineIdx = -1;
-    for (var i = 0; i < Math.min(5, lines.length); i++) {
-      var s = lines[i].trim();
-      if (!s) continue;
-      // ★ 跳过元数据行（作者、来源等）
-      if (/^(作者|author|来源|source|整理|编者)\s*[：:]/i.test(s)) continue;
-      // ★ 跳过章节标题行（如"第一章 愚公移山"、"Chapter 1"等），不应作为书名
-      if (/^第[一二三四五六七八九十百千\d]+[章节回卷篇]/.test(s)) continue;
-      if (/^chapter\s+\d+/i.test(s)) continue;
-      if (s.length <= 50 && !/[。！？.!?,，;；:：]$/.test(s)) {
-        var puncCount = 0;
-        for (var ci = 0; ci < s.length; ci++) {
-          if ('，。！？,.!?;；:：、'.indexOf(s[ci]) >= 0) puncCount++;
-        }
-        if (puncCount <= s.length * 0.3) {
-          bookTitle = s;
-          titleLineIdx = i;
-          break;
-        }
+    var contentLines = lines;
+
+    // ★ 跳过第一个章节标题之前的所有前导行
+    // （可能是 AIGC 水印、元数据等，不应成为独立章节）
+    var firstHeadingIdx = -1;
+    for (var fhi = 0; fhi < contentLines.length; fhi++) {
+      if (matchChapterHeading(contentLines[fhi])) {
+        firstHeadingIdx = fhi;
+        break;
       }
     }
-
-    var contentLines = titleLineIdx >= 0 ? lines.slice(titleLineIdx + 1) : lines;
-
-    // ★ 如果没有检测到书名行，跳过第一个章节标题之前的所有前导行
-    // （可能是 AIGC 水印、元数据等，不应成为独立章节）
-    if (titleLineIdx < 0) {
-      var firstHeadingIdx = -1;
-      for (var fhi = 0; fhi < contentLines.length; fhi++) {
-        if (matchChapterHeading(contentLines[fhi])) {
-          firstHeadingIdx = fhi;
-          break;
-        }
+    // 只在有2个以上章节标题时才跳过前导行（避免把无章节结构的整本书截断）
+    if (firstHeadingIdx > 0) {
+      var headingCount = 0;
+      for (var hci = firstHeadingIdx; hci < contentLines.length; hci++) {
+        if (matchChapterHeading(contentLines[hci])) headingCount++;
       }
-      // 只在有2个以上章节标题时才跳过前导行（避免把无章节结构的整本书截断）
-      if (firstHeadingIdx > 0) {
-        var headingCount = 0;
-        for (var hci = firstHeadingIdx; hci < contentLines.length; hci++) {
-          if (matchChapterHeading(contentLines[hci])) headingCount++;
-        }
-        if (headingCount >= 2) {
-          contentLines = contentLines.slice(firstHeadingIdx);
-        }
+      if (headingCount >= 2) {
+        contentLines = contentLines.slice(firstHeadingIdx);
       }
     }
 

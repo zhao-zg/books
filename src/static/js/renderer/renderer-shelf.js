@@ -56,6 +56,9 @@
     // 书架显示 bookId 而非真实标题。
     _mergeImportedBooks().then(function () {
       _renderShelfList();
+      // ★ 同步刷新「继续阅读」模块：移出书架后该书的进度记录虽保留（便于续读），
+      //   但 isCollected 过滤会使之从续读列表消失，需重渲染才能反映这一变化。
+      _renderShelfContinue(document.getElementById('app') || document.body);
     }).catch(function () {
       _renderShelfList(); // 合并失败也兜底渲染，避免书架不刷新
     });
@@ -367,6 +370,8 @@
       var rawPath = s.remotePath || '';
       // 只取最后一段路径，避免泄漏完整 URL 路径
       var path = rawPath.split('/').filter(Boolean).pop() || '';
+      // 路径段可能是 URL 编码的（如 %E4%B8%AD），需解码后显示
+      try { path = decodeURIComponent(path); } catch (e) {}
       return label + (path ? (' · ' + path) : '');
     }
     if (s && s.type === 'local') return '本地导入';

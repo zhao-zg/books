@@ -27,7 +27,9 @@
           var opfDoc = parser.parseFromString(opfXml, 'application/xml');
 
           // 提取元数据
-          var title = getTextContent(opfDoc, 'dc\\:title, title') || fileName.replace(/\.epub$/i, '');
+          // ★ 书名直接使用文件名（去扩展名），不再从 OPF 元数据提取
+          // （元数据中的 title 可能编码错误导致乱码）
+          var title = fileName.replace(/\.epub$/i, '');
           var author = getTextContent(opfDoc, 'dc\\:creator, creator') || '';
           var language = getTextContent(opfDoc, 'dc\\:language, language') || 'zh';
           var description = getTextContent(opfDoc, 'dc\\:description, description') || '';

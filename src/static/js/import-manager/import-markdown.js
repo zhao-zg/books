@@ -20,7 +20,8 @@
     // 全局清除所有 AIGC 水印行（可能在文档中多处出现）
     mdContent = mdContent.replace(/^\s*>+\s*AI\s*生[成成].*$/gim, '');
 
-    var bookTitle = meta.title || fileName.replace(/\.md$/i, '');
+    // ★ 书名直接使用文件名（去扩展名），不再从 YAML frontmatter 提取
+    var bookTitle = fileName.replace(/\.md$/i, '');
     var author = meta.author || '';
     var description = meta.description || '';
 

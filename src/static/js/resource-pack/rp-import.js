@@ -372,7 +372,10 @@
       // 不显示完整 URL 路径，只取最后一段目录名
       var parts = wd.path.replace(/\/+$/, '').split('/');
       var last = parts[parts.length - 1];
-      return last || '根目录';
+      if (!last) return '根目录';
+      // 路径段可能是 URL 编码的（如 %E4%B8%AD），需解码后显示
+      try { return decodeURIComponent(last); }
+      catch (e) { return last; }
     }
     function parentUrl(url) {
       var u = (url || '').replace(/\/+$/, '');
