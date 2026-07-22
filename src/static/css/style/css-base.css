@@ -117,23 +117,16 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .category-card .bk-cover-foot,
 .series-catalog-card .bk-cover-foot { display: none; }
 
-/* 信息条：与 L3 .book-caption 同构 */
+/* 信息条：去掉冗余书名行（封面已显示标题），只保留数量标签 */
 .collection-caption {
-  padding: 8px 10px 10px;
+  padding: 6px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 .collection-caption .series-catalog-card-title,
 .collection-caption .category-card-title {
-  font-size: 14px;
-  line-height: 1.3;
-  font-weight: 600;
-  color: var(--text, #1A1918);
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 .collection-caption .series-catalog-card-count,
 .collection-caption .category-card-count {

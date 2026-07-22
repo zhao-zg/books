@@ -84,7 +84,6 @@
 
 /* ── 书架页（新增模块） ─────────────────────────────── */
 .bk-shelf-page {
-  max-width: 720px;
   margin: 0 auto;
   padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
 }

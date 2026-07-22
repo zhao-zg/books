@@ -79,8 +79,6 @@ button:active { transition-duration: 0.05s; }
   .series-catalog-card .bk-cover,
   div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover,
   .bk-shelf-row-cover .bk-cover { font-size: 11px; }
-  .collection-caption .series-catalog-card-title,
-  .collection-caption .category-card-title { font-size: 15px; }
   .bk-reading-chapter-title { font-size: var(--text-lg); }
   .nav-link { padding: 8px 12px; font-size: var(--text-sm); min-width: 40px; min-height: 40px; }
   .nav-label { max-width: 72px; }
@@ -728,11 +726,12 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   100% { background-position: -200% 0; }
 }
 
-/* 窄屏（≤768px）：L1/L2/L3 三级统一双列，海报卡片式一致 */
+/* 窄屏（≤768px）：L1/L2/L3/书架 统一3列，海报卡片式一致 */
 @media (max-width: 768px) {
   .category-grid { grid-template-columns: repeat(3, 1fr) !important; }
   .series-catalog-grid { grid-template-columns: repeat(3, 1fr) !important; }
   .bk-city-book-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  .bk-shelf-list { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
 
