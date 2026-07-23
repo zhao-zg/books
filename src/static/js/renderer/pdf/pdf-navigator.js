@@ -311,15 +311,26 @@
         }
       }
     } else {
-      // Single 模式：取 intersectionRatio 最大的页（原逻辑）
-      var bestRatio = -1;
-      for (var i = 0; i < entries.length; i++) {
-        if (!entries[i].isIntersecting) continue;
-        var pgNum2 = parseInt(entries[i].target.getAttribute('data-pdf-page'), 10) || 0;
-        if (pgNum2 <= 0) continue;
-        if (entries[i].intersectionRatio > bestRatio) {
-          bestRatio = entries[i].intersectionRatio;
-          bestPage = pgNum2;
+      // Single 模式
+      var allPdfPages = _navContainer.querySelectorAll('.bk-pdf-page');
+      if (allPdfPages.length <= 1) {
+        // "每页=1章"结构：容器只有1页，直接取 data-pdf-page，无需 ratio 比较
+        // 避免 IntersectionObserver 回调时序不确定导致页码闪烁（切章后旧 observer
+        // 残留回调可能短暂报告错误页码，覆盖 init() 设置的正确值）
+        bestPage = allPdfPages.length === 1
+          ? (parseInt(allPdfPages[0].getAttribute('data-pdf-page'), 10) || 1)
+          : 1;
+      } else {
+        // "全书=1章"结构：容器内多页，取 intersectionRatio 最大的页
+        var bestRatio = -1;
+        for (var i = 0; i < entries.length; i++) {
+          if (!entries[i].isIntersecting) continue;
+          var pgNum2 = parseInt(entries[i].target.getAttribute('data-pdf-page'), 10) || 0;
+          if (pgNum2 <= 0) continue;
+          if (entries[i].intersectionRatio > bestRatio) {
+            bestRatio = entries[i].intersectionRatio;
+            bestPage = pgNum2;
+          }
         }
       }
     }
