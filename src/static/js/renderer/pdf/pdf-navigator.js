@@ -277,16 +277,50 @@
       return;
     }
 
-    // 取 entries 中 intersectionRatio 最大的页作为当前页
     var bestPage = 0;
-    var bestRatio = -1;
-    for (var i = 0; i < entries.length; i++) {
-      if (!entries[i].isIntersecting) continue;
-      var pgNum = parseInt(entries[i].target.getAttribute('data-pdf-page'), 10) || 0;
-      if (pgNum <= 0) continue;
-      if (entries[i].intersectionRatio > bestRatio) {
-        bestRatio = entries[i].intersectionRatio;
-        bestPage = pgNum;
+
+    if (S.mode() === S.MODE_CONTINUOUS) {
+      // Bug16 修复：连续模式下不能取 intersectionRatio 最大的页
+      // 手机上 2 页 PDF 同时可见时，page 2 可能 ratio 更大（page 1 顶部被裁剪），
+      // 导致误检测为 page 2。正确逻辑：取视口顶部最近的页（与 _detectCurrentPage fallback 一致）
+      var entriesMap = {};
+      for (var e = 0; e < entries.length; e++) {
+        if (entries[e].isIntersecting) {
+          var pgNum = parseInt(entries[e].target.getAttribute('data-pdf-page'), 10) || 0;
+          if (pgNum > 0) entriesMap[pgNum] = entries[e].target;
+        }
+      }
+      // 如果 observer 只报告了部分页，补充查询所有页
+      var allPages = _navContainer.querySelectorAll('.bk-pdf-page');
+      for (var ap = 0; ap < allPages.length; ap++) {
+        var apNum = parseInt(allPages[ap].getAttribute('data-pdf-page'), 10) || 0;
+        if (apNum > 0 && !entriesMap[apNum]) entriesMap[apNum] = allPages[ap];
+      }
+
+      var bestDist = Infinity;
+      var pageKeys = Object.keys(entriesMap);
+      for (var k = 0; k < pageKeys.length; k++) {
+        var pNum = parseInt(pageKeys[k], 10);
+        var target = entriesMap[pageKeys[k]];
+        var rect = target.getBoundingClientRect();
+        // 取距视口顶部（+2px 容差）最近的页
+        var dist = Math.abs(rect.top - 2);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestPage = pNum;
+        }
+      }
+    } else {
+      // Single 模式：取 intersectionRatio 最大的页（原逻辑）
+      var bestRatio = -1;
+      for (var i = 0; i < entries.length; i++) {
+        if (!entries[i].isIntersecting) continue;
+        var pgNum2 = parseInt(entries[i].target.getAttribute('data-pdf-page'), 10) || 0;
+        if (pgNum2 <= 0) continue;
+        if (entries[i].intersectionRatio > bestRatio) {
+          bestRatio = entries[i].intersectionRatio;
+          bestPage = pgNum2;
+        }
       }
     }
 
