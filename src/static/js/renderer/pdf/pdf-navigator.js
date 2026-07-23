@@ -25,6 +25,7 @@
   var _scrollTimer = null;      // 滚动防抖定时器
   var _isProgrammaticScroll = false;  // 程序触发的滚动（不记录位置）
   var JUMP_THRESHOLD = 5;             // 超过此页数跨度的跳转改用瞬时滚动，避免 smooth 扫过中间页触发大量渲染
+  var _singleRafId = null;            // P1-4: Single 模式 rAF 页码检测 ID
 
   // ==================== 模式切换 ====================
 
@@ -93,9 +94,10 @@
     if (pageNum > pages.length) pageNum = pages.length;
     var target = pages[pageNum - 1];
 
-    // Bug7 修复：Single 模式远页跳转——目标页可能尚未渲染（懒加载），
-    // 需先触发渲染再滚动，否则 target 的 canvas 为空或 offsetLeft 计算不准
-    if (target && S.mode() === S.MODE_SINGLE &&
+    // Bug7 修复：远页跳转——目标页可能尚未渲染（懒加载），
+    // 需先触发渲染再滚动，否则 Single 模式 canvas 为空/offsetLeft 不准，
+    // Continuous 模式跳转后目标页白屏
+    if (target &&
         target.getAttribute('data-pdf-rendered') !== '1' &&
         target.getAttribute('data-pdf-rendering') !== '1') {
       core.renderPage(target);
@@ -109,6 +111,14 @@
     // 近距离（≤JUMP_THRESHOLD 页）保持 smooth 平滑体验。瞬时跳转后 IntersectionObserver 仅对状态变化的页回调，中间页不触发渲染。
     var distance = Math.abs(pageNum - S.currentPage());
     var behavior = distance > JUMP_THRESHOLD ? 'auto' : 'smooth';
+
+    // P1-3: 远跳时暂停 IntersectionObserver，防止中间页短暂进入 rootMargin 触发无谓渲染
+    // 瞬时跳转后恢复 observer，仅目标页及周边页触发渲染
+    var observerPaused = false;
+    if (distance > JUMP_THRESHOLD && S.observer()) {
+      S.observer().disconnect();
+      observerPaused = true;
+    }
 
     if (S.mode() === S.MODE_SINGLE) {
       // 单页模式：横向 scroll-snap，scrollLeft 跳转
@@ -143,7 +153,17 @@
     _notifyPageChange(pageNum);
 
     // 短暂延时后复位程序滚动标志
-    setTimeout(function () { _isProgrammaticScroll = false; }, 500);
+    setTimeout(function () {
+      _isProgrammaticScroll = false;
+      // P1-3: 恢复 IntersectionObserver（远跳时已暂停）
+      // 延迟恢复确保瞬时滚动已完成，observer 仅对当前可见页及 rootMargin 内页触发渲染
+      if (observerPaused && S.observer() && _navContainer) {
+        var allPages = _navContainer.querySelectorAll('.bk-pdf-page');
+        for (var op = 0; op < allPages.length; op++) {
+          S.observer().observe(allPages[op]);
+        }
+      }
+    }, 500);
   }
 
   function goToNext() {
@@ -453,13 +473,41 @@
     // 绑定滚动监听
     containerEl.addEventListener('scroll', _onScroll, { passive: true });
 
+    // P1-4: Single 模式 rAF 驱动即时页码检测
+    // IntersectionObserver 在 scroll-snap 动画期间回调延迟，
+    // 用户翻页后页码指示器不实时。添加 rAF 滚动监听，
+    // 每帧检测当前页码，实现即时反馈
+    if (S.mode() === S.MODE_SINGLE) {
+      _cancelSingleRaf();
+      containerEl.addEventListener('scroll', _onSingleScrollRaf, { passive: true });
+    }
+
     // 通知初始页码
     _notifyPageChange(firstPageNum);
   }
 
+  // P1-4: Single 模式 rAF 滚动监听——每帧检测页码，即时反馈
+  function _onSingleScrollRaf() {
+    if (_singleRafId) return; // 上一帧尚未处理，跳过
+    _singleRafId = (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+      _singleRafId = null;
+      if (!_navContainer || S.mode() !== S.MODE_SINGLE) return;
+      _detectCurrentPage(); // 直接检测，无防抖延迟
+    });
+  }
+
+  function _cancelSingleRaf() {
+    if (_singleRafId) {
+      (win.cancelAnimationFrame || clearTimeout)(_singleRafId);
+      _singleRafId = null;
+    }
+  }
+
   function cleanup() {
+    _cancelSingleRaf();
     if (_navContainer) {
       _navContainer.removeEventListener('scroll', _onScroll);
+      _navContainer.removeEventListener('scroll', _onSingleScrollRaf);
     }
     if (_scrollTimer) {
       clearTimeout(_scrollTimer);

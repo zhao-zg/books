@@ -2245,3 +2245,19 @@ body.bk-pdf-reading {
 .bk-pdf-reflow-view .bk-pdf-search-current {
   background: rgba(255, 140, 0, 0.6);
 }
+
+/* ── 模式切换过渡遮罩 ─────────────────────────────────────── */
+.bk-pdf-switch-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;            /* 不阻挡交互（遮罩只是视觉覆盖） */
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.bk-pdf-switch-mask-show {
+  opacity: 1;
+}
+.bk-pdf-switch-mask-fade {
+  opacity: 0;
+}

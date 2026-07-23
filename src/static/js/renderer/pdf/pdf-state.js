@@ -21,8 +21,8 @@
   var MAX_ZOOM = 3.0;           // 最大放大倍数
   var MIN_ZOOM = 1.0;           // 最小倍数（= fit-to-width）
   var ZOOM_STEP = 0.5;          // 每次缩放步长
-  var RECYCLE_THRESHOLD = 8;    // 超过此数量的已渲染页面触发回收
-  var PRERENDER_ADJACENT = 1;   // 预渲染相邻页数（前后各 1 页）
+var RECYCLE_THRESHOLD = 10;   // 超过此数量的已渲染页面触发回收（配合 PRERENDER_ADJACENT=2）
+var PRERENDER_ADJACENT = 2;   // 预渲染相邻页数（前后各 2 页），快速滑动时零白屏
 
   // 阅读模式
   var MODE_SINGLE = 'single';       // 单页横向滑动

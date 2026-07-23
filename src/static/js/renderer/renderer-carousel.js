@@ -63,9 +63,11 @@
     var contentEl = pageEl.querySelector('.content');
     if (!contentEl) return;
     if (chapter) {
-      // 相邻预览页同样需要 eager 加载，避免滑动时才去 lazy 加载而显示空白
+      // 相邻预览页只需要 HTML 内容，不需要调用 initPdfPageLazyRender（即 BKPdf.init）；
+      // BKPdf.init 会覆盖 S.currentPage / _navContainer / 页码指示器等全局状态，
+      // 导致相邻页面的页码覆盖当前页。相邻页在滑动成为当前页时会由 finish() 中的
+      // initPdfPageLazyRender 正式初始化。
       contentEl.innerHTML = renderChapterContent(chapter, true);
-      initPdfPageLazyRender(contentEl);
       _applyMdEnhancements(contentEl);
     } else {
       contentEl.innerHTML = '';
@@ -248,6 +250,30 @@
           // 无需重新 innerHTML 替换（这会导致内容闪烁和 justify-content 重新布局的跳动）。
           // 但仍需触发依赖 DOM 的懒加载和初始化：
           var newChapter = _getChapter(_carouselUniqueChapters, targetNum);
+          // 在调用 initPdfPageLazyRender 之前保存 PDF 阅读位置，
+          // 避免 BKPdf.init() 内的 restoreReadingPosition 读取旧位置后
+          // 延迟跳回错误页面（如从 page 2 滑回 page 1 时被跳回 page 2）
+          if (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state) {
+            win.BKPdf._internal.state.saveReadingPosition(_carouselBookId, targetNum);
+          }
+
+          // 断开旧 IntersectionObserver，避免旧 chapterContent 中的 .bk-pdf-page 元素
+          // 通过残留 observer 异步回调覆盖 currentPage（切章后旧 observer 仍观察旧页面，
+          // reorder 后可能触发回调把 currentPage 设回旧页码）。
+          // BKPdf.init() 内部检查 if (!S.observer()) / if (!S.currentPageObserver())，
+          // 断开并置 null 后 init() 会创建新 observer 观察新 chapterContent 的页面。
+          if (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state) {
+            var _pdfState = win.BKPdf._internal.state;
+            if (_pdfState.observer()) {
+              _pdfState.observer().disconnect();
+              _pdfState.setObserver(null);
+            }
+            if (_pdfState.currentPageObserver()) {
+              _pdfState.currentPageObserver().disconnect();
+              _pdfState.setCurrentPageObserver(null);
+            }
+          }
+
           var contentEl = document.getElementById('chapterContent');
           if (contentEl) {
             initPdfPageLazyRender(contentEl);

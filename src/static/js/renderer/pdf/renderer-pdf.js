@@ -25,6 +25,61 @@
   var _continuousViewEl = null; // 连续滚动模式独立容器
   var _reflowViewEl = null;    // Reflow 重排模式独立容器
   var _lifecycleDisposer = null; // AppLifecycle refresher 的反注册函数
+  var _preSwitchScrollRatio = 0; // P2-1: 模式切换前页内滚动比例（0=页顶, 1=页底），用于恢复精确位置
+
+  // ==================== 智能位置恢复 ====================
+
+  /**
+   * 智能位置恢复：等待目标页渲染完成后再跳转，替代固定 setTimeout
+   * 策略：
+   *   1. 先等 100ms 让 IntersectionObserver 有机会触发渲染
+   *   2. 检查目标页是否已渲染（data-pdf-rendered="1"）
+   *   3. 若未渲染，主动触发渲染并等待 200ms
+   *   4. 最多重试 3 次，总等待 ≤ 800ms
+   *   5. 超时后强制跳转（即使未渲染完成，比永远不跳好）
+   */
+  var MAX_RESTORE_RETRIES = 3;
+  function _restorePositionWhenReady(targetPage, scrollRatio) {
+    var ratio = scrollRatio || 0;
+    var retry = 0;
+    function tryRestore() {
+      var nav = win.BKPdf._internal.nav;
+      if (!nav || !nav.goToPage) return;
+      // 找到目标页元素
+      var targetEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + targetPage + '"]');
+      if (targetEl && targetEl.getAttribute('data-pdf-rendered') === '1') {
+        // 已渲染，跳转
+        nav.goToPage(targetPage, false);
+        // P2-1: 恢复页内滚动偏移（仅 Continuous 模式有意义）
+        if (ratio > 0 && S.mode() === S.MODE_CONTINUOUS && targetEl) {
+          var r = targetEl.getBoundingClientRect();
+          var scrollContainer = nav._getScrollContainer ? nav._getScrollContainer() : null;
+          if (scrollContainer && r.height > 0) {
+            var offset = r.height * ratio;
+            scrollContainer.scrollTop = targetEl.offsetTop + offset;
+          }
+        }
+        _preSwitchScrollRatio = 0; // 用完即清
+        return;
+      }
+      if (retry >= MAX_RESTORE_RETRIES) {
+        // 超时，强制跳转
+        nav.goToPage(targetPage, false);
+        _preSwitchScrollRatio = 0;
+        return;
+      }
+      retry++;
+      // 主动触发目标页渲染（如果它在视口附近，observer 会自动触发）
+      if (targetEl && targetEl.getAttribute('data-pdf-rendered') !== '1' &&
+          targetEl.getAttribute('data-pdf-rendering') !== '1') {
+        core.renderPage(targetEl);
+      }
+      var delay = retry === 1 ? 150 : 200;
+      setTimeout(tryRestore, delay);
+    }
+    // 首次延迟：等 IntersectionObserver 初始化并触发
+    setTimeout(tryRestore, 100);
+  }
 
   function _setZoom(pdfBookId, zoom) {
     zoom = Math.max(S.MIN_ZOOM, Math.min(S.MAX_ZOOM, zoom));
@@ -150,6 +205,7 @@
   /**
    * 探测 PDF 是否有可重排文字层
    * 用前 3 页的 getTextContent items 数判断，全部为 0 视为扫描型 PDF
+   * ★ 优化：并行提取前 3 页文字层（原串行提取延迟 3×100ms+），首屏提速
    * 探测完毕后写入 state，并通知 UI 刷新模式按钮
    */
   function _probeTextLayer(bookId) {
@@ -159,23 +215,25 @@
 
     core.getPdfDoc(bookId).then(function (pdf) {
       var probePages = Math.min(3, pdf.numPages || 1);
-      var p = Promise.resolve();
-      var totalItems = 0;
+      // ★ 并行提取所有探测页的 getTextContent
+      var pagePromises = [];
       for (var i = 1; i <= probePages; i++) {
         (function (pageNum) {
-          p = p.then(function () {
-            return pdf.getPage(pageNum).then(function (page) {
+          pagePromises.push(
+            pdf.getPage(pageNum).then(function (page) {
               return page.getTextContent({
                 includeMarkedContent: false,
                 disableCombineTextItems: false
               }).then(function (tc) {
-                totalItems += (tc.items || []).length;
+                return (tc.items || []).length;
               });
-            });
-          });
+            }).catch(function () { return 0; })
+          );
         })(i);
       }
-      return p.then(function () {
+      return Promise.all(pagePromises).then(function (counts) {
+        var totalItems = 0;
+        for (var i = 0; i < counts.length; i++) totalItems += counts[i];
         var hasText = totalItems > 0;
         S.setHasTextLayer(bookId, hasText);
         // 通知 UI 刷新模式按钮可见性
@@ -240,13 +298,11 @@
       _continuousViewEl = container;
       init(container);
 
-      // 恢复阅读位置（连续模式也支持）
+      // 恢复阅读位置（连续模式也支持，使用智能延迟）
       var savedPage = S.restoreReadingPosition(bookId);
       if (savedPage && savedPage > 1) {
-        setTimeout(function () {
-          var nav = win.BKPdf._internal.nav;
-          if (nav && nav.goToPage) nav.goToPage(savedPage, false);
-        }, 300);
+        _restorePositionWhenReady(savedPage, _preSwitchScrollRatio);
+        _preSwitchScrollRatio = 0;
       }
     }).catch(function (err) {
       console.warn('[PDF] 进入连续滚动模式失败:', err);
@@ -354,13 +410,11 @@
       else if (nightMode === S.NIGHT_SEPIA) doc.body.classList.add('bk-pdf-sepia');
       else if (nightMode === S.NIGHT_GREEN) doc.body.classList.add('bk-pdf-green');
 
-      // 恢复阅读位置
+      // 恢复阅读位置（使用智能延迟）
       var savedPage = S.restoreReadingPosition(bookId);
       if (savedPage && savedPage > 1) {
-        setTimeout(function () {
-          var nav = subs.nav;
-          if (nav && nav.goToPage) nav.goToPage(savedPage, false);
-        }, 200);
+        _restorePositionWhenReady(savedPage, _preSwitchScrollRatio);
+        _preSwitchScrollRatio = 0;
       }
     }).catch(function (err) {
       console.warn('[PDF] 进入 Reflow 模式失败:', err);
@@ -520,15 +574,12 @@
       S.currentPageObserver().observe(pages[j]);
     }
 
-    // 恢复阅读位置
+    // 恢复阅读位置（使用智能延迟替代固定 setTimeout）
     if (pdfBookId) {
       var savedPage = S.restoreReadingPosition(pdfBookId);
       if (savedPage && savedPage > 1) {
-        // 延迟跳转，等页面渲染
-        setTimeout(function () {
-          var nav = win.BKPdf._internal.nav;
-          if (nav && nav.goToPage) nav.goToPage(savedPage, false);
-        }, 300);
+        _restorePositionWhenReady(savedPage, _preSwitchScrollRatio);
+        _preSwitchScrollRatio = 0;
       }
     }
 
@@ -755,6 +806,25 @@
     var pages = doc.querySelectorAll('.bk-pdf-page');
     if (!pages || !pages.length) return;
 
+    // ★ 2.5) Reflow 模式刷新：Reflow 不使用 .bk-pdf-page，
+    //   需单独处理——让 divider observer 重新检测当前页码，
+    //   并对可见区域内的图片重新触发渲染（如有需要）
+    if (S.mode() === S.MODE_REFLOW) {
+      var reflow = win.BKPdf._internal.reflow;
+      if (reflow && reflow.detectCurrentPage) {
+        var rPage = reflow.detectCurrentPage();
+        if (rPage && rPage !== S.currentPage()) {
+          S.setCurrentPage(rPage);
+          var ui = win.BKPdf._internal.ui;
+          if (ui && ui.updatePageIndicator) {
+            ui.updatePageIndicator(rPage, S.totalPages() || 1);
+          }
+        }
+      }
+      // Reflow 模式无需重渲染 canvas，文字层不受 GPU 纹理回收影响
+      return;
+    }
+
     var vh = win.innerHeight || doc.documentElement.clientHeight;
     var vw = win.innerWidth || doc.documentElement.clientWidth;
     var isSingle = S.mode() === S.MODE_SINGLE;
@@ -800,7 +870,7 @@
     }
     console.log('[PDF] refreshVisible: 待重绘 ' + toRender.length + ' 页');
 
-    // 3) 分帧渲染：每帧最多 2 页，避免阻塞遮罩淡出
+    // 3) 分帧渲染：每帧最多 2 页，避免阻塞遮罩淡出动画
     var idx = 0;
     function renderNext() {
       if (idx >= toRender.length) return;
@@ -843,6 +913,47 @@
   };
 
   // 新增公共 API（供 UI / 外部调用）
+  /**
+   * 模式切换过渡遮罩：覆盖 cleanup+reinit 的视觉间隙，消除闪烁
+   * 遮罩颜色跟随主题，与 AppLifecycle 恢复遮罩视觉一致
+   */
+  function _getSwitchMaskColor() {
+    try {
+      var t = doc.documentElement.getAttribute('data-theme');
+      if (t === 'dark') return '#1A1917';
+      if (t === 'warm') return '#FAF8F4';
+    } catch (e) {}
+    return '#525659'; // PDF 中灰背景色（与 #chapterContent 背景 #525659 一致）
+  }
+
+  var _switchMask = null;
+  function _showSwitchMask() {
+    if (_switchMask) return;
+    try {
+      var mask = doc.createElement('div');
+      mask.id = 'bkPdfSwitchMask';
+      mask.className = 'bk-pdf-switch-mask bk-pdf-switch-mask-show';
+      mask.setAttribute('aria-hidden', 'true');
+      mask.style.background = _getSwitchMaskColor();
+      doc.body.appendChild(mask);
+      _switchMask = mask;
+    } catch (e) {}
+  }
+  function _fadeoutSwitchMask() {
+    var mask = _switchMask;
+    if (!mask) return;
+    _switchMask = null;
+    try {
+      mask.classList.remove('bk-pdf-switch-mask-show');
+      mask.classList.add('bk-pdf-switch-mask-fade');
+      setTimeout(function () {
+        if (mask.parentNode) mask.parentNode.removeChild(mask);
+      }, 250);
+    } catch (e) {
+      try { if (mask.parentNode) mask.parentNode.removeChild(mask); } catch (e2) {}
+    }
+  }
+
   win.BKPdf.setOutline = S.setOutline;
   win.BKPdf.getMode = S.mode;
   win.BKPdf.setMode = function (mode) {
@@ -855,52 +966,69 @@
     // 保存的位置可能错误。此处用 S.currentPage() 确保至少与系统当前认知一致
     var _preSwitchBookId = S.currentBookId();
     var _preSwitchPage = S.currentPage();
+    _preSwitchScrollRatio = 0; // 重置
     if (_preSwitchBookId && _preSwitchPage > 0) {
       S.saveReadingPosition(_preSwitchBookId, _preSwitchPage);
+      // P2-1: 计算 Continuous 模式下的页内滚动比例，模式切换后恢复精确位置
+      // Single 模式每页全屏，无需偏移；Reflow 模式由分隔符定位
+      if (S.mode() === S.MODE_CONTINUOUS) {
+        var _pages = doc.querySelectorAll('.bk-pdf-page');
+        for (var _pi = 0; _pi < _pages.length; _pi++) {
+          var _pn = parseInt(_pages[_pi].getAttribute('data-pdf-page'), 10) || 0;
+          if (_pn === _preSwitchPage) {
+            var _rect = _pages[_pi].getBoundingClientRect();
+            var _pageH = _rect.height;
+            if (_pageH > 0) {
+              _preSwitchScrollRatio = Math.max(0, Math.min(1, -_rect.top / _pageH));
+            }
+            break;
+          }
+        }
+      }
     }
+
+    // ★ 过渡遮罩：覆盖 cleanup+reinit 的视觉间隙
+    _showSwitchMask();
 
     if (mode === S.MODE_CONTINUOUS) {
       // 退出 Reflow（如有）——仅清除 reflow DOM
       if (wasReflow) _exitReflowView();
 
       if (_continuousViewEl) {
-        // Bug14 修复：使用 cleanup + init 替代手动子模块重初始化
-        // 原代码只重初始化子模块但不创建 IntersectionObserver，导致从 Reflow 切回
-        // Continuous 后页面不渲染（cleanup 已清空 canvas 但未重置 data-pdf-rendered）
         var savedContEl = _continuousViewEl;
         _continuousViewEl = null;
         cleanup();
         _continuousViewEl = savedContEl;
-        // 恢复连续视图可见性（进入 Reflow 时被隐藏为 display:none）
         _continuousViewEl.style.display = '';
-        // cleanup 恢复了 track display，需重新隐藏
         var trackCV = doc.querySelector('.bk-carousel-track');
         if (trackCV) trackCV.style.display = 'none';
         init(_continuousViewEl);
+        // 延迟淡出遮罩，等待首屏渲染
+        setTimeout(_fadeoutSwitchMask, 150);
       } else if (S.initialized()) {
-        // 从 single/carousel 进入连续模式
         _enterContinuousView();
+        // _enterContinuousView 是异步的（getPdfDoc），在 .then 中淡出
+        // 但为安全兜底，设一个超时
+        setTimeout(_fadeoutSwitchMask, 500);
       }
     } else if (mode === S.MODE_SINGLE) {
-      // 退出 Reflow（如有）——仅清除 reflow DOM
       if (wasReflow) _exitReflowView();
 
       if (_continuousViewEl) {
-        // 退出连续模式，恢复 carousel
         _exitContinuousView();
       } else if (S.initialized()) {
-        // 从 reflow 或其他状态恢复到 single/carousel
-        // Reflow→Single 需要完整 cleanup + init（因为 Reflow 只初始化了 nav/ui/highlight）
         var currContent = doc.getElementById('chapterContent');
         if (currContent) {
           cleanup();
           init(currContent);
         }
       }
+      setTimeout(_fadeoutSwitchMask, 150);
     } else if (mode === S.MODE_REFLOW) {
-      // 首次进入 Reflow
       if (!_reflowViewEl && S.initialized()) {
         _enterReflowView();
+        // enterReflowView 是异步的（提取文字），在 .then 中淡出
+        setTimeout(_fadeoutSwitchMask, 800);
       }
     }
   };

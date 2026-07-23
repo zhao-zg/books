@@ -35,6 +35,8 @@
   var _dividerObserver = null;   // IntersectionObserver 用于检测当前页码
   var _detectedPage = 1;         // IntersectionObserver 检测到的当前页码
   var _renderAborted = false;    // 渲染中止标志（exitReflowView 时置 true，阻止后续图片渲染）
+  var _reflowRenderedUpTo = 0;  // 增量渲染：已渲染到第几页（1-based）
+  var INCREMENTAL_BATCH = 10;    // 每批渲染页数
 
   // ==================== 文字提取 ====================
 
@@ -598,7 +600,9 @@
   // ==================== 进入/退出 Reflow 视图 ====================
 
   /**
-   * 进入 Reflow 模式：提取文字 → 构建 DOM → 插入页面
+   * 进入 Reflow 模式：提取文字 → 增量构建 DOM → 插入页面
+   * ★ 增量渲染优化：先渲染前 INCREMENTAL_BATCH 页，用户即可开始阅读；
+   *   后续页面在 rAF 中分批追加，避免长PDF全量构建阻塞首屏
    * @returns {Promise<HTMLElement>} Reflow 容器元素
    */
   function enterReflowView(bookId) {
@@ -607,6 +611,7 @@
     _isLoading = true;
     _textLayerCache = {};
     _renderAborted = false; // 重置中止标志（上次 exitReflowView 可能设为 true）
+    _reflowRenderedUpTo = 0;
 
     return _extractAllPages(bookId).then(function (pages) {
       // 用户可能在提取过程中导航离开（exitReflowView 已被调用）
@@ -617,13 +622,15 @@
 
       _reflowPages = pages;
 
-      var html = _buildReflowHTML(pages);
-
       // 创建 Reflow 容器
       var container = doc.createElement('div');
       container.id = 'bkPdfReflowView';
       container.className = 'bk-pdf-reflow-view bk-pdf-mode';
-      container.innerHTML = html;
+
+      // ★ 增量渲染：先渲染前 INCREMENTAL_BATCH 页（首屏可见）
+      var firstBatch = Math.min(INCREMENTAL_BATCH, pages.length);
+      var firstHTML = _buildReflowHTMLForRange(pages, 0, firstBatch);
+      container.innerHTML = firstHTML;
 
       // 插入到 readingView（或 body 回退）
       var readingView = doc.getElementById('readingView');
@@ -634,6 +641,7 @@
       }
 
       _reflowContainer = container;
+      _reflowRenderedUpTo = firstBatch;
       _isLoading = false;
 
       // 绑定批注徽章点击事件
@@ -642,8 +650,13 @@
       // 渲染可用的图片
       _renderImages(bookId, pages);
 
-      // 创建 IntersectionObserver 检测当前页码（替代 getBoundingClientRect 遍历）
+      // 创建 IntersectionObserver 检测当前页码
       _setupDividerObserver();
+
+      // ★ 后台增量渲染剩余页面
+      if (pages.length > firstBatch) {
+        _appendRemainingPages(pages, firstBatch);
+      }
 
       return container;
     }).catch(function (err) {
@@ -651,6 +664,41 @@
       console.warn('[PDF-REFLOW] 进入重排模式失败:', err);
       return Promise.reject(err);
     });
+  }
+
+  /**
+   * ★ 增量渲染辅助：为指定范围的页面构建 HTML
+   */
+  function _buildReflowHTMLForRange(pages, startIdx, endIdx) {
+    // 临时构建子数组
+    var subPages = pages.slice(startIdx, endIdx);
+    return _buildReflowHTML(subPages);
+  }
+
+  /**
+   * ★ 增量渲染辅助：分批追加剩余页面到容器
+   * 使用 rAF 分帧，避免阻塞主线程
+   */
+  function _appendRemainingPages(pages, startIdx) {
+    var container = _reflowContainer;
+    if (!container || _renderAborted) return;
+
+    var endIdx = Math.min(startIdx + INCREMENTAL_BATCH, pages.length);
+    var html = _buildReflowHTMLForRange(pages, startIdx, endIdx);
+
+    // 追加到容器末尾（在最后一个分隔符之后）
+    container.insertAdjacentHTML('beforeend', html);
+    _reflowRenderedUpTo = endIdx;
+
+    // 继续追加下一批
+    if (endIdx < pages.length) {
+      (win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); })(function () {
+        _appendRemainingPages(pages, endIdx);
+      });
+    } else {
+      // 全部追加完成，重新绑定批注事件
+      _bindNoteBadgeClicks();
+    }
   }
 
   /**
@@ -696,8 +744,8 @@
         queue.push({ wrapEl: wrap, pageNum: pageNum });
       }
 
-      // 并发控制：同时最多 2 个渲染任务
-      var MAX_CONCURRENT = 2;
+      // 并发控制：同时最多 3 个渲染任务（P2-2: 2→3，加速图片密集型 PDF 加载）
+      var MAX_CONCURRENT = 3;
       var idx = 0;
       var active = 0;
 
@@ -844,9 +892,10 @@
   // ==================== 检测当前页码 ====================
 
    /**
-    * 检测当前页码（基于滚动位置 + getBoundingClientRect 遍历）
-    * 不再依赖 IntersectionObserver（快速滚动时 Observer 回调不可靠）
-    */
+     * 检测当前页码（基于二分查找，O(log n)）
+     * 替代 O(n) getBoundingClientRect 遍历，显著优化长文档滚动性能
+     * 利用页码分隔符按页码递增排列的特点，二分查找最顶部的可见分隔符
+     */
   function detectCurrentPage() {
     if (!_reflowContainer) return 1;
     var dividers = _reflowContainer.querySelectorAll('.bk-pdf-reflow-page-divider');
@@ -854,17 +903,33 @@
 
     var containerRect = _reflowContainer.getBoundingClientRect();
     var viewTop = containerRect.top + 2;
-    var currentPage = 1;
 
-    for (var i = dividers.length - 1; i >= 0; i--) {
-      var rect = dividers[i].getBoundingClientRect();
-      if (rect.top <= viewTop + 50) {
-        currentPage = parseInt(dividers[i].getAttribute('data-reflow-page'), 10) || 1;
-        break;
+    // 短文档（≤20页）直接遍历，O(n) 足够快
+    if (dividers.length <= 20) {
+      for (var i = dividers.length - 1; i >= 0; i--) {
+        var rect = dividers[i].getBoundingClientRect();
+        if (rect.top <= viewTop + 50) {
+          return parseInt(dividers[i].getAttribute('data-reflow-page'), 10) || 1;
+        }
       }
+      return 1;
     }
 
-    return currentPage;
+    // 长文档：二分查找
+    // 找到最后一个 top <= viewTop + 50 的分隔符
+    var lo = 0, hi = dividers.length - 1;
+    var result = 1;
+    while (lo <= hi) {
+      var mid = (lo + hi) >> 1;
+      var midRect = dividers[mid].getBoundingClientRect();
+      if (midRect.top <= viewTop + 50) {
+        result = parseInt(dividers[mid].getAttribute('data-reflow-page'), 10) || (mid + 1);
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return result;
   }
 
   // ==================== init / cleanup ====================

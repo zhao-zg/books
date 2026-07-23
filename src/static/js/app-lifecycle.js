@@ -155,8 +155,8 @@
         } catch (e) {
           console.warn('[AppLifecycle] runRefreshers 整体异常:', e && e.message);
         } finally {
-          // 4) 100ms 后开始淡出遮罩（让 refresher 有时间渲染首屏）
-          setTimeout(_fadeoutResumeMask, 100);
+          // 4) 200ms 后开始淡出遮罩（让 refresher 有时间渲染首屏，比 100ms 更可靠）
+          setTimeout(_fadeoutResumeMask, 200);
         }
       });
     } catch (e) {
@@ -164,7 +164,7 @@
       try { _runRefreshers(bgMs); } catch (e2) {
         console.warn('[AppLifecycle] runRefreshers 兜底异常:', e2 && e2.message);
       }
-      setTimeout(_fadeoutResumeMask, 100);
+      setTimeout(_fadeoutResumeMask, 200);
     }
   }
 
