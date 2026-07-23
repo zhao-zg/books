@@ -80,6 +80,12 @@
   display: none;                          /* WebKit: 隐藏滚动条 */
 }
 
+/* Single 模式下隐藏章节标题（横向 scroll-snap 中标题占宽度并显示文字） */
+#chapterContent.bk-pdf-single .bk-page-title,
+.bk-carousel-page .content.bk-pdf-single .bk-page-title {
+  display: none;
+}
+
 /* 单页模式下，每个 .bk-pdf-page 占满视口宽，scroll-snap 居中 */
 #chapterContent.bk-pdf-single .bk-pdf-page,
 .bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
@@ -104,6 +110,21 @@
   border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边替代静态阴影 */
   box-shadow: none;                                    /* DESIGN: 默认无阴影 */
   border-radius: 2px;
+}
+
+/* Single 模式下 .bk-pdf-page 去除所有卡片装饰（无边框/无圆角/无最小高度），canvas 自身尺寸即为页面尺寸 */
+#chapterContent.bk-pdf-single .bk-pdf-page,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+}
+
+/* Single 模式下 .bk-pdf-canvas-wrap 去除描边，避免翻页时两页间出现细线 */
+#chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap {
+  border: none;
+  border-radius: 0;
 }
 
 /* ── 3. PDF 页面卡片（连续模式 / 默认）────────────────────────── */

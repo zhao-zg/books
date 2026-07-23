@@ -81,7 +81,9 @@
   /**
    * 预渲染相邻 carousel 页中的 PDF 页面
    * 直接调用 core.renderPage（不走 BKPdf.init），避免覆盖全局状态
-   * 只渲染第一页（首屏可见页），其余由 IntersectionObserver 懒加载
+   * 智能感知 carousel 位置，前后均预渲染，确保左右滑动体验对齐：
+   * - prev carousel page：从末尾开始预渲染（最接近当前页的几页）
+   * - next carousel page：从开头开始预渲染（最接近当前页的几页）
    */
   function _prerenderAdjacentPdfPages(contentEl) {
     if (!win.BKPdf || !win.BKPdf._internal) return;
@@ -90,7 +92,36 @@
     // 延迟预渲染，让当前页渲染优先
     setTimeout(function () {
       var pages = contentEl.querySelectorAll('.bk-pdf-page');
-      for (var i = 0; i < Math.min(pages.length, 2); i++) {
+      if (!pages.length) return;
+
+      // 确定当前 contentEl 属于 prev 还是 next carousel page
+      var isPrev = false;
+      var isNext = false;
+      if (_carouselPages) {
+        var prevContent = _carouselPages.prev ? _carouselPages.prev.querySelector('.content') : null;
+        var nextContent = _carouselPages.next ? _carouselPages.next.querySelector('.content') : null;
+        if (prevContent && prevContent === contentEl) isPrev = true;
+        if (nextContent && nextContent === contentEl) isNext = true;
+      }
+
+      var PRERENDER_COUNT = 3;  // 预渲染页数
+      var startIdx, endIdx;
+
+      if (isPrev) {
+        // prev 页：从末尾开始预渲染（最接近当前页的几页）
+        startIdx = Math.max(0, pages.length - PRERENDER_COUNT);
+        endIdx = pages.length;
+      } else if (isNext) {
+        // next 页：从开头开始预渲染（最接近当前页的几页）
+        startIdx = 0;
+        endIdx = Math.min(pages.length, PRERENDER_COUNT);
+      } else {
+        // 当前页或无法判断：预渲染前N页
+        startIdx = 0;
+        endIdx = Math.min(pages.length, PRERENDER_COUNT);
+      }
+
+      for (var i = startIdx; i < endIdx; i++) {
         if (pages[i].getAttribute('data-pdf-rendered') !== '1' &&
             pages[i].getAttribute('data-pdf-rendering') !== '1') {
           try { core.renderPage(pages[i]); } catch (e) {}
