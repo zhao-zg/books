@@ -55,7 +55,7 @@
 .bk-h1 { font-size: 1.6em; }
 /* 阅读内容顶部：当页章节标题 */
 .bk-page-title {
-  font-size: var(--text-2xl, 22px);
+  font-size: 1.4em;
   font-weight: 700;
   color: var(--heading);
   line-height: 1.35;
@@ -93,7 +93,7 @@
   box-shadow: var(--shadow-sm);
 }
 .bk-figure figcaption {
-  font-size: var(--text-sm);
+  font-size: 0.85em;
   color: var(--text-muted);
   margin-top: 6px;
 }
@@ -113,7 +113,7 @@
   border-radius: 6px;
   padding: 12px 14px;
   font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: var(--text-sm);
+  font-size: 0.85em;
   overflow-x: auto;
   margin: 0.8em 0;
 }
@@ -129,12 +129,12 @@
   border-top: 1px solid var(--border);
 }
 .bk-footnotes-title {
-  font-size: var(--text-base);
+  font-size: 0.9em;
   color: var(--text-muted);
   margin-bottom: 8px;
 }
 .bk-footnote {
-  font-size: var(--text-sm);
+  font-size: 0.85em;
   color: var(--text-muted);
   margin-bottom: 6px;
   display: flex;

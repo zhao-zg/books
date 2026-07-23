@@ -40,6 +40,13 @@
       var cv = doc.getElementById('bkPdfContinuousView');
       if (cv) return cv;
     }
+    // Bug11: Reflow 模式下搜索范围是 Reflow 容器
+    if (S.mode() === S.MODE_REFLOW) {
+      var reflow = win.BKPdf._internal.reflow;
+      if (reflow && reflow.container && reflow.container()) {
+        return reflow.container();
+      }
+    }
     return doc;
   }
 
@@ -148,8 +155,9 @@
     _matches = [];
     _currentMatchIdx = -1;
 
-    // 连续模式：使用 pdf.js API 全量搜索（覆盖未渲染页）
-    if (S.mode() === S.MODE_CONTINUOUS) {
+    // 连续模式 / Reflow 模式：使用 pdf.js API 全量搜索（覆盖未渲染页）
+    // Bug11 修复：Reflow 模式无 DOM textLayer，需走 API 搜索路径
+    if (S.mode() === S.MODE_CONTINUOUS || S.mode() === S.MODE_REFLOW) {
       _searchViaPdfApi(query, bookId);
       return;
     }
@@ -345,10 +353,16 @@
   }
 
   /**
-   * API 搜索模式：跳转到目标页后，等待 textLayer 渲染完成，定位并高亮匹配文本
-   * 注意：传入整个 match 对象而非 match.text，因为精确定位需要 matchStart / pageText 等上下文
+   * API 搜索模式：跳转到目标页后，定位并高亮匹配文本
+   * Bug11 修复：Reflow 模式下通过文本匹配在 Reflow DOM 中高亮搜索结果
    */
   function _highlightSearchResultAfterRender(match, idx) {
+    // Reflow 模式：在 Reflow 文本中定位并高亮
+    if (S.mode() === S.MODE_REFLOW) {
+      _highlightSearchResultInReflow(match, idx);
+      return;
+    }
+
     var pageNum = match.pageNum;
     var pageEl = _getPageByNum(pageNum);
     if (!pageEl) return;
@@ -374,6 +388,42 @@
       }, 200);
       // 超时保护 10s
       setTimeout(function () { clearInterval(pollTimer); }, 10000);
+    }
+  }
+
+  /**
+   * Bug11: 在 Reflow 视图中定位并高亮搜索结果
+   * 策略：在目标页码对应的 Reflow 段落中搜索匹配文本，
+   * 找到后添加搜索高亮 class
+   */
+  function _highlightSearchResultInReflow(match, idx) {
+    var reflow = win.BKPdf._internal.reflow;
+    if (!reflow || !reflow.container) return;
+    var container = reflow.container();
+    if (!container) return;
+
+    var searchText = (match.text || '').toLowerCase();
+    if (!searchText) return;
+
+    // 在目标页码的 Reflow 段落中搜索
+    var pageNum = match.pageNum;
+    var paras = container.querySelectorAll('[data-reflow-page="' + pageNum + '"]');
+    for (var i = 0; i < paras.length; i++) {
+      var paraText = (paras[i].textContent || '').toLowerCase();
+      if (paraText.indexOf(searchText) !== -1) {
+        // 找到匹配段落，添加搜索高亮
+        paras[i].classList.add('bk-pdf-search-match');
+        if (i === 0) {
+          paras[i].classList.add('bk-pdf-search-current');
+          // 更新 match 引用
+          _matches[idx].span = paras[i];
+        }
+      }
+    }
+
+    // 清除旧高亮
+    if (idx > 0 && _matches[idx - 1] && _matches[idx - 1].span) {
+      _matches[idx - 1].span.classList.remove('bk-pdf-search-current');
     }
   }
 

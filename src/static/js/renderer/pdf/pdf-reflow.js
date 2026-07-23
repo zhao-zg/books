@@ -728,48 +728,25 @@
     _setupDividerObserver();
   }
 
-  // ==================== IntersectionObserver 页码检测 ====================
+  // ==================== 页码检测 ====================
 
   /**
-   * 设置 IntersectionObserver 监听页码分隔符，实时检测当前页码
-   * 当分隔符进入视口顶部附近时更新 _detectedPage
+   * 检测当前页码（基于滚动位置 + 分隔符位置）
+   *
+   * 方案：使用 scroll 事件代替 IntersectionObserver。
+   * 原因：Reflow 模式下滚动容器是 _reflowContainer（overflow:auto），
+   * IntersectionObserver 即使设置 root=_reflowContainer，在快速滚动
+   * 或程序化设置 scrollTop 时回调可能不触发；且 rootMargin:-90%
+   * 使触发区域极窄（仅容器顶部 10%），分隔符容易跳过该区域。
+   *
+   * 滚动监听由 nav 模块的 _onScroll 驱动（150ms 防抖），
+   * 每次回调委托本函数重新计算当前页码。
    */
   function _setupDividerObserver() {
-    if (_dividerObserver) _dividerObserver.disconnect();
-    _dividerObserver = null;
-
-    var dividers = _reflowContainer ? _reflowContainer.querySelectorAll('.bk-pdf-reflow-page-divider') : [];
-    if (!dividers.length) return;
-
-    // rootMargin: 视口顶部向上 0px，向下 50px（视口顶部偏移容差）
-    _dividerObserver = new IntersectionObserver(function (entries) {
-      for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        if (entry.isIntersecting) {
-          var page = parseInt(entry.target.getAttribute('data-reflow-page'), 10) || 1;
-          if (page > _detectedPage || page === 1) {
-            _detectedPage = page;
-          }
-        }
-      }
-      // 向下滚动时，最后一个 intersecting 的就是当前页
-      // 重新扫描所有 intersecting entries 取最大的页码
-      var maxPage = 0;
-      for (var j = 0; j < entries.length; j++) {
-        if (entries[j].isIntersecting) {
-          var p = parseInt(entries[j].target.getAttribute('data-reflow-page'), 10) || 0;
-          if (p > maxPage) maxPage = p;
-        }
-      }
-      if (maxPage > 0) _detectedPage = maxPage;
-    }, {
-      root: null,
-      rootMargin: '0px 0px -90% 0px',
-      threshold: 0
-    });
-
-    for (var k = 0; k < dividers.length; k++) {
-      _dividerObserver.observe(dividers[k]);
+    // 不再使用 IntersectionObserver，_detectedPage 由 detectCurrentPage() 实时计算
+    if (_dividerObserver) {
+      _dividerObserver.disconnect();
+      _dividerObserver = null;
     }
   }
 
@@ -788,14 +765,11 @@
 
   // ==================== 检测当前页码 ====================
 
-  /**
-   * 检测当前页码（由 IntersectionObserver 实时维护）
-   * 兼容：如 observer 未设置则回退到 getBoundingClientRect 遍历
-   */
+   /**
+    * 检测当前页码（基于滚动位置 + getBoundingClientRect 遍历）
+    * 不再依赖 IntersectionObserver（快速滚动时 Observer 回调不可靠）
+    */
   function detectCurrentPage() {
-    if (_dividerObserver) return _detectedPage || 1;
-
-    // 回退方案
     if (!_reflowContainer) return 1;
     var dividers = _reflowContainer.querySelectorAll('.bk-pdf-reflow-page-divider');
     if (!dividers.length) return 1;

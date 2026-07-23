@@ -59,7 +59,7 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   padding: 16px 18px;
-  font-size: 0.9em;
+  font-size: calc(var(--reading-font-size, 16px) * 0.9);
   line-height: 1.6;
 }
 .bk-epub-fn-popup-active {
@@ -161,6 +161,13 @@
   font-style: normal;
   font-family: 'FZXiaoBiaoSong-B05S', 'STSong', '宋体', 'SimSun', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
 }
+/* 晨兴经文引用块内的 b/strong 允许换行（覆盖 #chapterContent b 和 .bk-carousel-page .content b 的 nowrap） */
+#chapterContent .bk-epub-chenxing_verse b,
+#chapterContent .bk-epub-chenxing_verse strong,
+.bk-carousel-page .content .bk-epub-chenxing_verse b,
+.bk-carousel-page .content .bk-epub-chenxing_verse strong {
+  white-space: normal;
+}
 /* 晨兴正文 */
 .bk-epub-chenxing_content {
   text-indent: 1em;
@@ -208,7 +215,7 @@ pre.bk-code.hljs {
 }
 pre.bk-code code {
   font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
-  font-size: var(--text-sm, 15px);
+  font-size: 0.85em;
   line-height: 1.6;
   tab-size: 4;
 }
@@ -364,7 +371,7 @@ figure.bk-figure img:hover {
   width: 100%;
   border-collapse: collapse;
   margin: 1em 0;
-  font-size: var(--text-sm, 15px);
+  font-size: 0.9em;
   overflow-x: auto;
   display: block;
 }

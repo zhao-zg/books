@@ -2236,3 +2236,12 @@ body.bk-pdf-reading {
     line-height: 1.8;
   }
 }
+
+/* Bug11: Reflow 模式搜索高亮样式 */
+.bk-pdf-reflow-view .bk-pdf-search-match {
+  background: rgba(255, 255, 0, 0.4);
+  border-radius: 2px;
+}
+.bk-pdf-reflow-view .bk-pdf-search-current {
+  background: rgba(255, 140, 0, 0.6);
+}

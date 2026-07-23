@@ -528,7 +528,7 @@
     // （_pageLabel 当时还是 null），这里 topBar 已创建，重新同步一次
     var nav = win.BKPdf._internal.nav;
     if (nav) {
-      var total = (nav.getPageCount ? nav.getPageCount() : (S.totalPages() || 1));
+      var total = (S.totalPages() || (nav.getPageCount ? nav.getPageCount() : 1));
       updatePageIndicator(S.currentPage() || 1, total);
     }
 

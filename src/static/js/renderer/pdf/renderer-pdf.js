@@ -31,6 +31,20 @@
     S.zoomState()[pdfBookId] = S.zoomState()[pdfBookId] || {};
     S.zoomState()[pdfBookId].zoom = zoom;
     _updateZoomControls(zoom);
+
+    // Bug12 修复：Reflow 模式下用 font-size 缩放替代 bk-pdf-zoomed class
+    // （Reflow 无 .bk-pdf-page 元素，原 _setZoom 对 Reflow 完全无效）
+    if (S.mode() === S.MODE_REFLOW) {
+      var reflowContainer = _reflowViewEl ||
+        doc.getElementById('bkPdfReflowView');
+      if (reflowContainer) {
+        // 基准字号 16px（移动端 17px），zoom=1.0 时不缩放
+        var baseFontSize = 16; // 与 CSS .bk-pdf-reflow-view font-size 对齐
+        reflowContainer.style.fontSize = (baseFontSize * zoom) + 'px';
+      }
+      return zoom;
+    }
+
     // zoom > 1 时让当前书的 .bk-pdf-page 变为可滚动容器
     // 通过 data-pdf-book 过滤，避免影响其他书的页面
     var pages = doc.querySelectorAll('.bk-pdf-page[data-pdf-book="' + pdfBookId + '"]');
@@ -305,14 +319,19 @@
     reflow.enterReflowView(bookId).then(function (container) {
       _reflowViewEl = container;
 
-      // 初始化子模块（ui/nav/highlight 在 Reflow 模式下有意义）
+      // 初始化子模块
       // - nav：页码跳转/位置恢复
       // - ui：底栏工具按钮（含高亮列表抽屉）
       // - highlight：Reflow 文字选取 → 标注菜单 → 新建高亮/批注（文本匹配渲染）
+      // Bug9-12 修复：Reflow 模式下也初始化 bookmark 和 search 模块
+      // （bookmark 的 toggleCurrentPage 仅依赖 S 状态，不依赖 DOM 容器；
+      //   search 在 Reflow 模式下使用 pdf.js API 全量搜索，需 init 绑定事件）
       var subs = win.BKPdf._internal;
       if (subs.nav && subs.nav.init) subs.nav.init(container, bookId);
       if (subs.ui && subs.ui.init) subs.ui.init(container, bookId);
       if (subs.highlight && subs.highlight.init) subs.highlight.init(container, bookId);
+      if (subs.bookmark && subs.bookmark.init) subs.bookmark.init(container, bookId);
+      if (subs.search && subs.search.init) subs.search.init(container, bookId);
 
       // 标记为已初始化（Reflow 模式下 setMode 切换依赖 initialized 状态，
       // 缺失会导致 Reflow→Single/Continuous 切换时 cleanup+init 不执行）
@@ -322,6 +341,15 @@
       // 但 Reflow 不走主 init() 不会重新添加，导致 CSS 防护失效、
       // 点击屏幕弹出应用级工具栏而非 PDF 工具栏）
       doc.body.classList.add('bk-pdf-reading');
+
+      // Bug10 修复：恢复夜间/护眼模式 body class（cleanup() 移除了
+      // bk-pdf-night/bk-pdf-sepia/bk-pdf-green，但 Reflow 不走主 init()
+      // 不会重新添加，导致 CSS 选择器 body.bk-pdf-night .bk-pdf-reflow-view
+      // 不匹配，Reflow 视图无夜间模式样式）
+      var nightMode = S.nightMode();
+      if (nightMode === S.NIGHT_INVERT) doc.body.classList.add('bk-pdf-night');
+      else if (nightMode === S.NIGHT_SEPIA) doc.body.classList.add('bk-pdf-sepia');
+      else if (nightMode === S.NIGHT_GREEN) doc.body.classList.add('bk-pdf-green');
 
       // 恢复阅读位置
       var savedPage = S.restoreReadingPosition(bookId);

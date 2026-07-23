@@ -67,10 +67,40 @@
 
     var pages = _navContainer.querySelectorAll('.bk-pdf-page');
     if (!pages.length) return;
+    var totalPages = S.totalPages() || pages.length;
     if (pageNum < 1) pageNum = 1;
-    if (pageNum > pages.length) pageNum = pages.length;
+    if (pageNum > totalPages) pageNum = totalPages;
 
+    // Bug6 修复："每页=1章"结构（Single 模式下容器只有1个 .bk-pdf-page）
+    // 需通过路由跳转到目标章节（=目标PDF页），而非在容器内 scrollLeft
+    if (S.mode() === S.MODE_SINGLE && pages.length <= 1 && _navBookId) {
+      // 容器内只有1页，检查当前页是否就是目标页
+      var currentPageNum = parseInt(pages[0].getAttribute('data-pdf-page'), 10) || 1;
+      if (pageNum === currentPageNum) return; // 已在目标页
+      // 通过路由跳转：pageNum 即章节号（"每页=1章"结构中章节号=页码）
+      if (win.BKRouter) {
+        win.BKRouter.navigate(_navBookId + '/' + pageNum);
+      } else {
+        win.location.hash = '#/' + _navBookId + '/' + pageNum;
+      }
+      S.setCurrentPage(pageNum);
+      if (_navBookId) S.saveReadingPosition(_navBookId, pageNum);
+      _notifyPageChange(pageNum);
+      return;
+    }
+
+    // "全书=1章"结构：容器内有多个 .bk-pdf-page，在容器内滚动跳转
+    if (pageNum > pages.length) pageNum = pages.length;
     var target = pages[pageNum - 1];
+
+    // Bug7 修复：Single 模式远页跳转——目标页可能尚未渲染（懒加载），
+    // 需先触发渲染再滚动，否则 target 的 canvas 为空或 offsetLeft 计算不准
+    if (target && S.mode() === S.MODE_SINGLE &&
+        target.getAttribute('data-pdf-rendered') !== '1' &&
+        target.getAttribute('data-pdf-rendering') !== '1') {
+      core.renderPage(target);
+    }
+
     if (!target) return;
 
     _isProgrammaticScroll = true;
@@ -128,7 +158,36 @@
   }
 
   function goToFirst() {
-    goToPage(1, false);
+    // Bug8 修复 + Bug6 适配："每页=1章"结构下 goToFirst 等同 goToPage(1)
+    if (!_navContainer) return;
+    var pages = _navContainer.querySelectorAll('.bk-pdf-page');
+    if (S.mode() === S.MODE_SINGLE && pages.length <= 1 && _navBookId) {
+      // "每页=1章"结构：通过路由跳转到第1章
+      if (win.BKRouter) {
+        win.BKRouter.navigate(_navBookId + '/1');
+      } else {
+        win.location.hash = '#/' + _navBookId + '/1';
+      }
+      S.setCurrentPage(1);
+      if (_navBookId) S.saveReadingPosition(_navBookId, 1);
+      _notifyPageChange(1);
+      return;
+    }
+    var scrollEl = _getScrollContainer();
+    if (scrollEl) {
+      _isProgrammaticScroll = true;
+      if (S.mode() === S.MODE_SINGLE) {
+        scrollEl.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } else {
+      goToPage(1, false);
+    }
+    S.setCurrentPage(1);
+    if (_navBookId) S.saveReadingPosition(_navBookId, 1);
+    _notifyPageChange(1);
+    setTimeout(function () { _isProgrammaticScroll = false; }, 500);
   }
 
   function goToLast() {
@@ -138,19 +197,45 @@
 
   function _getPageCount() {
     if (_navContainer) {
-      return _navContainer.querySelectorAll('.bk-pdf-page').length;
+      var pdfPages = _navContainer.querySelectorAll('.bk-pdf-page');
+      if (pdfPages.length > 1) return pdfPages.length;
+      // 单页容器（"每页=1章"结构）：DOM 计数为1不正确，fallback 到 S.totalPages()
+      if (pdfPages.length === 1) return S.totalPages() || 1;
+      // Fallback: Reflow 模式下从分隔符计数
+      var dividers = _navContainer.querySelectorAll('.bk-pdf-reflow-page-divider');
+      if (dividers.length > 0) return dividers.length;
     }
     return S.totalPages();
   }
 
   /**
    * 获取滚动容器
-   * 单页模式：横向滚动容器（.content 或更上层）
+   * 单页模式：横向滚动容器（.content 自身即为 scroll-snap 容器）
    * 连续模式：.content 本身
+   * 
+   * Bug6 修复：在 Single 模式下，.content.bk-pdf-single 虽是横向 scroll-snap
+   * 容器，但如果 clientWidth=0（可能因布局尚未完成或容器被隐藏），
+   * 向上查找最近的可滚动祖先元素作为 fallback。
    */
   function _getScrollContainer() {
     if (!_navContainer) return null;
-    // 单页模式下 .content 自身是横向 scroll-snap 容器
+    // 单页模式下优先检查 .content 自身是否可横向滚动
+    if (S.mode() === S.MODE_SINGLE) {
+      // 强制 reflow 确保布局已计算
+      void _navContainer.offsetWidth;
+      if (_navContainer.clientWidth > 0) {
+        return _navContainer;
+      }
+      // Fallback: 向上查找可横向滚动的祖先（如 .bk-carousel-page）
+      var ancestor = _navContainer.parentElement;
+      while (ancestor) {
+        var style = win.getComputedStyle(ancestor);
+        if (style && (style.overflowX === 'auto' || style.overflowX === 'scroll')) {
+          return ancestor;
+        }
+        ancestor = ancestor.parentElement;
+      }
+    }
     return _navContainer;
   }
 
@@ -243,19 +328,24 @@
 
     var currentPage = 1;
     if (S.mode() === S.MODE_SINGLE) {
-      // 单页模式：视口中心
-      var scrollEl = _getScrollContainer();
-      if (!scrollEl) return;
-      var scrollLeft = scrollEl.scrollLeft;
-      var containerW = scrollEl.clientWidth;
-      var centerX = scrollLeft + containerW / 2;
+      // Bug6 修复："每页=1章"结构下容器只有1页，直接从 data-pdf-page 取绝对页码
+      if (pages.length <= 1) {
+        currentPage = parseInt(pages[0].getAttribute('data-pdf-page'), 10) || 1;
+      } else {
+        // "全书=1章"结构：视口中心定位
+        var scrollEl = _getScrollContainer();
+        if (!scrollEl) return;
+        var scrollLeft = scrollEl.scrollLeft;
+        var containerW = scrollEl.clientWidth;
+        var centerX = scrollLeft + containerW / 2;
 
-      for (var i = 0; i < pages.length; i++) {
-        var left = pages[i].offsetLeft;
-        var right = left + pages[i].offsetWidth;
-        if (centerX >= left && centerX < right) {
-          currentPage = i + 1;
-          break;
+        for (var i = 0; i < pages.length; i++) {
+          var left = pages[i].offsetLeft;
+          var right = left + pages[i].offsetWidth;
+          if (centerX >= left && centerX < right) {
+            currentPage = parseInt(pages[i].getAttribute('data-pdf-page'), 10) || (i + 1);
+            break;
+          }
         }
       }
     } else {
@@ -268,7 +358,7 @@
         var dist = Math.abs(rect.top);
         if (dist < bestDist) {
           bestDist = dist;
-          bestPage = j + 1;
+          bestPage = parseInt(pages[j].getAttribute('data-pdf-page'), 10) || (j + 1);
         }
       }
       currentPage = bestPage;

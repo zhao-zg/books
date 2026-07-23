@@ -27,7 +27,7 @@
   .speech-time { font-size: 0.6875rem; padding-left: 0; margin-top: 6px; }
   /* 3 列小屏：收敛封面基准字号，海报文字在 ~88–106px 窄卡内完整可读不溢出 */
   .category-card .bk-cover,
-  .series-catalog-card .bk-cover,
+  .series-catalog-card .bk-cover { font-size: 13px; }
   div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover,
   .bk-shelf-row-cover .bk-cover { font-size: 11px; }
 }
@@ -76,7 +76,7 @@ button:active { transition-duration: 0.05s; }
   .series-catalog-grid { gap: 10px; padding: 4px 12px 12px; }
   .bk-city-book-grid { gap: 10px; padding: 4px 12px 12px; }
   .category-card .bk-cover,
-  .series-catalog-card .bk-cover,
+  .series-catalog-card .bk-cover { font-size: 13px; }
   div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover,
   .bk-shelf-row-cover .bk-cover { font-size: 11px; }
   .bk-reading-chapter-title { font-size: var(--text-lg); }
