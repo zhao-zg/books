@@ -70,13 +70,13 @@
   // ==================== 页面 HTML 生成 ====================
 
   /**
-   * 生成页面内部完整结构 HTML（placeholder 含 spinner + canvas-wrap）
+   * 生成页面内部完整结构 HTML（spinner-wrap + canvas-wrap）
    * 供 _ensurePageStructure 在页面进入视口时延迟填充。
+   * spinner-wrap 替代旧 placeholder，不含任何页码文字。
    */
   function _pageInnerHTML(pgNum) {
-    var safePg = String(parseInt(pgNum, 10) || 1);
     return '' +
-      '<div class="bk-pdf-page-placeholder" aria-hidden="true">' +
+      '<div class="bk-pdf-spinner-wrap" aria-hidden="true">' +
         '<div class="bk-pdf-spinner">' +
           '<svg class="bk-pdf-spinner-svg" viewBox="0 0 50 50">' +
             '<circle cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke-linecap="round"/>' +
@@ -92,9 +92,9 @@
 
   /**
    * 生成 PDF 页面的占位 HTML（供 renderer-content.js / _enterContinuousView 调用）
-   * S2 优化：只生成轻量骨架壳（placeholder 仅含页码文字，无 spinner/canvas），
+   * S2 优化：只生成纯空骨架壳，无任何子元素，
    * 内部完整结构延迟到进入视口时由 _ensurePageStructure 填充。
-   * 初次进入连续模式时 300 页从 ~2100 节点降到 ~600 节点，消除 innerHTML 同步阻塞。
+   * 初次进入连续模式时 300 页仅 300 个空 div，消除 innerHTML 同步阻塞。
    * 配合 CSS content-visibility:auto + contain-intrinsic-size:90vh 保证滚动条不跳动。
    */
   function generatePageHTML(item) {
@@ -102,21 +102,17 @@
     var pdfBkId = item.pdfBookId || '';
     var safePg = String(parseInt(pgNum, 10) || 1);
     var safeId = S.escAttr(pdfBkId);
-    return '' +
-      '<div class="bk-pdf-page" data-pdf-page="' + safePg + '" data-pdf-book="' + safeId + '">' +
-        '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>' +
-      '</div>';
+    return '<div class="bk-pdf-page" data-pdf-page="' + safePg + '" data-pdf-book="' + safeId + '"></div>';
   }
 
   /**
    * S2：确保页面内部结构已填充（幂等）
-   * 骨架壳进入视口时由 renderPage 入口调用，填充 placeholder(含spinner) + canvas-wrap，
-   * 使后续 canvas/placeholder/textLayer 查询可用。已填充则跳过（O(1) 检测）。
+   * 纯空骨架壳进入视口时由 renderPage 入口调用，填充 spinner-wrap + canvas-wrap，
+   * 使后续 canvas/spinner-wrap/textLayer 查询可用。已填充则跳过（O(1) 检测）。
    */
   function _ensurePageStructure(el) {
     if (el.querySelector('.bk-pdf-canvas-wrap')) return; // 已填充完整结构
-    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
-    el.innerHTML = _pageInnerHTML(pgNum);
+    el.innerHTML = _pageInnerHTML();
   }
 
   // ==================== HiDPI 渲染核心 ====================
@@ -127,7 +123,7 @@
     var pdfBkId = el.getAttribute('data-pdf-book') || '';
     var canvas = el.querySelector('.bk-pdf-canvas');
     if (!canvas) return;
-    var placeholder = el.querySelector('.bk-pdf-page-placeholder');
+    var spinnerWrap = el.querySelector('.bk-pdf-spinner-wrap');
 
     // 取消该页面进行中的渲染任务（cancel 旧 renderTask）
     _cancelRender(el);
@@ -224,7 +220,7 @@
       _setRenderingState(el, false);
       delete S.renderAbort()[sigKey];
       el.setAttribute('data-pdf-rendered', '1');
-      if (placeholder) placeholder.style.display = 'none';
+      if (spinnerWrap) spinnerWrap.style.display = 'none';
       canvas.style.opacity = '1';
       _trackActivePage(el);
 
@@ -530,13 +526,11 @@
     _cancelRender(el);
     el.removeAttribute('data-pdf-rendered');
     el.removeAttribute('data-pdf-rendering'); // 修复：cancel 后 promise 链提前 return 不走 _setRenderingState(false)，若不清理则 observer 会因 data-pdf-rendering="1" 跳过该页，导致回收后永不重渲染
-    // S2 激进回收：直接清空 innerHTML 恢复为骨架壳，
-    // 释放 canvas/textLayer/annotationLayer 等所有子节点内存（含 canvas GPU 纹理，比手动 width=0 更彻底）。
+    // S2 激进回收：清空 innerHTML 恢复为纯空骨架壳，
+    // 释放 canvas/textLayer/annotationLayer/spinner 等所有子节点内存（含 canvas GPU 纹理）。
     // CSS content-visibility:auto + contain-intrinsic-size:90vh 保证占位高度不变，滚动条不跳动。
     // 再次进入视口时 renderPage 入口的 _ensurePageStructure 会重新填充完整结构。
-    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
-    el.innerHTML =
-      '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>';
+    el.innerHTML = '';
     if (S.observer()) {
       S.observer().observe(el);
     }
@@ -545,27 +539,27 @@
   // ==================== 错误 UI ====================
 
   function _showErrorUI(el, pgNum) {
-    var placeholder = el.querySelector('.bk-pdf-page-placeholder');
-    if (!placeholder) return;
-    placeholder.innerHTML =
-      '<div class="bk-pdf-error">' +
-        '<span class="bk-pdf-error-icon">⚠</span>' +
-        '<span class="bk-pdf-error-text">第 ' + S.escText(String(pgNum)) + ' 页加载失败</span>' +
-        '<button class="bk-pdf-retry-btn" data-pdf-retry>重试</button>' +
-      '</div>';
-    placeholder.style.display = '';
-    var retryBtn = placeholder.querySelector('[data-pdf-retry]');
+    // 隐藏 spinner（如果有）
+    var spinnerWrap = el.querySelector('.bk-pdf-spinner-wrap');
+    if (spinnerWrap) spinnerWrap.style.display = 'none';
+    // 移除旧错误 UI（如果有）
+    var oldError = el.querySelector('.bk-pdf-error');
+    if (oldError && oldError.parentNode) oldError.parentNode.removeChild(oldError);
+    // 创建错误 UI
+    var errorDiv = doc.createElement('div');
+    errorDiv.className = 'bk-pdf-error';
+    errorDiv.innerHTML =
+      '<span class="bk-pdf-error-icon">⚠</span>' +
+      '<span class="bk-pdf-error-text">第 ' + S.escText(String(pgNum)) + ' 页加载失败</span>' +
+      '<button class="bk-pdf-retry-btn" data-pdf-retry>重试</button>';
+    el.appendChild(errorDiv);
+    var retryBtn = errorDiv.querySelector('[data-pdf-retry]');
     if (retryBtn) {
       retryBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        // 恢复 placeholder 为 spinner
-        placeholder.innerHTML =
-          '<div class="bk-pdf-spinner" aria-hidden="true">' +
-            '<svg class="bk-pdf-spinner-svg" viewBox="0 0 50 50">' +
-              '<circle cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke-linecap="round"/>' +
-            '</svg>' +
-          '</div>' +
-          '<span class="bk-pdf-page-num">第 ' + pgNum + ' 页</span>';
+        // 移除错误 UI，恢复 spinner
+        if (errorDiv.parentNode) errorDiv.parentNode.removeChild(errorDiv);
+        if (spinnerWrap) spinnerWrap.style.display = '';
         renderPage(el);
       });
     }

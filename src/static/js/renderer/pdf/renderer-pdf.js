@@ -43,8 +43,7 @@
       pg.removeAttribute('data-pdf-pending-cleanup');
       // 旧 canvas 内容已无用，清空释放内存
       if (pg.querySelector('.bk-pdf-canvas-wrap')) {
-        pg.innerHTML =
-          '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>';
+        pg.innerHTML = '';
       }
     }
   }

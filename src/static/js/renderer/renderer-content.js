@@ -144,9 +144,7 @@
           // 回退：BKPdf 尚未加载时生成骨架壳（与 S2 generatePageHTML 对齐）
           var pgNum = item.pageNumber || 1;
           var pdfBkId = item.pdfBookId || '';
-          html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '">' +
-            '<div class="bk-pdf-page-placeholder"><span class="bk-pdf-page-num">第 ' + pgNum + ' 页</span></div>' +
-            '</div>';
+          html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '"></div>';
         }
         break;
 
