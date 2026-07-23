@@ -69,9 +69,34 @@
       // initPdfPageLazyRender 正式初始化。
       contentEl.innerHTML = renderChapterContent(chapter, true);
       _applyMdEnhancements(contentEl);
+      // 预渲染相邻页中的 PDF 页面（直接调用 core.renderPage，不走 BKPdf.init）
+      // 解决"往后翻没缓存"问题：next 页是骨架壳，canvas 未渲染，
+      // 用户滑到 next 时需等 IntersectionObserver 触发渲染才看到内容
+      _prerenderAdjacentPdfPages(contentEl);
     } else {
       contentEl.innerHTML = '';
     }
+  }
+
+  /**
+   * 预渲染相邻 carousel 页中的 PDF 页面
+   * 直接调用 core.renderPage（不走 BKPdf.init），避免覆盖全局状态
+   * 只渲染第一页（首屏可见页），其余由 IntersectionObserver 懒加载
+   */
+  function _prerenderAdjacentPdfPages(contentEl) {
+    if (!win.BKPdf || !win.BKPdf._internal) return;
+    var core = win.BKPdf._internal.core;
+    if (!core || !core.renderPage) return;
+    // 延迟预渲染，让当前页渲染优先
+    setTimeout(function () {
+      var pages = contentEl.querySelectorAll('.bk-pdf-page');
+      for (var i = 0; i < Math.min(pages.length, 2); i++) {
+        if (pages[i].getAttribute('data-pdf-rendered') !== '1' &&
+            pages[i].getAttribute('data-pdf-rendering') !== '1') {
+          try { core.renderPage(pages[i]); } catch (e) {}
+        }
+      }
+    }, 300);
   }
 
   // 滑动完成后重排页面（先重置位置，再移动 DOM，避免中间帧闪烁）
