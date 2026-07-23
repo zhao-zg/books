@@ -34,6 +34,7 @@
   var _textLayerCache = {};      // pageNum → textLayer 尺寸缓存（标注映射用）
   var _dividerObserver = null;   // IntersectionObserver 用于检测当前页码
   var _detectedPage = 1;         // IntersectionObserver 检测到的当前页码
+  var _renderAborted = false;    // 渲染中止标志（exitReflowView 时置 true，阻止后续图片渲染）
 
   // ==================== 文字提取 ====================
 
@@ -95,18 +96,61 @@
         if (ops[i] === win.pdfjsLib.OPS.paintImageXObject ||
             ops[i] === win.pdfjsLib.OPS.paintJpegXObject) {
           var imgName = args[i][0];
-          // 记录图片名和页码，后续渲染时用 page.getObjectProperty 获取
           images.push({
             name: imgName,
             pageNum: pageNum,
-            // 精确坐标需要结合当前变换矩阵，先用占位
             x: 0, y: 0, width: 0, height: 0
           });
         }
       }
-      return images;
+
+      // Bug#15a: 图片数量过多时（如乐谱 PDF），尝试获取尺寸并过滤小图
+      // 乐谱中的音符/记号被 pdf.js 识别为大量小尺寸图片，淹没文字内容
+      if (images.length <= 20) return images;
+
+      return _filterSmallImages(page, images).catch(function () {
+        // 过滤失败：数量过多则丢弃全部，否则保留原始
+        return images.length > 50 ? [] : images;
+      });
     }).catch(function () {
       return []; // 图片提取失败不影响文字重排
+    });
+  }
+
+  /**
+   * Bug#15a: 过滤小尺寸图片
+   * 乐谱 PDF 中音符/记号被识别为大量小图片，需按尺寸过滤
+   * @param {Object} page - pdf.js page proxy
+   * @param {Array} images - 图片信息数组
+   * @returns {Promise<Array>} 过滤后的图片数组
+   */
+  function _filterSmallImages(page, images) {
+    var MIN_SIZE = 32;   // 最小图片尺寸（px），低于此值视为矢量元素
+    var MAX_IMAGES = 20;  // 单页最大图片数量，超过则丢弃全部
+
+    var dimPromises = images.map(function (img) {
+      return new Promise(function (resolve) {
+        try {
+          page.objs.get(img.name, function (obj) {
+            if (obj) {
+              img.width = obj.width || 0;
+              img.height = obj.height || 0;
+            }
+            resolve(img);
+          });
+        } catch (e) {
+          resolve(img); // 获取失败，保留原始（width/height 为 0）
+        }
+      });
+    });
+
+    return Promise.all(dimPromises).then(function (resolved) {
+      var filtered = resolved.filter(function (img) {
+        return img.width >= MIN_SIZE && img.height >= MIN_SIZE;
+      });
+      // 过滤后仍过多，说明整页是矢量图形，丢弃全部图片
+      if (filtered.length > MAX_IMAGES) return [];
+      return filtered;
     });
   }
 
@@ -400,8 +444,16 @@
   function _mergeLineText(line) {
     var text = '';
     for (var i = 0; i < line.items.length; i++) {
-      var str = line.items[i].str || '';
+      var rawStr = line.items[i].str || '';
+      if (!rawStr) continue;
+
+      // Bug#15b: trim 每个 text item 的前后空格
+      // pdf.js 在 CJK 文本中常插入多余的前后空格（如 "聖 " → "聖"）
+      // 对 Latin 文本，记住原始前导空格用于词间分隔
+      var hadLeadingSpace = rawStr.charAt(0) === ' ';
+      var str = rawStr.replace(/^\s+|\s+$/g, '');
       if (!str) continue;
+
       var prevChar = text.charAt(text.length - 1);
       var curChar = str.charAt(0);
       if (!prevChar) {
@@ -409,7 +461,7 @@
         continue;
       }
       // 行末标点不加空格
-      var isPrevPunct = /[\u3000-\u303F\uFF00-\uFFEF，。！？；：、,.!?;:）)」』\]\s]/.test(prevChar);
+      var isPrevPunct = /[\u3000-\u303F\uFF00-\uFFEF，。！？；：、,.!?;:）)」』\]]/.test(prevChar);
       var isCurPunct = /^[\u3000-\u303F\uFF00-\uFFEF，。！？；：、,.!?;:（(「『\[]/.test(curChar);
       if (isPrevPunct || isCurPunct) {
         text += str;
@@ -418,19 +470,25 @@
       var prevCJK = _isCJK(prevChar);
       var curCJK = _isCJK(curChar);
       if (prevCJK && curCJK) {
-        // 中文之间不加空格
+        // CJK 字符之间不加空格
         text += str;
       } else if (prevCJK !== curCJK) {
-        // 中文与英文/数字之间加空格
+        // CJK 与 Latin/数字之间加空格
         text += ' ' + str;
-      } else if (prevChar === ' ' || curChar === ' ') {
-        // 已有空格则不重复加
-        text += str;
+      } else if (hadLeadingSpace) {
+        // Latin-Latin: 原始有前导空格，保留词间分隔
+        text += ' ' + str;
       } else {
-        // 英文-英文之间默认不加空格（pdf.js 通常已包含空格）
+        // Latin-Latin: 默认不加空格（pdf.js 通常已在 str 内包含空格）
         text += str;
       }
     }
+
+    // Bug#15b: 移除 CJK 字符之间的多余空格
+    // pdf.js 有时在单个 item 的 str 内部也包含 CJK 间空格（如 "神聖 經"）
+    // 使用 lookahead 避免连续 CJK+空格模式下遗漏中间空格
+    text = text.replace(/([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])\s+(?=[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])/g, '$1');
+
     return text;
   }
 
@@ -548,8 +606,15 @@
     _reflowBookId = bookId;
     _isLoading = true;
     _textLayerCache = {};
+    _renderAborted = false; // 重置中止标志（上次 exitReflowView 可能设为 true）
 
     return _extractAllPages(bookId).then(function (pages) {
+      // 用户可能在提取过程中导航离开（exitReflowView 已被调用）
+      if (_renderAborted) {
+        _isLoading = false;
+        return null;
+      }
+
       _reflowPages = pages;
 
       var html = _buildReflowHTML(pages);
@@ -592,6 +657,7 @@
    * 退出 Reflow 模式：移除容器 DOM
    */
   function exitReflowView() {
+    _renderAborted = true; // 中止后续图片渲染
     if (_dividerObserver) {
       _dividerObserver.disconnect();
       _dividerObserver = null;
@@ -620,6 +686,8 @@
     if (!imgWraps.length) return;
 
     core.getPdfDoc(bookId).then(function (pdf) {
+      if (_renderAborted) return; // 已退出 reflow，放弃渲染
+
       var queue = [];
       for (var i = 0; i < imgWraps.length; i++) {
         var wrap = imgWraps[i];
@@ -634,11 +702,13 @@
       var active = 0;
 
       function next() {
+        if (_renderAborted) return; // 已退出 reflow，停止派发新任务
         if (idx >= queue.length || active >= MAX_CONCURRENT) return;
         var task = queue[idx++];
         active++;
 
         pdf.getPage(task.pageNum).then(function (page) {
+          if (_renderAborted) { active--; return; } // 已退出，不再渲染
           var scale = 1.5;
           var viewport = page.getViewport({ scale: scale });
           var canvas = doc.createElement('canvas');
@@ -646,7 +716,9 @@
           canvas.height = viewport.height;
           var ctx = canvas.getContext('2d');
 
-          page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+          // return render promise 使 .catch() 能捕获 RenderingCancelledException
+          return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+            if (_renderAborted) { active--; return; } // 已退出，不更新 DOM
             try {
               var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
               task.wrapEl.innerHTML = '<img class="bk-pdf-reflow-img" src="' + dataUrl + '" alt="P' + task.pageNum + ' 插图">';
@@ -658,9 +730,13 @@
             active--;
             next(); // 继续下一个
           });
-        }).catch(function () {
+        }).catch(function (err) {
+          // 捕获 RenderingCancelledException（用户导航离开时正常发生）及其他渲染错误
           active--;
-          next();
+          if (err && err.name !== 'RenderingCancelledException') {
+            // 非取消类错误才继续渲染后续页面
+            next();
+          }
         });
       }
 
@@ -668,6 +744,8 @@
       for (var b = 0; b < MAX_CONCURRENT && idx < queue.length; b++) {
         next();
       }
+    }).catch(function () {
+      // getPdfDoc 失败：静默处理，图片占位符保持原样
     });
   }
 

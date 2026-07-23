@@ -317,6 +317,9 @@
     }
 
     reflow.enterReflowView(bookId).then(function (container) {
+      // 用户可能在提取过程中导航离开，enterReflowView 返回 null
+      if (!container) return;
+
       _reflowViewEl = container;
 
       // 初始化子模块
@@ -618,6 +621,27 @@
     }
     S.setActivePages([]);
 
+    // Bug14 修复：重置所有持久化 .bk-pdf-page 元素的渲染状态
+    // cleanup 清空了 activePages 中页面的 canvas 尺寸（width=0, height=0），
+    // 但未移除 data-pdf-rendered 属性。模式切换后 init() 重新观察这些页面时，
+    // IntersectionObserver 检测到 data-pdf-rendered="1" 会跳过渲染，
+    // 导致 canvas 已清空但未重渲染 → 黑屏。
+    // 解决：将所有 .bk-pdf-page 重置为骨架壳，等 init() 的 observer 重新触发渲染。
+    var allPdfPages = doc.querySelectorAll('.bk-pdf-page');
+    for (var rp = 0; rp < allPdfPages.length; rp++) {
+      var pgEl = allPdfPages[rp];
+      pgEl.removeAttribute('data-pdf-rendered');
+      pgEl.removeAttribute('data-pdf-rendering');
+      // 仅重置已填充完整结构的页面（有 canvas-wrap 说明曾被渲染过）
+      if (pgEl.querySelector('.bk-pdf-canvas-wrap')) {
+        var rpNum = parseInt(pgEl.getAttribute('data-pdf-page'), 10) || 1;
+        pgEl.innerHTML =
+          '<div class="bk-pdf-page-placeholder">' +
+            '<span class="bk-pdf-page-num">第 ' + rpNum + ' 页</span>' +
+          '</div>';
+      }
+    }
+
     // 移除响应式监听器
     if (S.resizeHandler()) {
       win.removeEventListener('resize', S.resizeHandler());
@@ -825,40 +849,34 @@
     S.setMode(mode);
     var wasReflow = !!_reflowViewEl;
 
+    // Bug16: 模式切换前保存当前页码，确保 init() 恢复到正确页面
+    // cleanup() 会清除 currentBookId，init() 通过 restoreReadingPosition() 恢复页码
+    // 但若切换前页码检测有偏差（如 Continuous 下 page 2 略微可见被误检测），
+    // 保存的位置可能错误。此处用 S.currentPage() 确保至少与系统当前认知一致
+    var _preSwitchBookId = S.currentBookId();
+    var _preSwitchPage = S.currentPage();
+    if (_preSwitchBookId && _preSwitchPage > 0) {
+      S.saveReadingPosition(_preSwitchBookId, _preSwitchPage);
+    }
+
     if (mode === S.MODE_CONTINUOUS) {
       // 退出 Reflow（如有）——仅清除 reflow DOM
       if (wasReflow) _exitReflowView();
 
       if (_continuousViewEl) {
-        // 连续视图容器仍在（进入 reflow 前保留的），恢复可见 + 重初始化所有子模块
+        // Bug14 修复：使用 cleanup + init 替代手动子模块重初始化
+        // 原代码只重初始化子模块但不创建 IntersectionObserver，导致从 Reflow 切回
+        // Continuous 后页面不渲染（cleanup 已清空 canvas 但未重置 data-pdf-rendered）
+        var savedContEl = _continuousViewEl;
+        _continuousViewEl = null;
+        cleanup();
+        _continuousViewEl = savedContEl;
+        // 恢复连续视图可见性（进入 Reflow 时被隐藏为 display:none）
         _continuousViewEl.style.display = '';
-        var track = doc.querySelector('.bk-carousel-track');
-        if (track) track.style.display = 'none';
-        // 清理旧子模块状态（Reflow 模式下只有 nav/ui/highlight 被初始化）
-        var subs = win.BKPdf._internal;
-        if (subs.gesture && subs.gesture.cleanup) subs.gesture.cleanup();
-        if (subs.nav && subs.nav.cleanup) subs.nav.cleanup();
-        if (subs.links && subs.links.cleanup) subs.links.cleanup();
-        if (subs.ui && subs.ui.cleanup) subs.ui.cleanup();
-        if (subs.thumbs && subs.thumbs.cleanup) subs.thumbs.cleanup();
-        if (subs.outline && subs.outline.cleanup) subs.outline.cleanup();
-        if (subs.search && subs.search.cleanup) subs.search.cleanup();
-        if (subs.bookmark && subs.bookmark.cleanup) subs.bookmark.cleanup();
-        if (subs.highlight && subs.highlight.cleanup) subs.highlight.cleanup();
-        // 在连续视图容器上重新初始化所有子模块
-        var bookId = S.currentBookId();
-        if (subs.gesture && subs.gesture.init) subs.gesture.init(_continuousViewEl, bookId);
-        if (subs.nav && subs.nav.init) subs.nav.init(_continuousViewEl, bookId);
-        if (subs.links && subs.links.init) subs.links.init(_continuousViewEl, bookId);
-        if (subs.ui && subs.ui.init) subs.ui.init(_continuousViewEl, bookId);
-        if (subs.thumbs && subs.thumbs.init) subs.thumbs.init(_continuousViewEl, bookId);
-        if (subs.outline && subs.outline.init) subs.outline.init(_continuousViewEl, bookId);
-        if (subs.search && subs.search.init) subs.search.init(_continuousViewEl, bookId);
-        if (subs.bookmark && subs.bookmark.init) subs.bookmark.init(_continuousViewEl, bookId);
-        if (subs.highlight && subs.highlight.init) subs.highlight.init(_continuousViewEl, bookId);
-        // 恢复 PDF 阅读模式 body class（从 Reflow 切回 Continuous 时
-        // 不走主 init()，bk-pdf-reading 缺失导致应用浮栏误显示）
-        doc.body.classList.add('bk-pdf-reading');
+        // cleanup 恢复了 track display，需重新隐藏
+        var trackCV = doc.querySelector('.bk-carousel-track');
+        if (trackCV) trackCV.style.display = 'none';
+        init(_continuousViewEl);
       } else if (S.initialized()) {
         // 从 single/carousel 进入连续模式
         _enterContinuousView();
