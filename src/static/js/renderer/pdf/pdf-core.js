@@ -76,13 +76,12 @@
   function _pageInnerHTML(pgNum) {
     var safePg = String(parseInt(pgNum, 10) || 1);
     return '' +
-      '<div class="bk-pdf-page-placeholder">' +
-        '<div class="bk-pdf-spinner" aria-hidden="true">' +
+      '<div class="bk-pdf-page-placeholder" aria-hidden="true">' +
+        '<div class="bk-pdf-spinner">' +
           '<svg class="bk-pdf-spinner-svg" viewBox="0 0 50 50">' +
             '<circle cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke-linecap="round"/>' +
           '</svg>' +
         '</div>' +
-        '<span class="bk-pdf-page-num">第 ' + safePg + ' 页</span>' +
       '</div>' +
       '<div class="bk-pdf-canvas-wrap">' +
         '<canvas class="bk-pdf-canvas"></canvas>' +
@@ -105,9 +104,7 @@
     var safeId = S.escAttr(pdfBkId);
     return '' +
       '<div class="bk-pdf-page" data-pdf-page="' + safePg + '" data-pdf-book="' + safeId + '">' +
-        '<div class="bk-pdf-page-placeholder">' +
-          '<span class="bk-pdf-page-num">第 ' + safePg + ' 页</span>' +
-        '</div>' +
+        '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>' +
       '</div>';
   }
 
@@ -539,9 +536,7 @@
     // 再次进入视口时 renderPage 入口的 _ensurePageStructure 会重新填充完整结构。
     var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
     el.innerHTML =
-      '<div class="bk-pdf-page-placeholder">' +
-        '<span class="bk-pdf-page-num">第 ' + pgNum + ' 页</span>' +
-      '</div>';
+      '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>';
     if (S.observer()) {
       S.observer().observe(el);
     }

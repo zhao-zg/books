@@ -27,6 +27,28 @@
   var _lifecycleDisposer = null; // AppLifecycle refresher 的反注册函数
   var _preSwitchScrollRatio = 0; // P2-1: 模式切换前页内滚动比例（0=页顶, 1=页底），用于恢复精确位置
 
+  // ==================== 模式切换延迟清理 ====================
+
+  /**
+   * 延迟清理旧模式的 canvas 占位（保留旧画面直到新页面渲染完成）
+   * 在遮罩淡出前调用，清理所有标记了 data-pdf-pending-cleanup 的旧页面
+   */
+  var _pendingCleanup = false;
+  function _deferredCleanupOldPages() {
+    if (!_pendingCleanup) return;
+    _pendingCleanup = false;
+    var oldPages = doc.querySelectorAll('.bk-pdf-page[data-pdf-pending-cleanup]');
+    for (var i = 0; i < oldPages.length; i++) {
+      var pg = oldPages[i];
+      pg.removeAttribute('data-pdf-pending-cleanup');
+      // 旧 canvas 内容已无用，清空释放内存
+      if (pg.querySelector('.bk-pdf-canvas-wrap')) {
+        pg.innerHTML =
+          '<div class="bk-pdf-page-placeholder" aria-hidden="true"></div>';
+      }
+    }
+  }
+
   // ==================== 智能位置恢复 ====================
 
   /**
@@ -537,8 +559,10 @@
     // 创建 IntersectionObserver（懒渲染）
     if (!S.observer()) {
       // 单页模式用水平 rootMargin，连续模式用垂直
+      // Single: 左右各 2000px（约5页宽度），确保快速滑动时页面已提前渲染
+      // Continuous: 上下各 400px
       var rootMargin = (S.mode() === S.MODE_SINGLE)
-        ? '0px 400px 0px 400px'
+        ? '0px 2000px 0px 2000px'
         : '400px 0px 400px 0px';
       S.setObserver(new IntersectionObserver(function (entries) {
         for (var i = 0; i < entries.length; i++) {
@@ -661,7 +685,8 @@
       S.setCurrentPageObserver(null);
     }
 
-    // 释放所有已渲染 canvas
+    // 释放所有已渲染 canvas 内存（但不清除 DOM，保留旧渲染内容作为过渡占位）
+    // 模式切换后 init() 的 observer 会在新页面渲染完成时触发 _deferredCleanupOldPages
     var active = S.activePages();
     for (var k = 0; k < active.length; k++) {
       var el = active[k];
@@ -672,24 +697,17 @@
     }
     S.setActivePages([]);
 
-    // Bug14 修复：重置所有持久化 .bk-pdf-page 元素的渲染状态
-    // cleanup 清空了 activePages 中页面的 canvas 尺寸（width=0, height=0），
-    // 但未移除 data-pdf-rendered 属性。模式切换后 init() 重新观察这些页面时，
-    // IntersectionObserver 检测到 data-pdf-rendered="1" 会跳过渲染，
-    // 导致 canvas 已清空但未重渲染 → 黑屏。
-    // 解决：将所有 .bk-pdf-page 重置为骨架壳，等 init() 的 observer 重新触发渲染。
+    // Bug14 修复：重置渲染状态标记，确保 init() 的 observer 不跳过这些页面
+    // 但不再立即重置 innerHTML——保留旧 canvas 画面作为过渡占位，
+    // 等新模式第一页渲染完成后再清理旧 DOM（消除切换时页面消失的问题）
     var allPdfPages = doc.querySelectorAll('.bk-pdf-page');
     for (var rp = 0; rp < allPdfPages.length; rp++) {
       var pgEl = allPdfPages[rp];
       pgEl.removeAttribute('data-pdf-rendered');
       pgEl.removeAttribute('data-pdf-rendering');
-      // 仅重置已填充完整结构的页面（有 canvas-wrap 说明曾被渲染过）
+      // 标记为待清理：init() 新模式页面渲染完成时会清理这些旧 canvas
       if (pgEl.querySelector('.bk-pdf-canvas-wrap')) {
-        var rpNum = parseInt(pgEl.getAttribute('data-pdf-page'), 10) || 1;
-        pgEl.innerHTML =
-          '<div class="bk-pdf-page-placeholder">' +
-            '<span class="bk-pdf-page-num">第 ' + rpNum + ' 页</span>' +
-          '</div>';
+        pgEl.setAttribute('data-pdf-pending-cleanup', '1');
       }
     }
 
@@ -954,6 +972,14 @@
     }
   }
 
+  /**
+   * 延迟清理旧模式占位并淡出遮罩（新首屏渲染完成后调用）
+   */
+  function _deferredCleanupAndFadeout() {
+    _deferredCleanupOldPages();
+    _fadeoutSwitchMask();
+  }
+
   win.BKPdf.setOutline = S.setOutline;
   win.BKPdf.getMode = S.mode;
   win.BKPdf.setMode = function (mode) {
@@ -989,6 +1015,8 @@
 
     // ★ 过渡遮罩：覆盖 cleanup+reinit 的视觉间隙
     _showSwitchMask();
+    // 标记延迟清理：cleanup 不立即清空旧 canvas，等新模式首屏渲染后再清理
+    _pendingCleanup = true;
 
     if (mode === S.MODE_CONTINUOUS) {
       // 退出 Reflow（如有）——仅清除 reflow DOM
@@ -1003,13 +1031,12 @@
         var trackCV = doc.querySelector('.bk-carousel-track');
         if (trackCV) trackCV.style.display = 'none';
         init(_continuousViewEl);
-        // 延迟淡出遮罩，等待首屏渲染
-        setTimeout(_fadeoutSwitchMask, 150);
+        // 等首屏渲染后再清理旧 canvas 并淡出遮罩
+        setTimeout(_deferredCleanupAndFadeout, 500);
       } else if (S.initialized()) {
         _enterContinuousView();
-        // _enterContinuousView 是异步的（getPdfDoc），在 .then 中淡出
-        // 但为安全兜底，设一个超时
-        setTimeout(_fadeoutSwitchMask, 500);
+        // _enterContinuousView 是异步的（getPdfDoc），需更长等待
+        setTimeout(_deferredCleanupAndFadeout, 1000);
       }
     } else if (mode === S.MODE_SINGLE) {
       if (wasReflow) _exitReflowView();
@@ -1023,12 +1050,13 @@
           init(currContent);
         }
       }
-      setTimeout(_fadeoutSwitchMask, 150);
+      // 等首屏渲染后再清理旧 canvas 并淡出遮罩
+      setTimeout(_deferredCleanupAndFadeout, 500);
     } else if (mode === S.MODE_REFLOW) {
       if (!_reflowViewEl && S.initialized()) {
         _enterReflowView();
-        // enterReflowView 是异步的（提取文字），在 .then 中淡出
-        setTimeout(_fadeoutSwitchMask, 800);
+        // enterReflowView 是异步的（提取文字），需更长等待
+        setTimeout(_deferredCleanupAndFadeout, 1000);
       }
     }
   };
