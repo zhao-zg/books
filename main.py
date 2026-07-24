@@ -97,12 +97,19 @@ def copy_book_resources(resource_dir: str, output_dir: str):
                 full_path = os.path.join(root, f)
                 rel_path = os.path.relpath(full_path, books_src_dir).replace('\\', '/')
                 stem = os.path.splitext(f)[0]  # 文件名去扩展名，作为默认 title
-                series_files.append({
+                file_info = {
                     'file': rel_path,
                     'format': fmt,
                     'size': os.path.getsize(full_path),
                     'title': stem,
-                })
+                }
+                # 从子文件夹路径提取 category（相对于系列目录的一级子文件夹名）
+                rel_to_series = os.path.relpath(root, entry_path).replace('\\', '/')
+                if rel_to_series and rel_to_series != '.':
+                    # 取第一级子文件夹名作为 category
+                    category = rel_to_series.split('/')[0]
+                    file_info['category'] = category
+                series_files.append(file_info)
 
         if not series_files:
             continue
@@ -454,10 +461,10 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # ── 数据准备：ysz → zl-ysz → zl-merged ──────────────────────
+    # ── 数据准备：ysz → books(md) + zl-merged(JSON) ──────────────
     print("── 数据准备 ──")
 
-    # Step 0-pre: 检查 Node.js 环境（merge_zl_data.py 内置书转换依赖 Node.js）
+    # Step 0-pre: 检查 Node.js 环境（内置书转换依赖 Node.js）
     _node_ok = False
     try:
         _r = subprocess.run(['node', '--version'], capture_output=True, text=True, timeout=5)
@@ -506,41 +513,30 @@ def main():
         else:
             print("⚠ 内置书转换脚本不存在: src/convert-bundled.js")
 
-    # Step 0a: 执行 process_ysz_books.py（ysz → zl-ysz）
+    # Step 0: 执行统一构建脚本 (ysz → books + zl-merged)
+    # 替代了原来的 process_ysz_books.py + merge_zl_data.py 两步管线
+    _ysz_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ysz_to_md.py')
+    _ysz_args = [sys.executable, _ysz_script, '--clean']
+    if not _node_ok:
+        _ysz_args.append('--skip-bundled')
     try:
-        print("▶ 处理 YSZ 数据 (ysz → zl-ysz) ...")
+        print("▶ 统一数据构建 (ysz → books + zl-merged) ...")
         result = subprocess.run(
-            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'process_ysz_books.py')],
+            _ysz_args,
             capture_output=True, text=True, timeout=600
         )
         if result.returncode == 0:
-            print("✓ YSZ 数据处理完成")
+            print("✓ 数据构建完成")
             if result.stdout:
                 lines = result.stdout.strip().splitlines()
-                for line in lines[-5:]:
+                for line in lines[-8:]:
                     print(f"  {line}")
         else:
-            print(f"⚠ YSZ 数据处理警告 (exit={result.returncode})")
+            print(f"⚠ 数据构建警告 (exit={result.returncode})")
             if result.stderr:
-                print(f"  {result.stderr[:200]}")
+                print(f"  {result.stderr[:300]}")
     except Exception as e:
-        print(f"⚠ YSZ 数据处理异常: {e}")
-
-    # Step 0b: 执行 merge_zl_data.py（zl-ysz → zl-merged）
-    try:
-        print("▶ 合并数据 (zl-ysz → zl-merged) ...")
-        result = subprocess.run(
-            [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_zl_data.py'), '--force'],
-            capture_output=True, text=True, timeout=300
-        )
-        if result.returncode == 0:
-            print("✓ 数据合并完成")
-        else:
-            print(f"⚠ 数据合并警告 (exit={result.returncode})")
-            if result.stderr:
-                print(f"  {result.stderr[:200]}")
-    except Exception as e:
-        print(f"⚠ 数据合并异常: {e}")
+        print(f"⚠ 数据构建异常: {e}")
 
     print()
 

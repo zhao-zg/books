@@ -1,0 +1,90 @@
+================================================================================
+PER-SERIES CHAPTER TITLE ANALYSIS
+================================================================================
+bbjh: 6/6 unique/total, top: [('参读书目', 1), ('壹\u3000擘饼聚会乃是信徒们来在一起擘饼(徒二十17)，吃主的晚餐(林前十一20)，赴主的筵席(林前十21)。', 1)]
+cddf: 20/20 unique/total, top: [('读经：“才德的妇人谁能得着呢？她的价值远胜过珍珠。她丈夫心里倚靠她，必不缺少利益；她一生使丈夫有益无损。”（箴三十一10～12）', 1), ('读经：“她寻找羊绒和麻，甘心用手做工。”（箴三十一13）', 1)]
+cjxl: 4/10 unique/total, top: [('壹\u3000前言', 7), ('壹\u3000法老的梦与约瑟的治理', 1)] *** HIGH DUPLICATION (>30%) ***
+dfnc: 25/25 unique/total, top: [('壹 神的经纶乃是神的家庭经营，神的家庭行政，要在基督里将祂自己分赐到祂所拣选的人里面，使祂得着一个家彰显祂自己，这家就是召会，基督的身体---一4，三15：', 1), ('壹 我们所接受作我们支持、力量和满足的独一食物，必须是基督；新约里一个独一的职事只输送基督作神子民独一的食物一民十一5～6，参徒一17、25,林后四1,提前一12，林后三6：', 1)]
+gjczl: 46/46 unique/total, top: [('壹\u3000我们要从历史学得经验，才知道前面的路如何走', 1), ('壹\u3000主兴起时代的职事，就是神圣的异象，神圣的宪法，只要偏离这个，就会失去基督身体的实际，就不是主的恢复了。', 1)]
+hfqc: 24/24 unique/total, top: [('壹\u3000每一个属乎主的人都知道，若是一个人要认识神，他就必须知道他和神之间是怎样的一个关系—赛五四5，弗一2，太二二36～38：', 1), ('壹 路加福音十五章十一至二十四节启示父亲的爱：天天巴望浪子回家，一看见浪 子就不顾一切跑上前去，抱着他又脏又臭的颈项连连亲嘴，又摆设筵席来保证 父亲的爱永远不改变，如果你今天就知道神是爱你，你的心一定会溶化：', 1)]
+hlpxl: 53/61 unique/total, top: [('诗歌-241首', 4), ('诗歌-265首', 3)]
+hzjr: 18/100 unique/total, top: [('信息选读', 52), ('读经', 13)] *** HIGH DUPLICATION (>30%) ***
+jczz: 37/37 unique/total, top: [('柒 擘饼的交通', 1), ('壹、『擘饼的设立』－顶替逾越节', 1)]
+jjzd: 554/681 unique/total, top: [('1', 24), ('标\u3000语', 13)] *** HIGH DUPLICATION (>30%) ***
+jksc: 20/20 unique/total, top: [('壹、神心头的愿望：要得着家：', 1), ('壹、夫妇成一体，象征基督与召会', 1)]
+jzjj: 61/61 unique/total, top: [('真 理', 1), ('关于圣经─神的话', 1)]
+lee8: 4729/4754 unique/total, top: [('第一篇', 3), ('第二篇', 3)]
+nee: 1274/1318 unique/total, top: [('公开的信', 11), ('代邮', 7)]
+qcxl: 97/97 unique/total, top: [('使用说明', 1), ('抚育的工作', 1)]
+qdzys: 26/30 unique/total, top: [('壹、前言', 4), ('壹、认识耶和华是独一的真神', 2)]
+qfsw: 40/40 unique/total, top: [('神新约经纶的四层意义', 1), ('分区的聚会', 1)]
+qnqc: 43/58 unique/total, top: [('壹 引言', 16), ('《初信造就第四十八篇》', 1)]
+sjdy: 175/261 unique/total, top: [('第三章', 15), ('第四章', 11)] *** HIGH DUPLICATION (>30%) ***
+sjrx: 31/31 unique/total, top: [('壹、复兴这件事是小申言者书“外壳”里面的“核仁”', 1), ('壹、基督是我们的生命─西三4上。', 1)]
+sjzzz: 25/25 unique/total, top: [('见证并标记神的建造', 1), ('柱子化的负担', 1)]
+sldd: 83/89 unique/total, top: [('(第一至四章)', 4), ('(第一至三章)', 2)]
+sldx: 14/14 unique/total, top: [('01 病痛缠身', 1), ('02 罪恶捆绑', 1)]
+slz: 174/177 unique/total, top: [('1.操练有无愧的良心', 3), ('对复活要没有自觉', 2)]
+smddsf: 7/11 unique/total, top: [('生命', 5), ('序\xa0\xa0言', 1)] *** HIGH DUPLICATION (>30%) ***
+smddz: 12/16 unique/total, top: [('三项负担的突破-送会到家', 3), ('借着区聚会申言建造召会', 2)] *** HIGH DUPLICATION (>30%) ***
+smdj8: 1935/1959 unique/total, top: [('第一篇\u3000介言', 15), ('第二篇\u3000引言（二）', 4)]
+sy_auto: 588/786 unique/total, top: [('第一天', 12), ('1、信耶稣，就是信基督教吗？', 2)] *** HIGH DUPLICATION (>30%) ***
+wypl: 5/16 unique/total, top: [('追求材料', 7), ('壹、前言', 6)] *** HIGH DUPLICATION (>30%) ***
+xlcl: 58/58 unique/total, top: [('壹 呼求主名的意义：', 1), ('什么是祷读？', 1)]
+xlxl: 7/36 unique/total, top: [('壹 读经：', 12), ('壹 读经', 11)] *** HIGH DUPLICATION (>30%) ***
+xpwy: 19/19 unique/total, top: [('用 灵', 1), ('神人相交', 1)]
+xysl: 5/5 unique/total, top: [('壹 其意义：', 1), ('壹 其门是珍珠', 1)]
+zlt: 87/92 unique/total, top: [('壹', 4), ('壹\u3000旧约预表的指明', 3)]
+zmxx: 48/48 unique/total, top: [('壹  在基督这身体的头里，男和女并没有分别；但在身体里，男和女，就是弟兄和姊妹，是有分别的—加三 28，林前十二 13，十一 2～16：', 1), ('壹 神在祂经纶的行政里，派定给女人一个非常重要的地位：', 1)]
+
+================================================================================
+SERIES WITH POTENTIAL ISSUES
+================================================================================
+  - cjxl
+  - hzjr
+  - jjzd
+  - sjdy
+  - smddsf
+  - smddz
+  - sy_auto
+  - wypl
+  - xlxl
+
+================================================================================
+OVERALL STATISTICS
+================================================================================
+Total chapters across all series: 11031
+Total unique titles: 10310
+Chapters with duplicate titles: 1117 (10.1%)
+
+Titles appearing >= 5 times across all series:
+  [52x] "信息选读" (in series: {'hzjr'})
+  [24x] "1" (in series: {'jjzd'})
+  [16x] "第三章" (in series: {'sjdy', 'nee'})
+  [16x] "壹 引言" (in series: {'qnqc'})
+  [15x] "第一篇　介言" (in series: {'smdj8'})
+  [13x] "读经" (in series: {'hzjr'})
+  [13x] "标　语" (in series: {'jjzd'})
+  [12x] "第二章" (in series: {'sjdy', 'nee'})
+  [12x] "第四章" (in series: {'sjdy', 'nee'})
+  [12x] "第一天" (in series: {'sy_auto'})
+  [12x] "壹 读经：" (in series: {'xlxl'})
+  [11x] "壹、前言" (in series: {'jczz', 'qdzys', 'wypl'})
+  [11x] "公开的信" (in series: {'nee'})
+  [11x] "壹 读经" (in series: {'xlxl'})
+  [10x] "课程摘要" (in series: {'hzjr'})
+  [9x] "信息" (in series: {'hzjr'})
+  [9x] "第五章" (in series: {'sjdy', 'nee'})
+  [9x] "第六章" (in series: {'sjdy', 'nee'})
+  [7x] "壹　前言" (in series: {'cjxl'})
+  [7x] "代邮" (in series: {'nee'})
+  [7x] "追求材料" (in series: {'wypl'})
+  [6x] "介言" (in series: {'zmxx', 'lee8', 'nee'})
+  [6x] "编者与读者" (in series: {'nee'})
+  [6x] "第七章" (in series: {'sjdy', 'nee'})
+  [6x] "第九章" (in series: {'sjdy', 'nee'})
+  [6x] "第十章" (in series: {'sjdy', 'nee'})
+  [6x] "第十一章" (in series: {'sjdy', 'nee'})
+  [6x] "壹 读 经：" (in series: {'xlxl'})
+  [5x] "2" (in series: {'jjzd'})
+  [5x] "第八章" (in series: {'sjdy', 'nee'})
