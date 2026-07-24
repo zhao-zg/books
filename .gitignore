@@ -47,6 +47,11 @@ ios/
 # Resource data (large files, deployed separately via Cloudflare Pages)
 resource/zl-merged/
 resource/zl-ysz/
+resource/books/李文集/
+resource/books/倪柝声文集/
+resource/books/生命读经/
+resource/books/信息拾遗/
+resource/books/职事书报/
 
 # Output
 output/

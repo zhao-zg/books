@@ -151,20 +151,21 @@ def copy_book_resources(resource_dir: str, output_dir: str):
     print(f"  清单: {manifest_path}")
 
 
-def copy_zl_merged_data(resource_dir: str, output_dir: str):
-    """将 resource/zl-merged/ 完整复制到 output/zl-data/（含索引+书籍数据）。
+def prepare_zl_data(output_dir: str):
+    """将 output/zl-merged/ 重命名为 output/zl-data/（前端 DataManager 约定路径）。
 
-    zl-data 是 DataManager 前端约定路径，与 APK/PWA 模式保持一致。
+    ysz_to_md.py 已直接输出 JSON 到 output/zl-merged/，
+    此处只需重命名目录即可。
     """
-    merged_dir = os.path.join(resource_dir, 'zl-merged')
+    merged_dir = os.path.join(output_dir, 'zl-merged')
     if not os.path.isdir(merged_dir):
-        print("⚠ resource/zl-merged/ 不存在，跳过 zl-data 复制")
+        print("⚠ output/zl-merged/ 不存在，跳过 zl-data 准备")
         return
 
     dst_dir = os.path.join(output_dir, 'zl-data')
     if os.path.exists(dst_dir):
         shutil.rmtree(dst_dir)
-    shutil.copytree(merged_dir, dst_dir)
+    os.rename(merged_dir, dst_dir)
 
     # 统计索引信息
     index_path = os.path.join(dst_dir, 'books-index.json')
@@ -564,12 +565,11 @@ def main():
     else:
         print("⚠ changelog.json 未找到，跳过复制")
 
-    # 复制 zl-merged 合并数据到 output/zl-data/（供本地测试使用）
-    copy_zl_merged_data(resource_dir, output_dir)
+    # 准备 zl-data（将 output/zl-merged/ 重命名为 output/zl-data/）
+    prepare_zl_data(output_dir)
 
-    # 复制 resource/books/ 下的书籍资源到 output/books/（可选，默认跳过）
-    # 内置书已由 ysz_to_md.py 生成 ysz 格式 JSON 到 zl-merged/，随 zl-data 一起下发 CDN
-    # 此开关仅用于本地调试/测试时需要直接访问原始文件（EPUB/MD/TXT）的场景
+    # resource/books/ 下的源文件已由 ysz_to_md.py 在构建时处理并入 zl-merged
+    # 此开关仅用于本地调试时需要直接访问原始文件（EPUB/MD/TXT）的场景
     if config.get('copy_book_resources', False):
         copy_book_resources(resource_dir, output_dir)
     else:

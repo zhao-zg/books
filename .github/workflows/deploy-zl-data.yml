@@ -38,20 +38,20 @@ jobs:
 
       - name: Regenerate zl-merged from ysz
         run: |
-          echo "=== 统一数据构建: ysz → books + zl-merged ==="
+          echo "=== 统一数据构建: ysz → zl-merged ==="
           python ysz_to_md.py --clean
           echo "=== Done ==="
-          ls -la resource/zl-merged/
-          cat resource/zl-merged/manifest.json
+          ls -la output/zl-merged/
+          cat output/zl-merged/manifest.json
 
       - name: Prepare deployment with zl-data prefix
         run: |
           echo "=== 创建 zl-data/ 子目录结构 ==="
           mkdir -p deploy-staging/zl-data
-          cp -r resource/zl-merged/* deploy-staging/zl-data/
+          cp -r output/zl-merged/* deploy-staging/zl-data/
           # _headers 放在根目录，/* 通配符覆盖所有路径（含 /zl-data/）
-          if [ -f resource/zl-merged/_headers ]; then
-            cp resource/zl-merged/_headers deploy-staging/
+          if [ -f output/zl-merged/_headers ]; then
+            cp output/zl-merged/_headers deploy-staging/
           fi
           echo "✓ 部署目录结构："
           ls -la deploy-staging/

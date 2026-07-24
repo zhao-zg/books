@@ -5,28 +5,12 @@
 
 直接读取 resource/ysz/ 下的 122 个 txt 原始缓存文件，
 复用 process_ysz_books.py 的解析逻辑（Zo.txt 目录骨架 + HTML/MD 内容提取），
-同时输出：
+输出 ysz JSON + 索引到 output/zl-merged/（前端 DataManager 消费）。
 
-1. resource/books/   — .md 文件（供人阅读 / Git 版本管理）
-2. resource/zl-merged/ — ysz JSON + 索引（前端 DataManager 消费）
-
-替代了原来的三步管线：
-  process_ysz_books.py (ysz→zl-ysz) + merge_zl_data.py (zl-ysz+books→zl-merged)
-  → 现在一条命令搞定
+同时处理 resource/books/ 下的非 ysz 内置书（epub/md/txt），转为 JSON 并入同一输出目录。
 
 目录结构:
-  resource/books/
-  ├── 职事书报/               (L1: 系列名)
-  │   ├── 福音类/             (L2: 分类, 仅 books 系列有)
-  │   │   ├── 1001-到底有没有神.md  (L3: 书籍 md)
-  │   │   └── ...
-  │   ├── 造就类/
-  │   └── ...
-  ├── 生命读经/
-  ├── 倪柝声文集/
-  └── ...
-
-  resource/zl-merged/
+  output/zl-merged/
   ├── books-index.json       (全局索引)
   ├── manifest.json           (版本信息)
   ├── _headers                (CORS 配置)
@@ -63,8 +47,9 @@ from process_ysz_books import (
 
 BASE_DIR = Path(__file__).parent
 DEFAULT_INPUT_DIR = BASE_DIR / 'resource' / 'ysz'
-DEFAULT_BOOKS_DIR = BASE_DIR / 'resource' / 'books'
-DEFAULT_MERGED_DIR = BASE_DIR / 'resource' / 'zl-merged'
+DEFAULT_BOOKS_SRC_DIR = BASE_DIR / 'resource' / 'books'
+DEFAULT_OUTPUT_DIR = BASE_DIR / 'output'
+DEFAULT_MERGED_DIR = DEFAULT_OUTPUT_DIR / 'zl-merged'
 
 # books 系列的分类 prefix → 名称
 BOOKS_CATEGORIES = {
@@ -112,93 +97,7 @@ def save_json(path: Path, data: Any) -> None:
         f.write('\n')
 
 
-# ---------------------------------------------------------------------------
-# 目录路径计算
-# ---------------------------------------------------------------------------
 
-def get_book_folder(series_id: str, book_data: dict, series_title: str) -> Path:
-    """
-    计算书籍存放目录（md 文件）。
-    books 系列: {系列名}/{分类名}/
-    sy_auto (信息拾遗): {系列名}/{子分组名}/  （有 category 时）
-    其他系列:   {系列名}/
-    """
-    category = book_data.get('category', '')
-    if series_id == 'books':
-        return Path(series_title) / (category or '其他类')
-    elif series_id == 'sy_auto' and category:
-        return Path(series_title) / category
-    else:
-        return Path(series_title)
-
-
-def get_book_filename(book_data: dict) -> str:
-    """生成安全的 .md 文件名"""
-    title = book_data.get('title', 'unknown')
-    safe_title = sanitize_filename(title)
-    return f"{safe_title}.md"
-
-
-# ---------------------------------------------------------------------------
-# Markdown 生成
-# ---------------------------------------------------------------------------
-
-def generate_book_md(book_data: dict, series_id: str, series_title: str) -> str:
-    """将书籍数据转为 Markdown 文本（带 YAML frontmatter）"""
-    title = book_data.get('title', '')
-    chapters = book_data.get('chapters', [])
-    category = book_data.get('category', '')
-
-    # YAML frontmatter
-    lines = ['---']
-    lines.append(f'title: "{title}"')
-    lines.append('language: zh')
-    lines.append(f'series: {series_title}')
-    if category:
-        lines.append(f'category: {category}')
-    lines.append(f'chapter_count: {len(chapters)}')
-    lines.append(f'book_id: {book_data.get("id", "")}')
-    lines.append('---')
-    lines.append('')
-
-    # 正文标题
-    lines.append(f'# {title}')
-    lines.append('')
-
-    # 各章节
-    for ch in chapters:
-        ch_title = ch.get('title', '')
-        ch_content = ch.get('content', '')
-
-        if not ch_content or not ch_content.strip():
-            continue
-
-        # 章节标题
-        if ch_title:
-            lines.append(f'## {ch_title}')
-        else:
-            ch_num = ch.get('number', 0)
-            if ch_num > 0:
-                lines.append(f'## 第{ch_num}章')
-
-        lines.append('')
-
-        # 章节内容 - 清理多余空行
-        content_lines = ch_content.split('\n')
-        prev_empty = False
-        for line in content_lines:
-            stripped = line.strip()
-            if not stripped:
-                if not prev_empty:
-                    lines.append('')
-                    prev_empty = True
-                continue
-            prev_empty = False
-            lines.append(stripped)
-
-        lines.append('')
-
-    return '\n'.join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -357,10 +256,10 @@ def _convert_via_node(input_path: Path, book_id: str, series_id: str) -> Optiona
         return None
 
 
-def process_bundled_books(books_dir: Path, merged_dir: Path,
+def process_bundled_books(books_src_dir: Path, merged_dir: Path,
                           dry_run: bool = False) -> Dict[str, Any]:
     """处理非 ysz 内置书：转为 ysz JSON 放入 zl-merged，返回索引信息"""
-    series_list = scan_bundled_books(books_dir)
+    series_list = scan_bundled_books(books_src_dir)
     if not series_list:
         log.info('未发现非ysz内置资源目录，跳过')
         return {'series': [], 'books': []}
@@ -382,7 +281,7 @@ def process_bundled_books(books_dir: Path, merged_dir: Path,
         series_index = []
 
         for f in files:
-            src_path = books_dir / f['file']
+            src_path = books_src_dir / f['file']
             book_id = f'bundle-{sid}__{f["title"]}'
 
             log.info(f'  转换: {f["file"]} → {book_id}')
@@ -447,7 +346,7 @@ def process_bundled_books(books_dir: Path, merged_dir: Path,
 # 主流程
 # ---------------------------------------------------------------------------
 
-def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
+def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
               dry_run: bool = False,
               series_filter: Optional[List[str]] = None,
               clean: bool = False,
@@ -457,7 +356,7 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
     1. 解析 Zo.txt 目录骨架
     2. 构建 URL→内容 查找表
     3. 组装书籍数据
-    4. 同时输出 .md 文件 + ysz JSON + 索引
+    4. 输出 ysz JSON + 索引
     5. 处理非 ysz 内置书
     """
     zo_path = input_dir / 'Zo.txt'
@@ -467,21 +366,11 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
 
     # ── 清理旧内容 ──────────────────────────────────────────────
     if clean and not dry_run:
-        # 清理 books 目录中 ysz 生成的目录
-        if books_dir.exists():
-            log.info('清理 books 目录中的 ysz 生成内容...')
-            for series_id, series_title in SERIES_TITLE_MAP.items():
-                series_path = books_dir / series_title
-                if series_path.exists():
-                    log.info(f'  删除: {series_path}')
-                    shutil.rmtree(series_path)
-        # 清理 zl-merged
         if merged_dir.exists():
-            log.info(f'清理 zl-merged 目录: {merged_dir}')
+            log.info(f'清理输出目录: {merged_dir}')
             shutil.rmtree(merged_dir)
 
     if not dry_run:
-        books_dir.mkdir(parents=True, exist_ok=True)
         merged_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Step 1: 解析 Zo.txt ────────────────────────────────────
@@ -502,9 +391,9 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
     log.info(f'{"="*60}')
     all_books = assemble_books(skeleton, lookup, verbose=False, promote=False)
 
-    # ── Step 4: 双输出 (md + ysz JSON) ──────────────────────────
+    # ── Step 4: 输出 ysz JSON ─────────────────────────────────
     log.info(f'\n{"="*60}')
-    log.info('Step 4: 输出 Markdown + ysz JSON')
+    log.info('Step 4: 输出 ysz JSON')
     log.info(f'{"="*60}')
 
     stats = {'total_books': 0, 'total_series': 0, 'total_chapters': 0}
@@ -534,47 +423,29 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
 
         book_count = 0
         chapter_count = 0
-        dup_check = {}  # 同目录下文件名去重
+        dup_check = {}  # 同系列下 book_id 去重
         series_index_entries = []
 
         for book_data in books:
-            folder = get_book_folder(series_id, book_data, series_title)
-            filename = get_book_filename(book_data)
-
-            # 处理同目录下同名文件（去重）
-            dir_key = str(folder)
-            base_stem = Path(filename).stem
-            if dir_key not in dup_check:
-                dup_check[dir_key] = {}
-            seen_names = dup_check[dir_key]
-            if base_stem in seen_names:
-                dup_book_id = book_data.get("id", "")
-                first_book_id = seen_names[base_stem]
-                log.warning(f'  跳过重复书籍: {base_stem} '
-                           f'(book_id={dup_book_id}), '
-                           f'保留已有 book_id={first_book_id}')
+            # ── 同标题去重 ──
+            book_id = book_data.get('id', '')
+            title = book_data.get('title', '')
+            if title in dup_check:
+                first_id = dup_check[title]
+                log.warning(f'  跳过重复书籍: {title} '
+                           f'(book_id={book_id}), '
+                           f'保留已有 book_id={first_id}')
                 continue
             else:
-                seen_names[base_stem] = book_data.get("id", "")
-
-            # ── 输出 .md 文件 ──
-            if not dry_run:
-                md_path = books_dir / folder / filename
-                md_path.parent.mkdir(parents=True, exist_ok=True)
-                md_content = generate_book_md(book_data, series_id, series_title)
-                with open(md_path, 'w', encoding='utf-8') as f:
-                    f.write(md_content)
+                dup_check[title] = book_id
 
             # ── 输出 ysz JSON ──
-            book_id = book_data.get('id', '')
-            chapters = book_data.get('chapters', [])
-            ch_count = len(chapters)
-
             if not dry_run:
                 book_json = generate_book_ysz_json(book_data)
                 save_json(series_merged_dir / (book_id + '.json'), book_json)
 
             # 系列索引条目
+            ch_count = len(book_data.get('chapters', []))
             index_entry = {
                 'id': book_id,
                 'title': book_data.get('title', ''),
@@ -640,7 +511,7 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
         log.info(f'\n{"="*60}')
         log.info('Step 5: 处理非ysz内置书')
         log.info(f'{"="*60}')
-        bundled = process_bundled_books(books_dir, merged_dir, dry_run=dry_run)
+        bundled = process_bundled_books(books_src_dir, merged_dir, dry_run=dry_run)
         index_series.extend(bundled['series'])
         index_books.extend(bundled['books'])
         stats['total_books'] += len(bundled['books'])
@@ -703,7 +574,6 @@ def build_all(input_dir: Path, books_dir: Path, merged_dir: Path,
     log.info(f'总计: {stats["total_series"]} 个系列, '
              f'{stats["total_books"]} 本书, '
              f'{stats["total_chapters"]} 章')
-    log.info(f'  Markdown 输出: {books_dir}')
     log.info(f'  ysz JSON 输出: {merged_dir}')
 
     return stats
@@ -718,10 +588,11 @@ def main():
         description='统一书籍数据构建脚本 (替代 process_ysz_books.py + merge_zl_data.py)')
     parser.add_argument('--input-dir', type=str, default=str(DEFAULT_INPUT_DIR),
                         help=f'YSZ 输入目录 (默认 {DEFAULT_INPUT_DIR})')
-    parser.add_argument('--books-dir', type=str, default=str(DEFAULT_BOOKS_DIR),
-                        help=f'Markdown 输出目录 (默认 {DEFAULT_BOOKS_DIR})')
+    parser.add_argument('--books-src-dir', type=str, default=str(DEFAULT_BOOKS_SRC_DIR),
+                        help=f'内置书源文件目录 (默认 {DEFAULT_BOOKS_SRC_DIR})')
     parser.add_argument('--merged-dir', type=str, default=str(DEFAULT_MERGED_DIR),
-                        help=f'ysz JSON 输出目录 (默认 {DEFAULT_MERGED_DIR})')
+                        help=f'ysz JSON 输出目录 (默认 {DEFAULT_MERGED_DIR})'
+                             '（默认输出到 output/zl-merged/，不再落盘 resource/）')
     parser.add_argument('--dry-run', action='store_true',
                         help='模拟运行，不写入文件')
     parser.add_argument('--series', type=str, nargs='*', default=None,
@@ -733,11 +604,11 @@ def main():
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir)
-    books_dir = Path(args.books_dir)
+    books_src_dir = Path(args.books_src_dir)
     merged_dir = Path(args.merged_dir)
 
     log.info(f'YSZ 输入目录: {input_dir}')
-    log.info(f'Markdown 输出: {books_dir}')
+    log.info(f'内置书源目录: {books_src_dir}')
     log.info(f'ysz JSON 输出: {merged_dir}')
     if args.dry_run:
         log.info('=== 模拟运行模式 (dry-run) ===')
@@ -747,7 +618,7 @@ def main():
         return 1
 
     stats = build_all(
-        input_dir, books_dir, merged_dir,
+        input_dir, books_src_dir, merged_dir,
         dry_run=args.dry_run,
         series_filter=args.series,
         clean=args.clean,
