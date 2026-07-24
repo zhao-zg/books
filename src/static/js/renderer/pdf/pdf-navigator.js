@@ -436,6 +436,14 @@
       if (!_isProgrammaticScroll && _navBookId) {
         S.saveReadingPosition(_navBookId, currentPage);
       }
+
+      // Single 模式滚动翻页时立即预渲染目标页及相邻页
+      // IntersectionObserver 在 scroll-snap 动画期间回调延迟，
+      // 用户翻到时canvas可能尚未渲染，导致"闪一下"出现内容。
+      // 在 scroll 驱动的页码变化时主动触发渲染，比 Observer 更快。
+      if (S.mode() === S.MODE_SINGLE) {
+        _prerenderOnPageChange(pages, currentPage);
+      }
     }
   }
 
@@ -450,6 +458,41 @@
     var thumbs = win.BKPdf._internal.thumbs;
     if (thumbs && thumbs.highlightPage) {
       thumbs.highlightPage(pageNum);
+    }
+  }
+
+  /**
+   * Single 模式 scroll 翻页时立即预渲染目标页及相邻页
+   * 解决 IntersectionObserver 在 scroll-snap 动画期间回调延迟，
+   * 用户滑到时 canvas 尚未渲染导致的"闪一下"问题
+   */
+  function _prerenderOnPageChange(allPages, pageNum) {
+    var core = win.BKPdf._internal.core;
+    if (!core || !core.renderPage) return;
+
+    // 找到当前页码对应的 el
+    var targetIdx = -1;
+    for (var i = 0; i < allPages.length; i++) {
+      if (parseInt(allPages[i].getAttribute('data-pdf-page'), 10) === pageNum) {
+        targetIdx = i;
+        break;
+      }
+    }
+    if (targetIdx < 0) return;
+
+    // 立即渲染目标页 + 前后各1页（同步+极短延迟）
+    for (var j = -1; j <= 1; j++) {
+      var el = allPages[targetIdx + j];
+      if (el && el.getAttribute('data-pdf-rendered') !== '1' &&
+          el.getAttribute('data-pdf-rendering') !== '1') {
+        if (j === 0) {
+          // 目标页立即渲染（无延迟）
+          try { core.renderPage(el); } catch (e) {}
+        } else {
+          // 相邻页微延迟渲染（让目标页优先）
+          setTimeout(function (e) { try { core.renderPage(e); } catch (ex) {} }, 10, el);
+        }
+      }
     }
   }
 

@@ -446,11 +446,14 @@
   /**
    * 预渲染当前页的相邻页（单页模式下翻页零白屏）
    * 只预渲染尚未渲染且不在回收区的页面
+   * 在当前 .content 容器内查找相邻页（carousel 场景下避免跨章节索引错位）
    */
   function _prerenderAdjacent(el) {
     if (S.mode() !== S.MODE_SINGLE) return;
-    var pgNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 1;
-    var allPages = doc.querySelectorAll('.bk-pdf-page');
+
+    // 找到当前 .content 容器（carousel 或非 carousel 场景均适用）
+    var container = el.closest('.content') || el.parentElement;
+    var allPages = container ? container.querySelectorAll('.bk-pdf-page') : doc.querySelectorAll('.bk-pdf-page');
     if (allPages.length <= 1) return;
 
     // 找到当前位置前后各 PRERENDER_ADJACENT 页
@@ -466,13 +469,13 @@
       var nextEl = allPages[elIdx + j];
       if (nextEl && nextEl.getAttribute('data-pdf-rendered') !== '1' &&
           nextEl.getAttribute('data-pdf-rendering') !== '1') {
-        setTimeout(function (e) { renderPage(e); }, 100 + j * 50, nextEl);
+        setTimeout(function (e) { renderPage(e); }, 50 + j * 30, nextEl);
       }
       // 前页
       var prevEl = allPages[elIdx - j];
       if (prevEl && prevEl.getAttribute('data-pdf-rendered') !== '1' &&
           prevEl.getAttribute('data-pdf-rendering') !== '1') {
-        setTimeout(function (e) { renderPage(e); }, 100 + j * 50, prevEl);
+        setTimeout(function (e) { renderPage(e); }, 50 + j * 30, prevEl);
       }
     }
   }
