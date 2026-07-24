@@ -514,6 +514,9 @@
     // 渲染内容
     _renderDlSeriesList();
     _refreshStorageStats();
+
+    // ★ 修复：重新打开面板时，检查是否有正在进行的下载，恢复下载状态UI
+    _restoreDownloadState();
   }
 
   /**
@@ -909,12 +912,61 @@
   }
 
   /**
+   * 重新打开面板时，恢复进行中下载的UI状态
+   * 场景：用户开始下载 → 关闭面板 → 下载仍在后台进行 → 重新打开面板
+   * 此时面板是全新创建的DOM，需要根据 DataManager 的实时状态恢复：
+   *   - 显示进度区域、控件、后台提示
+   *   - 恢复进度条、百分比、详情文案
+   *   - 启动进度轮询
+   *   - 恢复后台保活回调（确保前后台切换时UI同步）
+   */
+  function _restoreDownloadState() {
+    if (!win.DataManager) return;
+    var status = win.DataManager.getDownloadStatus();
+    if (!status || !status.isDownloading) return;
+
+    console.log('[下载面板] 检测到进行中下载，恢复UI状态');
+
+    // 1. 显示进度区域
+    var wrap = document.getElementById('dlProgressWrap');
+    var detail = document.getElementById('dlProgressDetail');
+    var bgHint = document.getElementById('dlBgHint');
+    var controls = document.getElementById('dlControls');
+    if (wrap) wrap.style.display = '';
+    if (detail) detail.style.display = '';
+    if (bgHint) bgHint.style.display = '';
+    if (controls) controls.style.display = '';
+
+    // 2. 恢复暂停按钮文案
+    var pauseBtn = document.getElementById('dlPauseBtn');
+    if (pauseBtn) pauseBtn.textContent = status.isPaused ? '恢复' : '暂停';
+
+    // 3. 用当前状态渲染进度
+    _applyStatusToUI(status);
+
+    // 4. 启动进度轮询
+    _startProgressPolling();
+
+    // 5. 恢复后台保活的 onForeground 回调（重新打开面板后回调指向旧面板DOM，需重新绑定）
+    //    acquire 内部会检测 isActive()，若已激活则跳过；此处需要更新回调
+    if (win.BK && win.BK.BackgroundDownload && win.BK.BackgroundDownload.isActive()) {
+      // BackgroundDownload 的回调闭包引用旧DOM，需要重新 acquire 更新回调
+      // 先 release 再 acquire，确保新面板的 onForeground 能刷新当前DOM
+      win.BK.BackgroundDownload.release();
+      _acquireBackgroundDownload();
+    }
+  }
+
+  /**
    * 启动进度轮询（作为 onProgress + RAF 的兜底，1s 间隔足够）
    * ★ 兜底意义：onProgress 回调链若因某种原因卡住（如 fetch 在 stream 中段但未触发 read），
    *   轮询仍能每秒刷新一次 UI，避免面板看似"卡死"。
+   * ★ 额外职责：轮询期间同步刷新存储统计与系列缓存状态，
+   *   解决「下载了但面板数据不更新」的问题。
    */
   function _startProgressPolling() {
     _stopProgressPolling();
+    var pollCount = 0;
     _dlProgressTimer = setInterval(function () {
       if (!win.DataManager) return;
       var status = win.DataManager.getDownloadStatus();
@@ -923,6 +975,11 @@
         return;
       }
       _applyStatusToUI(status);
+      // ★ 每5秒刷新一次存储统计和系列缓存状态（避免每秒都跑异步查询导致性能开销）
+      pollCount++;
+      if (pollCount % 5 === 0) {
+        _refreshStorageStats();
+      }
     }, 1000);
   }
 
