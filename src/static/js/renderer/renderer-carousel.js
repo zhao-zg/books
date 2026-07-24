@@ -69,12 +69,28 @@
       // initPdfPageLazyRender 正式初始化。
       contentEl.innerHTML = renderChapterContent(chapter, true);
       _applyMdEnhancements(contentEl);
+
+      // 同步 PDF 模式 class 到相邻页的 .content 容器
+      // BKPdf.init 只给当前页加 .bk-pdf-mode / .bk-pdf-single，
+      // 相邻页需要手动补上，否则 CSS 选择器（如隐藏 .bk-page-title）不生效
+      if (contentEl.querySelector('.bk-pdf-page')) {
+        contentEl.classList.add('bk-pdf-mode');
+        // 同步当前 PDF 模式（Single / Continuous）
+        if (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state) {
+          var mode = win.BKPdf._internal.state.mode();
+          if (mode === 'single') {
+            contentEl.classList.add('bk-pdf-single');
+          }
+        }
+      }
+
       // 预渲染相邻页中的 PDF 页面（直接调用 core.renderPage，不走 BKPdf.init）
       // 解决"往后翻没缓存"问题：next 页是骨架壳，canvas 未渲染，
       // 用户滑到 next 时需等 IntersectionObserver 触发渲染才看到内容
       _prerenderAdjacentPdfPages(contentEl);
     } else {
       contentEl.innerHTML = '';
+      contentEl.classList.remove('bk-pdf-mode', 'bk-pdf-single');
     }
   }
 
