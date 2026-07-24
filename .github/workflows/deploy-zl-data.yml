@@ -7,8 +7,8 @@ on:
       - 'resource/ysz/**'
       - 'resource/books/**'
       - 'src/**'
+      - 'ysz_to_md.py'
       - 'process_ysz_books.py'
-      - 'merge_zl_data.py'
       - '.github/workflows/deploy-zl-data.yml'
   workflow_dispatch:
 
@@ -38,10 +38,8 @@ jobs:
 
       - name: Regenerate zl-merged from ysz
         run: |
-          echo "=== Step 1: ysz -> zl-ysz ==="
-          python process_ysz_books.py
-          echo "=== Step 2: zl-ysz -> zl-merged ==="
-          python merge_zl_data.py --force
+          echo "=== 统一数据构建: ysz → books + zl-merged ==="
+          python ysz_to_md.py --clean
           echo "=== Done ==="
           ls -la resource/zl-merged/
           cat resource/zl-merged/manifest.json

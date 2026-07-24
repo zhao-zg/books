@@ -568,7 +568,7 @@ def main():
     copy_zl_merged_data(resource_dir, output_dir)
 
     # 复制 resource/books/ 下的书籍资源到 output/books/（可选，默认跳过）
-    # 内置书已由 merge_zl_data.py 生成 ysz 格式 JSON 到 zl-merged/，随 zl-data 一起下发 CDN
+    # 内置书已由 ysz_to_md.py 生成 ysz 格式 JSON 到 zl-merged/，随 zl-data 一起下发 CDN
     # 此开关仅用于本地调试/测试时需要直接访问原始文件（EPUB/MD/TXT）的场景
     if config.get('copy_book_resources', False):
         copy_book_resources(resource_dir, output_dir)
