@@ -115,12 +115,12 @@
         var data = _utf8ToBase64(content);
 
         // 1) 写入 Cache 目录（Android 默认仅允许 caches 目录被分享）
-        //    encoding:'base64' 必须，否则 data 会被当文本写入导致内容错乱
+        //    Capacitor 6 Filesystem：不传 encoding 时，data 默认按 base64 解码写入
+        //    传 encoding:'base64' 会报 "Unsupported encoding"（v6 Encoding 枚举无 base64 值）
         return Filesystem.writeFile({
             path: path,
             data: data,
             directory: 'CACHE',
-            encoding: 'base64',
             recursive: true
         }).then(function () {
             // 2) 取 file:// URI
@@ -272,11 +272,11 @@
         }
         var base64 = btoa(binary);
 
+        // Capacitor 6 Filesystem：不传 encoding 时，data 默认按 base64 解码写入
         return Filesystem.writeFile({
             path: path,
             data: base64,
             directory: 'CACHE',
-            encoding: 'base64',
             recursive: true
         }).then(function () {
             return Filesystem.getUri({ path: path, directory: 'CACHE' });

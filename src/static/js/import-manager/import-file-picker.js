@@ -17,6 +17,7 @@
           'application/epub+zip',
           'text/markdown',
           'application/pdf',
+          'application/zip',
           'application/octet-stream'
         ],
         readData: true,
@@ -33,7 +34,7 @@
     return new Promise(function(resolve, reject) {
       var input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.txt,.epub,.md,.markdown,.pdf';
+      input.accept = '.txt,.epub,.md,.markdown,.pdf,.zip';
       input.multiple = true;
       input.style.display = 'none';
       input.onchange = function(e) {
@@ -44,7 +45,7 @@
           (function(file) {
             tasks.push(new Promise(function(res, rej) {
               var reader = new FileReader();
-              if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name)) {
+              if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name) || /\.zip$/i.test(file.name)) {
                 reader.onload = function(ev) {
                   res({ name: file.name, mime: file.type, arrayBuffer: ev.target.result, size: file.size });
                 };
@@ -89,6 +90,7 @@
           'application/epub+zip',
           'text/markdown',
           'application/pdf',
+          'application/zip',
           'application/octet-stream'
         ],
         readData: true  // 返回 base64 数据
@@ -103,13 +105,13 @@
     return new Promise(function(resolve, reject) {
       var input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.txt,.epub,.md,.markdown,.pdf';
+      input.accept = '.txt,.epub,.md,.markdown,.pdf,.zip';
       input.style.display = 'none';
       input.onchange = function(e) {
         var file = e.target.files && e.target.files[0];
         if (!file) { resolve(null); return; }
         var reader = new FileReader();
-        if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name)) {
+        if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name) || /\.zip$/i.test(file.name)) {
           reader.onload = function(ev) {
             resolve({ name: file.name, mime: file.type, arrayBuffer: ev.target.result });
           };
@@ -134,7 +136,7 @@
   }
 
   // ── 扫描文件夹（自动识别可导入文件）──
-  var IMPORTABLE_EXT = ['.txt', '.epub', '.md', '.markdown', '.pdf'];
+  var IMPORTABLE_EXT = ['.txt', '.epub', '.md', '.markdown', '.pdf', '.zip'];
 
   function isImportableFile(name) {
     var ext = (name || '').split('.').pop().toLowerCase();
@@ -249,7 +251,7 @@
   // 原生环境读取文件内容
   function _readNativeFile(filePath, fileName, Filesystem) {
     var ext = (fileName || '').split('.').pop().toLowerCase();
-    var isBinary = (ext === 'epub' || ext === 'pdf');
+    var isBinary = (ext === 'epub' || ext === 'pdf' || ext === 'zip');
     if (isBinary) {
       // 二进制文件：返回 base64 数据
       return Filesystem.readFile({ path: filePath }).then(function(result) {
@@ -271,6 +273,7 @@
         'application/epub+zip',
         'text/markdown',
         'application/pdf',
+        'application/zip',
         'application/octet-stream'
       ],
       readData: true,
@@ -288,7 +291,7 @@
     return new Promise(function(resolve, reject) {
       var input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.txt,.epub,.md,.markdown,.pdf';
+      input.accept = '.txt,.epub,.md,.markdown,.pdf,.zip';
       input.multiple = true;
       input.style.display = 'none';
       input.onchange = function(e) {
@@ -299,7 +302,7 @@
           (function(file) {
             tasks.push(new Promise(function(res, rej) {
               var reader = new FileReader();
-              if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name)) {
+              if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name) || /\.zip$/i.test(file.name)) {
                 reader.onload = function(ev) {
                   res({ name: file.name, mime: file.type, arrayBuffer: ev.target.result, size: file.size });
                 };
@@ -395,7 +398,7 @@
       input.setAttribute('webkitdirectory', '');
       input.setAttribute('directory', '');
       // 也设置 accept 但 webkitdirectory 模式下浏览器可能忽略
-      input.accept = '.txt,.epub,.md,.markdown,.pdf';
+      input.accept = '.txt,.epub,.md,.markdown,.pdf,.zip';
       input.style.display = 'none';
       input.onchange = function(e) {
         var files = e.target.files;
@@ -431,7 +434,7 @@
     return new Promise(function(resolve, reject) {
       var reader = new FileReader();
       var name = virtualPath || file.name;
-      if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name)) {
+      if (/\.epub$/i.test(file.name) || /\.pdf$/i.test(file.name) || /\.zip$/i.test(file.name)) {
         reader.onload = function(ev) {
           resolve({ name: name, mime: file.type, arrayBuffer: ev.target.result, size: file.size });
         };

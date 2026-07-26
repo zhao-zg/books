@@ -342,8 +342,10 @@
     if (mark) mark.textContent = (_shelfActiveTab === 'read') ? '移回在读' : '标记已读';
     var markBtn = document.getElementById('shelfEditMark');
     var rmBtn = document.getElementById('shelfEditRemove');
+    var exportBtn = document.getElementById('shelfEditExport');
     if (markBtn) markBtn.disabled = (cnt === 0);
     if (rmBtn) rmBtn.disabled = (cnt === 0);
+    if (exportBtn) exportBtn.disabled = (cnt === 0);
     var selAll = document.getElementById('shelfSelectAll');
     var page = document.querySelector('.bk-shelf-page');
     var total = page ? page.querySelectorAll('.bk-shelf-row').length : 0;
@@ -484,6 +486,9 @@
       html += '<button class="bk-ns-export-btn" data-format="epub"><span class="bk-row-icon">📚</span><span class="bk-row-label">导出为 EPUB</span></button>';
     }
 
+    html += '<div class="bk-ns-export-divider"></div>';
+    html += '<button class="bk-ns-export-btn bk-ns-export-webdav" data-action="upload-webdav"><span class="bk-row-icon">☁️</span><span class="bk-row-label">上传到 WebDAV</span></button>';
+
     html += '</div>' +
       '<div class="bk-dialog-actions"><button class="bk-dialog-cancel" data-action="close">取消</button></div>' +
       '</div>';
@@ -510,6 +515,19 @@
     if (closeBtn) {
       closeBtn.addEventListener('click', function () {
         if (dlg && dlg.close) dlg.close();
+      });
+    }
+
+    // 上传到 WebDAV
+    var webdavBtn = dlg.mask.querySelector('[data-action="upload-webdav"]');
+    if (webdavBtn) {
+      webdavBtn.addEventListener('click', function () {
+        if (dlg && dlg.close) dlg.close();
+        if (win.BK && win.BK.WebDavUpload && win.BK.WebDavUpload.showUploadDialog) {
+          win.BK.WebDavUpload.showUploadDialog(bookId);
+        } else {
+          _toast('WebDAV 上传功能未就绪');
+        }
       });
     }
   }
@@ -773,6 +791,50 @@
       dlg.close();
     });
     if (ta) setTimeout(function () { ta.focus(); }, 50);
+  }
+
+  /**
+   * 批量导出选中的书籍为 ZIP 压缩包
+   * @param {string[]} bookIds  选中的书籍 ID 列表
+   */
+  function _doBatchExport(bookIds) {
+    if (!bookIds || !bookIds.length) return;
+    if (!win.BK || !win.BK.Export || !win.BK.Export.exportBatch) {
+      _toast('导出功能未就绪，请重启应用');
+      return;
+    }
+
+    // 弹出进度对话框
+    var progressHtml =
+      '<div class="bk-dialog" style="width:min(320px,calc(100vw - 40px))">' +
+        '<div class="bk-dialog-title">批量导出</div>' +
+        '<div class="bk-dialog-body" style="padding:16px;text-align:center">' +
+          '<div id="bkBatchExportText">正在准备... 0/' + bookIds.length + '</div>' +
+          '<div style="margin-top:12px;height:6px;border-radius:3px;background:var(--bg-surface,#f0ece6);overflow:hidden">' +
+            '<div id="bkBatchExportBar" style="height:100%;width:0%;background:var(--primary,#4a90d9);border-radius:3px;transition:width .2s"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var progressDlg = win.BK.openDialog({ id: 'bk-batch-export-progress', html: progressHtml });
+    var closed = false;
+
+    win.BK.Export.exportBatch(bookIds, {
+      onProgress: function (current, total, bookTitle) {
+        var textEl = document.getElementById('bkBatchExportText');
+        var barEl = document.getElementById('bkBatchExportBar');
+        if (textEl) textEl.textContent = '正在导出 ' + current + '/' + total + ' 《' + bookTitle + '》';
+        if (barEl) barEl.style.width = Math.round((current / total) * 100) + '%';
+      }
+    }).then(function () {
+      closed = true;
+      if (progressDlg && progressDlg.close) progressDlg.close();
+    }).catch(function (err) {
+      closed = true;
+      if (progressDlg && progressDlg.close) progressDlg.close();
+      console.error('[批量导出] 失败：', err);
+      _toast('导出失败：' + (err && err.message || '未知错误'));
+    });
   }
 
   function _escShelfHtml(str) {

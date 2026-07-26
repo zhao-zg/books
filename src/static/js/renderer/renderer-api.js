@@ -313,6 +313,8 @@
       html += '<button type="button" class="bk-shelf-edit-selectall" id="shelfSelectAll" aria-pressed="false">全选</button>';
       html += '<span class="bk-shelf-edit-count" id="shelfEditCount">已选 0 本</span>';
       html += '<button type="button" class="bk-shelf-edit-action" id="shelfEditMark">标记已读</button>';
+      html += '<button type="button" class="bk-shelf-edit-action" id="shelfEditExport">导出</button>';
+      html += '<button type="button" class="bk-shelf-edit-action" id="shelfEditWebdavUpload">上传</button>';
       html += '<button type="button" class="bk-shelf-edit-action bk-shelf-edit-danger" id="shelfEditRemove">移出书架</button>';
       html += '</div>';
       html += '</div>';
@@ -483,6 +485,31 @@
             }
           }
           // bk-shelf-changed 触发整体重渲染
+        });
+      }
+      // 批量导出按钮
+      var shelfEditExport = document.getElementById('shelfEditExport');
+      if (shelfEditExport) {
+        shelfEditExport.addEventListener('click', function () {
+          if (!_shelfSelected) return;
+          var ids = Object.keys(_shelfSelected);
+          if (!ids.length) return;
+          _doBatchExport(ids);
+        });
+      }
+
+      // 批量上传到 WebDAV
+      var shelfEditWebdav = document.getElementById('shelfEditWebdavUpload');
+      if (shelfEditWebdav) {
+        shelfEditWebdav.addEventListener('click', function () {
+          if (!_shelfSelected) return;
+          var ids = Object.keys(_shelfSelected);
+          if (!ids.length) return;
+          if (win.BK && win.BK.WebDavUpload && win.BK.WebDavUpload.showUploadDialog) {
+            win.BK.WebDavUpload.showUploadDialog(ids);
+          } else {
+            _toast('WebDAV 上传功能未就绪');
+          }
         });
       }
 

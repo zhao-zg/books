@@ -824,12 +824,126 @@
     return null;
   }
 
+  // ── MKCOL：创建远程目录（WebDAV）────────────────────────────────────
+  function mkcol(config, path) {
+    var url = buildDirUrl(config.url, path);
+    // MKCOL 对集合路径需不带尾斜杠
+    url = trimSlash(url);
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    return fetch(url, {
+      method: 'MKCOL',
+      headers: buildHeaders(config, {}),
+      signal: controller.signal
+    }).then(function (resp) {
+      clearTimeout(timer);
+      // 201=已创建, 405=已存在（均视为成功）
+      if (resp.status === 201 || resp.status === 405) {
+        return { ok: true, status: resp.status };
+      }
+      throw wrapError(null, resp);
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (err.type) throw err;
+      throw wrapError(err, null);
+    });
+  }
+
+  // ── 确保远程路径存在（逐级 MKCOL）───────────────────────────────────
+  function ensureRemotePath(config, remotePath) {
+    if (!remotePath) return Promise.resolve();
+    // 拆分路径段，逐级创建
+    var segments = remotePath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+    var chain = Promise.resolve();
+    var currentPath = '';
+    for (var i = 0; i < segments.length; i++) {
+      (function (seg) {
+        chain = chain.then(function () {
+          currentPath = currentPath ? currentPath + '/' + seg : seg;
+          return mkcol(config, currentPath).catch(function (err) {
+            // 405 = 已存在，不算错误
+            if (err && err.status === 405) return;
+            throw err;
+          });
+        });
+      })(segments[i]);
+    }
+    return chain;
+  }
+
+  // ── 上传单文件（PUT）─────────────────────────────────────────────────
+  // data: string | Uint8Array | ArrayBuffer | Blob
+  // onProgress(p): p ∈ [0,1]；无法追踪时 p = -1
+  // 返回 { url, status, size }
+  function uploadFile(config, remotePath, data, mime, onProgress) {
+    var url = buildDirUrl(config.url, remotePath);
+    url = trimSlash(url);
+    var controller = new AbortController();
+    // 上传超时：基于数据大小动态计算（30s base + 10s/MB，上限 300s）
+    var dataSize = 0;
+    if (typeof data === 'string') {
+      dataSize = new TextEncoder().encode(data).length;
+    } else if (data instanceof Uint8Array) {
+      dataSize = data.length;
+    } else if (data instanceof ArrayBuffer) {
+      dataSize = data.byteLength;
+    } else if (data && typeof data.size === 'number') {
+      dataSize = data.size; // Blob
+    }
+    var timeoutMs = calcUploadTimeout(dataSize);
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+
+    var headers = buildHeaders(config, {
+      'Content-Type': mime || 'application/octet-stream'
+    });
+    // 对文本数据明确设置 Content-Length（部分服务器要求）
+    if (typeof data === 'string') {
+      var encoded = new TextEncoder().encode(data);
+      headers['Content-Length'] = String(encoded.length);
+      data = encoded; // 转为 Uint8Array 保证一致
+    }
+
+    function fail(err) {
+      clearTimeout(timer);
+      if (err.type) throw err;
+      if (err.name === 'AbortError') throw wrapError(err, null);
+      throw wrapError(err, null);
+    }
+
+    return fetch(url, {
+      method: 'PUT',
+      headers: headers,
+      body: data,
+      signal: controller.signal
+    }).then(function (resp) {
+      clearTimeout(timer);
+      // 201=已创建, 204=已覆盖, 200=部分服务器返回
+      if (resp.status === 201 || resp.status === 204 || resp.status === 200) {
+        if (onProgress) onProgress(1);
+        return { url: url, status: resp.status, size: dataSize };
+      }
+      throw wrapError(null, resp);
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (err.type) throw err;
+      throw wrapError(err, null);
+    });
+  }
+
+  // 上传超时计算（复用下载逻辑：30s base + 10s/MB，上限 300s）
+  function calcUploadTimeout(size) {
+    return calcDownloadTimeout(size); // 同样逻辑
+  }
+
   // ── 暴露 ────────────────────────────────────────────────────────────────
   win.WebDavManager = {
     testConnection: testConnection,
     connect: connect,
     listDir: listDir,
     downloadFile: downloadFile,
+    uploadFile: uploadFile,
+    mkcol: mkcol,
+    ensureRemotePath: ensureRemotePath,
     resyncBook: resyncBook,
     saveConfig: saveConfig,
     getConfigs: getConfigs,
@@ -841,12 +955,19 @@
     // 多域名 / 最快节点（供 UI 与测试）
     candidateUrls: candidateUrls,
     pickFastestUrl: pickFastestUrl,
+    // 工具函数（供 webdav-upload.js 复用）
+    buildHeaders: buildHeaders,
+    buildDirUrl: buildDirUrl,
+    trimSlash: trimSlash,
+    encodePathSegments: encodePathSegments,
+    basicAuthHeader: basicAuthHeader,
     // 常量（UI / QA 只读）
     ERROR: ERROR,
     MESSAGES: MESSAGES,
     TIMEOUT_MS: TIMEOUT_MS,
     PROBE_TIMEOUT_MS: PROBE_TIMEOUT_MS,
-    IMPORTABLE_EXT: IMPORTABLE_EXT
+    IMPORTABLE_EXT: IMPORTABLE_EXT,
+    UPLOAD_EXT: ['.txt', '.epub', '.md', '.markdown', '.pdf']
   };
 
 }(window));

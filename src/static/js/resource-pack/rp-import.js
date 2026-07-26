@@ -55,7 +55,7 @@
 
     // 可导入扩展名（来自 WebDavManager，未加载时回退）
     var IMPORTABLE_EXT_ARR = (win.WebDavManager && win.WebDavManager.IMPORTABLE_EXT) ||
-      ['.txt', '.epub', '.md', '.markdown', '.pdf'];
+      ['.txt', '.epub', '.md', '.markdown', '.pdf', '.zip'];
 
     // 本地文件列表状态
     var fileQueue = [];       // fileInfo[]
@@ -115,7 +115,7 @@
         var f = fileQueue[i];
         var displayName = f.name;
         var ext = (f.name || '').split('.').pop().toLowerCase();
-        var icon = ext === 'epub' ? '📕' : ext === 'pdf' ? '📄' : ext === 'md' ? '📝' : '📋';
+        var icon = ext === 'epub' ? '📕' : ext === 'pdf' ? '📄' : ext === 'md' ? '📝' : ext === 'zip' ? '📦' : '📋';
         html += '<div class="bk-import-file-card' + (checked ? ' checked' : '') + '">' +
           '<label class="bk-checkbox" style="margin:0">' +
             '<input type="checkbox" data-action="toggle-file" data-idx="' + i + '"' + (checked ? ' checked' : '') + '>' +
@@ -219,12 +219,74 @@
         if (fileChecked[i]) selected.push(fileQueue[i]);
       }
       if (!selected.length) return;
+
+      // 分离 .zip 文件和普通文件
+      var zipFiles = [];
+      var normalFiles = [];
+      for (var s = 0; s < selected.length; s++) {
+        var ext = (selected[s].name || '').split('.').pop().toLowerCase();
+        if (ext === 'zip') zipFiles.push(selected[s]);
+        else normalFiles.push(selected[s]);
+      }
+
       importing = true;
       var confirmBtn = document.getElementById('bkImportConfirm');
       var statusEl = document.getElementById('bkImportStatus');
       if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = '导入中...'; }
 
-      win.ImportManager.importBatch(selected).then(function(results) {
+      // 先处理普通文件，再处理 ZIP 文件
+      var normalPromise = normalFiles.length
+        ? win.ImportManager.importBatch(normalFiles)
+        : Promise.resolve([]);
+
+      normalPromise.then(function(normalResults) {
+        // 逐个处理 ZIP 文件
+        var chain = Promise.resolve();
+        var zipResults = [];
+        for (var z = 0; z < zipFiles.length; z++) {
+          (function(zipFile) {
+            chain = chain.then(function() {
+              if (!win.BK || !win.BK.ImportZip) {
+                zipResults.push({ success: false, name: zipFile.name, error: 'ZIP 导入功能不可用' });
+                return;
+              }
+              var buf = zipFile.arrayBuffer || zipFile.data;
+              if (buf && !(buf instanceof ArrayBuffer)) {
+                // base64 → ArrayBuffer
+                try {
+                  var bin = atob(buf);
+                  var arr = new Uint8Array(bin.length);
+                  for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+                  buf = arr.buffer;
+                } catch (e) {
+                  zipResults.push({ success: false, name: zipFile.name, error: 'ZIP 数据读取失败' });
+                  return;
+                }
+              }
+              if (!buf) {
+                zipResults.push({ success: false, name: zipFile.name, error: 'ZIP 数据为空' });
+                return;
+              }
+              if (statusEl) statusEl.textContent = '正在解压 ' + zipFile.name + '...';
+              return win.BK.ImportZip.importFromZip(buf, zipFile.name).then(function(result) {
+                // 将 ZIP 导入结果展开为单条记录
+                for (var r = 0; r < (result.success || 0); r++) {
+                  zipResults.push({ success: true, name: zipFile.name });
+                }
+                if (result.errors && result.errors.length) {
+                  for (var e = 0; e < result.errors.length; e++) {
+                    zipResults.push({ success: false, name: result.errors[e].title || zipFile.name, error: result.errors[e].error });
+                  }
+                }
+              }).catch(function(err) {
+                zipResults.push({ success: false, name: zipFile.name, error: (err && err.message) || 'ZIP 解析失败' });
+              });
+            });
+          })(zipFiles[z]);
+        }
+
+        return chain.then(function() { return normalResults.concat(zipResults); });
+      }).then(function(results) {
         importing = false;
         var ok = 0, fail = 0;
         for (var i = 0; i < results.length; i++) {
@@ -239,12 +301,18 @@
         } else {
           if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '导入选中的文件'; }
           if (statusEl) statusEl.textContent = '完成：成功 ' + ok + ' 个，失败 ' + fail + ' 个';
-          // 从队列中移除成功的
-          var newQueue = [], newChecked = {};
+          // 从队列中移除成功的（按文件名匹配，避免 ZIP 展开后索引错位）
+          var failedNames = {};
           for (var j = 0; j < results.length; j++) {
-            if (!results[j].success) {
+            if (!results[j].success && results[j].name) {
+              failedNames[results[j].name] = true;
+            }
+          }
+          var newQueue = [], newChecked = {};
+          for (var k = 0; k < selected.length; k++) {
+            if (failedNames[selected[k].name]) {
               var nIdx = newQueue.length;
-              newQueue.push(selected[j]);
+              newQueue.push(selected[k]);
               newChecked[nIdx] = true;
             }
           }

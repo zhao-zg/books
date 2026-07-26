@@ -1,0 +1,252 @@
+/**
+ * import-zip.js — 从 ZIP 压缩包批量导入书籍
+ *
+ * 解析 export-batch.js 导出的 ZIP 格式：
+ *   bk-books-export.zip
+ *   ├── manifest.json
+ *   └── books/
+ *       ├── <bookId-1>/
+ *       │   ├── book.json
+ *       │   └── original.pdf
+ *       ...
+ *
+ * 导入策略：
+ *   - book.json 中已有完整书籍数据，直接写入本地存储，无需重新解析
+ *   - PDF 书额外写入原始 PDF 二进制到 pdfStore
+ *   - 对已有 ID 的书籍执行覆盖写（备份还原场景）
+ *   - 非导入书 ID 自动加 'imported-' 前缀，避免与书城书冲突
+ *
+ * 依赖：
+ *   - JSZip (vendor/jszip.min.js)
+ *   - localforage (全局)
+ *   - BKShelf (书架管理)
+ *   - DataManager (内容索引)
+ *
+ * 挂载：window.BK.ImportZip.importFromZip(buffer, fileName, opts?)
+ */
+(function (win) {
+    'use strict';
+
+    // ── 存储实例（与 import-storage.js 保持一致）────────────────────────
+    var _importStore = localforage.createInstance({
+        name: 'books',
+        storeName: 'imported-data'
+    });
+    var KEY_PREFIX = 'imported_book:';
+    var KEY_IDS = 'imported_ids';
+
+    // ── 工具函数 ──────────────────────────────────────────────────────────
+
+    /** 判断书籍数据是否为 PDF 书 */
+    function _isPdfBookData(bookData) {
+        if (!bookData) return false;
+        if (bookData.format === 'pdf') return true;
+        var chapters = bookData.chapters || [];
+        for (var i = 0; i < chapters.length; i++) {
+            var content = chapters[i].content;
+            if (Array.isArray(content)) {
+                for (var j = 0; j < content.length; j++) {
+                    if (content[j] && content[j].type === 'pdf_page') return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 生成新 ID（与 import-shared.js 格式一致） */
+    function _generateId() {
+        return 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+    }
+
+    // ── 存储操作 ──────────────────────────────────────────────────────────
+
+    /**
+     * 保存书籍数据到本地存储
+     * 复刻 import-storage.js 的 saveBook 逻辑（入架 + 建索引）
+     * @param {Object} bookData  完整书籍数据
+     * @returns {Promise<Object>}  保存后的书籍对象
+     */
+    function _saveBook(bookData) {
+        var bookId = bookData.id;
+        if (!bookId) {
+            bookId = _generateId();
+            bookData.id = bookId;
+        }
+
+        return _importStore.setItem(KEY_PREFIX + bookId, bookData).then(function () {
+            return _importStore.getItem(KEY_IDS).then(function (ids) {
+                ids = ids || [];
+                if (ids.indexOf(bookId) < 0) ids.push(bookId);
+                return _importStore.setItem(KEY_IDS, ids);
+            });
+        }).then(function () {
+            // 入架
+            try { if (win.BKShelf && win.BKShelf.add) win.BKShelf.add(bookId); } catch (e) {}
+            // 建内容索引 + 书目索引
+            try {
+                if (win.DataManager) {
+                    if (win.DataManager.buildContentIndex) win.DataManager.buildContentIndex(bookData);
+                    if (win.DataManager.addToBookIndex) win.DataManager.addToBookIndex(bookData);
+                }
+            } catch (e) {}
+            return bookData;
+        });
+    }
+
+    /**
+     * 保存 PDF 二进制数据到 pdfStore
+     * @param {Uint8Array} pdfBytes  PDF 原始二进制
+     * @param {string} bookId        书籍 ID
+     * @returns {Promise}
+     */
+    function _savePdfData(pdfBytes, bookId) {
+        var store = (win.ImportManager && typeof win.ImportManager.getPdfDataStore === 'function')
+            ? win.ImportManager.getPdfDataStore() : null;
+        if (!store) return Promise.resolve();
+        return store.setItem('pdf:' + bookId, pdfBytes.buffer || pdfBytes).catch(function () {});
+    }
+
+    // ── 单本导入 ──────────────────────────────────────────────────────────
+
+    /**
+     * 从 ZIP 中导入单本书
+     * @param {JSZip} zip    JSZip 实例
+     * @param {string} bookDirName  书籍目录名（books/ 下的子目录名）
+     * @returns {Promise<{success:boolean, id?:string, title?:string, error?:string}>}
+     */
+    function _importOneBook(zip, bookDirName) {
+        var bookJsonPath = 'books/' + bookDirName + '/book.json';
+        var bookJsonEntry = zip.file(bookJsonPath);
+        if (!bookJsonEntry) {
+            return Promise.resolve({ success: false, id: bookDirName, error: 'book.json 未找到' });
+        }
+
+        return bookJsonEntry.async('string').then(function (bookJsonText) {
+            var bookData;
+            try {
+                bookData = JSON.parse(bookJsonText);
+            } catch (e) {
+                return { success: false, id: bookDirName, error: 'book.json 解析失败' };
+            }
+
+            if (!bookData || !bookData.id) {
+                return { success: false, id: bookDirName, error: 'book.json 缺少 id' };
+            }
+
+            // 非 imported- 前缀的 ID（书城书导出后再导入），自动加前缀避免冲突
+            if (bookData.id.indexOf('imported-') !== 0) {
+                bookData.id = _generateId();
+            }
+
+            var isPdf = _isPdfBookData(bookData);
+
+            return _saveBook(bookData).then(function () {
+                // PDF 书：额外保存原始 PDF 二进制
+                if (isPdf) {
+                    var pdfPath = 'books/' + bookDirName + '/original.pdf';
+                    var pdfEntry = zip.file(pdfPath);
+                    if (pdfEntry) {
+                        return pdfEntry.async('uint8array').then(function (pdfBytes) {
+                            return _savePdfData(pdfBytes, bookData.id).then(function () {
+                                return { success: true, id: bookData.id, title: bookData.title || bookData.id };
+                            });
+                        });
+                    }
+                }
+                return { success: true, id: bookData.id, title: bookData.title || bookData.id };
+            }).catch(function (err) {
+                return { success: false, id: bookData.id, title: bookData.title, error: (err && err.message) || '保存失败' };
+            });
+        }).catch(function (err) {
+            return { success: false, id: bookDirName, error: (err && err.message) || '读取失败' };
+        });
+    }
+
+    // ── 主入口 ──────────────────────────────────────────────────────────
+
+    /**
+     * 从 ZIP 缓冲区批量导入书籍
+     * @param {ArrayBuffer|Uint8Array} buffer  ZIP 文件数据
+     * @param {string} fileName  文件名（用于日志）
+     * @param {Object} [opts]
+     *   - {Function} onProgress(current, total, bookTitle)  进度回调
+     * @returns {Promise<{success:number, failed:number, errors:Array}>}
+     */
+    function importFromZip(buffer, fileName, opts) {
+        opts = opts || {};
+        var JSZip = win.JSZip;
+        if (!JSZip) return Promise.reject(new Error('JSZip 未加载，无法解析 ZIP'));
+
+        return JSZip.loadAsync(buffer).then(function (zip) {
+            // 1. 验证 manifest.json
+            var manifestFile = zip.file('manifest.json');
+            if (!manifestFile) {
+                return Promise.reject(new Error('无效的书籍包：缺少 manifest.json'));
+            }
+
+            return manifestFile.async('string').then(function (manifestText) {
+                var manifest;
+                try {
+                    manifest = JSON.parse(manifestText);
+                } catch (e) {
+                    return Promise.reject(new Error('无效的 manifest.json'));
+                }
+
+                if (!manifest || manifest.version !== 1) {
+                    return Promise.reject(new Error('不支持的书籍包版本（期望 v1）'));
+                }
+
+                // 2. 收集书籍目录名
+                var bookDirs = {};
+                zip.forEach(function (relativePath) {
+                    // 匹配 books/<folderName>/book.json
+                    var match = relativePath.match(/^books\/([^\/]+)\/book\.json$/);
+                    if (match) {
+                        bookDirs[match[1]] = true;
+                    }
+                });
+
+                var bookDirNames = Object.keys(bookDirs);
+                if (!bookDirNames.length) {
+                    return Promise.reject(new Error('ZIP 中未找到任何书籍数据'));
+                }
+
+                // 3. 逐本导入（顺序执行，避免大量写入并发）
+                var successCount = 0;
+                var failCount = 0;
+                var errors = [];
+                var current = 0;
+                var total = bookDirNames.length;
+                var chain = Promise.resolve();
+
+                for (var i = 0; i < bookDirNames.length; i++) {
+                    (function (dirName, idx) {
+                        chain = chain.then(function () {
+                            current = idx + 1;
+                            return _importOneBook(zip, dirName).then(function (result) {
+                                if (result.success) successCount++;
+                                else { failCount++; errors.push(result); }
+                                if (opts.onProgress) opts.onProgress(current, total, result.title || dirName);
+                            });
+                        });
+                    })(bookDirNames[i], i);
+                }
+
+                return chain.then(function () {
+                    return {
+                        success: successCount,
+                        failed: failCount,
+                        errors: errors
+                    };
+                });
+            });
+        });
+    }
+
+    // ── 导出 ──────────────────────────────────────────────────────────────
+    win.BK = win.BK || {};
+    win.BK.ImportZip = {
+        importFromZip: importFromZip
+    };
+
+})(window);
