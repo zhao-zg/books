@@ -56,7 +56,7 @@
     } else if (parts.length === 1) {
       R.renderChapterList(parts[0]);
     } else if (parts.length === 2 && parts[0] === 'series') {
-      // 决策：#/series/<id> 为系列书籍列表（书城三级下钻的独立深链，来自搜索「热门系列」）。
+      // 决策：#/series/<id> 为系列书籍列表（书城三级下钻的独立深链）。
       // 必须早于通用 2 段路由（否则会被当成 书籍/<章节> 阅读视图 → loadBook 失败）。
       R.renderSeriesPage(parts[1]);
     } else if (parts.length === 2) {

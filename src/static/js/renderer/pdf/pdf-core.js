@@ -326,10 +326,26 @@
         var pl = parseFloat(style.paddingLeft) || 0;
         var pr = parseFloat(style.paddingRight) || 0;
         var cw = node.clientWidth - pl - pr;
-        if (cw > 0) return cw;
+        if (cw > 0) {
+          // Single 模式兜底：容器宽度不应小于视口宽度的 50%
+          // Carousel 场景下相邻预览页的 .content 可能因 translateX 移出视口
+          // 导致 clientWidth 为 0 或异常小，此时用视口宽度兜底
+          if (S.mode() === S.MODE_SINGLE) {
+            var vw = win.innerWidth || doc.documentElement.clientWidth || 0;
+            if (vw > 0 && cw < vw * 0.5) {
+              return vw;
+            }
+          }
+          return cw;
+        }
         break;
       }
       node = node.parentElement;
+    }
+    // Single 模式兜底：使用视口宽度
+    if (S.mode() === S.MODE_SINGLE) {
+      var vw2 = win.innerWidth || doc.documentElement.clientWidth || 0;
+      if (vw2 > 0) return vw2;
     }
     return el.clientWidth || 600;
   }
@@ -349,7 +365,17 @@
         var pt = parseFloat(style.paddingTop) || 0;
         var pb = parseFloat(style.paddingBottom) || 0;
         var ch = node.clientHeight - pt - pb;
-        if (ch > 0) return ch;
+        if (ch > 0) {
+          // Single 模式兜底：容器高度不应小于视口高度的 50%
+          // Carousel 场景下相邻预览页可能布局未完成导致 clientHeight 异常
+          if (S.mode() === S.MODE_SINGLE) {
+            var vh = win.innerHeight || doc.documentElement.clientHeight || 0;
+            if (vh > 0 && ch < vh * 0.5) {
+              return vh;
+            }
+          }
+          return ch;
+        }
         break;
       }
       node = node.parentElement;

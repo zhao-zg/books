@@ -715,7 +715,7 @@
     },
 
     /**
-     * 渲染空搜索状态（热门系列推荐）
+      * 渲染空搜索状态（搜索历史）
      */
     _renderEmpty: function () {
       if (!this._resultsEl) return;
@@ -731,25 +731,9 @@
         html += '<div class="bk-search-history-title">搜索历史 <button class="bk-search-history-clear">清除</button></div>';
         html += '<div class="bk-search-history-list">';
         for (var h = 0; h < history.length; h++) {
-          html += '<a class="bk-search-history-item" href="javascript:void(0)" data-query="' + esc(history[h]) + '">' + esc(history[h]) + '</a>';
-        }
-        html += '</div></div>';
-      }
-
-      // 热门系列推荐
-      var DM = win.DataManager;
-      var index = DM ? DM.getCachedIndex() : null;
-      var seriesList = (index && index.series) || [];
-
-      if (seriesList.length) {
-        html += '<div class="bk-search-popular">';
-        html += '<div class="bk-search-popular-title">热门系列</div>';
-        html += '<div class="bk-search-series-list">';
-        for (var i = 0; i < seriesList.length; i++) {
-          var s = seriesList[i];
-          html += '<a class="bk-search-series-card" href="#series/' + esc(s.id) + '" data-series="' + esc(s.id) + '">';
-          html += '<div class="bk-search-series-name">' + esc(s.title) + '</div>';
-          html += '<div class="bk-search-series-count">' + (s.count || 0) + ' 本</div>';
+          html += '<a class="bk-search-history-item" href="javascript:void(0)" data-query="' + esc(history[h]) + '">';
+          html += '<span class="bk-search-history-text">' + esc(history[h]) + '</span>';
+          html += '<span class="bk-search-history-delete" data-index="' + h + '" title="删除">×</span>';
           html += '</a>';
         }
         html += '</div></div>';
@@ -767,6 +751,15 @@
         for (var hi = 0; hi < historyItems.length; hi++) {
           (function (item) {
             item.addEventListener('click', function (e) {
+              // 点击删除按钮：删除单条历史
+              if (e.target.classList.contains('bk-search-history-delete')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var delIdx = parseInt(e.target.getAttribute('data-index'), 10);
+                self._removeSearchHistory(delIdx);
+                self._renderEmpty();
+                return;
+              }
               e.preventDefault();
               var q = item.getAttribute('data-query');
               if (self._input) {
@@ -783,21 +776,6 @@
             self._renderEmpty();
           });
         }
-      }
-
-      // 绑定系列卡片点击
-      var cards = this._resultsEl.querySelectorAll('.bk-search-series-card');
-      for (var c = 0; c < cards.length; c++) {
-        (function (card) {
-          card.addEventListener('click', function (e) {
-            e.preventDefault();
-            var seriesId = card.getAttribute('data-series');
-            if (seriesId && win.BKRouter) {
-              win.BKRouter.navigate('series/' + seriesId);
-            }
-            self.close(true);
-          });
-        })(cards[c]);
       }
     },
 
@@ -823,6 +801,14 @@
 
     _clearSearchHistory: function () {
       try { localStorage.removeItem(this._historyKey); } catch (e) {}
+    },
+
+    _removeSearchHistory: function (index) {
+      var history = this._getSearchHistory();
+      if (index >= 0 && index < history.length) {
+        history.splice(index, 1);
+        try { localStorage.setItem(this._historyKey, JSON.stringify(history)); } catch (e) {}
+      }
     },
 
     // ── 渲染搜索结果入口（兼容旧调用）────────────────────────────────────
@@ -924,7 +910,7 @@
         if (e.target === modal) self.close();
       });
 
-      // 显示热门系列推荐（空搜索状态）
+      // 显示搜索历史（空搜索状态）
       self._renderEmpty();
 
       setTimeout(function () { self._input.focus(); }, 100);

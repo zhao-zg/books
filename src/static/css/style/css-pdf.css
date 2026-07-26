@@ -60,13 +60,26 @@
 /* ── 2. 单页横向滑动模式（scroll-snap）─────────────────────────── */
 /* 触发：.bk-pdf-mode 同时叠加 .bk-pdf-single（由 navigator/renderer 加上）
    单页模式：.content 自身成为横向 scroll-snap 容器，每页占整屏宽 */
+
+/* 修复：Carousel 场景下 .bk-carousel-page 的 overflow-x:hidden 会阻断
+   内部 .content.bk-pdf-single 的 scroll-snap 横向滚动。
+   改为 overflow-x:clip（仅视觉裁剪，不建立滚动容器），
+   让内部 scroll-snap 容器成为唯一的横向滚动层，
+   避免"嵌套滚动"导致 scroll-snap 失效、两页并排、页面截断等问题。
+   clip 与 hidden 的区别：clip 不创建格式化上下文，内部 scroll-snap 可以正常工作。 */
+.bk-carousel-page:has(.content.bk-pdf-single) {
+  overflow-x: clip;
+}
+
 #chapterContent.bk-pdf-single,
 .bk-carousel-page .content.bk-pdf-single {
   display: flex;
   flex-direction: row;
   overflow-x: auto;
-  overflow-y: auto;
+  overflow-y: hidden;          /* Single 模式：纵向滚动由 .bk-pdf-page 内部处理，避免嵌套滚动冲突 */
   height: 100%;
+  width: 100%;                 /* 显式宽度，防止 Carousel flex column 中 .content 宽度收缩 */
+  max-width: 100%;             /* 确保不超出父容器 */
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
@@ -91,6 +104,7 @@
 .bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
   flex: 0 0 100%;
   width: 100%;
+  min-width: 100%;   /* 强制最小宽度，防止 Carousel 场景下 flex 计算导致页面宽度不足 */
   scroll-snap-align: center;
   scroll-snap-stop: always;
   display: flex;
@@ -112,12 +126,13 @@
   border-radius: 2px;
 }
 
-/* Single 模式下 .bk-pdf-page 去除所有卡片装饰（无边框/无圆角/无最小高度），canvas 自身尺寸即为页面尺寸 */
+/* Single 模式下 .bk-pdf-page 去除所有卡片装饰（无边框/无圆角），canvas 自身尺寸即为页面尺寸 */
 #chapterContent.bk-pdf-single .bk-pdf-page,
 .bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
   border: none;
   border-radius: 0;
-  min-height: 0;
+  overflow-y: auto;           /* 允许单页内纵向滚动（长页面超出视口高度时） */
+  overscroll-behavior-y: contain;
 }
 
 /* Single 模式下 .bk-pdf-canvas-wrap 去除描边，避免翻页时两页间出现细线 */
