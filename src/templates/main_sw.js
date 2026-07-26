@@ -220,6 +220,13 @@ self.addEventListener('fetch', event => {
 
   try {
     const request = event.request;
+
+    // ── 跨域请求直接透传，不拦截 ──────────────────────────────────
+    // WebDAV 等外部服务的请求不应被 SW 缓存策略干扰，
+    // 避免：超时/缓存旧数据/CORS 错误被吞掉/取消下载不生效等问题。
+    const requestUrl = new URL(request.url);
+    if (requestUrl.origin !== self.location.origin) return;
+
     const normalizedUrl = normalizeUrl(request.url);
 
     // ── data CDN 请求处理 ─────────────────────────────────────────────

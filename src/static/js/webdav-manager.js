@@ -532,7 +532,8 @@
     return fetch(url, {
       method: 'GET',
       headers: buildHeaders(config, {}),
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-cache'  // 避免被 SW 缓存策略拦截，确保始终从服务器获取最新数据
     }).then(function (resp) {
       if (!resp.ok) {
         clearTimeout(timer);
