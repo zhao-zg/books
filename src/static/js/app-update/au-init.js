@@ -45,7 +45,7 @@
                     if (!latest) return;
                     var cmp = currentPwa
                         ? AppUpdate.compareVersion(latest, currentPwa)
-                        : 0;
+                        : (latest ? 1 : 0);
                     if (cmp > 0) showUpdateToast(latest, 'pwa');
                 }).catch(function() {});
         }

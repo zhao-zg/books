@@ -6,6 +6,7 @@
 """
 import json
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -107,6 +108,29 @@ class BooksGenerator:
             html_content = html_content.replace('__APP_VERSION__', app_version)
             with open(index_dst, 'w', encoding='utf-8') as f:
                 f.write(html_content)
+
+        # 校验 PRECACHE_URLS 与 __bkCoreUrls 的一致性
+        # PRECACHE_URLS 应为 __bkCoreUrls 的子集，确保 SW 预缓存的所有资源
+        # 都在页面端缓存校验列表中，避免验证时遗漏。
+        sw_check = os.path.join(self.output_dir, 'sw.js')
+        html_check = os.path.join(self.output_dir, 'index.html')
+        if os.path.exists(sw_check) and os.path.exists(html_check):
+            try:
+                with open(sw_check, 'r', encoding='utf-8') as f:
+                    sw_text = f.read()
+                with open(html_check, 'r', encoding='utf-8') as f:
+                    html_text = f.read()
+                precache_m = re.search(r'PRECACHE_URLS\s*=\s*\[(.*?)\]', sw_text, re.DOTALL)
+                core_m = re.search(r'window\.__bkCoreUrls\s*=\s*\[(.*?)\]', html_text, re.DOTALL)
+                if precache_m and core_m:
+                    precache_urls = set(re.findall(r"'(\./[^']+)'", precache_m.group(1)))
+                    core_urls = set(re.findall(r"'(\./[^']+)'", core_m.group(1)))
+                    missing = sorted(precache_urls - core_urls)
+                    if missing:
+                        print(f"⚠ PRECACHE_URLS 中有 {len(missing)} 项不在 __bkCoreUrls 中: {missing[:5]}")
+                    print(f"✓ 缓存列表校验: PRECACHE_URLS {len(precache_urls)} 项, __bkCoreUrls {len(core_urls)} 项")
+            except Exception as e:
+                print(f"⚠ 缓存列表校验失败: {e}")
 
         # _redirects（Cloudflare Pages）
         redirects_src = os.path.join(template_dir, '_redirects')

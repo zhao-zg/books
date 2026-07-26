@@ -16,6 +16,8 @@ const CONFIG = {
 };
 
 // 安装时预缓存的核心资源列表
+// ⚠ 此列表须与 index.html 中 __bkCoreUrls 保持同步（子集关系），
+// 新增核心资源时应同步更新两处。构建时 generator.py 会校验一致性。
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -111,11 +113,8 @@ self.addEventListener('install', event => {
           // vendor 预缓存失败不阻塞安装
         }
       }
-      try {
-        self.skipWaiting();
-      } catch (e) {
-        // skipWaiting 失败不阻塞安装
-      }
+      // 注意：不在此处调用 skipWaiting()，由页面端更新流程通过
+      // SKIP_WAITING 消息显式触发激活，避免缓存重建未完成时意外刷新。
     })()
   );
 });

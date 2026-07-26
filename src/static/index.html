@@ -340,7 +340,7 @@
 
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
-        './','./manifest.json','./sw.js',
+        './','./index.html','./manifest.json','./sw.js',
         './css/style/css-variables.css','./css/style/css-base.css','./css/style/css-toc-drawer.css',
         './css/style/css-settings.css','./css/style/css-reader.css','./css/style/css-pdf.css','./css/style/css-epub.css',
         './css/style/css-reader-views.css','./css/style/css-highlight.css','./css/style/css-bookmark.css','./css/style/css-popups.css',
@@ -641,11 +641,13 @@
         });
     }
 
-    function verifyCacheIntegrity(){
+    function verifyCacheIntegrity(targetVersion){
         if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingCoreUrls:[]});
         var coreUrls=window.__bkCoreUrls||[];
         return caches.keys().then(function(keys){
-            var mainKey=keys.find(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
+            var mainKey;
+            if(targetVersion){var k='bk-main-'+targetVersion;if(keys.indexOf(k)!==-1)mainKey=k;}
+            if(!mainKey)mainKey=keys.find(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
             if(!mainKey)return{ok:false,coverage:0,missingCore:coreUrls.length,missingCoreUrls:[]};
             var checkUrls=coreUrls.filter(function(u){return u!=='./';});
             return caches.open(mainKey).then(function(cache){
@@ -659,17 +661,18 @@
         }).catch(function(){return{ok:false,coverage:0,missingCore:0,missingCoreUrls:[]};});
     }
 
-    function cacheAllBooks(statusEl,onProgress){
+    function cacheAllBooks(statusEl,onProgress,targetVersion){
         if(!('caches' in window)){if(statusEl)statusEl.textContent='当前环境不支持缓存';return Promise.resolve();}
         var coreUrls=window.__bkCoreUrls||[];
-        var totalResources=coreUrls.length;var cachedResources=0;
+        var totalResources=coreUrls.length;var cachedResources=0;var failedResources=0;
         function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
-        var cacheShared=caches.open('bk-main-'+(window.__BK_CACHE_VERSION__||'dev')).then(function(cache){
+        var ver=targetVersion||window.__BK_CACHE_VERSION__||'dev';
+        var cacheShared=caches.open('bk-main-'+ver).then(function(cache){
             return Promise.allSettled(coreUrls.map(function(url){
-                return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());}).catch(function(){cachedResources++;rep();});
+                return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());failedResources++;}).catch(function(){cachedResources++;failedResources++;rep();});
             }));
         }).catch(function(){});
-        return cacheShared.then(function(){if(statusEl){statusEl.textContent='✓ 全部缓存完成';statusEl.className='cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
+        return cacheShared.then(function(){if(statusEl){statusEl.textContent=failedResources>0?'✓ 缓存完成（'+failedResources+' 个资源失败）':'✓ 全部缓存完成';statusEl.className=failedResources>0?'cache-status':'cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
     }
 
     function showMandatoryInstallDialog(mode,targetVersion,onComplete){
@@ -689,18 +692,20 @@
         function doInstall(){
             if(retryBtn)retryBtn.style.display='none';
             if(progressBar)progressBar.style.width='0%';
-            if(statusEl)statusEl.textContent='正在清理旧缓存...';
-            var clearStep=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k.indexOf('bk-')===0;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
-            clearStep.then(function(){
-                if(statusEl)statusEl.textContent='开始缓存资源...';
-                return cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';}).then(function(){
-                    if(progressBar)progressBar.style.width='100%';
-                    if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
-                    return verifyCacheIntegrity();
-                }).then(function(result){
-                    if(result.ok){
+            if(statusEl)statusEl.textContent='开始缓存资源...';
+            // 先建后删：先缓存新资源，验证通过后再清理旧缓存，
+            // 避免中途退出导致无缓存状态。
+            cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';},targetVersion).then(function(){
+                if(progressBar)progressBar.style.width='100%';
+                if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
+                return verifyCacheIntegrity(targetVersion);
+            }).then(function(result){
+                if(result.ok){
+                    // 缓存验证通过，安全清理旧缓存（保留刚建的新缓存）
+                    var newCacheName='bk-main-'+targetVersion;
+                    var clearOld=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k.indexOf('bk-')===0&&k!==newCacheName;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
+                    clearOld.then(function(){
                         if(onComplete){
-                            // 委托给调用方处理后续逻辑（激活 SW、设版本、reload）
                             if(statusEl)statusEl.textContent='✅ 缓存完成';
                             onComplete();
                         }else{
@@ -709,18 +714,19 @@
                             if(progressBar)progressBar.style.width='100%';
                             setTimeout(function(){window.location.reload();},1200);
                         }
-                    }else{
-                        var msg='⚠ 部分资源未完整（'+Math.round((result.coverage||0)*100)+'%）';
-                        if(result.missingCore&&result.missingCore>0){
-                            msg+='\n缺少核心资源 '+result.missingCore+' 个';
-                            if(result.missingCoreUrls&&result.missingCoreUrls.length)msg+='：'+result.missingCoreUrls.slice(0,3).map(function(u){return u.split('/').pop();}).join('、')+(result.missingCoreUrls.length>3?'...':'');
-                        }
-                        msg+='\n请重试';
-                        if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
-                        if(retryBtn)retryBtn.style.display='block';
+                    });
+                }else{
+                    // 缓存不完整时不删旧缓存，用户可重试
+                    var msg='\u26A0 部分资源未完整\uff08'+Math.round((result.coverage||0)*100)+'%\uff09';
+                    if(result.missingCore&&result.missingCore>0){
+                        msg+='\n缺少核心资源 '+result.missingCore+' 个';
+                        if(result.missingCoreUrls&&result.missingCoreUrls.length)msg+='\uff1a'+result.missingCoreUrls.slice(0,3).map(function(u){return u.split('/').pop();}).join('\u3001')+(result.missingCoreUrls.length>3?'...':'');
                     }
-                });
-            }).catch(function(err){if(statusEl)statusEl.textContent='⚠ 出错：'+(err&&err.message||'未知')+'，请重试';if(retryBtn)retryBtn.style.display='block';});
+                    msg+='\n请重试';
+                    if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
+                    if(retryBtn)retryBtn.style.display='block';
+                }
+            }).catch(function(err){if(statusEl)statusEl.textContent='\u26A0 出错\uff1a'+(err&&err.message||'未知')+'\uff0c请重试';if(retryBtn)retryBtn.style.display='block';});
         }
         if(retryBtn)retryBtn.addEventListener('click',doInstall);
         doInstall();
@@ -742,7 +748,7 @@
                     else{showMandatoryInstallDialog('install',targetVersion);}
                     return;
                 }
-                verifyCacheIntegrity()
+                verifyCacheIntegrity(storedVersion||undefined)
                     .then(function(result){if(!result.ok){var m=storedVersion?'update':'install';showMandatoryInstallDialog(m,targetVersion);}})
                     .catch(function(){});
             })
@@ -772,7 +778,7 @@
                         var _ver=v.version||v.apk_version||'';
                         if(_capVer&&_capVer===_ver)return;
                         waitForBooks(15000).then(function(){
-                            return cacheAllBooks(null,null);
+                            return cacheAllBooks(null,null,_ver);
                         }).then(function(){
                             if(_ver)try{localStorage.setItem('bk_pwa_version',_ver);}catch(e){}
                         }).catch(function(){});

@@ -107,7 +107,7 @@
     },
 
     showCachedDialog: function () {
-      // 已缓存书籍管理 - 列出 bk-main 缓存中的书籍
+      // 已缓存书籍管理 - 列出 rp-data 缓存中的书籍
       if (!win.BK || !win.BK.openDialog) return;
 
       var dlg = win.BK.openDialog({

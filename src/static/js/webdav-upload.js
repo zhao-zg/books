@@ -46,22 +46,7 @@
     } catch (e) { /* ignore */ }
     return '';
   }
-    if (idx === -1) {
-      // 兜底：只取 pathname
-      try {
-        var baseParsed = new URL(base);
-        var remoteParsed = new URL(remoteUrl);
-        var baseParts = baseParsed.pathname.replace(/\/\+$/, '').split('/').filter(Boolean);
-        var remoteParts = remoteParsed.pathname.replace(/\/\+$/, '').split('/').filter(Boolean);
-        var relParts = remoteParts.slice(baseParts.length);
-        return relParts.length ? '/' + relParts.join('/') : '';
-      } catch (e) { return ''; }
-    }
-    var rel = remoteUrl.substring(idx + base.length).replace(/\/\+$/, '');
-    // URL 解码以便显示
-    try { rel = decodeURIComponent(rel); } catch (e) { /* 保留原文 */ }
-    return rel ? '/' + rel.replace(/^\/+/, '') : '';
-  }
+
 
   // ── 工具函数 ──────────────────────────────────────────────────────────
   function escHtml(s) {

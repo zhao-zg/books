@@ -9,7 +9,7 @@
   'use strict';
   var win = window;
 
-  var CACHE_NAME = 'bk-main';
+  var CACHE_NAME = 'rp-data';
   var SOURCES_KEY = 'bk_pack_sources';
 
   function getRoot() {
@@ -30,6 +30,32 @@
   function escAttr(s) {
     return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   }
+
+  // ── 旧缓存迁移 ────────────────────────────────────────────────────
+  // 将 bk-main 中的资源包数据迁移到 rp-data，避免被 SW activate 误删。
+  // 迁移完成后自动删除 bk-main。仅执行一次（rp-data 存在时跳过）。
+  function _migrateOldCache() {
+    if (!('caches' in win)) return;
+    caches.has(CACHE_NAME).then(function(hasNew) {
+      if (hasNew) return;
+      caches.has('bk-main').then(function(hasOld) {
+        if (!hasOld) return;
+        caches.open('bk-main').then(function(oldCache) {
+          oldCache.keys().then(function(reqs) {
+            if (!reqs.length) return caches.delete('bk-main');
+            caches.open(CACHE_NAME).then(function(newCache) {
+              Promise.all(reqs.map(function(req) {
+                return oldCache.match(req).then(function(resp) {
+                  if (resp) return newCache.put(req, resp);
+                });
+              })).then(function() { caches.delete('bk-main'); });
+            });
+          });
+        });
+      });
+    }).catch(function() {});
+  }
+  _migrateOldCache();
 
   // ── 清单获取 ─────────────────────────────────────────────────────────
 
