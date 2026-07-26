@@ -551,26 +551,55 @@
     }
   }
 
-  // 从本地已保存配置中查找密码（预置服务器用）
-  function _getSavedPassword(configId) {
+  // 从 localStorage 读取预置服务器已保存的写操作密码
+  function _getSavedWritePassword(configId) {
     if (!configId) return '';
-    var saved = win.WebDavManager.getConfigs();
-    for (var i = 0; i < saved.length; i++) {
-      if (saved[i].id === configId && saved[i].password) return saved[i].password;
-    }
-    return '';
+    try {
+      return win.localStorage.getItem('bk_wd_write_pwd_' + configId) || '';
+    } catch (e) { return ''; }
   }
 
-  // 上传成功后保存账密到本地
-  function _saveUploadConfig(uploadConfig, state) {
+  // 保存预置服务器写操作密码到 localStorage
+  function _saveWritePassword(configId, pwd) {
+    if (!configId || !pwd) return;
+    try {
+      win.localStorage.setItem('bk_wd_write_pwd_' + configId, pwd);
+    } catch (e) { /* ignore */ }
+  }
+
+  // 路径记忆：按服务器ID/URL保存上次上传路径
+  var WDU_PATH_KEY = 'bk_wdu_last_paths';
+  function _saveLastPath(configKey, path) {
+    try {
+      var map = {};
+      try { map = JSON.parse(win.localStorage.getItem(WDU_PATH_KEY) || '{}'); } catch (e) {}
+      if (path) { map[configKey] = path; } else { delete map[configKey]; }
+      win.localStorage.setItem(WDU_PATH_KEY, JSON.stringify(map));
+    } catch (e) { /* ignore */ }
+  }
+  function _getLastPath(configKey) {
+    try {
+      var map = JSON.parse(win.localStorage.getItem(WDU_PATH_KEY) || '{}');
+      return map[configKey] || '';
+    } catch (e) { return ''; }
+  }
+
+  // 上传成功后保存账密和路径到本地
+  function _saveUploadConfig(uploadConfig, state, remotePath) {
     try {
       var saveCfg = Object.assign({}, uploadConfig);
+      var configKey = '';
       if (state.selectedConfig) {
         saveCfg.id = state.selectedConfig.id;
         saveCfg.name = state.selectedConfig.name || '';
         saveCfg.preset = !!state.selectedConfig.preset;
+        configKey = state.selectedConfig.id;
+      } else {
+        configKey = uploadConfig.url || '';
       }
       win.WebDavManager.saveConfig(saveCfg);
+      // 记忆上传路径
+      if (configKey) _saveLastPath(configKey, remotePath);
     } catch (e) { /* 保存失败不影响主流程 */ }
   }
 
@@ -580,6 +609,7 @@
     var urlInput = dialogEl.querySelector('#wduUrl');
     var userInput = dialogEl.querySelector('#wduUser');
     var passInput = dialogEl.querySelector('#wduPass');
+    var pathInput = dialogEl.querySelector('#wduRemotePath');
     var noteEl = dialogEl.querySelector('#wduNote');
     var errorEl = dialogEl.querySelector('#wduError');
 
@@ -593,6 +623,8 @@
       if (userInput) { userInput.value = ''; userInput.classList.remove('bk-field-hidden'); }
       if (passInput) { passInput.value = ''; passInput.classList.remove('bk-field-hidden'); passInput.placeholder = '密码'; }
       if (noteEl) noteEl.style.display = 'none';
+      // 手动输入模式：路径也清空
+      if (pathInput) pathInput.value = '';
       return;
     }
 
@@ -616,8 +648,8 @@
       if (urlInput) urlInput.classList.add('bk-field-hidden');
       if (userInput) userInput.classList.add('bk-field-hidden');
       if (passInput) {
-        // 预置服务器：查找本地已保存的密码自动填充
-        var savedPwd = _getSavedPassword(cfg.id);
+        // 预置服务器：查找本地已保存的写操作密码自动填充
+        var savedPwd = _getSavedWritePassword(cfg.id);
         passInput.value = savedPwd || '';
         passInput.placeholder = '请输入密码';
         passInput.required = true;
@@ -643,6 +675,71 @@
         noteEl.style.display = 'none';
       }
     }
+
+    // 恢复上次上传路径
+    if (pathInput && cfg.id) {
+      var lastPath = _getLastPath(cfg.id);
+      pathInput.value = lastPath || '';
+    }
+  }
+
+  // ── 预置服务器删除密码验证（与 rp-import.js 的 _ensureDeletePassword 一致）──
+  function _ensureUploadDeletePassword(state, callback) {
+    if (!state.connectedConfig) return;
+    if (!state.connectedConfig.preset) {
+      callback(state.connectedConfig.password);
+      return;
+    }
+    // 预置服务器：检查已保存的写操作密码
+    var savedPwd = _getSavedWritePassword(state.connectedConfig.id);
+    if (savedPwd) {
+      callback(savedPwd);
+      return;
+    }
+    // 无已保存密码：弹出密码输入框
+    var html =
+      '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+        '<div class="bk-drawer-header">' +
+          '<div class="bk-drawer-title">输入密码</div>' +
+          '<button class="bk-drawer-close" data-action="wdu-pwd-cancel" aria-label="关闭">×</button>' +
+        '</div>' +
+        '<div class="bk-drawer-divider"></div>' +
+        '<div class="bk-webdav-del-body">' +
+          '<div class="bk-webdav-del-warn">预置服务器删除文件需要密码验证</div>' +
+          '<input class="bk-field" id="wduDelPass" type="password" placeholder="请输入密码" style="margin-top:12px" />' +
+        '</div>' +
+        '<div class="bk-webdav-del-footer">' +
+          '<button class="bk-btn bk-btn-secondary" data-action="wdu-pwd-cancel">取消</button>' +
+          '<button class="bk-btn bk-btn-primary" data-action="wdu-pwd-confirm">确认</button>' +
+        '</div>' +
+      '</div>';
+    var pwdDlg = win.BK.openDialog({ id: 'bk-webdav-upload-pwd-confirm', html: html });
+    if (!pwdDlg) return;
+    var el = document.getElementById('bk-webdav-upload-pwd-confirm');
+    if (!el) return;
+    var closePwdDlg = function () { if (pwdDlg && pwdDlg.close) pwdDlg.close(); };
+    var cancelBtns = el.querySelectorAll('[data-action="wdu-pwd-cancel"]');
+    for (var ci = 0; ci < cancelBtns.length; ci++) {
+      cancelBtns[ci].addEventListener('click', closePwdDlg);
+    }
+    var confirmBtn = el.querySelector('[data-action="wdu-pwd-confirm"]');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', function () {
+        var passEl = el.querySelector('#wduDelPass');
+        var pwd = passEl ? passEl.value : '';
+        if (!pwd) {
+          passEl.style.borderColor = '#e74c3c';
+          passEl.focus();
+          return;
+        }
+        // 保存写操作密码到本地，下次免输入
+        _saveWritePassword(state.connectedConfig.id, pwd);
+        closePwdDlg();
+        callback(pwd);
+      });
+    }
+    var passInput = el.querySelector('#wduDelPass');
+    if (passInput) setTimeout(function () { passInput.focus(); }, 100);
   }
 
   // ── 浏览远程目录 ──────────────────────────────────────────────────
@@ -665,6 +762,7 @@
       tempConfig.id = state.selectedConfig.id;
       tempConfig.name = state.selectedConfig.name;
       tempConfig.urls = state.selectedConfig.urls || null;
+      tempConfig.preset = !!state.selectedConfig.preset;
       if (!tempConfig.url && state.selectedConfig.url) tempConfig.url = state.selectedConfig.url;
     }
 
@@ -841,6 +939,31 @@
           var remotePath = delBtn.getAttribute('data-path');
           var itemName = delBtn.getAttribute('data-name') || '';
           if (!remotePath || !state.connectedConfig) return;
+          // 预置服务器删除需要密码验证
+          if (state.connectedConfig.preset) {
+            _ensureUploadDeletePassword(state, function (pwd) {
+              if (!win.confirm('确定删除\u300c' + itemName + '\u300f\uff1f\n\n此操作不可撤销。')) return;
+              delBtn.disabled = true;
+              // 临时替换密码用于删除请求
+              var origPwd = state.connectedConfig.password;
+              state.connectedConfig.password = pwd;
+              win.WebDavManager.deleteResource(state.connectedConfig, remotePath).then(function () {
+                state.connectedConfig.password = origPwd;
+                _toast('已删除\u300c' + itemName + '\u300d');
+                win.WebDavManager.listDir(state.connectedConfig, state.browsePath).then(function (subEntries) {
+                  var el = document.getElementById('bk-webdav-upload-dir-dialog');
+                  if (el) {
+                    _updateDirBrowserContent(el, state, subEntries, parentDlg);
+                  }
+                });
+              }).catch(function (err) {
+                state.connectedConfig.password = origPwd;
+                _toast('删除失败：' + ((err && err.hint) || (err && err.message) || ''));
+                delBtn.disabled = false;
+              });
+            });
+            return;
+          }
           if (!win.confirm('确定删除\u300c' + itemName + '\u300f\uff1f\n\n此操作不可撤销。')) return;
           delBtn.disabled = true;
           win.WebDavManager.deleteResource(state.connectedConfig, remotePath).then(function () {
@@ -958,7 +1081,11 @@
       if (errors.length === 0) {
         _toast('上传成功：' + total + ' 本书');
         // 上传成功后保存账密到本地（下次不用重复填写）
-        _saveUploadConfig(uploadConfig, state);
+        _saveUploadConfig(uploadConfig, state, remotePath);
+        // 预置服务器：同时保存写操作密码到 bk_wd_write_pwd_{configId}
+        if (state.selectedConfig && state.selectedConfig.preset && password) {
+          _saveWritePassword(state.selectedConfig.id, password);
+        }
         if (dlg && dlg.close) dlg.close();
       } else if (errors.length < total) {
         _toast('上传完成：' + (total - errors.length) + ' 成功，' + errors.length + ' 失败');

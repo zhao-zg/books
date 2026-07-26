@@ -435,6 +435,22 @@
       }
       return { url: parsed.url, urls: parsed.urls, username: form.username, password: form.password, authType: 'basic', name: '' };
     }
+
+    // 获取预置服务器已保存的写操作密码（从 localStorage 读取）
+    function _getSavedWritePassword(configId) {
+      try {
+        var key = 'bk_wd_write_pwd_' + configId;
+        return localStorage.getItem(key) || '';
+      } catch (e) { return ''; }
+    }
+
+    // 保存预置服务器写操作密码到 localStorage
+    function _saveWritePassword(configId, pwd) {
+      try {
+        var key = 'bk_wd_write_pwd_' + configId;
+        localStorage.setItem(key, pwd);
+      } catch (e) {}
+    }
     function displayPath() {
       if (!wd.path) return '根目录';
       // 不显示完整 URL 路径，只取最后一段目录名
@@ -516,6 +532,9 @@
       var countEl = bar.querySelector('.bk-webdav-batch-count');
       if (countEl) countEl.textContent = '已选 ' + count + ' 本';
       bar.style.display = count > 0 ? 'flex' : 'none';
+      // 同步"删除选中"按钮的 disabled 状态
+      var delBtn = bar.querySelector('[data-action="wd-delete-selected"]');
+      if (delBtn) delBtn.disabled = count === 0;
     }
 
     // 渲染 WebDAV 子视图（依据 wd.mode）
@@ -573,6 +592,7 @@
             listHtml += '<div class="bk-webdav-dir" data-action="wd-open-dir" data-path="' + escAttr(en.remotePath) + '">' +
               '<span class="bk-webdav-dir-icon">📁</span>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
+              '<button class="bk-webdav-del-btn" data-action="wd-delete-item" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="删除目录">×</button>' +
               '</div>';
           } else {
             var selected = !!wd.selected[en.remotePath];
@@ -586,6 +606,7 @@
               doneTag +
               '<span class="bk-webdav-size">' + formatSize(en.size) + '</span>' +
               '<button class="bk-webdav-dl" data-action="wd-download" data-path="' + escAttr(en.remotePath) + '">' + dlLabel + '</button>' +
+              '<button class="bk-webdav-del-btn" data-action="wd-delete-item" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="删除文件">×</button>' +
               '<div class="bk-webdav-progress" data-path="' + escAttr(en.remotePath) + '" style="display:none"><div class="bk-webdav-progress-bar"></div></div>' +
               '</div>';
           }
@@ -604,6 +625,7 @@
         '<div class="bk-webdav-batchbar" id="wdBatchBar" style="display:' + (selCount > 0 ? 'flex' : 'none') + '">' +
           '<span class="bk-webdav-batch-count">已选 ' + selCount + ' 本</span>' +
           '<button class="bk-btn bk-btn-primary" data-action="wd-download-selected">下载选中</button>' +
+          '<button class="bk-btn bk-btn-danger" data-action="wd-delete-selected"' + (selCount > 0 ? '' : ' disabled') + '>删除选中</button>' +
         '</div>';
       // 建立进度条索引
       var progEls = wdView.querySelectorAll('.bk-webdav-progress');
@@ -804,6 +826,233 @@
       downloadAndImport(entries);
     }
 
+    // ── 删除功能（合并自远程文件管理器）──────────────────────────────────
+    // 预置服务器删除前校验密码：始终要求用户输入密码确认
+    function _ensureDeletePassword(callback) {
+      if (!wd.config) return;
+      // 非预置服务器，直接执行（已有密码）
+      if (!wd.config.preset) {
+        callback(wd.config.password);
+        return;
+      }
+      // 预置服务器：检查是否已有用户手动输入的写操作密码
+      var savedPwd = _getSavedWritePassword(wd.config.id);
+      if (savedPwd) {
+        // 已保存过写操作密码，直接使用
+        wd.config.password = savedPwd;
+        callback(savedPwd);
+        return;
+      }
+      // 预置服务器无已保存写操作密码：弹出密码输入框
+      var html =
+        '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+          '<div class="bk-drawer-header">' +
+            '<div class="bk-drawer-title">输入密码</div>' +
+            '<button class="bk-drawer-close" data-action="wd-pwd-cancel" aria-label="关闭">×</button>' +
+          '</div>' +
+          '<div class="bk-drawer-divider"></div>' +
+          '<div class="bk-webdav-del-body">' +
+            '<div class="bk-webdav-del-warn">预置服务器删除文件需要密码验证</div>' +
+            '<input class="bk-field" id="wdDelPass" type="password" placeholder="请输入密码" style="margin-top:12px" />' +
+          '</div>' +
+          '<div class="bk-webdav-del-footer">' +
+            '<button class="bk-btn bk-btn-secondary" data-action="wd-pwd-cancel">取消</button>' +
+            '<button class="bk-btn bk-btn-primary" data-action="wd-pwd-confirm">确认</button>' +
+          '</div>' +
+        '</div>';
+      var dlg = win.BK.openDialog({ id: 'bk-webdav-pwd-confirm', html: html });
+      if (!dlg) return;
+      var el = document.getElementById('bk-webdav-pwd-confirm');
+      if (!el) return;
+      var closeDlg = function () { if (dlg && dlg.close) dlg.close(); };
+      var cancelBtns = el.querySelectorAll('[data-action="wd-pwd-cancel"]');
+      for (var i = 0; i < cancelBtns.length; i++) {
+        cancelBtns[i].addEventListener('click', closeDlg);
+      }
+      var confirmBtn = el.querySelector('[data-action="wd-pwd-confirm"]');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+          var passEl = el.querySelector('#wdDelPass');
+          var pwd = passEl ? passEl.value : '';
+          if (!pwd) {
+            passEl.style.borderColor = '#e74c3c';
+            passEl.focus();
+            return;
+          }
+          // 更新 config 中的密码，后续删除请求会携带
+          wd.config.password = pwd;
+          // 保存预置服务器写操作密码到本地，下次免输入
+          _saveWritePassword(wd.config.id, pwd);
+          closeDlg();
+          callback(pwd);
+        });
+      }
+      // 自动聚焦密码输入框
+      var passInput = el.querySelector('#wdDelPass');
+      if (passInput) setTimeout(function () { passInput.focus(); }, 100);
+    }
+
+    function wdDeleteItem(remotePath, itemName) {
+      if (!wd.config || wd.locked) return;
+      // 二次确认弹窗
+      var confirmHtml =
+        '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+          '<div class="bk-drawer-header">' +
+            '<div class="bk-drawer-title">确认删除</div>' +
+            '<button class="bk-drawer-close" data-action="wd-del-cancel" aria-label="关闭">×</button>' +
+          '</div>' +
+          '<div class="bk-drawer-divider"></div>' +
+          '<div class="bk-webdav-del-body">' +
+            '<div class="bk-webdav-del-warn">⚠️ 删除后无法恢复</div>' +
+            '<div class="bk-webdav-del-list">' + escHtml(itemName) + '</div>' +
+            '<div class="bk-webdav-del-hint">将永久删除此文件/目录，此操作不可撤销。</div>' +
+          '</div>' +
+          '<div class="bk-webdav-del-footer">' +
+            '<button class="bk-btn bk-btn-secondary" data-action="wd-del-cancel">取消</button>' +
+            '<button class="bk-btn bk-btn-danger" data-action="wd-del-confirm" data-path="' + escAttr(remotePath) + '">确认删除</button>' +
+          '</div>' +
+        '</div>';
+      var confirmDlg = win.BK.openDialog({ id: 'bk-webdav-delete-confirm', html: confirmHtml });
+      if (!confirmDlg) return;
+      var confirmEl = document.getElementById('bk-webdav-delete-confirm');
+      if (!confirmEl) return;
+      var cancelBtns = confirmEl.querySelectorAll('[data-action="wd-del-cancel"]');
+      for (var i = 0; i < cancelBtns.length; i++) {
+        cancelBtns[i].addEventListener('click', function () { if (confirmDlg && confirmDlg.close) confirmDlg.close(); });
+      }
+      var confirmBtn = confirmEl.querySelector('[data-action="wd-del-confirm"]');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+          var path = confirmBtn.getAttribute('data-path');
+          if (confirmDlg && confirmDlg.close) confirmDlg.close();
+          // 预置服务器删除前校验密码
+          _ensureDeletePassword(function () {
+            wdDoDelete([path]);
+          });
+        });
+      }
+    }
+
+    function wdDeleteSelected() {
+      var paths = Object.keys(wd.selected);
+      if (!paths.length || !wd.config || wd.locked) return;
+      // 收集名称用于展示
+      var names = [];
+      for (var i = 0; i < paths.length && names.length < 5; i++) {
+        var entry = wd.selected[paths[i]];
+        names.push(entry ? entry.name : paths[i].split('/').pop());
+      }
+      var nameList = names.join('、');
+      if (paths.length > 5) nameList += ' 等共 ' + paths.length + ' 项';
+
+      var confirmHtml =
+        '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+          '<div class="bk-drawer-header">' +
+            '<div class="bk-drawer-title">确认删除</div>' +
+            '<button class="bk-drawer-close" data-action="wd-del-cancel" aria-label="关闭">×</button>' +
+          '</div>' +
+          '<div class="bk-drawer-divider"></div>' +
+          '<div class="bk-webdav-del-body">' +
+            '<div class="bk-webdav-del-warn">⚠️ 删除后无法恢复</div>' +
+            '<div class="bk-webdav-del-list">' + escHtml(nameList) + '</div>' +
+            '<div class="bk-webdav-del-hint">将永久删除选中的文件/目录，此操作不可撤销。</div>' +
+          '</div>' +
+          '<div class="bk-webdav-del-footer">' +
+            '<button class="bk-btn bk-btn-secondary" data-action="wd-del-cancel">取消</button>' +
+            '<button class="bk-btn bk-btn-danger" data-action="wd-del-confirm">确认删除</button>' +
+          '</div>' +
+        '</div>';
+      var confirmDlg = win.BK.openDialog({ id: 'bk-webdav-delete-confirm', html: confirmHtml });
+      if (!confirmDlg) return;
+      var confirmEl = document.getElementById('bk-webdav-delete-confirm');
+      if (!confirmEl) return;
+      var cancelBtns = confirmEl.querySelectorAll('[data-action="wd-del-cancel"]');
+      for (var i = 0; i < cancelBtns.length; i++) {
+        cancelBtns[i].addEventListener('click', function () { if (confirmDlg && confirmDlg.close) confirmDlg.close(); });
+      }
+      var confirmBtn = confirmEl.querySelector('[data-action="wd-del-confirm"]');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function () {
+          if (confirmDlg && confirmDlg.close) confirmDlg.close();
+          // 预置服务器删除前校验密码
+          _ensureDeletePassword(function () {
+            wdDoDelete(paths);
+          });
+        });
+      }
+    }
+
+    function wdDoDelete(remotePaths) {
+      if (!wd.config || wd.locked) return;
+      wd.locked = true;
+      var total = remotePaths.length;
+      var current = 0;
+      var errors = [];
+      showStatus('删除中…');
+      var chain = Promise.resolve();
+      for (var i = 0; i < remotePaths.length; i++) {
+        (function (remotePath, idx) {
+          chain = chain.then(function () {
+            current = idx + 1;
+            showStatus('删除 ' + current + '/' + total);
+            return win.WebDavManager.deleteResource(wd.config, remotePath).then(function () {
+              delete wd.selected[remotePath];
+            }).catch(function (err) {
+              var parts = remotePath.replace(/\/+$/, '').split('/');
+              var name = decodeURIComponent(parts[parts.length - 1] || '');
+              errors.push({ name: name, error: (err && err.hint) || (err && err.message) || '删除失败' });
+            });
+          });
+        })(remotePaths[i], i);
+      }
+      chain.then(function () {
+        wd.locked = false;
+        if (errors.length === 0) {
+          _toast('已删除 ' + total + ' 项');
+        } else if (errors.length < total) {
+          _toast('删除完成：' + (total - errors.length) + ' 成功，' + errors.length + ' 失败');
+        } else {
+          _toast('全部删除失败');
+        }
+        // 清除当前目录缓存（删除后列表可能已变化），强制重新 PROPFIND
+        var refreshKey = wd.config && (wd.config.id + ':' + wd.path);
+        if (refreshKey) delete _dirCache[refreshKey];
+        // 刷新当前目录
+        wdOpenDir(wd.path);
+      });
+    }
+
+    function _toast(msg) {
+      if (!msg) return;
+      try {
+        var existing = document.getElementById('bk-wd-toast-style');
+        if (!existing) {
+          var st = document.createElement('style');
+          st.id = 'bk-wd-toast-style';
+          st.textContent =
+            '.bk-wd-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(12px);' +
+            'background:rgba(26,25,24,.92);color:#fff;padding:10px 18px;border-radius:22px;' +
+            'font-size:14px;z-index:99999;opacity:0;transition:opacity .2s,transform .2s;' +
+            'pointer-events:none;max-width:80vw;white-space:nowrap}' +
+            '.bk-wd-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}';
+          document.head.appendChild(st);
+        }
+        var el = document.createElement('div');
+        el.className = 'bk-wd-toast';
+        el.textContent = String(msg);
+        document.body.appendChild(el);
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(function () { el.classList.add('show'); });
+        } else {
+          el.classList.add('show');
+        }
+        setTimeout(function () {
+          el.classList.remove('show');
+          setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
+        }, 2400);
+      } catch (e) { /* ignore */ }
+    }
+
     function handleWdAction(action, el) {
       if (wd.locked) {
         // 下载中仍允许断开和浏览（目录导航），仅阻止新的下载/选择操作
@@ -812,8 +1061,8 @@
         if (action === 'wd-open-dir') { wdOpenDir(el.getAttribute('data-path')); return; }
         if (action === 'wd-cancel-download') { wd._downloadCancelled = true; showStatus('正在取消…'); return; }
         // 其他操作给提示
-        if (action === 'wd-download' || action === 'wd-download-selected') {
-          showStatus('正在下载中，请等待完成…');
+        if (action === 'wd-download' || action === 'wd-download-selected' || action === 'wd-delete-item' || action === 'wd-delete-selected') {
+          showStatus('正在操作中，请等待完成…');
           hideStatusAfter(2000);
         }
         return;
@@ -826,6 +1075,8 @@
         case 'wd-open-dir': wdOpenDir(el.getAttribute('data-path')); return;
         case 'wd-download': wdDownloadOne(el.getAttribute('data-path')); return;
         case 'wd-download-selected': wdDownloadSelected(); return;
+        case 'wd-delete-item': wdDeleteItem(el.getAttribute('data-path'), el.getAttribute('data-name')); return;
+        case 'wd-delete-selected': wdDeleteSelected(); return;
         case 'wd-check': return;   // change 事件处理
         case 'wd-filter': return;  // change 事件处理
         default: return;
@@ -888,6 +1139,8 @@
 
       // WebDAV 动作（data-action 以 wd- 开头）
       if (actionAttr && actionAttr.indexOf('wd-') === 0) {
+        // 删除按钮在目录行内，需阻止冒泡到目录导航
+        if (actionAttr === 'wd-delete-item') e.stopPropagation();
         handleWdAction(actionAttr, actionEl);
         return;
       }

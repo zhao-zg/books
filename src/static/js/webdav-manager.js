@@ -222,8 +222,11 @@
   }
 
   // ── 工具：构建请求头（含认证）─────────────────────────────────────────
-  function buildHeaders(config, extra) {
+  // skipAuth: 预置服务器读操作（PROPFIND/GET）免密时传 true
+  function buildHeaders(config, extra, skipAuth) {
     var headers = extra || {};
+    // 预置服务器读操作免密：浏览/下载不带 Authorization
+    if (skipAuth && config && config.preset) return headers;
     var authType = config.authType || 'basic';
     if (authType === 'basic') {
       headers['Authorization'] = basicAuthHeader(config.username, config.password);
@@ -366,6 +369,7 @@
       if (externalSignal.aborted) { controller.abort(); }
       else { externalSignal.addEventListener('abort', function () { controller.abort(); }); }
     }
+    // 预置服务器读操作免密：PROPFIND 带正常认证（服务器可能要求）
     var headers = buildHeaders(config, {
       'Depth': depth || '1',
       'Content-Type': 'application/xml; charset=utf-8'

@@ -173,7 +173,6 @@
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">资源管理</div>';
       html += '<button class="bk-settings-row" data-action="download-mgr"><span class="bk-row-icon">📥</span><span class="bk-row-label">下载管理</span><span class="bk-row-arrow">›</span></button>';
-      html += '<button class="bk-settings-row" data-action="webdav-fm"><span class="bk-row-icon">☁️</span><span class="bk-row-label">远程文件管理</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
 
       // 高级（内联开关）
@@ -213,9 +212,6 @@
               if (win.BK && win.BK.clearData) win.BK.clearData();
             } else if (action === 'download-mgr') {
               if (win.BKRenderer && win.BKRenderer.openDownloadManager) win.BKRenderer.openDownloadManager();
-            } else if (action === 'webdav-fm') {
-              if (win.BK && win.BK.WebDavFileManager && win.BK.WebDavFileManager.open) win.BK.WebDavFileManager.open();
-              else _toast('WebDAV 文件管理功能未就绪');
             } else if (action === 'install-pwa') {
               var st = document.getElementById('meInstallStatus');
               function setSt(msg, cls) { if (st) { st.textContent = msg; st.className = 'cache-status' + (cls ? ' ' + cls : ''); st.style.display = ''; } }
