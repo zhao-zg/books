@@ -50,6 +50,28 @@
   }
 }
 
+/* Single 模式强制覆盖：桌面端居中限宽 + 横屏限宽 均不适用，必须填满 Carousel page 宽度。
+   修复：当 .content 同时有 .bk-pdf-mode 和 .bk-pdf-single 时，
+   桌面端 .bk-pdf-mode 的 max-width:820px / 横屏 css-reader.css 的 max-width:640px
+   优先级可能与 .bk-pdf-single 相同（0,2,0），后定义规则覆盖先定义规则导致宽度被限制。
+   用双 class 选择器（0,3,0）提高优先级确保 Single 模式宽度始终正确。 */
+@media (min-width: 768px) {
+  #chapterContent.bk-pdf-single.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-single.bk-pdf-mode {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #chapterContent.bk-pdf-single.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-single.bk-pdf-mode {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
 /* PDF 模式下页码栏对比度修复（中灰背景上的深黑标题对比度不足） */
 #chapterContent.bk-pdf-mode .bk-page-title,
 .bk-carousel-page .content.bk-pdf-mode .bk-page-title {
@@ -79,7 +101,10 @@
   overflow-y: hidden;          /* Single 模式：纵向滚动由 .bk-pdf-page 内部处理，避免嵌套滚动冲突 */
   height: 100%;
   width: 100%;                 /* 显式宽度，防止 Carousel flex column 中 .content 宽度收缩 */
-  max-width: 100%;             /* 确保不超出父容器 */
+  max-width: none;             /* 不限宽——桌面端 .bk-pdf-mode 的 820px 和横屏 640px 不应影响 Single 模式 */
+  align-self: stretch;         /* flex column 中显式拉伸，防止被 flex 收缩算法压缩宽度 */
+  margin-left: 0;              /* 取消居中 margin，必须左对齐填满 Carousel page */
+  margin-right: 0;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;

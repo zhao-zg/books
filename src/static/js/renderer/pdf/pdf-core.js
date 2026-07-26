@@ -314,6 +314,15 @@
   }
 
   function _getContainerWidth(el) {
+    // Single 模式：每个 PDF 页面必须填满视口宽度，直接使用视口宽度。
+    // 不再遍历 DOM 取 clientWidth——Carousel 预渲染页的 .content 可能
+    // 因 translateX 移出视口导致 clientWidth 异常（0 或远小于视口宽度），
+    // 也可能被桌面端 max-width:820px / 横屏 max-width:640px 规则限制。
+    // 视口宽度是 Single 模式下最可靠的容器宽度来源。
+    if (S.mode() === S.MODE_SINGLE) {
+      var svw = win.innerWidth || doc.documentElement.clientWidth || 0;
+      if (svw > 0) return svw;
+    }
     var node = el.parentElement;
     while (node) {
       if (node.classList && (node.classList.contains('bk-pdf-page') ||
@@ -326,26 +335,10 @@
         var pl = parseFloat(style.paddingLeft) || 0;
         var pr = parseFloat(style.paddingRight) || 0;
         var cw = node.clientWidth - pl - pr;
-        if (cw > 0) {
-          // Single 模式兜底：容器宽度不应小于视口宽度的 50%
-          // Carousel 场景下相邻预览页的 .content 可能因 translateX 移出视口
-          // 导致 clientWidth 为 0 或异常小，此时用视口宽度兜底
-          if (S.mode() === S.MODE_SINGLE) {
-            var vw = win.innerWidth || doc.documentElement.clientWidth || 0;
-            if (vw > 0 && cw < vw * 0.5) {
-              return vw;
-            }
-          }
-          return cw;
-        }
+        if (cw > 0) return cw;
         break;
       }
       node = node.parentElement;
-    }
-    // Single 模式兜底：使用视口宽度
-    if (S.mode() === S.MODE_SINGLE) {
-      var vw2 = win.innerWidth || doc.documentElement.clientWidth || 0;
-      if (vw2 > 0) return vw2;
     }
     return el.clientWidth || 600;
   }
@@ -354,6 +347,12 @@
    * 获取容器高度（单页模式 fit-to-screen、连续模式横向 PDF fit-to-height 用）
    */
   function _getContainerHeight(el) {
+    // Single 模式：与 _getContainerWidth 同理，直接使用视口高度。
+    // Carousel 预渲染页的 clientHeight 可能因布局未完成而异常。
+    if (S.mode() === S.MODE_SINGLE) {
+      var svh = win.innerHeight || doc.documentElement.clientHeight || 0;
+      if (svh > 0) return svh;
+    }
     var node = el.parentElement;
     while (node) {
       if (node.classList && (node.classList.contains('content') ||
@@ -365,22 +364,11 @@
         var pt = parseFloat(style.paddingTop) || 0;
         var pb = parseFloat(style.paddingBottom) || 0;
         var ch = node.clientHeight - pt - pb;
-        if (ch > 0) {
-          // Single 模式兜底：容器高度不应小于视口高度的 50%
-          // Carousel 场景下相邻预览页可能布局未完成导致 clientHeight 异常
-          if (S.mode() === S.MODE_SINGLE) {
-            var vh = win.innerHeight || doc.documentElement.clientHeight || 0;
-            if (vh > 0 && ch < vh * 0.5) {
-              return vh;
-            }
-          }
-          return ch;
-        }
+        if (ch > 0) return ch;
         break;
       }
       node = node.parentElement;
     }
-    // 回退到视口高度
     return win.innerHeight || doc.documentElement.clientHeight || 0;
   }
 
