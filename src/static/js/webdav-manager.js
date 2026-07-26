@@ -850,6 +850,36 @@
     });
   }
 
+  // ── DELETE：删除远程资源（文件或空目录）──────────────────────────────
+  // remotePath: 完整 URL 或相对路径
+  function deleteResource(config, remotePath) {
+    var url;
+    if (remotePath && /^[a-z][a-z0-9+.\-]*:/i.test(remotePath)) {
+      url = remotePath; // 已是绝对 URL
+    } else {
+      url = buildDirUrl(config.url, remotePath);
+    }
+    // 文件路径不带尾斜杠，目录路径可以带（部分服务器要求）
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    return fetch(url, {
+      method: 'DELETE',
+      headers: buildHeaders(config, {}),
+      signal: controller.signal
+    }).then(function (resp) {
+      clearTimeout(timer);
+      // 204=已删除, 200=部分服务器返回, 404=不存在（幂等，视为成功）
+      if (resp.status === 204 || resp.status === 200 || resp.status === 404) {
+        return { ok: true, status: resp.status };
+      }
+      throw wrapError(null, resp);
+    }).catch(function (err) {
+      clearTimeout(timer);
+      if (err.type) throw err;
+      throw wrapError(err, null);
+    });
+  }
+
   // ── 确保远程路径存在（逐级 MKCOL）───────────────────────────────────
   function ensureRemotePath(config, remotePath) {
     if (!remotePath) return Promise.resolve();
@@ -944,6 +974,7 @@
     downloadFile: downloadFile,
     uploadFile: uploadFile,
     mkcol: mkcol,
+    deleteResource: deleteResource,
     ensureRemotePath: ensureRemotePath,
     resyncBook: resyncBook,
     saveConfig: saveConfig,

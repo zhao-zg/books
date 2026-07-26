@@ -493,4 +493,78 @@
 .bk-wdu-dir-item:active { background: var(--surface-alt, #EDEAE4); }
 .bk-wdu-dir-icon { font-size: 1.1em; }
 .bk-wdu-dir-name { font-size: var(--text-base, .9375rem); color: var(--text, #1A1918); font-weight: 500; }
+/* 目录浏览器内删除按钮 */
+.bk-wdu-dir-item-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.bk-wdu-dir-del-btn { width: 28px; height: 28px; border-radius: 50%; border: none;
+  background: rgba(200,85,61,.08); color: var(--danger-text, #C8553D); font-size: 14px; line-height: 1;
+  cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent; transition: background .15s; flex-shrink: 0; }
+.bk-wdu-dir-del-btn:active { background: rgba(200,85,61,.18); }
+
+/* ── WebDAV 远程文件管理器 (.bk-wdfm-*) ─────────────────────── */
+.bk-wdfm-body { padding: 0 16px 16px; }
+.bk-wdfm-section { margin-bottom: 16px; }
+.bk-wdfm-label { font-size: var(--text-sm, .8125rem); font-weight: 600; color: var(--text-muted, #9A958C); margin-bottom: 8px; }
+.bk-wdfm-select { appearance: none; -webkit-appearance: none; }
+.bk-wdfm-note { display: none; margin-top: 6px; padding: 8px 12px; border-radius: 10px;
+  background: rgba(61,138,90,.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
+.bk-wdfm-error { display: none; margin-top: 4px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(200,85,61,.10); color: var(--danger-text, #C8553D); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
+.bk-wdfm-footer { display: flex; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border, #E5E2DD); }
+.bk-wdfm-footer .bk-btn { flex: 1; }
+
+/* 文件管理器主界面 */
+.bk-wdfm-fm-body { padding: 0 16px 16px; max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.bk-wdfm-breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bk-wdfm-up-btn { border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; color: var(--text, #1A1918);
+  padding: 6px 12px; border-radius: 8px; font: inherit; font-size: var(--text-sm, .8125rem); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
+.bk-wdfm-up-btn:active { background: var(--surface-alt, #EDEAE4); }
+.bk-wdfm-up-btn:disabled { opacity: .45; cursor: default; }
+.bk-wdfm-path { flex: 1; font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 操作栏 */
+.bk-wdfm-toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.bk-wdfm-tool-btn { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border, #E5E2DD);
+  background: #FFFFFF; color: var(--text, #1A1918); font: inherit; font-size: var(--text-xs, .75rem);
+  font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: all .15s; }
+.bk-wdfm-tool-btn:active { background: var(--surface-alt, #EDEAE4); }
+.bk-wdfm-tool-btn:disabled { opacity: .45; cursor: default; }
+.bk-wdfm-tool-danger { color: var(--danger-text, #C8553D); border-color: var(--danger-text, #C8553D); }
+.bk-wdfm-tool-danger:active { background: rgba(200,85,61,.08); }
+
+/* 文件列表 */
+.bk-wdfm-list { display: flex; flex-direction: column; gap: 4px; }
+.bk-wdfm-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; cursor: pointer;
+  transition: background .15s, border-color .15s; }
+.bk-wdfm-item:active { background: var(--surface-alt, #EDEAE4); }
+.bk-wdfm-item.is-selected { border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.06); }
+.bk-wdfm-check { display: flex; align-items: center; flex-shrink: 0; }
+.bk-wdfm-check input { width: 18px; height: 18px; accent-color: var(--brand, #3D8A5A); cursor: pointer; }
+.bk-wdfm-icon { font-size: 1.1em; flex-shrink: 0; }
+.bk-wdfm-name { flex: 1; min-width: 0; font-size: var(--text-base, .9375rem); color: var(--text, #1A1918);
+  font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-wdfm-meta { font-size: var(--text-xs, .75rem); color: var(--text-muted, #9A958C); flex-shrink: 0; }
+.bk-wdfm-empty { padding: 20px 0; text-align: center; color: var(--text-muted, #9A958C);
+  font-size: var(--text-sm, .8125rem); }
+
+/* 状态 + 进度 */
+.bk-wdfm-status { display: none; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px;
+  background: var(--surface-alt, #EDEAE4); color: var(--text, #1A1918); font-size: var(--text-sm, .8125rem); }
+.bk-wdfm-progress-section { margin-top: 12px; }
+.bk-wdfm-progress-text { font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C); margin-bottom: 6px; }
+.bk-wdfm-progress-bar-wrap { height: 6px; border-radius: 3px; background: var(--surface-alt, #EDEAE4); overflow: hidden; }
+.bk-wdfm-progress-bar { height: 100%; width: 0%; background: var(--brand, #3D8A5A); border-radius: 3px;
+  transition: width .2s ease; }
+
+/* 删除确认弹窗 */
+.bk-wdfm-del-body { padding: 16px 24px 20px; }
+.bk-wdfm-del-warn { font-size: var(--text-md, .9375rem); font-weight: 600; color: var(--danger-text, #C8553D);
+  margin-bottom: 12px; }
+.bk-wdfm-del-list { font-size: var(--text-sm, .8125rem); color: var(--text, #1A1918); line-height: 1.6;
+  margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; background: var(--surface-alt, #EDEAE4);
+  max-height: 120px; overflow-y: auto; word-break: break-all; }
+.bk-wdfm-del-hint { font-size: var(--text-xs, .75rem); color: var(--text-muted, #9A958C); line-height: 1.5; }
 

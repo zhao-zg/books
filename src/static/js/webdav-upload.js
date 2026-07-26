@@ -447,7 +447,7 @@
               '<input class="bk-field" id="wduRemotePath" placeholder="/（默认上传到根目录）" />' +
               '<button class="bk-wdu-browse-btn" data-action="wdu-browse" id="wduBrowseBtn">浏览</button>' +
             '</div>' +
-            '<div class="bk-wdu-hint">路径示例：/books 或 /上传/书籍（目录不存在会自动创建）</div>' +
+            '<div class="bk-wdu-hint">路径示例：/books 或 /上传/书籍（目录不存在会自动创建）<br>同名文件将被覆盖</div>' +
           '</div>' +
           '<div class="bk-wdu-error" id="wduError" style="display:none"></div>' +
           '<div class="bk-wdu-status" id="wduStatus" style="display:none"></div>' +
@@ -656,9 +656,9 @@
       '<div class="bk-drawer-divider"></div>' +
       '<div class="bk-wdu-dir-body" id="wduDirBody">';
 
-    // 上级目录按钮
+    // 面包屑
     html += '<div class="bk-wdu-dir-breadcrumb">' +
-      '<button class="bk-wdu-dir-up" data-action="wdu-dir-up">← 上级</button>' +
+      '<button class="bk-wdu-dir-up" data-action="wdu-dir-up">\u2190 上级</button>' +
       '<span class="bk-wdu-dir-path">' + escHtml(state.browsePath || '根目录') + '</span>' +
     '</div>';
 
@@ -666,11 +666,29 @@
     html += '<div class="bk-wdu-dir-list">';
     for (var i = 0; i < entries.length; i++) {
       var en = entries[i];
-      if (!en.isDir) continue;
-      html += '<div class="bk-wdu-dir-item" data-action="wdu-dir-open" data-path="' + escAttr(en.remotePath) + '">' +
-        '<span class="bk-wdu-dir-icon">\ud83d\udcc1</span>' +
-        '<span class="bk-wdu-dir-name">' + escHtml(en.name) + '</span>' +
-      '</div>';
+      if (en.isDir) {
+        html += '<div class="bk-wdu-dir-item" data-action="wdu-dir-open" data-path="' + escAttr(en.remotePath) + '">' +
+          '<span class="bk-wdu-dir-icon">\ud83d\udcc1</span>' +
+          '<span class="bk-wdu-dir-name">' + escHtml(en.name) + '</span>' +
+          '<div class="bk-wdu-dir-item-actions">' +
+            '<button class="bk-wdu-dir-del-btn" data-action="wdu-dir-delete" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="\u5220\u9664\u76ee\u5f55">\u00d7</button>' +
+          '</div>' +
+        '</div>';
+      }
+    }
+    // 非目录文件（可查看，可删除）
+    for (var fi = 0; fi < entries.length; fi++) {
+      var fe = entries[fi];
+      if (!fe.isDir) {
+        html += '<div class="bk-wdu-dir-item" style="cursor:default;opacity:.85">' +
+          '<span class="bk-wdu-dir-icon" style="opacity:.7">\ud83d\udcc4</span>' +
+          '<span class="bk-wdu-dir-name" style="font-weight:400">' + escHtml(fe.name) + '</span>' +
+          '<span style="font-size:.75rem;color:var(--text-muted,#9A958C);flex-shrink:0">' + (fe.size ? formatSize(fe.size) : '') + '</span>' +
+          '<div class="bk-wdu-dir-item-actions">' +
+            '<button class="bk-wdu-dir-del-btn" data-action="wdu-dir-delete" data-path="' + escAttr(fe.remotePath) + '" data-name="' + escAttr(fe.name) + '" title="\u5220\u9664\u6587\u4ef6">\u00d7</button>' +
+          '</div>' +
+        '</div>';
+      }
     }
     html += '</div>';
 
@@ -728,6 +746,33 @@
           _showDirBrowser(state, subEntries, dialogEl, dlg);
         });
       });
+    }
+
+    // 删除文件/目录按钮
+    var delBtns = dirDialogEl.querySelectorAll('[data-action="wdu-dir-delete"]');
+    for (var dbi = 0; dbi < delBtns.length; dbi++) {
+      (function (delBtn) {
+        delBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var remotePath = delBtn.getAttribute('data-path');
+          var itemName = delBtn.getAttribute('data-name') || '';
+          if (!remotePath || !state.connectedConfig) return;
+          // 二次确认
+          if (!win.confirm('确定删除\u300c' + itemName + '\u300f\uff1f\n\n此操作不可撤销。')) return;
+          delBtn.disabled = true;
+          win.WebDavManager.deleteResource(state.connectedConfig, remotePath).then(function () {
+            _toast('已删除\u300c' + itemName + '\u300d');
+            // 刷新当前目录
+            win.WebDavManager.listDir(state.connectedConfig, state.browsePath).then(function (subEntries) {
+              if (dirDlg && dirDlg.close) dirDlg.close();
+              _showDirBrowser(state, subEntries, dialogEl, dlg);
+            });
+          }).catch(function (err) {
+            _toast('删除失败：' + ((err && err.hint) || (err && err.message) || ''));
+            delBtn.disabled = false;
+          });
+        });
+      })(delBtns[dbi]);
     }
 
     // 选择此目录
