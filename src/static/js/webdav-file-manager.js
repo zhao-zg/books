@@ -136,6 +136,12 @@
 
   // ── 连接对话框 ──────────────────────────────────────────────────────
   function _renderConnectDialog() {
+    // 清理残留的旧弹窗（close() 有 220ms 动画延迟，可能在 DOM 中残留）
+    var oldEl = document.getElementById('bk-webdav-fm-connect');
+    if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+    var oldFmEl = document.getElementById('bk-webdav-fm-main');
+    if (oldFmEl && oldFmEl.parentNode) oldFmEl.parentNode.removeChild(oldFmEl);
+
     var configs = win.WebDavManager.getAllConfigs ? win.WebDavManager.getAllConfigs() : [];
     var configOptions = '<option value="">— 手动输入 —</option>';
     for (var i = 0; i < configs.length; i++) {
@@ -178,27 +184,59 @@
     if (!dialogEl) return;
 
     var selectedConfig = null;
+    var credFields = dialogEl.querySelector('#wdfmCredFields');
+    var urlInput = dialogEl.querySelector('#wdfmUrl');
+    var userInput = dialogEl.querySelector('#wdfmUser');
+    var passInput = dialogEl.querySelector('#wdfmPass');
+    var noteEl = dialogEl.querySelector('#wdfmNote');
+
+    // 同步预置服务器输入框显示状态（用 CSS class 代替 inline style，避免被覆盖）
+    function _syncPresetFields(cfg) {
+      if (!cfg) {
+        if (credFields) credFields.style.display = 'block';
+        if (urlInput) { urlInput.value = ''; urlInput.classList.remove('bk-field-hidden'); }
+        if (userInput) { userInput.value = ''; userInput.classList.remove('bk-field-hidden'); }
+        if (passInput) { passInput.value = ''; passInput.classList.remove('bk-field-hidden'); passInput.placeholder = '密码'; }
+        if (noteEl) noteEl.style.display = 'none';
+        return;
+      }
+      if (credFields) credFields.style.display = 'block';
+      if (urlInput) { urlInput.value = cfg.url || ''; if (cfg.preset) urlInput.classList.add('bk-field-hidden'); else urlInput.classList.remove('bk-field-hidden'); }
+      if (userInput) { userInput.value = cfg.username || ''; if (cfg.preset) userInput.classList.add('bk-field-hidden'); else userInput.classList.remove('bk-field-hidden'); }
+      if (cfg.preset) {
+        // 预置服务器：查找本地已保存的密码自动填充
+        var savedPwd = _getSavedPassword(cfg.id);
+        if (passInput) { passInput.value = savedPwd || ''; passInput.placeholder = '请输入密码'; passInput.classList.remove('bk-field-hidden'); }
+      } else {
+        if (passInput) { passInput.value = cfg.password || ''; passInput.placeholder = '密码'; passInput.classList.remove('bk-field-hidden'); }
+      }
+      if (noteEl) {
+        if (cfg.note) { noteEl.textContent = '\u5907\u6ce8\uff1a' + cfg.note; noteEl.style.display = 'block'; }
+        else { noteEl.style.display = 'none'; }
+      }
+    }
+
+    // 从本地已保存配置中查找密码（预置服务器用）
+    function _getSavedPassword(configId) {
+      if (!configId) return '';
+      var saved = win.WebDavManager.getConfigs();
+      for (var i = 0; i < saved.length; i++) {
+        if (saved[i].id === configId && saved[i].password) return saved[i].password;
+      }
+      return '';
+    }
 
     // 服务器选择
     var serverSelect = dialogEl.querySelector('#wdfmServerSelect');
     if (serverSelect) {
       serverSelect.addEventListener('change', function () {
         var id = this.value;
-        var credFields = dialogEl.querySelector('#wdfmCredFields');
-        var urlInput = dialogEl.querySelector('#wdfmUrl');
-        var userInput = dialogEl.querySelector('#wdfmUser');
-        var passInput = dialogEl.querySelector('#wdfmPass');
-        var noteEl = dialogEl.querySelector('#wdfmNote');
-        var errorEl = dialogEl.querySelector('#wdfmError');
-        if (errorEl) errorEl.style.display = 'none';
+        var errorEl2 = dialogEl.querySelector('#wdfmError');
+        if (errorEl2) errorEl2.style.display = 'none';
 
         if (!id) {
           selectedConfig = null;
-          if (credFields) credFields.style.display = 'block';
-          if (urlInput) urlInput.value = '';
-          if (userInput) userInput.value = '';
-          if (passInput) passInput.value = '';
-          if (noteEl) noteEl.style.display = 'none';
+          _syncPresetFields(null);
           return;
         }
 
@@ -209,20 +247,7 @@
         }
         if (!cfg) return;
         selectedConfig = cfg;
-
-        if (credFields) credFields.style.display = 'block';
-        if (urlInput) urlInput.value = cfg.url || '';
-        if (userInput) userInput.value = cfg.username || '';
-        // 预置服务器要求密码
-        if (cfg.preset) {
-          if (passInput) { passInput.value = ''; passInput.placeholder = '请输入密码'; }
-        } else {
-          if (passInput) { passInput.value = cfg.password || ''; passInput.placeholder = '密码'; }
-        }
-        if (noteEl) {
-          if (cfg.note) { noteEl.textContent = '\u5907\u6ce8\uff1a' + cfg.note; noteEl.style.display = 'block'; }
-          else { noteEl.style.display = 'none'; }
-        }
+        _syncPresetFields(cfg);
       });
 
       // 默认选中激活的配置
@@ -230,6 +255,18 @@
       if (activeConfig) {
         serverSelect.value = activeConfig.id;
         serverSelect.dispatchEvent(new Event('change'));
+        // 兜底：用 CSS class 确保预置服务器字段隐藏
+        // （dispatchEvent 在某些环境下可能不触发闭包内的 DOM 修改）
+        if (activeConfig.preset) {
+          if (urlInput) urlInput.classList.add('bk-field-hidden');
+          if (userInput) userInput.classList.add('bk-field-hidden');
+          if (passInput) {
+            var savedPwd = _getSavedPassword(activeConfig.id);
+            passInput.value = savedPwd || '';
+            passInput.classList.remove('bk-field-hidden');
+            passInput.placeholder = '请输入密码';
+          }
+        }
       }
     }
 
@@ -276,8 +313,16 @@
           _state.currentPath = '';
           _state.entries = res.entries || [];
           _state.selected = {};
-          if (dlg && dlg.close) dlg.close();
-          _renderFileManager();
+          // 连接成功后自动保存账密到本地（下次不用重复填写）
+          var saveCfg = Object.assign({}, res.config);
+          if (selectedConfig && selectedConfig.preset) {
+            saveCfg.id = selectedConfig.id;
+            saveCfg.preset = true;
+          }
+          win.WebDavManager.saveConfig(saveCfg);
+          // 复用连接对话框的 mask，就地替换内容为文件管理器
+          // 避免 close() + openDialog() 的 history 时序竞争
+          _replaceWithFileManager(dialogEl, dlg);
         }).catch(function (err) {
           if (errorEl) { errorEl.textContent = (err && err.hint) || (err && err.message) || '连接失败'; errorEl.style.display = 'block'; }
         }).then(function () {
@@ -296,7 +341,232 @@
     }
   }
 
-  // ── 文件管理器主界面 ────────────────────────────────────────────────
+  // ── 复用连接弹窗 mask，替换内容为文件管理器 ────────────────────────────────────
+  // 核心思路：连接成功后不 close() + openDialog()，而是直接替换 mask 的 innerHTML
+  // 这样不涉及 BKBackStack 的 push/discard 和 history 操作，彻底消除时序竞争
+  function _replaceWithFileManager(connectDialogEl, connectDlg) {
+    if (!connectDialogEl) return;
+
+    var config = _state.connectedConfig;
+    if (!config) return;
+
+    var pathDisplay = _state.currentPath || '根目录';
+    var entries = _state.entries;
+    var selCount = Object.keys(_state.selected).length;
+
+    // 生成文件列表 HTML
+    var listHtml = '';
+    for (var i = 0; i < entries.length; i++) {
+      var en = entries[i];
+      var isSelected = !!_state.selected[en.remotePath || en.href];
+      listHtml += '<div class="bk-wdfm-item' + (isSelected ? ' is-selected' : '') + '" data-remote-path="' + escAttr(en.remotePath || en.href) + '" data-is-dir="' + (en.isDir ? '1' : '0') + '" data-name="' + escAttr(en.name) + '">' +
+        '<label class="bk-wdfm-check"><input type="checkbox" class="bk-wdfm-checkbox" data-remote-path="' + escAttr(en.remotePath || en.href) + '"' + (isSelected ? ' checked' : '') + ' /></label>' +
+        '<span class="bk-wdfm-icon">' + fileIcon(en) + '</span>' +
+        '<span class="bk-wdfm-name">' + escHtml(en.name) + '</span>' +
+        '<span class="bk-wdfm-meta">' + (en.isDir ? '目录' : formatSize(en.size)) + '</span>' +
+      '</div>';
+    }
+    if (!entries.length) {
+      listHtml = '<div class="bk-wdfm-empty">此目录为空</div>';
+    }
+
+    var html =
+      '<div class="bk-dialog" style="width:min(460px,calc(100vw - 40px));max-height:85vh">' +
+        '<div class="bk-drawer-header">' +
+          '<div class="bk-drawer-title">远程文件管理</div>' +
+          '<button class="bk-drawer-close" data-action="wdfm-fm-close" aria-label="关闭">\u00d7</button>' +
+        '</div>' +
+        '<div class="bk-drawer-divider"></div>' +
+        '<div class="bk-wdfm-fm-body">' +
+          '<div class="bk-wdfm-breadcrumb">' +
+            '<button class="bk-wdfm-up-btn" data-action="wdfm-up">← 上级</button>' +
+            '<span class="bk-wdfm-path">' + escHtml(pathDisplay || '根目录') + '</span>' +
+          '</div>' +
+          '<div class="bk-wdfm-toolbar">' +
+            '<button class="bk-wdfm-tool-btn" data-action="wdfm-select-all">全选</button>' +
+            '<button class="bk-wdfm-tool-btn" data-action="wdfm-deselect-all">取消</button>' +
+            '<button class="bk-wdfm-tool-btn bk-wdfm-tool-danger" data-action="wdfm-delete-selected"' + (selCount ? '' : ' disabled') + '>删除(' + selCount + ')</button>' +
+            '<button class="bk-wdfm-tool-btn" data-action="wdfm-refresh">刷新</button>' +
+          '</div>' +
+          '<div class="bk-wdfm-list" id="wdfmList">' + listHtml + '</div>' +
+          '<div class="bk-wdfm-status" id="wdfmStatus" style="display:none"></div>' +
+          '<div class="bk-wdfm-error" id="wdfmError" style="display:none"></div>' +
+          '<div class="bk-wdfm-progress-section" id="wdfmProgress" style="display:none">' +
+            '<div class="bk-wdfm-progress-text" id="wdfmProgressText"></div>' +
+            '<div class="bk-wdfm-progress-bar-wrap"><div class="bk-wdfm-progress-bar" id="wdfmProgressBar"></div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="bk-wdfm-footer">' +
+          '<button class="bk-btn bk-btn-secondary" data-action="wdfm-fm-close">关闭</button>' +
+        '</div>' +
+      '</div>';
+
+    // 就地替换 mask 内容
+    connectDialogEl.innerHTML = html;
+    // 更新 mask id 以匹配文件管理器
+    connectDialogEl.id = 'bk-webdav-fm-main';
+
+    // 绑定文件管理器事件
+    _bindFileManagerEvents(connectDialogEl, connectDlg);
+  }
+
+  // ── 绑定文件管理器事件（复用 mask 场景） ────────────────────────────────
+  function _bindFileManagerEvents(dialogEl, dlgObj) {
+    // 绑定文件项事件（目录点击 + checkbox）
+    _bindFileItemEvents(dialogEl);
+
+    // 上级
+    var upBtn = dialogEl.querySelector('[data-action="wdfm-up"]');
+    if (upBtn) {
+      upBtn.addEventListener('click', function () {
+        if (!_state.connectedConfig) return;
+        if (!_state.currentPath) return;
+        var path = _state.currentPath.replace(/^\/+|\/+$/g, '');
+        var idx = path.lastIndexOf('/');
+        _state.currentPath = idx > 0 ? path.substring(0, idx) : '';
+        _navigateTo(_state.currentPath, dialogEl);
+      });
+    }
+
+    // 全选
+    var selectAllBtn = dialogEl.querySelector('[data-action="wdfm-select-all"]');
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', function () {
+        var cbs = dialogEl.querySelectorAll('.bk-wdfm-checkbox');
+        for (var i = 0; i < cbs.length; i++) {
+          cbs[i].checked = true;
+          _state.selected[cbs[i].getAttribute('data-remote-path')] = true;
+          var item = cbs[i].closest('.bk-wdfm-item'); if (item) item.classList.add('is-selected');
+        }
+        _updateDeleteCount(dialogEl);
+      });
+    }
+
+    // 取消全选
+    var deselectAllBtn = dialogEl.querySelector('[data-action="wdfm-deselect-all"]');
+    if (deselectAllBtn) {
+      deselectAllBtn.addEventListener('click', function () {
+        var cbs = dialogEl.querySelectorAll('.bk-wdfm-checkbox');
+        for (var i = 0; i < cbs.length; i++) {
+          cbs[i].checked = false;
+          delete _state.selected[cbs[i].getAttribute('data-remote-path')];
+          var item = cbs[i].closest('.bk-wdfm-item'); if (item) item.classList.remove('is-selected');
+        }
+        _updateDeleteCount(dialogEl);
+      });
+    }
+
+    // 删除选中
+    var deleteBtn = dialogEl.querySelector('[data-action="wdfm-delete-selected"]');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function () {
+        var sel = Object.keys(_state.selected);
+        if (!sel.length) return;
+        _confirmDelete(sel, dialogEl);
+      });
+    }
+
+    // 刷新
+    var refreshBtn = dialogEl.querySelector('[data-action="wdfm-refresh"]');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function () {
+        _navigateTo(_state.currentPath, dialogEl);
+      });
+    }
+
+    // 关闭
+    var closeBtns = dialogEl.querySelectorAll('[data-action="wdfm-fm-close"]');
+    for (var ci = 0; ci < closeBtns.length; ci++) {
+      closeBtns[ci].addEventListener('click', function () {
+        if (dlgObj && dlgObj.close) dlgObj.close();
+      });
+    }
+  }
+
+  // ── 就地更新文件列表（不重建弹窗）────────────────────────────────────────────
+  function _updateFileList(dialogEl) {
+    if (!dialogEl) return;
+    var listEl = dialogEl.querySelector('#wdfmList');
+    var pathEl = dialogEl.querySelector('.bk-wdfm-path');
+
+    // 更新面包屑
+    if (pathEl) pathEl.textContent = _state.currentPath || '根目录';
+
+    // 重建列表 HTML
+    var entries = _state.entries;
+    var listHtml = '';
+    for (var i = 0; i < entries.length; i++) {
+      var en = entries[i];
+      var isSelected = !!_state.selected[en.remotePath || en.href];
+      listHtml += '<div class="bk-wdfm-item' + (isSelected ? ' is-selected' : '') + '" data-remote-path="' + escAttr(en.remotePath || en.href) + '" data-is-dir="' + (en.isDir ? '1' : '0') + '" data-name="' + escAttr(en.name) + '">' +
+        '<label class="bk-wdfm-check"><input type="checkbox" class="bk-wdfm-checkbox" data-remote-path="' + escAttr(en.remotePath || en.href) + '"' + (isSelected ? ' checked' : '') + ' /></label>' +
+        '<span class="bk-wdfm-icon">' + fileIcon(en) + '</span>' +
+        '<span class="bk-wdfm-name">' + escHtml(en.name) + '</span>' +
+        '<span class="bk-wdfm-meta">' + (en.isDir ? '目录' : formatSize(en.size)) + '</span>' +
+      '</div>';
+    }
+    if (!entries.length) {
+      listHtml = '<div class="bk-wdfm-empty">此目录为空</div>';
+    }
+    if (listEl) listEl.innerHTML = listHtml;
+
+    // 更新删除计数
+    _updateDeleteCount(dialogEl);
+
+    // 重新绑定文件项事件
+    _bindFileItemEvents(dialogEl);
+  }
+
+  // ── 绑定文件项事件（目录点击 + checkbox）───────────────────────────────
+  function _bindFileItemEvents(dialogEl) {
+    if (!dialogEl) return;
+    var items = dialogEl.querySelectorAll('.bk-wdfm-item');
+    for (var idx = 0; idx < items.length; idx++) {
+      (function (item) {
+        item.addEventListener('click', function (e) {
+          // 如果点击的是 checkbox，不做目录导航
+          if (e.target.classList && e.target.classList.contains('bk-wdfm-checkbox')) return;
+
+          var isDir = item.getAttribute('data-is-dir') === '1';
+          if (!isDir) return; // 非目录：仅勾选
+
+          var remotePath = item.getAttribute('data-remote-path');
+          if (!remotePath || !_state.connectedConfig) return;
+
+          _showStatus('加载中\u2026');
+          win.WebDavManager.listDir(_state.connectedConfig, remotePath).then(function (subEntries) {
+            var relPath = _toRelativePath(remotePath, _state.connectedConfig.url || '');
+            _state.currentPath = relPath;
+            _state.entries = subEntries || [];
+            _state.selected = {};
+            _updateFileList(dialogEl);
+          }).catch(function (err) {
+            _toast('加载目录失败');
+          });
+        });
+
+        // checkbox 变化
+        var cb = item.querySelector('.bk-wdfm-checkbox');
+        if (cb) {
+          cb.addEventListener('change', function () {
+            var rp = cb.getAttribute('data-remote-path');
+            if (cb.checked) {
+              _state.selected[rp] = true;
+              item.classList.add('is-selected');
+            } else {
+              delete _state.selected[rp];
+              item.classList.remove('is-selected');
+            }
+            _updateDeleteCount(dialogEl);
+          });
+        }
+      })(items[idx]);
+    }
+  }
+
+  // ── 文件管理器主界面（独立打开，非从连接弹窗复用） ──────────────────
+  // 此函数仅用于直接打开文件管理器的场景（如已有 connectedConfig）
+  // 正常流程通过 _replaceWithFileManager 复用 mask
   function _renderFileManager() {
     var config = _state.connectedConfig;
     if (!config) return;
@@ -305,7 +575,6 @@
     var entries = _state.entries;
     var selCount = Object.keys(_state.selected).length;
 
-    // 文件列表
     var listHtml = '';
     for (var i = 0; i < entries.length; i++) {
       var en = entries[i];
@@ -330,21 +599,17 @@
         '</div>' +
         '<div class="bk-drawer-divider"></div>' +
         '<div class="bk-wdfm-fm-body">' +
-          // 面包屑
           '<div class="bk-wdfm-breadcrumb">' +
             '<button class="bk-wdfm-up-btn" data-action="wdfm-up">← 上级</button>' +
             '<span class="bk-wdfm-path">' + escHtml(pathDisplay || '根目录') + '</span>' +
           '</div>' +
-          // 操作栏
           '<div class="bk-wdfm-toolbar">' +
             '<button class="bk-wdfm-tool-btn" data-action="wdfm-select-all">全选</button>' +
             '<button class="bk-wdfm-tool-btn" data-action="wdfm-deselect-all">取消</button>' +
             '<button class="bk-wdfm-tool-btn bk-wdfm-tool-danger" data-action="wdfm-delete-selected"' + (selCount ? '' : ' disabled') + '>删除(' + selCount + ')</button>' +
             '<button class="bk-wdfm-tool-btn" data-action="wdfm-refresh">刷新</button>' +
           '</div>' +
-          // 文件列表
           '<div class="bk-wdfm-list" id="wdfmList">' + listHtml + '</div>' +
-          // 状态
           '<div class="bk-wdfm-status" id="wdfmStatus" style="display:none"></div>' +
           '<div class="bk-wdfm-error" id="wdfmError" style="display:none"></div>' +
           '<div class="bk-wdfm-progress-section" id="wdfmProgress" style="display:none">' +
@@ -363,120 +628,26 @@
     var dialogEl = document.getElementById('bk-webdav-fm-main');
     if (!dialogEl) return;
 
-    // ── 事件：目录点击 ──
-    var items = dialogEl.querySelectorAll('.bk-wdfm-item');
-    for (var idx = 0; idx < items.length; idx++) {
-      (function (item) {
-        item.addEventListener('click', function (e) {
-          // 如果点击的是 checkbox，不做目录导航
-          if (e.target.classList && e.target.classList.contains('bk-wdfm-checkbox')) return;
-
-          var isDir = item.getAttribute('data-is-dir') === '1';
-          if (!isDir) return; // 非目录：仅勾选
-
-          var remotePath = item.getAttribute('data-remote-path');
-          if (!remotePath || !_state.connectedConfig) return;
-
-          _showStatus('加载中\u2026');
-          win.WebDavManager.listDir(_state.connectedConfig, remotePath).then(function (subEntries) {
-            var relPath = _toRelativePath(remotePath, _state.connectedConfig.url || '');
-            _state.currentPath = relPath;
-            _state.entries = subEntries || [];
-            _state.selected = {};
-            if (dlg && dlg.close) dlg.close();
-            _renderFileManager();
-          }).catch(function (err) {
-            _toast('加载目录失败');
-          });
-        });
-
-        // checkbox 变化
-        var cb = item.querySelector('.bk-wdfm-checkbox');
-        if (cb) {
-          cb.addEventListener('change', function () {
-            var rp = cb.getAttribute('data-remote-path');
-            if (cb.checked) {
-              _state.selected[rp] = true;
-              item.classList.add('is-selected');
-            } else {
-              delete _state.selected[rp];
-              item.classList.remove('is-selected');
-            }
-            _updateDeleteCount(dialogEl);
-          });
-        }
-      })(items[idx]);
-    }
-
-    // ── 上级 ──
-    var upBtn = dialogEl.querySelector('[data-action="wdfm-up"]');
-    if (upBtn) {
-      upBtn.addEventListener('click', function () {
-        if (!_state.connectedConfig) return;
-        if (!_state.currentPath) return; // 已在根目录
-        var path = _state.currentPath.replace(/^\/+|\/+$/g, '');
-        var idx = path.lastIndexOf('/');
-        _state.currentPath = idx > 0 ? path.substring(0, idx) : '';
-        _navigateTo(_state.currentPath, dlg);
-      });
-    }
-
-    // ── 全选 ──
-    dialogEl.querySelector('[data-action="wdfm-select-all"]')?.addEventListener('click', function () {
-      var cbs = dialogEl.querySelectorAll('.bk-wdfm-checkbox');
-      for (var i = 0; i < cbs.length; i++) {
-        cbs[i].checked = true;
-        _state.selected[cbs[i].getAttribute('data-remote-path')] = true;
-        cbs[i].closest('.bk-wdfm-item')?.classList.add('is-selected');
-      }
-      _updateDeleteCount(dialogEl);
-    });
-
-    // ── 取消全选 ──
-    dialogEl.querySelector('[data-action="wdfm-deselect-all"]')?.addEventListener('click', function () {
-      var cbs = dialogEl.querySelectorAll('.bk-wdfm-checkbox');
-      for (var i = 0; i < cbs.length; i++) {
-        cbs[i].checked = false;
-        delete _state.selected[cbs[i].getAttribute('data-remote-path')];
-        cbs[i].closest('.bk-wdfm-item')?.classList.remove('is-selected');
-      }
-      _updateDeleteCount(dialogEl);
-    });
-
-    // ── 删除选中 ──
-    var deleteBtn = dialogEl.querySelector('[data-action="wdfm-delete-selected"]');
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', function () {
-        var sel = Object.keys(_state.selected);
-        if (!sel.length) return;
-        _confirmDelete(sel, dlg);
-      });
-    }
-
-    // ── 刷新 ──
-    dialogEl.querySelector('[data-action="wdfm-refresh"]')?.addEventListener('click', function () {
-      _navigateTo(_state.currentPath, dlg);
-    });
-
-    // ── 关闭 ──
-    var closeBtns = dialogEl.querySelectorAll('[data-action="wdfm-fm-close"]');
-    for (var ci = 0; ci < closeBtns.length; ci++) {
-      closeBtns[ci].addEventListener('click', function () {
-        if (dlg && dlg.close) dlg.close();
-      });
-    }
+    // 绑定事件（复用统一函数）
+    _bindFileManagerEvents(dialogEl, dlg);
   }
 
   // ── 导航到目录 ──
-  function _navigateTo(relPath, curDlg) {
+  // curDlg 可以是 dlg 对象 { close }，也可以是 dialogEl（DOM 元素）
+  function _navigateTo(relPath, curDlgOrEl) {
     if (!_state.connectedConfig) return;
     _showStatus('加载中\u2026');
     win.WebDavManager.listDir(_state.connectedConfig, relPath).then(function (entries) {
       _state.currentPath = relPath || '';
       _state.entries = entries || [];
       _state.selected = {};
-      if (curDlg && curDlg.close) curDlg.close();
-      _renderFileManager();
+      // 优先使用 dialogEl 就地更新，避免 close() + 重建的时序问题
+      var dialogEl = (curDlgOrEl && curDlgOrEl.nodeType) ? curDlgOrEl : document.getElementById('bk-webdav-fm-main');
+      if (dialogEl) {
+        _updateFileList(dialogEl);
+      } else {
+        _renderFileManager();
+      }
     }).catch(function (err) {
       _toast('加载目录失败');
     });
@@ -583,8 +754,7 @@
         _toast('全部删除失败');
       }
 
-      // 刷新目录
-      if (curDlg && curDlg.close) curDlg.close();
+      // 刷新目录（就地更新）
       _navigateTo(_state.currentPath, null);
     });
   }

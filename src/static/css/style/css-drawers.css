@@ -501,6 +501,9 @@
   -webkit-tap-highlight-color: transparent; transition: background .15s; flex-shrink: 0; }
 .bk-wdu-dir-del-btn:active { background: rgba(200,85,61,.18); }
 
+/* ── 通用字段隐藏（预置服务器隐藏 URL/用户名） ─────────────────── */
+.bk-field-hidden { display: none !important; }
+
 /* ── WebDAV 远程文件管理器 (.bk-wdfm-*) ─────────────────────── */
 .bk-wdfm-body { padding: 0 16px 16px; }
 .bk-wdfm-section { margin-bottom: 16px; }

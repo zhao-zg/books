@@ -377,6 +377,12 @@
 
   // ── 对话框渲染 ──────────────────────────────────────────────────────
   function _renderUploadDialog(bookInfos) {
+    // 清理残留的旧弹窗（close() 有 220ms 动画延迟，可能在 DOM 中残留）
+    var oldEl = document.getElementById('bk-webdav-upload-dialog');
+    if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+    var oldDirEl = document.getElementById('bk-webdav-upload-dir-dialog');
+    if (oldDirEl && oldDirEl.parentNode) oldDirEl.parentNode.removeChild(oldDirEl);
+
     var isSingle = bookInfos.length === 1;
     var titleText = isSingle
       ? '上传《' + escHtml(bookInfos[0].title) + '》到 WebDAV'
@@ -421,6 +427,13 @@
       bookListHtml += '</div></div>';
     }
 
+    // 初始配置：预置服务器时隐藏 URL 和用户名（用 CSS class）
+    var _initConfig = win.WebDavManager.getActiveConfig ? win.WebDavManager.getActiveConfig() : null;
+    var _isPresetInit = _initConfig && _initConfig.preset;
+    var _urlClass = _isPresetInit ? ' bk-field-hidden' : '';
+    var _userClass = _isPresetInit ? ' bk-field-hidden' : '';
+    var _passPh = _isPresetInit ? '请输入密码' : '密码';
+
     var html =
       '<div class="bk-dialog" style="width:min(400px,calc(100vw - 40px))">' +
         '<div class="bk-drawer-header">' +
@@ -437,9 +450,9 @@
             '<div class="bk-wdu-note" id="wduNote" style="display:none"></div>' +
           '</div>' +
           '<div id="wduCredFields">' +
-            '<input class="bk-field" id="wduUrl" placeholder="WebDAV 地址" />' +
-            '<input class="bk-field" id="wduUser" placeholder="用户名" />' +
-            '<input class="bk-field" id="wduPass" type="password" placeholder="密码" />' +
+            '<input class="bk-field' + _urlClass + '" id="wduUrl" placeholder="WebDAV 地址" />' +
+            '<input class="bk-field' + _userClass + '" id="wduUser" placeholder="用户名" />' +
+            '<input class="bk-field" id="wduPass" type="password" placeholder="' + _passPh + '" />' +
           '</div>' +
           '<div class="bk-wdu-section">' +
             '<div class="bk-wdu-label">上传路径</div>' +
@@ -538,6 +551,29 @@
     }
   }
 
+  // 从本地已保存配置中查找密码（预置服务器用）
+  function _getSavedPassword(configId) {
+    if (!configId) return '';
+    var saved = win.WebDavManager.getConfigs();
+    for (var i = 0; i < saved.length; i++) {
+      if (saved[i].id === configId && saved[i].password) return saved[i].password;
+    }
+    return '';
+  }
+
+  // 上传成功后保存账密到本地
+  function _saveUploadConfig(uploadConfig, state) {
+    try {
+      var saveCfg = Object.assign({}, uploadConfig);
+      if (state.selectedConfig) {
+        saveCfg.id = state.selectedConfig.id;
+        saveCfg.name = state.selectedConfig.name || '';
+        saveCfg.preset = !!state.selectedConfig.preset;
+      }
+      win.WebDavManager.saveConfig(saveCfg);
+    } catch (e) { /* 保存失败不影响主流程 */ }
+  }
+
   // ── 服务器选择处理 ──────────────────────────────────────────────────
   function _onServerSelect(configId, state, dialogEl) {
     var credFields = dialogEl.querySelector('#wduCredFields');
@@ -550,12 +586,12 @@
     if (errorEl) errorEl.style.display = 'none';
 
     if (!configId) {
-      // 手动输入
+      // 手动输入：显示所有字段
       state.selectedConfig = null;
       if (credFields) credFields.style.display = 'block';
-      if (urlInput) urlInput.value = '';
-      if (userInput) userInput.value = '';
-      if (passInput) passInput.value = '';
+      if (urlInput) { urlInput.value = ''; urlInput.classList.remove('bk-field-hidden'); }
+      if (userInput) { userInput.value = ''; userInput.classList.remove('bk-field-hidden'); }
+      if (passInput) { passInput.value = ''; passInput.classList.remove('bk-field-hidden'); passInput.placeholder = '密码'; }
       if (noteEl) noteEl.style.display = 'none';
       return;
     }
@@ -574,19 +610,27 @@
     if (credFields) credFields.style.display = 'block';
     if (urlInput) urlInput.value = cfg.url || '';
     if (userInput) userInput.value = cfg.username || '';
-
-    // 密码：预置服务器需要用户输入/确认密码（安全考虑）
+    
+    // 密码：预置服务器隐藏用户名，只显示密码输入（用 CSS class）
     if (cfg.preset) {
+      if (urlInput) urlInput.classList.add('bk-field-hidden');
+      if (userInput) userInput.classList.add('bk-field-hidden');
       if (passInput) {
-        passInput.value = '';
+        // 预置服务器：查找本地已保存的密码自动填充
+        var savedPwd = _getSavedPassword(cfg.id);
+        passInput.value = savedPwd || '';
         passInput.placeholder = '请输入密码';
         passInput.required = true;
+        passInput.classList.remove('bk-field-hidden');
       }
     } else {
+      if (urlInput) urlInput.classList.remove('bk-field-hidden');
+      if (userInput) userInput.classList.remove('bk-field-hidden');
       if (passInput) {
         passInput.value = cfg.password || '';
         passInput.placeholder = '密码';
         passInput.required = false;
+        passInput.classList.remove('bk-field-hidden');
       }
     }
 
@@ -647,7 +691,28 @@
   }
 
   function _showDirBrowser(state, entries, dialogEl, dlg) {
-    // 弹出目录浏览子对话框
+    // 检查目录浏览弹窗是否已存在
+    var existingEl = document.getElementById('bk-webdav-upload-dir-dialog');
+    if (existingEl) {
+      // 就地更新内容，避免 close() + openDialog() 的 history 时序问题
+      _updateDirBrowserContent(existingEl, state, entries, dlg);
+      return;
+    }
+
+    // 首次打开：弹出目录浏览子对话框
+    var html = _buildDirBrowserHtml(state, entries);
+
+    var dirDlg = win.BK.openDialog({ id: 'bk-webdav-upload-dir-dialog', html: html });
+    if (!dirDlg) return;
+
+    var dirDialogEl = document.getElementById('bk-webdav-upload-dir-dialog');
+    if (!dirDialogEl) return;
+
+    _bindDirBrowserEvents(dirDialogEl, state, entries, dialogEl, dlg, dirDlg);
+  }
+
+  // 构建目录浏览器 HTML
+  function _buildDirBrowserHtml(state, entries) {
     var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px));max-height:70vh">' +
       '<div class="bk-drawer-header">' +
         '<div class="bk-drawer-title">选择上传目录</div>' +
@@ -656,14 +721,26 @@
       '<div class="bk-drawer-divider"></div>' +
       '<div class="bk-wdu-dir-body" id="wduDirBody">';
 
-    // 面包屑
     html += '<div class="bk-wdu-dir-breadcrumb">' +
       '<button class="bk-wdu-dir-up" data-action="wdu-dir-up">\u2190 上级</button>' +
       '<span class="bk-wdu-dir-path">' + escHtml(state.browsePath || '根目录') + '</span>' +
     '</div>';
 
-    // 目录列表
-    html += '<div class="bk-wdu-dir-list">';
+    html += '<div class="bk-wdu-dir-list" id="wduDirList">';
+    html += _buildDirListHtml(entries);
+    html += '</div>';
+
+    html += '</div>' +
+      '<div class="bk-wdu-footer">' +
+        '<button class="bk-btn bk-btn-secondary" data-action="wdu-dir-close">取消</button>' +
+        '<button class="bk-btn bk-btn-primary" data-action="wdu-dir-select">选择此目录</button>' +
+      '</div>' +
+    '</div>';
+    return html;
+  }
+
+  function _buildDirListHtml(entries) {
+    var html = '';
     for (var i = 0; i < entries.length; i++) {
       var en = entries[i];
       if (en.isDir) {
@@ -676,7 +753,6 @@
         '</div>';
       }
     }
-    // 非目录文件（可查看，可删除）
     for (var fi = 0; fi < entries.length; fi++) {
       var fe = entries[fi];
       if (!fe.isDir) {
@@ -690,21 +766,25 @@
         '</div>';
       }
     }
-    html += '</div>';
+    return html;
+  }
 
-    html += '</div>' +
-      '<div class="bk-wdu-footer">' +
-        '<button class="bk-btn bk-btn-secondary" data-action="wdu-dir-close">取消</button>' +
-        '<button class="bk-btn bk-btn-primary" data-action="wdu-dir-select">选择此目录</button>' +
-      '</div>' +
-    '</div>';
+  // 就地更新目录浏览器内容（不关闭重建弹窗）
+  function _updateDirBrowserContent(dirDialogEl, state, entries, dlg) {
+    // 更新面包屑
+    var pathEl = dirDialogEl.querySelector('.bk-wdu-dir-path');
+    if (pathEl) pathEl.textContent = state.browsePath || '根目录';
 
-    var dirDlg = win.BK.openDialog({ id: 'bk-webdav-upload-dir-dialog', html: html });
-    if (!dirDlg) return;
+    // 更新文件列表
+    var listEl = dirDialogEl.querySelector('#wduDirList');
+    if (listEl) listEl.innerHTML = _buildDirListHtml(entries);
 
-    var dirDialogEl = document.getElementById('bk-webdav-upload-dir-dialog');
-    if (!dirDialogEl) return;
+    // 重新绑定事件
+    _bindDirBrowserEvents(dirDialogEl, state, entries, null, dlg, dlg);
+  }
 
+  // 绑定目录浏览器事件
+  function _bindDirBrowserEvents(dirDialogEl, state, entries, parentDialogEl, parentDlg, dirDlg) {
     // 关闭按钮
     var closeBtns = dirDialogEl.querySelectorAll('[data-action="wdu-dir-close"]');
     for (var ci = 0; ci < closeBtns.length; ci++) {
@@ -720,12 +800,14 @@
         item.addEventListener('click', function () {
           var remotePath = item.getAttribute('data-path');
           if (!state.connectedConfig) return;
-          // 将完整URL转为相对路径存入 browsePath
           var relPath = _toRelativePath(remotePath, state.connectedConfig.url || '');
           win.WebDavManager.listDir(state.connectedConfig, remotePath).then(function (subEntries) {
             state.browsePath = relPath;
-            if (dirDlg && dirDlg.close) dirDlg.close();
-            _showDirBrowser(state, subEntries, dialogEl, dlg);
+            // 就地更新，不 close + 重建
+            var el = document.getElementById('bk-webdav-upload-dir-dialog');
+            if (el) {
+              _updateDirBrowserContent(el, state, subEntries, parentDlg);
+            }
           }).catch(function (err) {
             _toast('加载目录失败');
           });
@@ -739,11 +821,13 @@
       upBtn.addEventListener('click', function () {
         if (!state.connectedConfig) return;
         var parentPath = _parentPath(state.browsePath);
-        if (parentPath === null && state.browsePath === '') return; // 已在根目录
+        if (parentPath === null && state.browsePath === '') return;
         state.browsePath = parentPath || '';
         win.WebDavManager.listDir(state.connectedConfig, state.browsePath).then(function (subEntries) {
-          if (dirDlg && dirDlg.close) dirDlg.close();
-          _showDirBrowser(state, subEntries, dialogEl, dlg);
+          var el = document.getElementById('bk-webdav-upload-dir-dialog');
+          if (el) {
+            _updateDirBrowserContent(el, state, subEntries, parentDlg);
+          }
         });
       });
     }
@@ -757,15 +841,15 @@
           var remotePath = delBtn.getAttribute('data-path');
           var itemName = delBtn.getAttribute('data-name') || '';
           if (!remotePath || !state.connectedConfig) return;
-          // 二次确认
           if (!win.confirm('确定删除\u300c' + itemName + '\u300f\uff1f\n\n此操作不可撤销。')) return;
           delBtn.disabled = true;
           win.WebDavManager.deleteResource(state.connectedConfig, remotePath).then(function () {
             _toast('已删除\u300c' + itemName + '\u300d');
-            // 刷新当前目录
             win.WebDavManager.listDir(state.connectedConfig, state.browsePath).then(function (subEntries) {
-              if (dirDlg && dirDlg.close) dirDlg.close();
-              _showDirBrowser(state, subEntries, dialogEl, dlg);
+              var el = document.getElementById('bk-webdav-upload-dir-dialog');
+              if (el) {
+                _updateDirBrowserContent(el, state, subEntries, parentDlg);
+              }
             });
           }).catch(function (err) {
             _toast('删除失败：' + ((err && err.hint) || (err && err.message) || ''));
@@ -777,9 +861,9 @@
 
     // 选择此目录
     var selectBtn = dirDialogEl.querySelector('[data-action="wdu-dir-select"]');
-    if (selectBtn) {
+    if (selectBtn && parentDialogEl) {
       selectBtn.addEventListener('click', function () {
-        var pathInput = dialogEl.querySelector('#wduRemotePath');
+        var pathInput = parentDialogEl.querySelector('#wduRemotePath');
         if (pathInput) pathInput.value = state.browsePath || '/';
         if (dirDlg && dirDlg.close) dirDlg.close();
       });
@@ -873,6 +957,8 @@
 
       if (errors.length === 0) {
         _toast('上传成功：' + total + ' 本书');
+        // 上传成功后保存账密到本地（下次不用重复填写）
+        _saveUploadConfig(uploadConfig, state);
         if (dlg && dlg.close) dlg.close();
       } else if (errors.length < total) {
         _toast('上传完成：' + (total - errors.length) + ' 成功，' + errors.length + ' 失败');
