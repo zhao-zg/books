@@ -61,9 +61,9 @@ webdav:
   presets:
     - name: "2期追求"
       urls:
-         - "https://webdav2.11891189.xyz/dav/2区使用"
-         - "https://webdav.zhf.dpdns.org/dav/2区使用"
-         - "https://webdav.11891189.xyz/dav/2区使用"
+         - "https://webdav2.11891189.xyz/dav/zqs"
+         - "https://webdav.zhf.dpdns.org/dav/zqs"
+         - "https://webdav.11891189.xyz/dav/zqs"
       username: "zqs"
       password: "zqs"
       note: "个人维护书籍，请勿滥用"
