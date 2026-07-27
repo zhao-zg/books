@@ -438,17 +438,17 @@
 
     // 获取预置服务器已保存的写操作密码（从 localStorage 读取）
     function _getSavedWritePassword(configId) {
+      if (!configId) return '';
       try {
-        var key = 'bk_wd_write_pwd_' + configId;
-        return localStorage.getItem(key) || '';
+        return localStorage.getItem('bk_wd_write_pwd_' + configId) || '';
       } catch (e) { return ''; }
     }
 
     // 保存预置服务器写操作密码到 localStorage
     function _saveWritePassword(configId, pwd) {
+      if (!configId || !pwd) return;
       try {
-        var key = 'bk_wd_write_pwd_' + configId;
-        localStorage.setItem(key, pwd);
+        localStorage.setItem('bk_wd_write_pwd_' + configId, pwd);
       } catch (e) {}
     }
     function displayPath() {
@@ -828,6 +828,7 @@
 
     // ── 删除功能（合并自远程文件管理器）──────────────────────────────────
     // 预置服务器删除前校验密码：始终要求用户输入密码确认
+    // callback(pwd) — pwd 为写操作密码，调用方需临时替换 config.password
     function _ensureDeletePassword(callback) {
       if (!wd.config) return;
       // 非预置服务器，直接执行（已有密码）
@@ -838,8 +839,7 @@
       // 预置服务器：检查是否已有用户手动输入的写操作密码
       var savedPwd = _getSavedWritePassword(wd.config.id);
       if (savedPwd) {
-        // 已保存过写操作密码，直接使用
-        wd.config.password = savedPwd;
+        // 已保存过写操作密码，直接使用（不永久修改 config.password）
         callback(savedPwd);
         return;
       }
@@ -879,8 +879,6 @@
             passEl.focus();
             return;
           }
-          // 更新 config 中的密码，后续删除请求会携带
-          wd.config.password = pwd;
           // 保存预置服务器写操作密码到本地，下次免输入
           _saveWritePassword(wd.config.id, pwd);
           closeDlg();
@@ -926,8 +924,8 @@
           var path = confirmBtn.getAttribute('data-path');
           if (confirmDlg && confirmDlg.close) confirmDlg.close();
           // 预置服务器删除前校验密码
-          _ensureDeletePassword(function () {
-            wdDoDelete([path]);
+          _ensureDeletePassword(function (pwd) {
+            wdDoDelete([path], pwd);
           });
         });
       }
@@ -975,16 +973,19 @@
         confirmBtn.addEventListener('click', function () {
           if (confirmDlg && confirmDlg.close) confirmDlg.close();
           // 预置服务器删除前校验密码
-          _ensureDeletePassword(function () {
-            wdDoDelete(paths);
+          _ensureDeletePassword(function (pwd) {
+            wdDoDelete(paths, pwd);
           });
         });
       }
     }
 
-    function wdDoDelete(remotePaths) {
+    function wdDoDelete(remotePaths, writePwd) {
       if (!wd.config || wd.locked) return;
       wd.locked = true;
+      // 预置服务器：临时替换密码用于写操作，完成后恢复
+      var origPwd = wd.config.password;
+      if (writePwd) wd.config.password = writePwd;
       var total = remotePaths.length;
       var current = 0;
       var errors = [];
@@ -1006,6 +1007,8 @@
         })(remotePaths[i], i);
       }
       chain.then(function () {
+        // 恢复原始密码（确保后续读操作不受影响）
+        wd.config.password = origPwd;
         wd.locked = false;
         if (errors.length === 0) {
           _toast('已删除 ' + total + ' 项');
