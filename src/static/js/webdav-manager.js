@@ -271,7 +271,8 @@
         password: secret.password || '',
         authType: secret.authType || 'basic',
         note: p.note || '',         // 明文备注（展示用）
-        preset: true                // 标记为预置，禁止删除/覆盖
+        preset: true,               // 标记为预置，禁止删除/覆盖
+        startPath: secret.startPath || ''  // 预置服务器初始目录路径
       });
     }
     return out;
@@ -843,7 +844,8 @@
       password: cfg.password || '',          // 加密后存储（见 saveConfig/_initCrypto）
       authType: cfg.authType || 'basic',
       note: cfg.note || '',
-      preset: !!cfg.preset
+      preset: !!cfg.preset,
+      startPath: cfg.startPath || ''     // 预置服务器初始目录路径
     };
   }
 

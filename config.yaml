@@ -66,6 +66,7 @@ webdav:
          - "https://webdav.11891189.xyz/dav/zqs"
       username: "zqs"
       password: "zqs"
+      startPath: "2区使用"
       note: "个人维护书籍，请勿滥用"
       authType: basic
     # 示例：多域名（自动选最快节点）

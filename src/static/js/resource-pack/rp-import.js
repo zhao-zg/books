@@ -429,7 +429,8 @@
             password: form.password || saved.password,
             authType: saved.authType || 'basic',
             note: saved.note || '',
-            preset: saved.preset || false
+            preset: saved.preset || false,
+            startPath: saved.startPath || ''
           };
         }
       }
@@ -691,8 +692,18 @@
         wd._usingSavedId = res.config.id;
         // OPT-P2：新连接拿到根目录后写入缓存，供后续重连/浏览复用
         _dirCache[res.config.id + ':'] = { entries: res.entries, ts: Date.now() };
-        // OPT-P1：新连接时强制全量刷新
-        refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
+        // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
+        var startPath = res.config.startPath || '';
+        if (startPath) {
+          // 缓存根目录条目后自动导航到 startPath
+          refreshDownloadedSet(true).then(function () {
+            wdOpenDir(startPath);
+            showConnectedNode(res);
+          });
+        } else {
+          // OPT-P1：新连接时强制全量刷新
+          refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
+        }
       }).catch(function (err) {
         if (cancelled) return;
         wd.locked = false;

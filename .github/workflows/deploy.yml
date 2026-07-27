@@ -317,5 +317,5 @@ jobs:
         with:
           name: resource-package
           path: output/*.zip
-          retention-days: 90
+          retention-days: 1
           if-no-files-found: warn

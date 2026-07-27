@@ -273,6 +273,7 @@ def generate_webdav_presets(config: dict, output_dir: str = 'output'):
             'username': p.get('username') or '',
             'password': p.get('password') or '',
             'authType': p.get('authType') or 'basic',
+            'startPath': p.get('startPath') or '',
         }
         secret_b64 = base64.b64encode(
             json.dumps(secret, ensure_ascii=False).encode('utf-8')
