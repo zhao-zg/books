@@ -584,21 +584,26 @@
     } catch (e) { return ''; }
   }
 
-  // 上传成功后保存账密和路径到本地
+  // 上传成功后保存账密和路径到本地（预置服务器不存入 localStorage，已随包下发）
   function _saveUploadConfig(uploadConfig, state, remotePath) {
     try {
-      var saveCfg = Object.assign({}, uploadConfig);
+      var isPreset = !!(state.selectedConfig && state.selectedConfig.preset);
       var configKey = '';
       if (state.selectedConfig) {
-        saveCfg.id = state.selectedConfig.id;
-        saveCfg.name = state.selectedConfig.name || '';
-        saveCfg.preset = !!state.selectedConfig.preset;
         configKey = state.selectedConfig.id;
       } else {
         configKey = uploadConfig.url || '';
       }
-      win.WebDavManager.saveConfig(saveCfg);
-      // 记忆上传路径
+      // 预置服务器不保存到 localStorage（避免 getAllConfigs 去重前重复）
+      if (!isPreset) {
+        var saveCfg = Object.assign({}, uploadConfig);
+        if (state.selectedConfig) {
+          saveCfg.id = state.selectedConfig.id;
+          saveCfg.name = state.selectedConfig.name || '';
+        }
+        win.WebDavManager.saveConfig(saveCfg);
+      }
+      // 记忆上传路径（预置/自建都需要）
       if (configKey) _saveLastPath(configKey, remotePath);
     } catch (e) { /* 保存失败不影响主流程 */ }
   }

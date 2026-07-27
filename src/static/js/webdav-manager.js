@@ -278,6 +278,22 @@
   }
   var _presets = decodePresets();
 
+  // 清理 localStorage 中残留的预置服务器条目（避免 getAllConfigs 重复）
+  (function _cleanupPresetDupes() {
+    try {
+      var raw = win.localStorage.getItem(CFG_KEY);
+      if (!raw) return;
+      var configs = JSON.parse(raw);
+      if (!Array.isArray(configs)) return;
+      var presetIds = {};
+      for (var k = 0; k < _presets.length; k++) presetIds[_presets[k].id] = true;
+      var cleaned = configs.filter(function(c) { return !presetIds[c.id]; });
+      if (cleaned.length !== configs.length) {
+        win.localStorage.setItem(CFG_KEY, JSON.stringify(cleaned));
+      }
+    } catch (e) {}
+  })();
+
   // PROPFIND 请求体
   var PROPFIND_XML = '<?xml version="1.0" encoding="utf-8"?>' +
     '<d:propfind xmlns:d="DAV:">' +
@@ -894,9 +910,16 @@
     });
   }
 
-  // 全部可用配置：预置（在前）+ 用户已保存（在后）
+  // 全部可用配置：预置（在前）+ 用户已保存（在后），按 ID 去重（预置优先）
   function getAllConfigs() {
-    return _presets.concat(getConfigs());
+    var saved = getConfigs();
+    var presetIds = {};
+    for (var k = 0; k < _presets.length; k++) presetIds[_presets[k].id] = true;
+    var deduped = [];
+    for (var i = 0; i < saved.length; i++) {
+      if (!presetIds[saved[i].id]) deduped.push(saved[i]);
+    }
+    return _presets.concat(deduped);
   }
 
   function setActiveConfig(id) {
