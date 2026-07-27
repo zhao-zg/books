@@ -1025,14 +1025,23 @@
       return;
     }
 
-    // 构建上传配置
-    var uploadConfig = {
-      url: url,
-      username: username,
-      password: password,
-      authType: (state.selectedConfig && state.selectedConfig.authType) || 'basic',
-      urls: (state.selectedConfig && state.selectedConfig.urls) || null
-    };
+    // 构建上传配置：优先复用已竞速的 connectedConfig（确保打到最快节点）
+    // 若无 connectedConfig（用户没点"浏览"就直接上传），先 connect 竞速
+    var uploadConfig;
+    if (state.connectedConfig) {
+      uploadConfig = Object.assign({}, state.connectedConfig, {
+        password: password || state.connectedConfig.password
+      });
+    } else {
+      uploadConfig = {
+        url: url,
+        username: username,
+        password: password,
+        authType: (state.selectedConfig && state.selectedConfig.authType) || 'basic',
+        urls: (state.selectedConfig && state.selectedConfig.urls) || null
+      };
+      if (state.selectedConfig) uploadConfig.preset = !!state.selectedConfig.preset;
+    }
 
     // 规范化远程路径：去掉首尾空格，确保以 / 开头
     if (remotePath && remotePath.charAt(0) !== '/') {
@@ -1049,8 +1058,26 @@
     var current = 0;
     var errors = [];
 
+    // 若无 connectedConfig，先竞速连接获取最快节点
+    var preChain;
+    if (state.connectedConfig) {
+      preChain = Promise.resolve(uploadConfig);
+    } else {
+      preChain = win.WebDavManager.connect(uploadConfig, { save: false }).then(function (res) {
+        state.connectedConfig = res.config;
+        // 用竞速后的 config 替换上传配置（URL 已是最快节点）
+        var fastestConfig = Object.assign({}, res.config, {
+          password: password || res.config.password
+        });
+        return fastestConfig;
+      });
+    }
+
     // 确保远程路径存在
-    var chain = win.WebDavManager.ensureRemotePath(uploadConfig, remotePath.replace(/^\/+/, ''));
+    var chain = preChain.then(function (resolvedConfig) {
+      uploadConfig = resolvedConfig;
+      return win.WebDavManager.ensureRemotePath(uploadConfig, remotePath.replace(/^\/+/, ''));
+    });
 
     for (var i = 0; i < bookInfos.length; i++) {
       (function (bookInfo, idx) {
@@ -1060,12 +1087,10 @@
           _showProgress(dialogEl, current, total, bookInfo.title);
 
           return _getBookUploadData(bookInfo.id, format).then(function (fileData) {
-            // 构建远程文件路径
+            // 构建远程文件路径（不预编码，uploadFile 内部的 buildDirUrl 会统一编码）
             var remoteFile = remotePath + '/' + fileData.filename;
-            // URL 编码文件名中的非 ASCII 字符
-            var encodedPath = remotePath + '/' + win.WebDavManager.encodePathSegments(fileData.filename);
 
-            return win.WebDavManager.uploadFile(uploadConfig, encodedPath, fileData.data, fileData.mime);
+            return win.WebDavManager.uploadFile(uploadConfig, remoteFile, fileData.data, fileData.mime);
           }).catch(function (err) {
             errors.push({ title: bookInfo.title, error: (err && err.hint) || (err && err.message) || '上传失败' });
           });

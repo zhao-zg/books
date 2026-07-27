@@ -1,4 +1,4 @@
-/**
+﻿/**
  * webdav-manager.js
  * WebDAV 单向下载导入模块（连接 / 列目录 / 下载 / 错误分类 / 配置 / 重同步）
  *
@@ -63,6 +63,87 @@
   // DEV-2（设计偏差修复）：模块内缓存当前激活的 config 对象（含 connect 但未 save 的）。
   // getActiveConfig 优先返回此缓存，fallback 到按存储 id 查找，保证「刚 connect 未保存」也能读到。
   var _activeConfigCache = null;
+
+  // ── 竞速缓存（5 分钟 TTL + 网络变化失效）────────────────────────────────
+  var RACE_CACHE_TTL = 5 * 60 * 1000;  // 5 分钟
+  var _raceCache = {};                  // { configId: { url, ts } }
+  var _lastOnlineState = null;          // 上次记录的 navigator.onLine 值
+
+  // 检测网络变化：online/offline 切换时失效所有竞速缓存
+  function _checkNetworkChange() {
+    var current = navigator.onLine;
+    if (_lastOnlineState !== null && _lastOnlineState !== current) {
+      _raceCache = {};  // 网络变化 → 全部失效
+    }
+    _lastOnlineState = current;
+    return current;
+  }
+
+  // 获取竞速缓存（未过期返回最快 URL，否则 null）
+  function _getRaceCache(configId) {
+    _checkNetworkChange();
+    if (!configId) return null;
+    var entry = _raceCache[configId];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > RACE_CACHE_TTL) {
+      delete _raceCache[configId];
+      return null;
+    }
+    return entry.url;
+  }
+
+  // 写入竞速缓存
+  function _setRaceCache(configId, url) {
+    if (!configId || !url) return;
+    _raceCache[configId] = { url: url, ts: Date.now() };
+  }
+
+  // 清除指定配置的竞速缓存（用于强制重新竞速）
+  function _clearRaceCache(configId) {
+    if (configId) {
+      delete _raceCache[configId];
+    } else {
+      _raceCache = {};
+    }
+  }
+
+  /**
+   * 确保配置中的 URL 是经过竞速的最快节点（核心入口）
+   * - 若缓存命中且未过期 → 直接替换 URL 并返回 config
+   * - 若缓存未命中 → 走 pickFastestUrl 竞速，写入缓存后返回
+   * - 单域名配置 → 直接返回（无需竞速）
+   *
+   * @param {object} config  WebDAV 配置（会被 normalizeConfig 处理）
+   * @returns {Promise<object>}  替换了最快 URL 的 config 副本
+   */
+  function ensureRacedConfig(config) {
+    var base = normalizeConfig(config);
+    var candidates = candidateUrls(base);
+
+    // 单域名无需竞速
+    if (candidates.length <= 1) {
+      return Promise.resolve(base);
+    }
+
+    var cachedUrl = _getRaceCache(base.id);
+    if (cachedUrl) {
+      // 缓存命中：替换 URL 为最快节点
+      var raced = Object.assign({}, base, { url: cachedUrl, connectedUrl: cachedUrl });
+      return Promise.resolve(raced);
+    }
+
+    // 缓存未命中：竞速
+    return pickFastestUrl(base).then(function (picked) {
+      _setRaceCache(base.id, picked.url);
+      var raced = Object.assign({}, base, {
+        url: picked.url,
+        connectedUrl: picked.url,
+        connectMs: picked.ms,
+        multiNode: true
+      });
+      return raced;
+    });
+  }
 
   // ── 密码加密（AES-GCM via Web Crypto API）─────────────────────────────────
   // P1-1：用户配置的密码在 localStorage 中加密存储，密钥保存在 IndexedDB。
@@ -434,25 +515,27 @@
 
   // ── 列目录（PROPFIND Depth:1）──────────────────────────────────────────
   function listDir(config, path) {
-    path = path || '';
-    var url = buildDirUrl(config.url, path);
-    return propfind(url, config, '1').then(function (result) {
-      var resp = result.resp;
-      if (!resp.ok) throw wrapError(null, resp);
-      var entries = parseMultistatus(result.text, url);
-      // 过滤掉“自身”（Depth:1 会返回当前集合 + 子项）
-      entries = entries.filter(function (en) {
-        return normalizeHref(en.href) !== normalizeHref(url);
+    return ensureRacedConfig(config).then(function (cfg) {
+      path = path || '';
+      var url = buildDirUrl(cfg.url, path);
+      return propfind(url, cfg, '1').then(function (result) {
+        var resp = result.resp;
+        if (!resp.ok) throw wrapError(null, resp);
+        var entries = parseMultistatus(result.text, url);
+        // 过滤掉"自身"（Depth:1 会返回当前集合 + 子项）
+        entries = entries.filter(function (en) {
+          return normalizeHref(en.href) !== normalizeHref(url);
+        });
+        // 排序：目录在前，再按名称
+        entries.sort(function (a, b) {
+          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+          return a.name.localeCompare(b.name, 'zh');
+        });
+        return entries;
+      }).catch(function (err) {
+        if (err.type) throw err;            // 已是分类错误
+        throw wrapError(err, err.resp);     // fetch 抛错 → 分类
       });
-      // 排序：目录在前，再按名称
-      entries.sort(function (a, b) {
-        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-        return a.name.localeCompare(b.name, 'zh');
-      });
-      return entries;
-    }).catch(function (err) {
-      if (err.type) throw err;            // 已是分类错误
-      throw wrapError(err, err.resp);     // fetch 抛错 → 分类
     });
   }
 
@@ -476,6 +559,8 @@
     return _initCrypto().then(function () {
       return pickFastestUrl(base, null, '1');
     }).then(function (picked) {
+      // 竞速成功 → 写入缓存
+      _setRaceCache(base.id, picked.url);
       // 以最快节点 url 作为本次连接地址；保留 urls 供记录/重连
       var config = Object.assign({}, base, {
         url: picked.url,
@@ -512,74 +597,93 @@
     return Math.min(300000, Math.max(30000, Math.round(timeout)));
   }
 
+  // ── 工具：替换 URL 中的 origin（协议+域名+端口）────────────────────────
+  // 当 entry.remotePath 来自 PROPFIND 响应（含原始域名），但竞速后需用最快节点访问
+  function _replaceUrlOrigin(originalUrl, newBaseUrl) {
+    if (!originalUrl || !newBaseUrl) return originalUrl;
+    // 已经同源则无需替换
+    try {
+      var origParsed = new URL(originalUrl);
+      var newParsed = new URL(newBaseUrl);
+      if (origParsed.origin === newParsed.origin) return originalUrl;
+      return newParsed.origin + origParsed.pathname + origParsed.search + origParsed.hash;
+    } catch (e) {
+      return originalUrl;
+    }
+  }
+
   // ── 下载单文件（GET + 流式进度）───────────────────────────────────────
   // onProgress(p): p ∈ [0,1]；服务器未返回 Content-Length 时 p = -1
   // 返回 fileInfo: { name, mime, text?|arrayBuffer?, size, remotePath }
   function downloadFile(config, entry, onProgress) {
-    var url = entry.remotePath || entry.href;
-    var ext = (entry.name || '').split('.').pop().toLowerCase();
-    var controller = new AbortController();
-    var timeoutMs = calcDownloadTimeout(entry.size);
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+    return ensureRacedConfig(config).then(function (cfg) {
+      var rawUrl = entry.remotePath || entry.href;
+      // 若 entry 中的 URL 来自先前 PROPFIND（可能指向旧节点），替换为竞速后的域名
+      var url = _replaceUrlOrigin(rawUrl, cfg.url);
+      var ext = (entry.name || '').split('.').pop().toLowerCase();
+      var controller = new AbortController();
+      var timeoutMs = calcDownloadTimeout(entry.size);
+      var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
 
-    function fail(err) {
-      clearTimeout(timer);
-      if (err.type) throw err;
-      if (err.name === 'AbortError') throw wrapError(err, null);
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw wrapError(err, null);
-      if (!isNative() && (err instanceof TypeError || /Failed to fetch/i.test(err.message || ''))) {
+      function fail(err) {
+        clearTimeout(timer);
+        if (err.type) throw err;
+        if (err.name === 'AbortError') throw wrapError(err, null);
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw wrapError(err, null);
+        if (!isNative() && (err instanceof TypeError || /Failed to fetch/i.test(err.message || ''))) {
+          throw wrapError(err, null);
+        }
         throw wrapError(err, null);
       }
-      throw wrapError(err, null);
-    }
 
-    return fetch(url, {
-      method: 'GET',
-      headers: buildHeaders(config, {}),
-      signal: controller.signal,
-      cache: 'no-cache'  // 避免被 SW 缓存策略拦截，确保始终从服务器获取最新数据
-    }).then(function (resp) {
-      if (!resp.ok) {
-        clearTimeout(timer);
-        throw wrapError(null, resp);
-      }
-      var total = parseInt(resp.headers.get('Content-Length') || '0', 10);
+      return fetch(url, {
+        method: 'GET',
+        headers: buildHeaders(cfg, {}),
+        signal: controller.signal,
+        cache: 'no-cache'  // 避免被 SW 缓存策略拦截，确保始终从服务器获取最新数据
+      }).then(function (resp) {
+        if (!resp.ok) {
+          clearTimeout(timer);
+          throw wrapError(null, resp);
+        }
+        var total = parseInt(resp.headers.get('Content-Length') || '0', 10);
 
-      // 流式读取（支持进度）
-      if (resp.body && resp.body.getReader) {
-        var reader = resp.body.getReader();
-        var chunks = [];
-        var received = 0;
-          function pump() {
-            return reader.read().then(function (result) {
-              if (result.done) {
+        // 流式读取（支持进度）
+        if (resp.body && resp.body.getReader) {
+          var reader = resp.body.getReader();
+          var chunks = [];
+          var received = 0;
+            function pump() {
+              return reader.read().then(function (result) {
+                if (result.done) {
+                  clearTimeout(timer);
+                  return assemble(chunks, received, ext, entry, url);
+                }
+                chunks.push(result.value);
+                received += result.value.length;
+                // P1-2：收到数据后重置超时计时器（idle timeout 模式）
                 clearTimeout(timer);
-                return assemble(chunks, received, ext, entry, url);
-              }
-              chunks.push(result.value);
-              received += result.value.length;
-              // P1-2：收到数据后重置超时计时器（idle timeout 模式）
-              clearTimeout(timer);
-              timer = setTimeout(function () { controller.abort(); }, timeoutMs);
-              if (onProgress) onProgress(total > 0 ? Math.min(1, received / total) : -1);
-              return pump();
-            });
-          }
-        return pump().catch(fail);
-      }
+                timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+                if (onProgress) onProgress(total > 0 ? Math.min(1, received / total) : -1);
+                return pump();
+              });
+            }
+          return pump().catch(fail);
+        }
 
-      // 退化：无流式 reader，一次性读取
-      clearTimeout(timer);
-      if (ext === 'epub' || ext === 'pdf') {
-        return resp.arrayBuffer().then(function (buf) {
-          return assemble([new Uint8Array(buf)], buf.byteLength, ext, entry, url);
+        // 退化：无流式 reader，一次性读取
+        clearTimeout(timer);
+        if (ext === 'epub' || ext === 'pdf') {
+          return resp.arrayBuffer().then(function (buf) {
+            return assemble([new Uint8Array(buf)], buf.byteLength, ext, entry, url);
+          });
+        }
+        return resp.text().then(function (text) {
+          var bytes = new TextEncoder().encode(text);
+          return assemble([bytes], bytes.length, ext, entry, url);
         });
-      }
-      return resp.text().then(function (text) {
-        var bytes = new TextEncoder().encode(text);
-        return assemble([bytes], bytes.length, ext, entry, url);
-      });
-    }).catch(fail);
+      }).catch(fail);
+    });
   }
 
   // 合并分片 → fileInfo
@@ -831,79 +935,102 @@
 
   // ── MKCOL：创建远程目录（WebDAV）────────────────────────────────────
   function mkcol(config, path) {
-    var url = buildDirUrl(config.url, path);
-    // MKCOL 对集合路径需不带尾斜杠
-    url = trimSlash(url);
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
-    return fetch(url, {
-      method: 'MKCOL',
-      headers: buildHeaders(config, {}),
-      signal: controller.signal
-    }).then(function (resp) {
-      clearTimeout(timer);
-      // 201=已创建, 405=已存在（均视为成功）
-      if (resp.status === 201 || resp.status === 405) {
-        return { ok: true, status: resp.status };
-      }
-      throw wrapError(null, resp);
-    }).catch(function (err) {
-      clearTimeout(timer);
-      if (err.type) throw err;
-      throw wrapError(err, null);
+    return ensureRacedConfig(config).then(function (cfg) {
+      var url = buildDirUrl(cfg.url, path);
+      // MKCOL 对集合路径需不带尾斜杠
+      url = trimSlash(url);
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+      return fetch(url, {
+        method: 'MKCOL',
+        headers: buildHeaders(cfg, {}),
+        signal: controller.signal
+      }).then(function (resp) {
+        clearTimeout(timer);
+        // 201=已创建, 405=已存在（均视为成功）
+        if (resp.status === 201 || resp.status === 405) {
+          return { ok: true, status: resp.status };
+        }
+        throw wrapError(null, resp);
+      }).catch(function (err) {
+        clearTimeout(timer);
+        if (err.type) throw err;
+        throw wrapError(err, null);
+      });
     });
   }
 
   // ── DELETE：删除远程资源（文件或空目录）──────────────────────────────
   // remotePath: 完整 URL 或相对路径
   function deleteResource(config, remotePath) {
-    var url;
-    if (remotePath && /^[a-z][a-z0-9+.\-]*:/i.test(remotePath)) {
-      url = remotePath; // 已是绝对 URL
-    } else {
-      url = buildDirUrl(config.url, remotePath);
-    }
-    // 文件路径不带尾斜杠，目录路径可以带（部分服务器要求）
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
-    return fetch(url, {
-      method: 'DELETE',
-      headers: buildHeaders(config, {}),
-      signal: controller.signal
-    }).then(function (resp) {
-      clearTimeout(timer);
-      // 204=已删除, 200=部分服务器返回, 404=不存在（幂等，视为成功）
-      if (resp.status === 204 || resp.status === 200 || resp.status === 404) {
-        return { ok: true, status: resp.status };
+    return ensureRacedConfig(config).then(function (cfg) {
+      var url;
+      if (remotePath && /^[a-z][a-z0-9+. -]*:/i.test(remotePath)) {
+        // 绝对 URL：替换为竞速后的域名
+        url = _replaceUrlOrigin(remotePath, cfg.url);
+      } else {
+        url = buildDirUrl(cfg.url, remotePath);
       }
-      throw wrapError(null, resp);
-    }).catch(function (err) {
-      clearTimeout(timer);
-      if (err.type) throw err;
-      throw wrapError(err, null);
+      // 文件路径不带尾斜杠，目录路径可以带（部分服务器要求）
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+      return fetch(url, {
+        method: 'DELETE',
+        headers: buildHeaders(cfg, {}),
+        signal: controller.signal
+      }).then(function (resp) {
+        clearTimeout(timer);
+        // 204=已删除, 200=部分服务器返回, 404=不存在（幂等，视为成功）
+        if (resp.status === 204 || resp.status === 200 || resp.status === 404) {
+          return { ok: true, status: resp.status };
+        }
+        throw wrapError(null, resp);
+      }).catch(function (err) {
+        clearTimeout(timer);
+        if (err.type) throw err;
+        throw wrapError(err, null);
+      });
     });
   }
 
   // ── 确保远程路径存在（逐级 MKCOL）───────────────────────────────────
   function ensureRemotePath(config, remotePath) {
     if (!remotePath) return Promise.resolve();
-    // 拆分路径段，逐级创建
-    var segments = remotePath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-    var chain = Promise.resolve();
-    var currentPath = '';
-    for (var i = 0; i < segments.length; i++) {
-      (function (seg) {
-        chain = chain.then(function () {
-          currentPath = currentPath ? currentPath + '/' + seg : seg;
-          return mkcol(config, currentPath).catch(function (err) {
-            // 405 = 已存在，不算错误
-            if (err && err.status === 405) return;
-            throw err;
+    return ensureRacedConfig(config).then(function (cfg) {
+      // 拆分路径段，逐级创建
+      var segments = remotePath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+      var chain = Promise.resolve();
+      var currentPath = '';
+      for (var i = 0; i < segments.length; i++) {
+        (function (seg) {
+          chain = chain.then(function () {
+            currentPath = currentPath ? currentPath + '/' + seg : seg;
+            // 直接用 raced config 调 mkcol 内部逻辑（避免每级都走 ensureRacedConfig）
+            var url = trimSlash(buildDirUrl(cfg.url, currentPath));
+            var controller = new AbortController();
+            var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+            return fetch(url, {
+              method: 'MKCOL',
+              headers: buildHeaders(cfg, {}),
+              signal: controller.signal
+            }).then(function (resp) {
+              clearTimeout(timer);
+              if (resp.status === 201 || resp.status === 405) {
+                return { ok: true, status: resp.status };
+              }
+              throw wrapError(null, resp);
+            }).catch(function (err) {
+              clearTimeout(timer);
+              // 405 = 已存在，不算错误
+              if (err && err.status === 405) return;
+              if (err.type) throw err;
+              throw wrapError(err, null);
+            });
           });
-        });
-      })(segments[i]);
-    }
-    return chain;
+        })(segments[i]);
+      }
+      return chain;
+    });
   }
 
   // ── 上传单文件（PUT）─────────────────────────────────────────────────
@@ -911,57 +1038,59 @@
   // onProgress(p): p ∈ [0,1]；无法追踪时 p = -1
   // 返回 { url, status, size }
   function uploadFile(config, remotePath, data, mime, onProgress) {
-    var url = buildDirUrl(config.url, remotePath);
-    url = trimSlash(url);
-    var controller = new AbortController();
-    // 上传超时：基于数据大小动态计算（30s base + 10s/MB，上限 300s）
-    var dataSize = 0;
-    if (typeof data === 'string') {
-      dataSize = new TextEncoder().encode(data).length;
-    } else if (data instanceof Uint8Array) {
-      dataSize = data.length;
-    } else if (data instanceof ArrayBuffer) {
-      dataSize = data.byteLength;
-    } else if (data && typeof data.size === 'number') {
-      dataSize = data.size; // Blob
-    }
-    var timeoutMs = calcUploadTimeout(dataSize);
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
-
-    var headers = buildHeaders(config, {
-      'Content-Type': mime || 'application/octet-stream'
-    });
-    // 对文本数据明确设置 Content-Length（部分服务器要求）
-    if (typeof data === 'string') {
-      var encoded = new TextEncoder().encode(data);
-      headers['Content-Length'] = String(encoded.length);
-      data = encoded; // 转为 Uint8Array 保证一致
-    }
-
-    function fail(err) {
-      clearTimeout(timer);
-      if (err.type) throw err;
-      if (err.name === 'AbortError') throw wrapError(err, null);
-      throw wrapError(err, null);
-    }
-
-    return fetch(url, {
-      method: 'PUT',
-      headers: headers,
-      body: data,
-      signal: controller.signal
-    }).then(function (resp) {
-      clearTimeout(timer);
-      // 201=已创建, 204=已覆盖, 200=部分服务器返回
-      if (resp.status === 201 || resp.status === 204 || resp.status === 200) {
-        if (onProgress) onProgress(1);
-        return { url: url, status: resp.status, size: dataSize };
+    return ensureRacedConfig(config).then(function (cfg) {
+      var url = buildDirUrl(cfg.url, remotePath);
+      url = trimSlash(url);
+      var controller = new AbortController();
+      // 上传超时：基于数据大小动态计算（30s base + 10s/MB，上限 300s）
+      var dataSize = 0;
+      if (typeof data === 'string') {
+        dataSize = new TextEncoder().encode(data).length;
+      } else if (data instanceof Uint8Array) {
+        dataSize = data.length;
+      } else if (data instanceof ArrayBuffer) {
+        dataSize = data.byteLength;
+      } else if (data && typeof data.size === 'number') {
+        dataSize = data.size; // Blob
       }
-      throw wrapError(null, resp);
-    }).catch(function (err) {
-      clearTimeout(timer);
-      if (err.type) throw err;
-      throw wrapError(err, null);
+      var timeoutMs = calcUploadTimeout(dataSize);
+      var timer = setTimeout(function () { controller.abort(); }, timeoutMs);
+
+      var headers = buildHeaders(cfg, {
+        'Content-Type': mime || 'application/octet-stream'
+      });
+      // 对文本数据明确设置 Content-Length（部分服务器要求）
+      if (typeof data === 'string') {
+        var encoded = new TextEncoder().encode(data);
+        headers['Content-Length'] = String(encoded.length);
+        data = encoded; // 转为 Uint8Array 保证一致
+      }
+
+      function fail(err) {
+        clearTimeout(timer);
+        if (err.type) throw err;
+        if (err.name === 'AbortError') throw wrapError(err, null);
+        throw wrapError(err, null);
+      }
+
+      return fetch(url, {
+        method: 'PUT',
+        headers: headers,
+        body: data,
+        signal: controller.signal
+      }).then(function (resp) {
+        clearTimeout(timer);
+        // 201=已创建, 204=已覆盖, 200=部分服务器返回
+        if (resp.status === 201 || resp.status === 204 || resp.status === 200) {
+          if (onProgress) onProgress(1);
+          return { url: url, status: resp.status, size: dataSize };
+        }
+        throw wrapError(null, resp);
+      }).catch(function (err) {
+        clearTimeout(timer);
+        if (err.type) throw err;
+        throw wrapError(err, null);
+      });
     });
   }
 
@@ -997,6 +1126,9 @@
     trimSlash: trimSlash,
     encodePathSegments: encodePathSegments,
     basicAuthHeader: basicAuthHeader,
+    // 竞速缓存（供外部强制清除或复用）
+    ensureRacedConfig: ensureRacedConfig,
+    clearRaceCache: _clearRaceCache,
     // 常量（UI / QA 只读）
     ERROR: ERROR,
     MESSAGES: MESSAGES,
