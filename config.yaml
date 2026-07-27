@@ -64,8 +64,8 @@ webdav:
          - "https://webdav2.11891189.xyz/dav"
          - "https://webdav.zhf.dpdns.org/dav"
          - "https://webdav.11891189.xyz/dav"
-      username: "1189"
-      password: "1189"
+      username: "zqs"
+      password: "zqs"
       note: "个人维护书籍，请勿滥用"
       authType: basic
     # 示例：多域名（自动选最快节点）
