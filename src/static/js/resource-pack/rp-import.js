@@ -591,9 +591,13 @@
           if (wd.formatFilter && !en.isDir && !isImportable(en.name)) continue;
           if (en.isDir) {
             listHtml += '<div class="bk-webdav-dir" data-action="wd-open-dir" data-path="' + escAttr(en.remotePath) + '">' +
+              '<div class="bk-webdav-file-row">' +
               '<span class="bk-webdav-dir-icon">📁</span>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
+              '</div>' +
+              '<div class="bk-webdav-file-meta">' +
               '<button class="bk-webdav-del-btn" data-action="wd-delete-item" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="删除目录">×</button>' +
+              '</div>' +
               '</div>';
           } else {
             var selected = !!wd.selected[en.remotePath];
@@ -602,12 +606,16 @@
             var dlLabel = doneId ? '重新下载' : '下载';
             var doneTag = doneId ? '<span class="bk-webdav-done-tag">已下载 ✓</span>' : '';
             listHtml += '<div class="bk-webdav-file' + (selected ? ' selected' : '') + doneCls + '">' +
+              '<div class="bk-webdav-file-row">' +
               '<label class="bk-webdav-check"><input type="checkbox" data-action="wd-check" data-path="' + escAttr(en.remotePath) + '"' + (selected ? ' checked' : '') + ' /></label>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
+              '</div>' +
+              '<div class="bk-webdav-file-meta">' +
               doneTag +
               '<span class="bk-webdav-size">' + formatSize(en.size) + '</span>' +
               '<button class="bk-webdav-dl" data-action="wd-download" data-path="' + escAttr(en.remotePath) + '">' + dlLabel + '</button>' +
               '<button class="bk-webdav-del-btn" data-action="wd-delete-item" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="删除文件">×</button>' +
+              '</div>' +
               '<div class="bk-webdav-progress" data-path="' + escAttr(en.remotePath) + '" style="display:none"><div class="bk-webdav-progress-bar"></div></div>' +
               '</div>';
           }

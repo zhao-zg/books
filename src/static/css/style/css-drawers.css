@@ -285,22 +285,26 @@
 /* 文件/目录列表 */
 .bk-webdav-list { display: flex; flex-direction: column; gap: 8px; }
 .bk-webdav-empty { padding: 20px 0; text-align: center; color: var(--text-muted, #9A958C); font-size: var(--text-sm, .8125rem); }
-.bk-webdav-dir { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
+.bk-webdav-dir { padding: 10px 14px; border-radius: 12px;
   border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s; position: relative; }
 .bk-webdav-dir:active { background: var(--surface-alt, #EDEAE4); }
-.bk-webdav-dir-icon { font-size: 1.1em; }
+.bk-webdav-dir-icon { font-size: 1.1em; flex-shrink: 0; }
 .bk-webdav-dir .bk-webdav-name { font-weight: 500; color: var(--text, #1A1918); }
-.bk-webdav-file { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px;
-  border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; flex-wrap: wrap; }
+.bk-webdav-file { padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; }
 .bk-webdav-file.selected { border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.06); }
 .bk-webdav-file.done { background: rgba(61,138,90,.05); border-color: rgba(61,138,90,.35); }
-.bk-webdav-check input { width: 18px; height: 18px; accent-color: var(--brand, #3D8A5A); cursor: pointer; }
+/* 第一行：勾选框 + 文件名 */
+.bk-webdav-file-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* 第二行：标签 + 大小 + 操作按钮 */
+.bk-webdav-file-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-left: 28px; min-width: 0; }
+.bk-webdav-check input { width: 18px; height: 18px; accent-color: var(--brand, #3D8A5A); cursor: pointer; flex-shrink: 0; }
 .bk-webdav-name { flex: 1; min-width: 0; color: var(--text, #1A1918); font-size: var(--text-base, .9375rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bk-webdav-done-tag { display: inline-block; flex-shrink: 0; color: var(--brand, #3D8A5A); font-size: var(--text-xs, .75rem);
   font-weight: 600; background: rgba(61,138,90,.12); border-radius: 999px; padding: 2px 8px; }
 .bk-webdav-size { color: var(--text-muted, #9A958C); font-size: var(--text-xs, .75rem); flex-shrink: 0; }
-.bk-webdav-dl { margin-left: auto; border: none; background: var(--brand, #3D8A5A); color: #FFFFFF; border-radius: 8px;
-  padding: 7px 14px; font: inherit; font-size: var(--text-sm, .8125rem); font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.bk-webdav-dl { border: none; background: var(--brand, #3D8A5A); color: #FFFFFF; border-radius: 8px;
+  padding: 5px 12px; font: inherit; font-size: var(--text-xs, .75rem); font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
 .bk-webdav-dl:active { opacity: .85; }
 
 /* 文件/目录行内删除按钮 */
@@ -327,7 +331,7 @@
 .bk-btn-danger:disabled { opacity: .45; cursor: default; }
 
 /* 进度条（sage 填充） */
-.bk-webdav-progress { flex-basis: 100%; height: 4px; background: var(--surface-alt, #EDEAE4); border-radius: 2px; overflow: hidden; margin-top: 2px; }
+.bk-webdav-progress { width: 100%; height: 4px; background: var(--surface-alt, #EDEAE4); border-radius: 2px; overflow: hidden; margin-top: 4px; }
 .bk-webdav-progress-bar { height: 100%; width: 0%; background: var(--brand, #3D8A5A); border-radius: 2px; transition: width .2s ease; }
 .bk-webdav-progress-bar.bk-webdav-progress-err { background: var(--danger-text, #C8553D); }
 
