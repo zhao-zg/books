@@ -660,44 +660,32 @@
     }
 
     function initWebdav() {
+      // 始终先显示服务器选择界面，不再自动重连
+      // 避免用户切换到 WebDAV 标签页时还没选择服务器就开始转圈
+      wd.mode = 'disconnected';
+      renderWebdav();
+      // 自动选中上次使用的服务器
       var active = (win.WebDavManager && win.WebDavManager.getActiveConfig) ? win.WebDavManager.getActiveConfig() : null;
-      if (active) {
-        // OPT-P2：重连时先检查缓存，命中则跳过 PROPFIND 直接进入浏览
-        var cacheKey = active.id + ':';
-        var cached = _dirCache[cacheKey];
-        if (cached && Date.now() - cached.ts < DIR_CACHE_TTL) {
-          wd.config = active; wd.path = ''; wd.entries = cached.entries; wd.selected = {}; wd.mode = 'browsing';
+      if (active && active.id) {
+        var sel = document.getElementById('wdSavedSelect');
+        if (sel) {
+          sel.value = active.id;
           wd._usingSavedId = active.id;
-          // startPath：缓存命中也需要自动导航
-          if (_applyStartPath(active, cached.entries)) return;
-          refreshDownloadedSet(false).then(function () { renderWebdav(); });
-          return;
+          var cfg = findConfig(active.id);
+          if (cfg) {
+            showConfigNote(cfg);
+            var credFields = dialogEl.querySelector('#wdCredFields');
+            var saveRow = dialogEl.querySelector('#wdSaveRow');
+            if (cfg.preset) {
+              if (credFields) credFields.style.display = 'none';
+              fillConfigForm({ url: '', username: '', password: '' });
+            } else {
+              if (credFields) credFields.style.display = 'block';
+              fillConfigForm(cfg);
+              if (saveRow) saveRow.style.display = 'flex';
+            }
+          }
         }
-        wd.mode = 'connecting';
-        wd._usingSavedId = active.id;
-        renderWebdav();
-        var cancelled = false;
-        // 点击取消时立即回到断开态
-        var cancelBtn = dialogEl.querySelector('[data-action="wd-cancel-connect"]');
-        if (cancelBtn) cancelBtn.onclick = function () { cancelled = true; wd.mode = 'disconnected'; wd.config = null; renderWebdav(); };
-        win.WebDavManager.listDir(active, '').then(function (entries) {
-          if (cancelled) return;
-          wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
-          // OPT-P2：写入缓存，供后续重连复用
-          _dirCache[cacheKey] = { entries: entries, ts: Date.now() };
-          // startPath：重连后自动导航
-          if (_applyStartPath(active, entries)) return;
-          // OPT-P1：初始化首次加载，强制全量刷新
-          refreshDownloadedSet(true).then(function () { renderWebdav(); });
-        }).catch(function (err) {
-          if (cancelled) return;
-          wd.mode = 'disconnected'; wd.config = null;
-          renderWebdav();
-          setWdError(err);
-        });
-      } else {
-        wd.mode = 'disconnected';
-        renderWebdav();
       }
     }
 
