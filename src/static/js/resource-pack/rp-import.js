@@ -638,14 +638,10 @@
     function _applyStartPath(config, entries) {
       // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
       var startPath = config.startPath || '';
-      console.log('[startPath] _applyStartPath called, startPath=' + startPath);
       if (startPath) {
-        // 延迟导航：等当前渲染完成后再打开子目录
-        refreshDownloadedSet(true).then(function () {
-          console.log('[startPath] calling wdOpenDir("' + startPath + '"), wd.mode=' + wd.mode + ', wd.config=' + (wd.config ? wd.config.id : 'null'));
-          wdOpenDir(startPath);
-          showConnectedNode({ config: config });
-        });
+        // 直接同步调用 wdOpenDir，由其内部处理加载状态（_dirLoading → renderWebdav → listDir）；
+        // 不再包 refreshDownloadedSet(true).then()，否则异步延迟会导致旧 DOM（根目录）短暂残留可见
+        wdOpenDir(startPath);
         return true;  // 已接管导航
       }
       return false;
@@ -733,10 +729,9 @@
     var DIR_CACHE_TTL = 300000;  // 300 秒
 
     function wdOpenDir(path) {
-      if (!wd.config) { console.log('[wdOpenDir] early return: no config'); return; }
+      if (!wd.config) return;
       path = path || '';  // 空字符串 = 根目录（与 initWebdav / wdConnect 一致）
-      if (wd._dirLoading) { console.log('[wdOpenDir] early return: _dirLoading=true'); return; }
-      console.log('[wdOpenDir] path="' + path + '", cacheKey=' + wd.config.id + ':' + path);
+      if (wd._dirLoading) return;  // 防止并发列目录（双击/快速点击时丢弃后续请求）
       // OPT-P2：命中缓存时直接使用，不发 PROPFIND
       var cacheKey = wd.config.id + ':' + path;
       var cached = _dirCache[cacheKey];
