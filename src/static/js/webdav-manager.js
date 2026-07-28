@@ -259,7 +259,15 @@
     for (var i = 0; i < raw.length; i++) {
       var p = raw[i] || {};
       var secret = {};
-      try { secret = JSON.parse(atob(p.secret || '{}')) || {}; } catch (e) { secret = {}; }
+      try {
+        // atob() 将每个字节当作 Latin-1 字符（码位 0-255），
+        // 中文 UTF-8 多字节会被拆散为乱码。需先将 atob 结果转为 Uint8Array，
+        // 再用 TextDecoder 以 UTF-8 解码，才能得到正确的中文 JSON。
+        var b64raw = atob(p.secret || 'e30');  // 'e30' = '{}'
+        var bytes = new Uint8Array(b64raw.length);
+        for (var k = 0; k < b64raw.length; k++) bytes[k] = b64raw.charCodeAt(k);
+        secret = JSON.parse(new TextDecoder('utf-8').decode(bytes)) || {};
+      } catch (e) { secret = {}; }
       var pUrls = (secret.urls && secret.urls.length) ? secret.urls.slice() : null;
       var pUrl = pUrls ? pUrls[0] : (secret.url || '');
       out.push({

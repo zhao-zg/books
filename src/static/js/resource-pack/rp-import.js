@@ -639,9 +639,21 @@
       // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
       var startPath = config.startPath || '';
       if (startPath) {
-        // 直接同步调用 wdOpenDir，由其内部处理加载状态（_dirLoading → renderWebdav → listDir）；
-        // 不再包 refreshDownloadedSet(true).then()，否则异步延迟会导致旧 DOM（根目录）短暂残留可见
-        wdOpenDir(startPath);
+        // 从当前 entries 中查找 startPath 对应的目录条目，用其 remotePath（完整 URL）导航
+        // 这样 wd.path 始终是完整 URL 格式，保证 wdNavUp 等逻辑一致
+        var targetEntry = null;
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isDir && entries[i].name === startPath) {
+            targetEntry = entries[i];
+            break;
+          }
+        }
+        if (targetEntry && targetEntry.remotePath) {
+          wdOpenDir(targetEntry.remotePath);
+        } else {
+          // 未找到匹配的目录条目，回退为相对路径（兼容服务器端目录名变化）
+          wdOpenDir(startPath);
+        }
         return true;  // 已接管导航
       }
       return false;
@@ -761,10 +773,21 @@
 
     function wdNavUp() {
       if (!wd.config || wd.path === '') return;
-      var parent = parentUrl(wd.path);
-      // 导航回根目录时统一用空字符串，匹配缓存键 configId: 和初始状态
-      var configUrl = (wd.config.url || '').replace(/\/+$/, '');
-      if (parent === configUrl) parent = '';
+      var parent = '';
+      // wd.path 有两种格式：
+      //   1. 相对路径（如 "2区使用" 或 "子目录/2区使用"）——由 startPath 或 wdOpenDir(相对路径) 设置
+      //   2. 完整 URL（如 https://webdav.example.com/dav/zqs/sub/）——由点击目录项的 entry.remotePath 设置
+      if (/^[a-z][a-z0-9+.\-]*:/i.test(wd.path)) {
+        // 完整 URL：按 URL 格式取上级
+        parent = parentUrl(wd.path);
+        var configUrl = (wd.config.url || '').replace(/\/+$/, '');
+        if (parent === configUrl) parent = '';
+      } else {
+        // 相对路径：按路径段取上级（如 "2区使用" → ""，"a/2区使用" → "a"）
+        var p = wd.path.replace(/^\/+|\/+$/g, '');
+        var idx = p.lastIndexOf('/');
+        parent = idx > 0 ? p.substring(0, idx) : '';
+      }
       wdOpenDir(parent);
     }
 
