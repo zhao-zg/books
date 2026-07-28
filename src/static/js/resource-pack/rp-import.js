@@ -881,14 +881,9 @@
         callback(wd.config.password);
         return;
       }
-      // 预置服务器：检查是否已有用户手动输入的写操作密码
+      // 预置服务器：每次删除都必须弹密码框确认（安全校验）
+      // 但自动填充上次保存的密码（免重新输入）
       var savedPwd = _getSavedWritePassword(wd.config.id);
-      if (savedPwd) {
-        // 已保存过写操作密码，直接使用（不永久修改 config.password）
-        callback(savedPwd);
-        return;
-      }
-      // 预置服务器无已保存写操作密码：弹出密码输入框
       var html =
         '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
           '<div class="bk-drawer-header">' +
@@ -898,7 +893,7 @@
           '<div class="bk-drawer-divider"></div>' +
           '<div class="bk-webdav-del-body">' +
             '<div class="bk-webdav-del-warn">预置服务器删除文件需要密码验证</div>' +
-            '<input class="bk-field" id="wdDelPass" type="password" placeholder="请输入密码" style="margin-top:12px" />' +
+            '<input class="bk-field" id="wdDelPass" type="password" placeholder="请输入密码" value="' + _escHtml(savedPwd || '') + '" style="margin-top:12px" />' +
           '</div>' +
           '<div class="bk-webdav-del-footer">' +
             '<button class="bk-btn bk-btn-secondary" data-action="wd-pwd-cancel">取消</button>' +

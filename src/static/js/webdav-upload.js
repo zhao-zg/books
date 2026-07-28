@@ -689,19 +689,16 @@
   }
 
   // ── 预置服务器删除密码验证（与 rp-import.js 的 _ensureDeletePassword 一致）──
+  // 每次删除都弹密码框确认，但自动填充已缓存的密码
   function _ensureUploadDeletePassword(state, callback) {
     if (!state.connectedConfig) return;
     if (!state.connectedConfig.preset) {
       callback(state.connectedConfig.password);
       return;
     }
-    // 预置服务器：检查已保存的写操作密码
+    // 预置服务器：每次删除都弹密码框确认（安全校验）
+    // 自动填充上次保存的密码（免重新输入）
     var savedPwd = _getSavedWritePassword(state.connectedConfig.id);
-    if (savedPwd) {
-      callback(savedPwd);
-      return;
-    }
-    // 无已保存密码：弹出密码输入框
     var html =
       '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
         '<div class="bk-drawer-header">' +
@@ -711,7 +708,7 @@
         '<div class="bk-drawer-divider"></div>' +
         '<div class="bk-webdav-del-body">' +
           '<div class="bk-webdav-del-warn">预置服务器删除文件需要密码验证</div>' +
-          '<input class="bk-field" id="wduDelPass" type="password" placeholder="请输入密码" style="margin-top:12px" />' +
+          '<input class="bk-field" id="wduDelPass" type="password" placeholder="请输入密码" value="' + escHtml(savedPwd || '') + '" style="margin-top:12px" />' +
         '</div>' +
         '<div class="bk-webdav-del-footer">' +
           '<button class="bk-btn bk-btn-secondary" data-action="wdu-pwd-cancel">取消</button>' +
