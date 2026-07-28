@@ -594,8 +594,6 @@
               '<div class="bk-webdav-file-row">' +
               '<span class="bk-webdav-dir-icon">📁</span>' +
               '<span class="bk-webdav-name">' + escHtml(en.name) + '</span>' +
-              '</div>' +
-              '<div class="bk-webdav-file-meta">' +
               '<button class="bk-webdav-del-btn" data-action="wd-delete-item" data-path="' + escAttr(en.remotePath) + '" data-name="' + escAttr(en.name) + '" title="删除目录">×</button>' +
               '</div>' +
               '</div>';
