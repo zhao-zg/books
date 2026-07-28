@@ -475,6 +475,10 @@
 .bk-wdu-format-btn:active { opacity: .85; }
 .bk-wdu-path-row { display: flex; gap: 8px; align-items: center; }
 .bk-wdu-path-row .bk-field { flex: 1; }
+.bk-wdu-path-prefix { display: inline-flex; align-items: center; padding: 10px 12px; border-radius: 12px 0 0 12px;
+  background: var(--surface-alt, #EDEAE4); color: var(--text-muted, #9A958C); font-size: var(--text-sm, .8125rem);
+  white-space: nowrap; border: 1px solid var(--border, #E5E2DD); border-right: none; }
+.bk-wdu-path-prefix + .bk-field { border-radius: 0 12px 12px 0; flex: 1; }
 .bk-wdu-browse-btn { flex-shrink: 0; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border, #E5E2DD);
   background: #FFFFFF; color: var(--text, #1A1918); font: inherit; font-size: var(--text-sm, .8125rem); cursor: pointer;
   transition: all .15s; }

@@ -457,6 +457,7 @@
           '<div class="bk-wdu-section">' +
             '<div class="bk-wdu-label">上传路径</div>' +
             '<div class="bk-wdu-path-row">' +
+              '<span class="bk-wdu-path-prefix" id="wduPathPrefix" style="display:none"></span>' +
               '<input class="bk-field" id="wduRemotePath" placeholder="/（默认上传到根目录）" />' +
               '<button class="bk-wdu-browse-btn" data-action="wdu-browse" id="wduBrowseBtn">浏览</button>' +
             '</div>' +
@@ -604,7 +605,15 @@
         win.WebDavManager.saveConfig(saveCfg);
       }
       // 记忆上传路径（预置/自建都需要）
-      if (configKey) _saveLastPath(configKey, remotePath);
+      // 预置服务器有 startPath 时，只记忆子路径部分（不含前缀）
+      var savePath = remotePath;
+      if (state.selectedConfig && state.selectedConfig.preset && state.selectedConfig.startPath) {
+        var prefix = '/' + state.selectedConfig.startPath.replace(/^\/+|\/+$/g, '');
+        if (savePath.indexOf(prefix) === 0) {
+          savePath = savePath.substring(prefix.length) || '/';
+        }
+      }
+      if (configKey) _saveLastPath(configKey, savePath);
     } catch (e) { /* 保存失败不影响主流程 */ }
   }
 
@@ -628,8 +637,11 @@
       if (userInput) { userInput.value = ''; userInput.classList.remove('bk-field-hidden'); }
       if (passInput) { passInput.value = ''; passInput.classList.remove('bk-field-hidden'); passInput.placeholder = '密码'; }
       if (noteEl) noteEl.style.display = 'none';
-      // 手动输入模式：路径也清空
+      // 手动输入模式：路径也清空，隐藏前缀
       if (pathInput) pathInput.value = '';
+      var prefixEl = dialogEl.querySelector('#wduPathPrefix');
+      if (prefixEl) prefixEl.style.display = 'none';
+      if (pathInput) pathInput.placeholder = '/（默认上传到根目录）';
       return;
     }
 
@@ -682,9 +694,26 @@
     }
 
     // 恢复上次上传路径
-    if (pathInput && cfg.id) {
-      var lastPath = _getLastPath(cfg.id);
-      pathInput.value = lastPath || '';
+    var prefixEl = dialogEl.querySelector('#wduPathPrefix');
+    if (cfg.preset && cfg.startPath) {
+      // 预置服务器有 startPath：显示只读前缀，路径输入框只编辑子路径
+      if (prefixEl) {
+        prefixEl.textContent = '/' + cfg.startPath;
+        prefixEl.style.display = 'inline';
+      }
+      if (pathInput && cfg.id) {
+        var lastPath = _getLastPath(cfg.id);
+        pathInput.value = lastPath || '/';
+        pathInput.placeholder = '/（startPath 下的子路径）';
+      }
+    } else {
+      // 无 startPath：隐藏前缀，正常编辑
+      if (prefixEl) prefixEl.style.display = 'none';
+      if (pathInput && cfg.id) {
+        var lastPath2 = _getLastPath(cfg.id);
+        pathInput.value = lastPath2 || '';
+        pathInput.placeholder = '/（默认上传到根目录）';
+      }
     }
   }
 
@@ -780,8 +809,36 @@
 
     win.WebDavManager.connect(tempConfig, { save: false }).then(function (res) {
       state.connectedConfig = res.config;
-      state.browsePath = ''; // 从根目录开始
-      _showDirBrowser(state, res.entries, dialogEl, dlg);
+      // 预置服务器有 startPath 时，自动导航到 startPath 目录
+      // 注意：startPath 存在于 state.selectedConfig（原始配置），res.config 由 connect 返回不含此字段
+      var startPath = (state.selectedConfig && state.selectedConfig.preset && state.selectedConfig.startPath) ? state.selectedConfig.startPath : '';
+      // 也把 startPath 传递到 connectedConfig，供后续面包屑/上级导航使用
+      if (startPath) state.connectedConfig.startPath = startPath;
+      if (startPath) {
+        // 从根目录 entries 中查找 startPath 对应的目录条目
+        var targetEntry = null;
+        for (var i = 0; i < res.entries.length; i++) {
+          if (res.entries[i].isDir && res.entries[i].name === startPath) {
+            targetEntry = res.entries[i];
+            break;
+          }
+        }
+        if (targetEntry && targetEntry.remotePath) {
+          // 自动导航到 startPath 子目录
+          var relPath = _toRelativePath(targetEntry.remotePath, res.config.url || '');
+          state.browsePath = relPath || '/' + startPath;
+          win.WebDavManager.listDir(res.config, targetEntry.remotePath).then(function (subEntries) {
+            _showDirBrowser(state, subEntries, dialogEl, dlg);
+          });
+        } else {
+          // 未找到匹配条目，回退为直接用 startPath
+          state.browsePath = '/' + startPath;
+          _showDirBrowser(state, res.entries, dialogEl, dlg);
+        }
+      } else {
+        state.browsePath = ''; // 从根目录开始
+        _showDirBrowser(state, res.entries, dialogEl, dlg);
+      }
     }).catch(function (err) {
       _setError(dialogEl, (err && err.hint) || (err && err.message) || '连接失败');
     }).then(function () {
@@ -813,6 +870,14 @@
 
   // 构建目录浏览器 HTML
   function _buildDirBrowserHtml(state, entries) {
+    // 预置服务器有 startPath 时，面包屑显示的路径去掉 startPath 前缀
+    var startPath = (state.connectedConfig && state.connectedConfig.preset && state.connectedConfig.startPath) ? '/' + state.connectedConfig.startPath : '';
+    var displayPath = state.browsePath || '根目录';
+    if (startPath && displayPath === startPath) displayPath = '/'; // startPath 本身显示为根
+    else if (startPath && displayPath.indexOf(startPath + '/') === 0) displayPath = displayPath.substring(startPath.length); // 去掉前缀
+    // 上级按钮：startPath 限制时，已在 startPath 则禁用
+    var upDisabled = (startPath && state.browsePath === startPath) ? ' disabled' : '';
+
     var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px));max-height:70vh">' +
       '<div class="bk-drawer-header">' +
         '<div class="bk-drawer-title">选择上传目录</div>' +
@@ -822,8 +887,8 @@
       '<div class="bk-wdu-dir-body" id="wduDirBody">';
 
     html += '<div class="bk-wdu-dir-breadcrumb">' +
-      '<button class="bk-wdu-dir-up" data-action="wdu-dir-up">\u2190 上级</button>' +
-      '<span class="bk-wdu-dir-path">' + escHtml(state.browsePath || '根目录') + '</span>' +
+      '<button class="bk-wdu-dir-up" data-action="wdu-dir-up"' + upDisabled + '>\u2190 上级</button>' +
+      '<span class="bk-wdu-dir-path">' + escHtml(displayPath) + '</span>' +
     '</div>';
 
     html += '<div class="bk-wdu-dir-list" id="wduDirList">';
@@ -871,9 +936,16 @@
 
   // 就地更新目录浏览器内容（不关闭重建弹窗）
   function _updateDirBrowserContent(dirDialogEl, state, entries, dlg) {
-    // 更新面包屑
+    // 更新面包屑（预置服务器有 startPath 时去掉前缀显示）
+    var startPath = (state.connectedConfig && state.connectedConfig.preset && state.connectedConfig.startPath) ? '/' + state.connectedConfig.startPath : '';
+    var displayPath = state.browsePath || '根目录';
+    if (startPath && displayPath === startPath) displayPath = '/';
+    else if (startPath && displayPath.indexOf(startPath + '/') === 0) displayPath = displayPath.substring(startPath.length);
     var pathEl = dirDialogEl.querySelector('.bk-wdu-dir-path');
-    if (pathEl) pathEl.textContent = state.browsePath || '根目录';
+    if (pathEl) pathEl.textContent = displayPath;
+    // 更新上级按钮状态
+    var upBtn = dirDialogEl.querySelector('[data-action="wdu-dir-up"]');
+    if (upBtn) upBtn.disabled = !!(startPath && state.browsePath === startPath);
 
     // 更新文件列表
     var listEl = dirDialogEl.querySelector('#wduDirList');
@@ -920,8 +992,12 @@
     if (upBtn) {
       upBtn.addEventListener('click', function () {
         if (!state.connectedConfig) return;
+        // 预置服务器有 startPath 时，上级不超过 startPath
+        var startPath = (state.connectedConfig.preset && state.connectedConfig.startPath) ? '/' + state.connectedConfig.startPath : '';
         var parentPath = _parentPath(state.browsePath);
         if (parentPath === null && state.browsePath === '') return;
+        // 如果 startPath 限制且当前已在 startPath 目录，不能再往上
+        if (startPath && state.browsePath === startPath) return;
         state.browsePath = parentPath || '';
         win.WebDavManager.listDir(state.connectedConfig, state.browsePath).then(function (subEntries) {
           var el = document.getElementById('bk-webdav-upload-dir-dialog');
@@ -989,7 +1065,16 @@
     if (selectBtn && parentDialogEl) {
       selectBtn.addEventListener('click', function () {
         var pathInput = parentDialogEl.querySelector('#wduRemotePath');
-        if (pathInput) pathInput.value = state.browsePath || '/';
+        if (pathInput) {
+          var selPath = state.browsePath || '/';
+          // 预置服务器有 startPath 时，路径输入框只显示 startPath 以下的部分
+          var startPath = (state.connectedConfig && state.connectedConfig.preset && state.connectedConfig.startPath) ? '/' + state.connectedConfig.startPath : '';
+          if (startPath && selPath.indexOf(startPath) === 0) {
+            pathInput.value = selPath.substring(startPath.length) || '/';
+          } else {
+            pathInput.value = selPath;
+          }
+        }
         if (dirDlg && dirDlg.close) dirDlg.close();
       });
     }
@@ -1048,6 +1133,12 @@
     // 规范化远程路径：去掉首尾空格，确保以 / 开头
     if (remotePath && remotePath.charAt(0) !== '/') {
       remotePath = '/' + remotePath;
+    }
+    // 预置服务器有 startPath 时，用户输入的是子路径，需要拼接前缀
+    var startPath = (state.selectedConfig && state.selectedConfig.preset && state.selectedConfig.startPath) ? state.selectedConfig.startPath : '';
+    if (startPath) {
+      // remotePath 是 startPath 下的子路径（如 /books），拼接为 /2区使用/books
+      remotePath = '/' + startPath.replace(/^\/+|\/+$/g, '') + remotePath;
     }
 
     state.uploading = true;
