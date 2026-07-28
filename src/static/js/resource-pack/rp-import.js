@@ -635,6 +635,22 @@
       }
     }
 
+    function _applyStartPath(config, entries) {
+      // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
+      var startPath = config.startPath || '';
+      console.log('[startPath] _applyStartPath called, startPath=' + startPath);
+      if (startPath) {
+        // 延迟导航：等当前渲染完成后再打开子目录
+        refreshDownloadedSet(true).then(function () {
+          console.log('[startPath] calling wdOpenDir("' + startPath + '"), wd.mode=' + wd.mode + ', wd.config=' + (wd.config ? wd.config.id : 'null'));
+          wdOpenDir(startPath);
+          showConnectedNode({ config: config });
+        });
+        return true;  // 已接管导航
+      }
+      return false;
+    }
+
     function initWebdav() {
       var active = (win.WebDavManager && win.WebDavManager.getActiveConfig) ? win.WebDavManager.getActiveConfig() : null;
       if (active) {
@@ -644,6 +660,8 @@
         if (cached && Date.now() - cached.ts < DIR_CACHE_TTL) {
           wd.config = active; wd.path = ''; wd.entries = cached.entries; wd.selected = {}; wd.mode = 'browsing';
           wd._usingSavedId = active.id;
+          // startPath：缓存命中也需要自动导航
+          if (_applyStartPath(active, cached.entries)) return;
           refreshDownloadedSet(false).then(function () { renderWebdav(); });
           return;
         }
@@ -659,6 +677,8 @@
           wd.config = active; wd.path = ''; wd.entries = entries; wd.selected = {}; wd.mode = 'browsing';
           // OPT-P2：写入缓存，供后续重连复用
           _dirCache[cacheKey] = { entries: entries, ts: Date.now() };
+          // startPath：重连后自动导航
+          if (_applyStartPath(active, entries)) return;
           // OPT-P1：初始化首次加载，强制全量刷新
           refreshDownloadedSet(true).then(function () { renderWebdav(); });
         }).catch(function (err) {
@@ -693,17 +713,12 @@
         // OPT-P2：新连接拿到根目录后写入缓存，供后续重连/浏览复用
         _dirCache[res.config.id + ':'] = { entries: res.entries, ts: Date.now() };
         // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
-        var startPath = res.config.startPath || '';
-        if (startPath) {
-          // 缓存根目录条目后自动导航到 startPath
-          refreshDownloadedSet(true).then(function () {
-            wdOpenDir(startPath);
-            showConnectedNode(res);
-          });
-        } else {
-          // OPT-P1：新连接时强制全量刷新
-          refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
+        if (_applyStartPath(res.config, res.entries)) {
+          showConnectedNode(res);
+          return;
         }
+        // OPT-P1：新连接时强制全量刷新
+        refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
       }).catch(function (err) {
         if (cancelled) return;
         wd.locked = false;
@@ -718,9 +733,10 @@
     var DIR_CACHE_TTL = 300000;  // 300 秒
 
     function wdOpenDir(path) {
-      if (!wd.config) return;
+      if (!wd.config) { console.log('[wdOpenDir] early return: no config'); return; }
       path = path || '';  // 空字符串 = 根目录（与 initWebdav / wdConnect 一致）
-      if (wd._dirLoading) return;  // 防止并发列目录（双击/快速点击时丢弃后续请求）
+      if (wd._dirLoading) { console.log('[wdOpenDir] early return: _dirLoading=true'); return; }
+      console.log('[wdOpenDir] path="' + path + '", cacheKey=' + wd.config.id + ':' + path);
       // OPT-P2：命中缓存时直接使用，不发 PROPFIND
       var cacheKey = wd.config.id + ':' + path;
       var cached = _dirCache[cacheKey];
