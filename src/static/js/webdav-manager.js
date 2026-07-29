@@ -44,7 +44,7 @@
     // 不透明 TypeError）。改为软化表述，仅提示「可能」为跨域；错误 type 字段保持 CORS 不变。
     CORS_WEB: '可能为跨域(CORS)限制（Web 端服务器宕机或网络不可达时同样会出现此提示）；建议改用 App 版本（原生安卓无此限制），或请在服务器端开启 CORS',
     NETWORK: '网络未连接，请检查网络',
-    TIMEOUT: '超时（30s），请重试',
+    TIMEOUT: '超时（{sec}s），请重试',
     SERVER: '服务器返回错误（HTTP ',          // 拼接状态码
     UNKNOWN: '未知错误：{msg}',
     // 通用 UI 文案
@@ -424,7 +424,8 @@
 
   // ── 纯函数：错误分类（绝不静默）─────────────────────────────────────
   // 返回 { type: ERROR.*, hint: string }
-  function classifyError(err, resp) {
+  // timeoutMs: 实际超时毫秒数，用于生成准确的超时提示
+  function classifyError(err, resp, timeoutMs) {
     // 401 认证失败
     if (resp && resp.status === 401) {
       return { type: ERROR.AUTH, hint: MESSAGES.AUTH_FAIL };
@@ -435,7 +436,8 @@
     }
     // 超时（AbortController 触发）
     if (err && err.name === 'AbortError') {
-      return { type: ERROR.TIMEOUT, hint: MESSAGES.TIMEOUT };
+      var sec = timeoutMs ? Math.round(timeoutMs / 1000) : 30;
+      return { type: ERROR.TIMEOUT, hint: MESSAGES.TIMEOUT.replace('{sec}', sec) };
     }
     // 网络断开
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -457,8 +459,9 @@
   }
 
   // ── 将分类结果包装为带 type 的错误对象 ─────────────────────────────────
-  function wrapError(err, resp) {
-    var c = classifyError(err, resp);
+  // timeoutMs: 实际超时毫秒数，用于生成准确的超时提示
+  function wrapError(err, resp, timeoutMs) {
+    var c = classifyError(err, resp, timeoutMs);
     var e = new Error(c.hint);
     e.type = c.type;
     if (resp) e.status = resp.status;
@@ -467,9 +470,11 @@
   }
 
   // ── PROPFIND 请求（返回 {resp, text}）──────────────────────────────────
+  // 返回对象附加 _timeoutMs 供上层 wrapError 使用
   function propfind(url, config, depth, timeoutMs, externalSignal) {
+    var effectiveTimeout = timeoutMs || TIMEOUT_MS;
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || TIMEOUT_MS);
+    var timer = setTimeout(function () { controller.abort(); }, effectiveTimeout);
     // P2-4：支持外部信号取消（多域名竞速时首个成功取消其余）
     if (externalSignal) {
       if (externalSignal.aborted) { controller.abort(); }
@@ -492,6 +497,8 @@
       });
     }).catch(function (err) {
       clearTimeout(timer);
+      // 附带超时毫秒数，供上层 wrapError 生成准确的超时提示
+      err._timeoutMs = effectiveTimeout;
       throw err; // 交给上层 classifyError
     });
   }
@@ -545,7 +552,7 @@
       var url = buildDirUrl(cfg.url, path);
       return propfind(url, cfg, '1').then(function (result) {
         var resp = result.resp;
-        if (!resp.ok) throw wrapError(null, resp);
+        if (!resp.ok) throw wrapError(null, resp, TIMEOUT_MS);
         var entries = parseMultistatus(result.text, url);
         // 过滤掉"自身"（Depth:1 会返回当前集合 + 子项）
         entries = entries.filter(function (en) {
@@ -559,7 +566,7 @@
         return entries;
       }).catch(function (err) {
         if (err.type) throw err;            // 已是分类错误
-        throw wrapError(err, err.resp);     // fetch 抛错 → 分类
+        throw wrapError(err, err.resp, err._timeoutMs || TIMEOUT_MS);     // fetch 抛错 → 分类
       });
     });
   }
@@ -571,7 +578,7 @@
       return { ok: true, status: picked.status || 200, url: picked.url, ms: picked.ms, single: !!picked.single };
     }).catch(function (err) {
       if (err && err.type) throw err;
-      throw wrapError(err, err && err.resp);
+      throw wrapError(err, err && err.resp, err && err._timeoutMs ? err._timeoutMs : PROBE_TIMEOUT_MS);
     });
   }
 
@@ -611,7 +618,7 @@
     }).catch(function (err) {
       // 探测/连接失败：若多域名则给出明确提示
       if (err && err.type) throw err;
-      throw wrapError(err, err && err.resp);
+      throw wrapError(err, err && err.resp, err && err._timeoutMs ? err._timeoutMs : PROBE_TIMEOUT_MS);
     });
   }
 
@@ -654,12 +661,12 @@
       function fail(err) {
         clearTimeout(timer);
         if (err.type) throw err;
-        if (err.name === 'AbortError') throw wrapError(err, null);
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw wrapError(err, null);
+        if (err.name === 'AbortError') throw wrapError(err, null, timeoutMs);
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw wrapError(err, null, timeoutMs);
         if (!isNative() && (err instanceof TypeError || /Failed to fetch/i.test(err.message || ''))) {
-          throw wrapError(err, null);
+          throw wrapError(err, null, timeoutMs);
         }
-        throw wrapError(err, null);
+        throw wrapError(err, null, timeoutMs);
       }
 
       return fetch(url, {
@@ -670,7 +677,7 @@
       }).then(function (resp) {
         if (!resp.ok) {
           clearTimeout(timer);
-          throw wrapError(null, resp);
+          throw wrapError(null, resp, timeoutMs);
         }
         var total = parseInt(resp.headers.get('Content-Length') || '0', 10);
 
@@ -788,11 +795,16 @@
   function probeUrl(cfg, url, timeoutMs, depth, externalSignal, path) {
     var dirUrl = buildDirUrl(url, path || '');
     var t0 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
-    return propfind(dirUrl, cfg, depth || '0', timeoutMs || PROBE_TIMEOUT_MS, externalSignal).then(function (result) {
+    var effectiveTimeout = timeoutMs || PROBE_TIMEOUT_MS;
+    return propfind(dirUrl, cfg, depth || '0', effectiveTimeout, externalSignal).then(function (result) {
       var resp = result.resp;
-      if (!resp.ok) throw wrapError(null, resp);
+      if (!resp.ok) throw wrapError(null, resp, effectiveTimeout);
       var t1 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
       return { url: url, ms: Math.round(t1 - t0), status: resp.status, text: result.text, dirUrl: dirUrl };
+    }).catch(function (err) {
+      // 透传带 _timeoutMs 的错误，否则补充 timeoutMs
+      if (!err._timeoutMs) err._timeoutMs = effectiveTimeout;
+      throw err;
     });
   }
 
@@ -812,6 +824,25 @@
         });
       });
     });
+  }
+
+  // ── 多节点错误汇总：生成「N个节点超时，M个403…」格式的简洁摘要 ──────
+  function _summarizeMultiErrors(errors, urls) {
+    var byType = {};  // type → count
+    for (var i = 0; i < errors.length; i++) {
+      var e = errors[i];
+      if (!e) continue;
+      var c = classifyError(e, e.resp, e._timeoutMs);
+      byType[c.type] = (byType[c.type] || 0) + 1;
+    }
+    var parts = [];
+    if (byType[ERROR.TIMEOUT]) parts.push(byType[ERROR.TIMEOUT] + '个超时');
+    if (byType[ERROR.AUTH]) parts.push(byType[ERROR.AUTH] + '个认证失败');
+    if (byType[ERROR.NETWORK]) parts.push(byType[ERROR.NETWORK] + '个网络不可达');
+    if (byType[ERROR.CORS]) parts.push(byType[ERROR.CORS] + '个跨域受限');
+    if (byType[ERROR.SERVER]) parts.push(byType[ERROR.SERVER] + '个服务器错误');
+    if (byType[ERROR.UNKNOWN]) parts.push(byType[ERROR.UNKNOWN] + '个未知错误');
+    return parts.length ? urls.length + '个节点全部失败：' + parts.join('，') : '所有节点均不可达';
   }
 
   // P2-4 + P3-6：多域名竞速时首个成功即 abort 其余请求；超时使用 PROBE_TIMEOUT_MS
@@ -834,7 +865,15 @@
         }, function (err) {
           errors[i] = err;
           pending--;
-          if (pending === 0) reject(errors.filter(Boolean)[0] || new Error('所有节点均不可达'));
+          if (pending === 0) {
+            // 全部失败：汇总错误信息，帮助用户诊断
+            var firstErr = errors.filter(Boolean)[0];
+            var timeoutMs = firstErr && firstErr._timeoutMs ? firstErr._timeoutMs : (timeoutMs || PROBE_TIMEOUT_MS);
+            var summary = _summarizeMultiErrors(errors, urls);
+            var e = wrapError(firstErr, firstErr && firstErr.resp, timeoutMs);
+            e.message = summary + '（' + e.message + '）';
+            reject(e);
+          }
         });
       });
     });
@@ -985,11 +1024,11 @@
         if (resp.status === 201 || resp.status === 405) {
           return { ok: true, status: resp.status };
         }
-        throw wrapError(null, resp);
+        throw wrapError(null, resp, TIMEOUT_MS);
       }).catch(function (err) {
         clearTimeout(timer);
         if (err.type) throw err;
-        throw wrapError(err, null);
+        throw wrapError(err, null, TIMEOUT_MS);
       });
     });
   }
@@ -1018,11 +1057,11 @@
         if (resp.status === 204 || resp.status === 200 || resp.status === 404) {
           return { ok: true, status: resp.status };
         }
-        throw wrapError(null, resp);
+        throw wrapError(null, resp, TIMEOUT_MS);
       }).catch(function (err) {
         clearTimeout(timer);
         if (err.type) throw err;
-        throw wrapError(err, null);
+        throw wrapError(err, null, TIMEOUT_MS);
       });
     });
   }
@@ -1052,13 +1091,13 @@
               if (resp.status === 201 || resp.status === 405) {
                 return { ok: true, status: resp.status };
               }
-              throw wrapError(null, resp);
+              throw wrapError(null, resp, TIMEOUT_MS);
             }).catch(function (err) {
               clearTimeout(timer);
               // 405 = 已存在，不算错误
               if (err && err.status === 405) return;
               if (err.type) throw err;
-              throw wrapError(err, null);
+              throw wrapError(err, null, TIMEOUT_MS);
             });
           });
         })(segments[i]);
@@ -1103,8 +1142,8 @@
       function fail(err) {
         clearTimeout(timer);
         if (err.type) throw err;
-        if (err.name === 'AbortError') throw wrapError(err, null);
-        throw wrapError(err, null);
+        if (err.name === 'AbortError') throw wrapError(err, null, timeoutMs);
+        throw wrapError(err, null, timeoutMs);
       }
 
       return fetch(url, {
@@ -1119,11 +1158,11 @@
           if (onProgress) onProgress(1);
           return { url: url, status: resp.status, size: dataSize };
         }
-        throw wrapError(null, resp);
+        throw wrapError(null, resp, timeoutMs);
       }).catch(function (err) {
         clearTimeout(timer);
         if (err.type) throw err;
-        throw wrapError(err, null);
+        throw wrapError(err, null, timeoutMs);
       });
     });
   }
