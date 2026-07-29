@@ -807,38 +807,20 @@
     var browseBtn = dialogEl.querySelector('#wduBrowseBtn');
     if (browseBtn) browseBtn.disabled = true;
 
-    win.WebDavManager.connect(tempConfig, { save: false }).then(function (res) {
+    // OPT-2：startPath 优化——直接在 startPath 目录上竞速，省去二次 PROPFIND
+    var startPath = (state.selectedConfig && state.selectedConfig.preset && state.selectedConfig.startPath) ? state.selectedConfig.startPath : '';
+    var connectOpts = { save: false };
+    if (startPath) connectOpts.initialPath = startPath;
+
+    win.WebDavManager.connect(tempConfig, connectOpts).then(function (res) {
       state.connectedConfig = res.config;
-      // 预置服务器有 startPath 时，自动导航到 startPath 目录
-      // 注意：startPath 存在于 state.selectedConfig（原始配置），res.config 由 connect 返回不含此字段
-      var startPath = (state.selectedConfig && state.selectedConfig.preset && state.selectedConfig.startPath) ? state.selectedConfig.startPath : '';
-      // 也把 startPath 传递到 connectedConfig，供后续面包屑/上级导航使用
-      if (startPath) state.connectedConfig.startPath = startPath;
       if (startPath) {
-        // 从根目录 entries 中查找 startPath 对应的目录条目
-        var targetEntry = null;
-        for (var i = 0; i < res.entries.length; i++) {
-          if (res.entries[i].isDir && res.entries[i].name === startPath) {
-            targetEntry = res.entries[i];
-            break;
-          }
-        }
-        if (targetEntry && targetEntry.remotePath) {
-          // 自动导航到 startPath 子目录
-          var relPath = _toRelativePath(targetEntry.remotePath, res.config.url || '');
-          state.browsePath = relPath || '/' + startPath;
-          win.WebDavManager.listDir(res.config, targetEntry.remotePath).then(function (subEntries) {
-            _showDirBrowser(state, subEntries, dialogEl, dlg);
-          });
-        } else {
-          // 未找到匹配条目，回退为直接用 startPath
-          state.browsePath = '/' + startPath;
-          _showDirBrowser(state, res.entries, dialogEl, dlg);
-        }
+        state.connectedConfig.startPath = startPath;
+        state.browsePath = '/' + startPath;
       } else {
-        state.browsePath = ''; // 从根目录开始
-        _showDirBrowser(state, res.entries, dialogEl, dlg);
+        state.browsePath = '';
       }
+      _showDirBrowser(state, res.entries, dialogEl, dlg);
     }).catch(function (err) {
       _setError(dialogEl, (err && err.hint) || (err && err.message) || '连接失败');
     }).then(function () {

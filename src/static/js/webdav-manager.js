@@ -580,9 +580,10 @@
   function connect(cfg, opts) {
     opts = opts || {};
     var base = normalizeConfig(cfg);
+    var initialPath = opts.initialPath || '';
     // P1-1：确保 crypto 就绪后再连接（保证 saveConfig 能正确加密）
     return _initCrypto().then(function () {
-      return pickFastestUrl(base, null, '1');
+      return pickFastestUrl(base, null, '1', initialPath);
     }).then(function (picked) {
       // 竞速成功 → 写入缓存
       _setRaceCache(base.id, picked.url);
@@ -784,8 +785,8 @@
 
   // 探测单个 URL 是否可达（PROPFIND），成功返回 {url, ms, status, text, dirUrl}
   // OPT-1：增加 depth 参数（默认 '0'），返回 text + dirUrl 供调用方直接解析目录
-  function probeUrl(cfg, url, timeoutMs, depth, externalSignal) {
-    var dirUrl = buildDirUrl(url, '');
+  function probeUrl(cfg, url, timeoutMs, depth, externalSignal, path) {
+    var dirUrl = buildDirUrl(url, path || '');
     var t0 = (win.performance && win.performance.now) ? win.performance.now() : Date.now();
     return propfind(dirUrl, cfg, depth || '0', timeoutMs || PROBE_TIMEOUT_MS, externalSignal).then(function (result) {
       var resp = result.resp;
@@ -814,14 +815,14 @@
   }
 
   // P2-4 + P3-6：多域名竞速时首个成功即 abort 其余请求；超时使用 PROBE_TIMEOUT_MS
-  function pickFastestUrl(cfg, timeoutMs, depth) {
+  function pickFastestUrl(cfg, timeoutMs, depth, path) {
     var urls = candidateUrls(cfg);
     if (urls.length === 0) return Promise.reject(new Error('未配置 WebDAV 地址'));
-    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || PROBE_TIMEOUT_MS, depth);
+    if (urls.length === 1) return probeUrl(cfg, urls[0], timeoutMs || PROBE_TIMEOUT_MS, depth, null, path);
     // 多域名：为每个探测创建 AbortController，首个成功后取消其余
     var controllers = urls.map(function () { return new AbortController(); });
     var probes = urls.map(function (u, i) {
-      return probeUrl(cfg, u, timeoutMs || PROBE_TIMEOUT_MS, depth, controllers[i].signal);
+      return probeUrl(cfg, u, timeoutMs || PROBE_TIMEOUT_MS, depth, controllers[i].signal, path);
     });
     return new Promise(function (resolve, reject) {
       var errors = [], pending = probes.length;

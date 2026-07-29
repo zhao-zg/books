@@ -620,10 +620,19 @@
         }
       }
       var selCount = Object.keys(wd.selected).length;
+      // 预置服务器有 startPath 时，面包屑显示路径去掉 startPath 前缀，上级按钮在 startPath 时禁用
+      var _wdStartPath = (wd.config && wd.config.preset && wd.config.startPath) ? wd.config.startPath : '';
+      var _wdDisplayPath = displayPath();
+      var _wdUpDisabled = wd.path === '';
+      if (_wdStartPath) {
+        // startPath 本身显示为根目录
+        if (wd.path === _wdStartPath) { _wdDisplayPath = '根目录'; _wdUpDisabled = true; }
+        else if (wd.path.indexOf(_wdStartPath + '/') === 0) { _wdDisplayPath = wd.path.substring(_wdStartPath.length + 1); _wdUpDisabled = false; }
+      }
       wdView.innerHTML =
         '<div class="bk-webdav-breadcrumb">' +
-          '<button class="bk-webdav-up" data-action="wd-nav-up"' + (wd.path === '' ? ' disabled' : '') + '>← 上级</button>' +
-          '<span class="bk-webdav-path">' + escHtml((nodeLabel(wd.config, wd.config && wd.config.connectedUrl) ? nodeLabel(wd.config, wd.config.connectedUrl) + ' · ' : '') + displayPath()) + '</span>' +
+          '<button class="bk-webdav-up" data-action="wd-nav-up"' + (_wdUpDisabled ? ' disabled' : '') + '>← 上级</button>' +
+          '<span class="bk-webdav-path">' + escHtml((nodeLabel(wd.config, wd.config && wd.config.connectedUrl) ? nodeLabel(wd.config, wd.config.connectedUrl) + ' · ' : '') + _wdDisplayPath) + '</span>' +
           '<button class="bk-webdav-disconnect" data-action="wd-disconnect">断开</button>' +
         '</div>' +
         '<label class="bk-webdav-filter"><input type="checkbox" data-action="wd-filter"' + (wd.formatFilter ? ' checked' : '') + ' /> 仅显示可导入格式</label>' +
@@ -701,23 +710,31 @@
       setWdError(null);
       // 预置服务器无需再保存到本机（已随包下发）
       var isPreset = cfg.preset === true;
+      var startPath = cfg.startPath || '';
       wd.locked = true;
       wd.mode = 'connecting';
       renderWebdav();
       var cancelled = false;
       var cancelBtn = dialogEl.querySelector('[data-action="wd-cancel-connect"]');
       if (cancelBtn) cancelBtn.onclick = function () { cancelled = true; wd.locked = false; wd.mode = 'disconnected'; wd.config = null; renderWebdav(); };
-      win.WebDavManager.connect(cfg, { save: readSaveChecked() && !isPreset }).then(function (res) {
+      // OPT-2：startPath 优化——直接在 startPath 目录上竞速，省去二次 PROPFIND
+      var connectOpts = { save: readSaveChecked() && !isPreset };
+      if (startPath) connectOpts.initialPath = startPath;
+      win.WebDavManager.connect(cfg, connectOpts).then(function (res) {
         if (cancelled) return;
         wd.locked = false;
-        wd.config = res.config; wd.path = ''; wd.entries = res.entries; wd.selected = {}; wd.mode = 'browsing';
+        wd.config = res.config; wd.selected = {}; wd.mode = 'browsing';
         wd._usingSavedId = res.config.id;
-        // OPT-P2：新连接拿到根目录后写入缓存，供后续重连/浏览复用
-        _dirCache[res.config.id + ':'] = { entries: res.entries, ts: Date.now() };
-        // startPath：预置服务器可指定初始目录路径，连接后自动导航（省去手动点入子目录）
-        if (_applyStartPath(res.config, res.entries)) {
-          showConnectedNode(res);
-          return;
+        if (startPath) {
+          // connect 已在 startPath 目录上竞速，entries 即为 startPath 目录内容
+          // 使用 startPath 相对路径作为 wd.path，确保导航逻辑一致
+          wd.path = startPath;
+          wd.entries = res.entries;
+          _dirCache[res.config.id + ':' + startPath] = { entries: res.entries, ts: Date.now() };
+        } else {
+          wd.path = '';
+          wd.entries = res.entries;
+          _dirCache[res.config.id + ':'] = { entries: res.entries, ts: Date.now() };
         }
         // OPT-P1：新连接时强制全量刷新
         refreshDownloadedSet(true).then(function () { renderWebdav(); showConnectedNode(res); });
@@ -767,6 +784,9 @@
 
     function wdNavUp() {
       if (!wd.config || wd.path === '') return;
+      // 预置服务器有 startPath 时，上级导航不超过 startPath
+      var _wdStartPath = (wd.config.preset && wd.config.startPath) ? wd.config.startPath : '';
+      if (_wdStartPath && wd.path === _wdStartPath) return; // 已在 startPath，不能再上
       var parent = '';
       // wd.path 有两种格式：
       //   1. 相对路径（如 "2区使用" 或 "子目录/2区使用"）——由 startPath 或 wdOpenDir(相对路径) 设置
@@ -782,6 +802,8 @@
         var idx = p.lastIndexOf('/');
         parent = idx > 0 ? p.substring(0, idx) : '';
       }
+      // startPath 限制：上级不能低于 startPath
+      if (_wdStartPath && parent === '') parent = _wdStartPath;
       wdOpenDir(parent);
     }
 
