@@ -113,6 +113,25 @@
     var title = rawTitle;
     var seriesTitle = opts.seriesTitle || '';
     var sizeCls = opts.size ? ' bk-cover--' + opts.size : '';
+
+    // ★ 有真实封面图时直接展示（EPUB 提取的 data URI）
+    // 安全校验：仅允许 data:image/ 开头的 URI，防止 XSS
+    var coverUrl = b.cover || '';
+    if (coverUrl && coverUrl.indexOf('data:image/') === 0) {
+      var h = '<div class="bk-cover' + sizeCls + ' bk-cover--img" style="--cover-color:' + color + '" role="img" aria-label="' + escAttr(title + ' 封面') + '">';
+      h += '<img class="bk-cover-img" src="' + escAttr(coverUrl) + '" alt="' + escAttr(title) + '" loading="lazy">';
+      h += '<div class="bk-cover-overlay">';
+      if (seriesTitle) {
+        h += '<div class="bk-cover-series">' + escText(seriesTitle) + '</div>';
+      }
+      h += '<div class="bk-cover-title">' + escText(title) + '</div>';
+      h += '<div class="bk-cover-rule"></div>';
+      h += '<div class="bk-cover-foot">书报</div>';
+      h += '</div></div>';
+      return h;
+    }
+
+    // 无封面图时走版式封面
     var html = '<div class="bk-cover' + sizeCls + '" style="--cover-color:' + color + '" role="img" aria-label="' + escAttr(title + ' 封面') + '">';
     html += '<div class="bk-cover-inner">';
     if (seriesTitle) {

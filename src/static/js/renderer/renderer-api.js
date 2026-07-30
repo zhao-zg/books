@@ -513,9 +513,13 @@
         });
       }
 
-      // 进入时整体读取 BKShelf 渲染（兜底一致）
+      // 进入时先用已有数据同步渲染（避免空白闪烁），再合并导入书籍后更新
       _renderShelfContinue(app);
       _renderShelfList();
+      _mergeImportedBooks().then(function () {
+        _renderShelfContinue(app);
+        _renderShelfList();
+      }).catch(function () {});
 
       // 订阅 bk-shelf-changed 做就地刷新（仅注册一次）
       if (!_shelfPageChangedBound) {

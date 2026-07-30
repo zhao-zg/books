@@ -202,6 +202,7 @@
   box-shadow: none;
 }
 .bk-shelf-row-cover .bk-cover-inner { padding: 14% 13%; }
+.bk-shelf-row-cover .bk-cover-overlay { padding: 14% 13%; }
 .bk-shelf-row .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
 .bk-shelf-row .bk-cover-title { font-size: 1.25em; font-weight: 600; line-height: 1.25; -webkit-line-clamp: 3; }
 .bk-shelf-row .bk-cover-rule,

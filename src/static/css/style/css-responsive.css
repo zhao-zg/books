@@ -334,6 +334,26 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 .bk-cover--md { width: 60px; font-size: 11px; }
 .bk-cover--lg { width: 92px; font-size: 13px; border-radius: 14px; }
 
+/* 真实封面图模式：EPUB 等有真实封面时，用 <img> 展示原图 */
+.bk-cover--img { background: none; }
+.bk-cover--img::before { display: none; }
+.bk-cover-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; border-radius: inherit;
+}
+.bk-cover-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  padding: 14% 12%; box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(26,25,23,.55) 0%, rgba(26,25,23,.3) 40%, rgba(26,25,23,.6) 100%);
+}
+/* 图片封面下文字增强可读性 */
+.bk-cover--img .bk-cover-series { color: rgba(251,248,242,.9); text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.bk-cover--img .bk-cover-title { color: #FBF8F2; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.bk-cover--img .bk-cover-rule { background: rgba(251,248,242,.4); }
+.bk-cover--img .bk-cover-foot { color: rgba(251,248,242,.8); }
+
 
 /* 区块标题 */
 .bk-section-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 6px; }
