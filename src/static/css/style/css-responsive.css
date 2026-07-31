@@ -188,7 +188,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 .bk-home-hero-sub { font-size: var(--text-md); color: var(--text-muted); margin: 0 0 10px; letter-spacing: 0.01em; }
 .bk-home-hero-actions { display: flex; gap: 10px; margin-top: 6px; }
 
-/* 续读卡 — 两列横向条状卡片 */
+/* 续读卡 — 两列横向条状卡片（封面放大版） */
 #bkContinueListAnchor {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -211,8 +211,8 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 }
 .bk-continue-card:active { transform: scale(.97); background: var(--nav-hover); }
 .bk-continue-cover {
-  width: 36px;
-  height: 48px;
+  width: 48px;
+  height: 64px;
   border-radius: 6px;
   flex-shrink: 0;
   overflow: hidden;
@@ -346,7 +346,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
   padding: 14% 12%; box-sizing: border-box;
-  background: linear-gradient(180deg, rgba(26,25,23,.55) 0%, rgba(26,25,23,.3) 40%, rgba(26,25,23,.6) 100%);
+  background: linear-gradient(180deg, rgba(26,25,23,.35) 0%, rgba(26,25,23,.1) 40%, rgba(26,25,23,.4) 100%);
 }
 /* 图片封面下文字增强可读性 */
 .bk-cover--img .bk-cover-series { color: rgba(251,248,242,.9); text-shadow: 0 1px 3px rgba(0,0,0,.4); }
@@ -368,7 +368,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 .bk-home-search-btn:active { color: var(--brand); }
 .bk-section-title-lg { font-family: var(--heading-font-family); font-weight: 600; font-size: 18px; color: var(--text); letter-spacing: 0.02em; }
 /* 主页按系列分组书架 */
-.bk-series-block { margin-bottom: 2px; }
+.bk-series-block { margin-bottom: 8px; }
 .bk-series-block .bk-section-header { padding-top: 16px; padding-bottom: 4px; }
 .bk-series-count { font-size: var(--text-xs); font-weight: 500; color: var(--text-muted); background: var(--tag-bg, rgba(var(--brand-rgb), .08)); padding: 3px 10px; border-radius: 9999px; }
 .bk-series-block--orphan .bk-section-title-lg { color: var(--text-muted); }
@@ -642,7 +642,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 }
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 3 / 4;
   font-size: 13px;
   border-radius: 0;            /* 卡顶 16px 圆角由 .zl-book-card 的 overflow:hidden 裁切 */
 }
@@ -650,7 +650,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover-inner { padding: 14% 13%; }
 /* 海报书名：字号缩小，最多3行 */
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover-title {
-  font-size: 1.25em;
+  font-size: 1.1em;
   font-weight: 600;
   line-height: 1.25;
   -webkit-line-clamp: 3;

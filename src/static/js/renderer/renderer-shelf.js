@@ -180,9 +180,9 @@
       html += '<div class="bk-shelf-row-cover">' + cover + '</div>';
       html += pinMark;
       html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
-      // 书架：显示完整书名（不切割书号）
+      // 书架：信息条只保留元数据（书名已在封面显示）
       html += '<div class="bk-shelf-row-info">';
-      html += '<div class="bk-shelf-row-title">' + escText(title) + '</div>';
+      if (author) html += '<div class="bk-shelf-row-author">' + escText(author) + '</div>';
       // 单行元数据：进度/已读日期 + 来源徽标，对齐书城 L3 的 .book-caption-meta 结构
       html += '<div class="bk-shelf-row-meta">';
       html += '<span class="bk-shelf-row-progress">' + escText(subText) + escText(metaExtra) + '</span>';
