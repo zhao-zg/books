@@ -120,14 +120,7 @@
     if (coverUrl && coverUrl.indexOf('data:image/') === 0) {
       var h = '<div class="bk-cover' + sizeCls + ' bk-cover--img" style="--cover-color:' + color + '" role="img" aria-label="' + escAttr(title + ' 封面') + '">';
       h += '<img class="bk-cover-img" src="' + escAttr(coverUrl) + '" alt="' + escAttr(title) + '" loading="lazy">';
-      h += '<div class="bk-cover-overlay">';
-      if (seriesTitle) {
-        h += '<div class="bk-cover-series">' + escText(seriesTitle) + '</div>';
-      }
-      h += '<div class="bk-cover-title">' + escText(title) + '</div>';
-      h += '<div class="bk-cover-rule"></div>';
-      h += '<div class="bk-cover-foot">书报</div>';
-      h += '</div></div>';
+      h += '</div>';
       return h;
     }
 
@@ -138,8 +131,6 @@
       html += '<div class="bk-cover-series">' + escText(seriesTitle) + '</div>';
     }
     html += '<div class="bk-cover-title">' + escText(title) + '</div>';
-    html += '<div class="bk-cover-rule"></div>';
-    html += '<div class="bk-cover-foot">书报</div>';
     html += '</div></div>';
     return html;
   }

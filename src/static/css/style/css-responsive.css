@@ -241,7 +241,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   line-height: 1.3;
 }
 .bk-continue-chapter {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -302,58 +302,49 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   border-radius: var(--radius-md, 12px);
   background: var(--cover-color, #3D8A5A);
   overflow: hidden; font-size: 12px;
-  box-shadow: 0 1px 3px rgba(60, 40, 10, .14);
+  box-shadow: inset 3px 0 6px rgba(0,0,0,.12), 0 1px 3px rgba(60,40,10,.14);
 }
+/* 微纹理：让纯色底有纸张颗粒感，不再扁平 */
 .bk-cover::before {
   content: ''; position: absolute; inset: 0;
-  background: rgba(26, 25, 23, .16);
+  background: repeating-conic-gradient(rgba(255,255,255,.015) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px;
+  pointer-events: none;
 }
+.bk-cover::after { display: none; }
 .bk-cover-inner {
   position: absolute; inset: 0;
   display: flex; flex-direction: column;
-  padding: 14% 12%; box-sizing: border-box;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 10% 12%; box-sizing: border-box;
 }
 .bk-cover-series {
-  font-size: .6em; font-weight: 500; line-height: 1.3;
-  color: rgba(251, 248, 242, .72); margin-bottom: auto;
+  font-size: .72em; font-weight: 500; line-height: 1.3;
+  color: rgba(251, 248, 242, .72); margin-bottom: 8%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* sm/md 封面太小，系列名不可读，直接隐藏 */
+.bk-cover--sm .bk-cover-series,
+.bk-cover--md .bk-cover-series { display: none; }
 .bk-cover-title {
   font-family: var(--reading-font-family, "Songti SC", Georgia, serif);
   color: #FBF8F2; font-weight: 500; line-height: 1.32; font-size: 1em;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
-.bk-cover-rule {
-  width: 30%; height: 2px; margin: 9% 0 7%;
-  background: rgba(251, 248, 242, .55); border-radius: 2px;
-}
-.bk-cover-foot {
-  font-size: .56em; letter-spacing: .22em; color: rgba(251, 248, 242, .62);
-}
-.bk-cover--sm { width: 50px; font-size: 10px; border-radius: 10px; }
-.bk-cover--md { width: 60px; font-size: 11px; }
+.bk-cover--sm { width: 50px; font-size: 11px; border-radius: 10px; box-shadow: inset 2px 0 4px rgba(0,0,0,.08), 0 1px 2px rgba(60,40,10,.10); }
+.bk-cover--md { width: 60px; font-size: 12px; box-shadow: inset 2px 0 5px rgba(0,0,0,.10), 0 1px 2px rgba(60,40,10,.10); }
 .bk-cover--lg { width: 92px; font-size: 13px; border-radius: 14px; }
 
 /* 真实封面图模式：EPUB 等有真实封面时，用 <img> 展示原图 */
 .bk-cover--img { background: none; }
-.bk-cover--img::before { display: none; }
+.bk-cover--img::before,
+.bk-cover--img::after { display: none; }
 .bk-cover-img {
   position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover; border-radius: inherit;
 }
-.bk-cover-overlay {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  padding: 14% 12%; box-sizing: border-box;
-  background: linear-gradient(180deg, rgba(26,25,23,.35) 0%, rgba(26,25,23,.1) 40%, rgba(26,25,23,.4) 100%);
-}
-/* 图片封面下文字增强可读性 */
-.bk-cover--img .bk-cover-series { color: rgba(251,248,242,.9); text-shadow: 0 1px 3px rgba(0,0,0,.4); }
-.bk-cover--img .bk-cover-title { color: #FBF8F2; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
-.bk-cover--img .bk-cover-rule { background: rgba(251,248,242,.4); }
-.bk-cover--img .bk-cover-foot { color: rgba(251,248,242,.8); }
-
 
 /* 区块标题 */
 .bk-section-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px 6px; }
@@ -647,20 +638,15 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   border-radius: 0;            /* 卡顶 16px 圆角由 .zl-book-card 的 overflow:hidden 裁切 */
 }
 /* 封面内边距与 L1/L2 海报对齐（14% 13%），避免 L3 文字区略宽导致书名观感偏大 */
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-inner { padding: 14% 13%; }
-/* 海报书名：字号缩小，最多3行 */
+.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-inner { padding: 10% 13%; }
+/* 海报书名：字号缩小，最多5行 */
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover-title {
   font-size: 1.1em;
   font-weight: 600;
   line-height: 1.25;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 5;
 }
-/* 左上角系列名 / 底部「书报」：与 L1/L2 海报同步放大（见上） */
 .bk-city-book-grid .zl-book-card.is-city-book .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-foot { font-size: .78em; letter-spacing: .2em; color: rgba(251, 248, 242, .75); }
-/* 更干净：城市海报去掉装饰横线与底部「书报」（与 L1/L2 同步） */
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-rule,
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-foot { display: none; }
 /* 信息条去掉冗余书名行（封面已显示书名），只保留元数据 */
 .bk-city-book-grid .zl-book-card.is-city-book .book-caption {
   padding: 6px 10px 8px;

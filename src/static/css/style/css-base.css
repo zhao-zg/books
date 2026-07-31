@@ -100,22 +100,14 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
   box-shadow: none;
 }
 .category-card .bk-cover-inner,
-.series-catalog-card .bk-cover-inner { padding: 14% 13%; }
+.series-catalog-card .bk-cover-inner { padding: 10% 13%; }
 .category-card .bk-cover-title,
-.series-catalog-card .bk-cover-title { font-size: 1.1em; font-weight: 600; line-height: 1.25; -webkit-line-clamp: 3; }
+.series-catalog-card .bk-cover-title { font-size: 1.1em; font-weight: 600; line-height: 1.25; -webkit-line-clamp: 5; }
 /* 左上角系列名 / 底部「书报」：海报基准 15px 下原 .6em/.56em 仅 9/8.4px，过小；放大并提亮半透明白 */
 .category-card .bk-cover-series,
 .series-catalog-card .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
-/* L1 海报左上角「系列」标签与区块标题重复 → 隐藏；用 margin-top:auto 让标题仍落底部，与 L2/L3 海报对齐 */
+/* L1 海报左上角「系列」标签与区块标题重复 → 隐藏 */
 .series-catalog-card .bk-cover-series { display: none; }
-.series-catalog-card .bk-cover-title { margin-top: auto; }
-.category-card .bk-cover-foot,
-.series-catalog-card .bk-cover-foot { font-size: .78em; letter-spacing: .2em; color: rgba(251, 248, 242, .75); }
-/* 更干净：城市海报去掉装饰横线(.bk-cover-rule)与底部「书报」(.bk-cover-foot)——系列名已承接语境，二者纯装饰 */
-.category-card .bk-cover-rule,
-.series-catalog-card .bk-cover-rule,
-.category-card .bk-cover-foot,
-.series-catalog-card .bk-cover-foot { display: none; }
 
 /* 信息条：去掉冗余书名行（封面已显示标题），只保留数量标签 */
 .collection-caption {
