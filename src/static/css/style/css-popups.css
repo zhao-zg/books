@@ -44,6 +44,12 @@
 .bk-dialog-cancel { color: var(--text-muted, #888); border-right: 1px solid var(--border, #e0e0e0); }
 .bk-dialog-confirm { color: var(--brand, #3D8A5A); font-weight: 600; }
 .bk-dialog-cancel:active, .bk-dialog-confirm:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
+.bk-dialog-primary {
+  flex: 1; padding: 13px 8px; border: none; background: var(--brand, #3D8A5A);
+  color: #FFFFFF; font: inherit; font-size: var(--text-md); font-weight: 600; cursor: pointer;
+  text-align: center; -webkit-tap-highlight-color: transparent; transition: opacity .15s;
+}
+.bk-dialog-primary:active { opacity: .85; }
 .bk-dialog-opts { padding: 4px 16px 8px; }
 .bk-dialog-opt {
     display: flex; gap: 12px; padding: 12px; border-radius: 10px;

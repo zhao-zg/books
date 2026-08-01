@@ -379,6 +379,14 @@
 .bk-dialog-cancel:active { background: #F1F0ED; }
 .bk-dialog-confirm { background: var(--brand, #3D8A5A); color: #FFFFFF; }
 .bk-dialog-confirm:active { opacity: .85; }
+/* 书籍详情：主操作（继续阅读 / 开始阅读） */
+.bk-dialog-primary {
+  flex: 1; height: 44px; border-radius: 8px; border: none;
+  font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: opacity .15s, background .15s;
+  background: var(--brand, #3D8A5A); color: #FFFFFF;
+}
+.bk-dialog-primary:active { opacity: .85; }
 /* 清理数据：确认按钮=危险红 */
 #bkClearDialogMask .bk-dialog-confirm { background: var(--danger-text, #C8553D); }
 /* 书签列表：清空全部=危险边框次级按钮 */

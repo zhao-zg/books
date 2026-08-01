@@ -151,7 +151,7 @@
       // 作者：优先真实作者→系列名；来源信息统一由 source 徽标承担，不再降级到 author 行
       var author = book.author || _getSeriesTitle(book.series) || '';
       // 海报封面：复用 .bk-cover，填满卡顶（由 .bk-shelf-row overflow:hidden 裁切 16px 圆角）
-      var cover = _coverHTML(book, { seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
+      var cover = _coverHTML(book, { varyByBook: true, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
       var isRead = _isReadFn(rec.bookId);
       var pinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(rec.bookId) : false;
 
@@ -175,16 +175,17 @@
       if (rec.note) metaExtra += ' · 有笔记';
 
       // 海报卡：封面(卡顶) + 信息条(书名 + 单行元数据)，结构与书城 L3 一致
-      html += '<div class="bk-shelf-row" data-book-id="' + escAttr(rec.bookId) + '" role="button" tabindex="0" aria-label="打开 ' + escAttr(title) + '">';
+      html += '<div class="bk-shelf-row bk-poster-card" data-book-id="' + escAttr(rec.bookId) + '" role="button" tabindex="0" aria-label="打开 ' + escAttr(title) + '">';
       var pinMark = pinned ? '<span class="bk-shelf-pin-mark" aria-label="已置顶" role="img">📌</span>' : '';
       var srcBadge = _sourceBadgeHTML(book);
       html += '<div class="bk-shelf-row-cover">' + cover + (srcBadge ? '<div class="bk-shelf-row-badge">' + srcBadge + '</div>' : '') + '</div>';
       html += pinMark;
       html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
-      // 书架：信息条只保留元数据（书名已在封面显示）
-      html += '<div class="bk-shelf-row-info">';
-      if (author) html += '<div class="bk-shelf-row-author">' + escText(author) + '</div>';
-      html += '<div class="bk-shelf-row-meta">';
+      // 书架：信息条 = 书名（封面同款，便于扫读） + 元信息行（作者 · 进度）
+      html += '<div class="bk-shelf-row-info bk-poster-card__caption">';
+      html += '<div class="bk-shelf-row-title bk-poster-card__title">' + escText(title) + '</div>';
+      html += '<div class="bk-shelf-row-meta bk-poster-card__meta">';
+      if (author) html += '<span class="bk-shelf-row-author">' + escText(author) + '</span>';
       html += '<span class="bk-shelf-row-progress">' + escText(subText) + escText(metaExtra) + '</span>';
       html += '</div>';
       html += '</div>';
@@ -410,6 +411,13 @@
     if (book.series) addRow('系列', _getSeriesTitle(book.series) || book.series);
 
     var initial = title.replace(/^[《「]/, '').charAt(0) || '?';
+    // 阅读进度（用于 CTA 文案与跳转落点）；多来源兜底，缺失则回退为「开始阅读」
+    var _prog = 0;
+    try {
+      if (typeof getReadingProgress === 'function') _prog = getReadingProgress(book.id);
+      else if (win.BK && typeof win.BK.getReadingProgress === 'function') _prog = win.BK.getReadingProgress(book.id);
+    } catch (e) {}
+    var _ctaLabel = _prog > 0 ? '继续阅读' : '开始阅读';
     var html =
       '<div class="bk-dialog bk-book-detail">' +
         '<div class="bk-drawer-header">' +
@@ -419,13 +427,17 @@
         '<div class="bk-drawer-divider"></div>' +
         '<div class="bk-drawer-body">' +
           '<div class="bk-detail-head">' +
-            '<div class="bk-detail-cover" style="background:' + _getSeriesColor(book.series) + '">' + escText(initial) + '</div>' +
-            '<div class="bk-detail-name">' + escText(title) + '</div>' +
+            '<div class="bk-detail-cover-wrap">' + _coverHTML(book, { size: 'lg' }) + '</div>' +
+            '<div class="bk-detail-name-block">' +
+              '<div class="bk-detail-name">' + escText(title) + '</div>' +
+              (book.author ? '<div class="bk-detail-author">' + escText(book.author) + '</div>' : '') +
+            '</div>' +
           '</div>' +
           (rows.length ? rows.join('') : '<div class="bk-detail-empty">暂无更多元信息</div>') +
         '</div>' +
         '<div class="bk-dialog-actions">' +
           '<button type="button" class="bk-dialog-cancel" data-action="close">关闭</button>' +
+          '<button type="button" class="bk-dialog-primary" data-action="open-book">' + escText(_ctaLabel) + '</button>' +
         '</div>' +
       '</div>';
 
@@ -433,7 +445,18 @@
       var dlg = win.BK.openDialog({ id: 'bkBookDetailMask', html: html });
       if (dlg) {
         dlg.mask.addEventListener('click', function (e) {
-          if (e.target.closest('[data-action="close"]')) dlg.close();
+          if (e.target.closest('[data-action="close"]')) { dlg.close(); return; }
+          if (e.target.closest('[data-action="open-book"]')) {
+            if (win.BKRouter) {
+              var _p = 0;
+              try {
+                if (typeof getReadingProgress === 'function') _p = getReadingProgress(book.id);
+                else if (win.BK && typeof win.BK.getReadingProgress === 'function') _p = win.BK.getReadingProgress(book.id);
+              } catch (e2) {}
+              win.BKRouter.navigate(book.id + (_p > 0 ? '/' + _p : ''));
+            }
+            dlg.close();
+          }
         });
       }
     }

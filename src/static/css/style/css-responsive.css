@@ -601,16 +601,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
 /* 系列网格列数回落基线（768→2列 / 1024→3列），方案2 */
 
 /* 三级书籍网格：响应式多列（与 L1/L2 网格内边距对齐，不再继承 .book-grid 基线的 20/8px） */
-.bk-city-book-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  padding: 8px 16px 24px;
-}
-/* 与 L1/L2 对齐：桌面下边距升级(列间距 14px 由 .book-grid 媒体继承) */
-@media (min-width: 768px) {
-  .bk-city-book-grid { gap: 14px; padding: 8px 28px 28px; }
-}
+/* L3 网格基础属性已下沉到共享 .bk-poster-grid（网格 div 已追加该类）；.book-grid 提供 display:grid 兜底 */
 /* 方案Y（2026-07-13 用户重设计修订）：L3 书城书籍卡 = 封面海报 + 下方精简信息条。
    卡片复用 .zl-book-card 基础（白卡 + 1px 描边 + 16px 圆角 + overflow:hidden，无系列色左条），
    封面(.bk-cover) 作海报填满卡顶，下方 .book-caption 显示书名 + 书号(可选) + 章节数，
@@ -631,32 +622,10 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   padding: 0;
   gap: 0;
 }
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover {
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  font-size: 13px;
-  border-radius: 0;            /* 卡顶 16px 圆角由 .zl-book-card 的 overflow:hidden 裁切 */
-}
-/* 封面内边距与 L1/L2 海报对齐（14% 13%），避免 L3 文字区略宽导致书名观感偏大 */
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-inner { padding: 10% 13%; }
-/* 海报书名：字号缩小，最多5行 */
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-title {
-  font-size: 1.1em;
-  font-weight: 600;
-  line-height: 1.25;
-  -webkit-line-clamp: 5;
-}
-.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-series { font-size: .82em; font-weight: 500; color: rgba(251, 248, 242, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .28); }
-/* 信息条去掉冗余书名行（封面已显示书名），只保留元数据 */
-.bk-city-book-grid .zl-book-card.is-city-book .book-caption {
-  padding: 6px 10px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.bk-city-book-grid .zl-book-card.is-city-book .book-caption-title {
-  display: none;
-}
+/* L3 封面：基础属性已下沉到共享 .bk-poster-card .bk-cover*；仅保留 L3 专属基准字号 */
+.bk-city-book-grid .zl-book-card.is-city-book .bk-cover { font-size: 13px; }
+/* L3 信息条容器基础属性已下沉到共享 .bk-poster-card__caption（div 已追加该类）；
+   书名行改为显示（与封面海报呼应，便于扫读），样式由共享 .bk-poster-card__title 承担 */
 .bk-city-book-grid .zl-book-card.is-city-book .book-caption-meta {
   display: flex;
   align-items: center;

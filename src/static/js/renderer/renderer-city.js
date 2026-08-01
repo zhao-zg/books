@@ -187,17 +187,17 @@
     var html = '<div class="bk-city-page">';
     html += '<div class="bk-city-header"><h1 class="bk-city-title">书城</h1></div>';
     html += '<div class="bk-section-header"><span class="bk-section-title-lg">系列</span></div>';
-    html += '<div class="series-catalog-grid">';
+    html += '<div class="series-catalog-grid bk-poster-grid">';
     for (var i = 0; i < seriesList.length; i++) {
       var s = seriesList[i];
       var displayTitle = _displaySeriesTitle ? _displaySeriesTitle(s.title) : s.title;
       var bookCount = (typeof s.count === 'number') ? s.count : _countSeriesBooks(s.id);
       var sc1 = _getSeriesColor(s.id);
-      html += '<div class="series-catalog-card" data-series="' + escAttr(s.id) + '" role="button" tabindex="0" style="--series-color:' + sc1 + '">';
+      html += '<div class="series-catalog-card bk-poster-card" data-series="' + escAttr(s.id) + '" role="button" tabindex="0" style="--series-color:' + sc1 + '">';
       // 海报封面（复用 .bk-cover，系列色 + 系列名作为封面标题），与 L3 书籍卡海报同构
       html += _coverHTML({ series: s.id, title: displayTitle }, { seriesTitle: '系列' });
       // 信息条（与 L3 .book-caption 同构）：名称 + 数量
-      html += '<div class="collection-caption">';
+      html += '<div class="collection-caption bk-poster-card__caption">';
       html += '<div class="series-catalog-card-title">' + escText(displayTitle) + '</div>';
       html += '<div class="series-catalog-card-count">' + bookCount + ' 本</div>';
       html += '</div></div>';
@@ -237,15 +237,15 @@
     html += _renderCityCrumb(2, seriesTitle, '', false, seriesId);
     html += '</div>';
     html += '<div class="bk-section-header"><span class="bk-section-title-lg">' + escText(seriesTitle) + '</span></div>';
-    html += '<div class="category-grid">';
+    html += '<div class="category-grid bk-poster-grid">';
     for (var i = 0; i < cats.length; i++) {
       var c = cats[i];
       var sc2 = _getSeriesColor(seriesId);
-      html += '<div class="category-card" data-category="' + escAttr(c.name) + '" data-category-prefix="' + escAttr(c.prefix) + '" role="button" tabindex="0" style="--series-color:' + sc2 + '">';
+      html += '<div class="category-card bk-poster-card" data-category="' + escAttr(c.name) + '" data-category-prefix="' + escAttr(c.prefix) + '" role="button" tabindex="0" style="--series-color:' + sc2 + '">';
       // 海报封面（复用 .bk-cover，系列色 + 分类名作为封面标题，顶部标签为所属系列名），与 L3 同构
       html += _coverHTML({ series: seriesId, title: c.name }, { seriesTitle: seriesTitle });
       // 信息条（与 L3 .book-caption 同构）：分类名 + 数量
-      html += '<div class="collection-caption">';
+      html += '<div class="collection-caption bk-poster-card__caption">';
       html += '<div class="category-card-title">' + escText(c.name) + '</div>';
       html += '<div class="category-card-count">' + c.count + ' 本</div>';
       html += '</div></div>';
@@ -276,7 +276,7 @@
     html += _renderCityCrumb(3, seriesTitle, cat, implicit, seriesId);
     html += '</div>';
     html += '<div class="bk-section-header"><span class="bk-section-title-lg">' + escText(seriesTitle) + '</span></div>';
-    html += '<div class="book-grid bk-city-book-grid" data-series="' + escAttr(seriesId) + '"></div>';
+    html += '<div class="book-grid bk-city-book-grid bk-poster-grid" data-series="' + escAttr(seriesId) + '"></div>';
     html += '<div class="bk-city-sentinel" id="bkCitySentinel"></div>';
     html += '<div class="bk-city-end" hidden>已经到底了</div>';
     html += '</div>';

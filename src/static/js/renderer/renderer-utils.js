@@ -43,22 +43,43 @@
     } catch (e) { /* 极端环境兜底：静默 */ }
   }
 
-  // 系列颜色调色板（用于书籍卡片左侧指示条）
+  // 系列颜色调色板（Soft Nordic 低饱和调性：鼠尾草绿 / 陶土 / 暖赭 / 灰蓝 / 深褐 / 橄榄 / 石板 / 灰玫瑰 / 青灰 / 棕褐 / 雾紫 / 苔绿）。
+  // 整体降饱和、提明度，避免相邻卡片色彩互相「跳动」；奶油白文字 (#FBF8F2) 在其上均清晰可读。
   var _seriesColors = [
-    '#3D8A5A', '#D89575', '#D4A64A', '#6E8B4E', '#C77B53',
-    '#B5855B', '#8A9A5B', '#A9794E', '#C98B6B', '#7A8B5A',
-    '#CC9B5C', '#B5654A', '#5E8C6A', '#C28E5A', '#9A8B5B'
+    '#5E8C6A', // 1  鼠尾草绿 sage
+    '#C2865E', // 2  陶土 terracotta
+    '#C9A24A', // 3  暖赭 ochre
+    '#6E8AA3', // 4  灰蓝 dusty blue
+    '#A8855E', // 5  深褐 sepia
+    '#8A9259', // 6  橄榄 olive
+    '#73767F', // 7  石板 slate
+    '#B07187', // 8  灰玫瑰 rose
+    '#5E8C82', // 9  青灰 sage-teal
+    '#9A7B5B', // 10 棕褐 tawny
+    '#8A7BA3', // 11 雾紫 dusty violet
+    '#7A8E5A'  // 12 苔绿 moss
   ];
   var _seriesColorMap = {};
   var _seriesColorIdx = 0;
 
   function _getSeriesColor(seriesId) {
-    if (!seriesId) return '#3D8A5A';
+    if (!seriesId) return '#3D8C6A';
     if (!_seriesColorMap[seriesId]) {
       _seriesColorMap[seriesId] = _seriesColors[_seriesColorIdx % _seriesColors.length];
       _seriesColorIdx++;
     }
     return _seriesColorMap[seriesId];
+  }
+
+  // 按明度因子微调颜色（amt ∈ [-1,1]：正提亮、负压暗），用于同系列多本书的轻微差异化。
+  // 仅动 RGB 通道，不改变色相，保证相邻封面和谐。
+  function _adjustBrightness(hex, amt) {
+    var c = String(hex || '#000000').replace('#', '');
+    if (c.length === 3) c = c.charAt(0) + c.charAt(0) + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2);
+    var r = parseInt(c.substr(0, 2), 16), g = parseInt(c.substr(2, 2), 16), b = parseInt(c.substr(4, 2), 16);
+    function _f(v) { var x = Math.round(v + amt * 255); return Math.max(0, Math.min(255, x)); }
+    function _h(v) { var s = _f(v).toString(16); return s.length < 2 ? '0' + s : s; }
+    return '#' + _h(r) + _h(g) + _h(b);
   }
 
   // 来源徽标：区分书籍的导入渠道，均仅显示图标以节省宽度。
@@ -109,6 +130,13 @@
     var b = bookOrResult || {};
     var series = b.series || '';
     var color = _getSeriesColor(series);
+    // 同系列多本书：按 book.id 派生轻微明度抖动（±9%），打破单色网格又保持和谐。
+    // 仅影响封面底色，不改动 --series-color 左条，避免层级间颜色语义漂移。
+    if (opts.varyByBook && b.id) {
+      var _hid = String(b.id), _hh = 0;
+      for (var _k = 0; _k < _hid.length; _k++) _hh = (_hh * 31 + _hid.charCodeAt(_k)) >>> 0;
+      color = _adjustBrightness(color, ((_hh % 21) / 21 - 0.5) * 0.18);
+    }
     var rawTitle = b.title || b.bookTitle || b.id || '';
     var title = rawTitle;
     var seriesTitle = opts.seriesTitle || '';

@@ -307,7 +307,7 @@
       html += '<button type="button" class="bk-shelf-tab is-active" data-tab="reading" role="tab" aria-selected="true">在读 <span class="bk-shelf-tab-count" id="shelfCountReading">0</span></button>';
       html += '<button type="button" class="bk-shelf-tab" data-tab="read" role="tab" aria-selected="false">已读 <span class="bk-shelf-tab-count" id="shelfCountRead">0</span></button>';
       html += '</div>';
-      html += '<div class="bk-shelf-list" id="shelfList"></div>';
+      html += '<div class="bk-shelf-list bk-poster-grid" id="shelfList"></div>';
       // 编辑态底部批量操作条（默认隐藏，is-editing 时显示）
       html += '<div class="bk-shelf-editbar" id="shelfEditBar" role="toolbar" aria-label="批量操作">';
       html += '<button type="button" class="bk-shelf-edit-selectall" id="shelfSelectAll" aria-pressed="false">全选</button>';

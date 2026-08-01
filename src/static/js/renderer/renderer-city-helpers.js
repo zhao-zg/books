@@ -194,18 +194,18 @@
     // 下方 .book-caption 显示书名 + 书号(可选) + 章节数；不渲染完整 .book-info（无徽标/进度/标记按钮）。
     var cityBook = (opts.cityBook === true);
 
-    var html = '<div class="book-card zl-book-card' + (cityBook ? ' is-city-book' : '') + '" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
+    var html = '<div class="book-card zl-book-card' + (cityBook ? ' is-city-book bk-poster-card' : '') + '" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" style="--series-color:' + _getSeriesColor(book.series) + '">';
     html += '<div class="book-card-wrapper">';
     html += '<div class="book-link" data-book-id="' + escAttr(book.id) + '" data-series="' + escAttr(book.series) + '" role="button" tabindex="0">';
     // 仅书架/搜索等非书城卡片用固定 60px 小封面(size:'md')；书城 L3 海报由 .bk-city-book-grid 专属规则撑满，md 会被覆盖成死 class，故去掉
     var coverSize = cityBook ? null : 'md';
-    html += _coverHTML(book, { size: coverSize, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
+    html += _coverHTML(book, { size: coverSize, varyByBook: cityBook, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
     if (cityBook) {
       // 书城三级：封面海报 + 下方精简信息条（完整书名 + 章节数）
       // 不单独显示书号行，书名中包含书号则保留完整书名
-      html += '<div class="book-caption">';
-      html += '<div class="book-caption-title">' + escText(book.title || '') + '</div>';
-      html += '<div class="book-caption-meta">';
+      html += '<div class="book-caption bk-poster-card__caption">';
+      html += '<div class="book-caption-title bk-poster-card__title">' + escText(book.title || '') + '</div>';
+      html += '<div class="book-caption-meta bk-poster-card__meta">';
       html += '<span class="book-caption-chapters">共 ' + chapterCount + ' 章</span>';
       var srcBadge = _sourceBadgeHTML(book);
       if (srcBadge) html += srcBadge;
