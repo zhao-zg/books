@@ -181,12 +181,11 @@
       html += '<div class="bk-shelf-row-cover">' + cover + (srcBadge ? '<div class="bk-shelf-row-badge">' + srcBadge + '</div>' : '') + '</div>';
       html += pinMark;
       html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
-      // 书架：信息条 = 书名（封面同款，便于扫读） + 元信息行（作者 · 进度）
+      // 书架：信息条 = 书名（封面同款，便于扫读） + 元信息行（仅进度/日期；作者/评分/笔记移至详情）
       html += '<div class="bk-shelf-row-info bk-poster-card__caption">';
       html += '<div class="bk-shelf-row-title bk-poster-card__title">' + escText(title) + '</div>';
       html += '<div class="bk-shelf-row-meta bk-poster-card__meta">';
-      if (author) html += '<span class="bk-shelf-row-author">' + escText(author) + '</span>';
-      html += '<span class="bk-shelf-row-progress">' + escText(subText) + escText(metaExtra) + '</span>';
+      html += '<span class="bk-shelf-row-progress">' + escText(subText) + '</span>';
       html += '</div>';
       html += '</div>';
       // 隐藏操作区：保留测试契约（.bk-shelf-markread/.bk-shelf-unread/.bk-shelf-remove-btn），
@@ -409,6 +408,14 @@
     var src = _bookSourceText(book);
     if (src) addRow('来源', src);
     if (book.series) addRow('系列', _getSeriesTitle(book.series) || book.series);
+    // 书架记录字段（卡面只留进度/日期，评分/笔记/收藏/读完日期移至详情）
+    var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(book.id) : null;
+    if (shelfRec) {
+      if (shelfRec.completedAt) addRow('读完于', shelfRec.completedAt);
+      if (shelfRec.addedAt) addRow('收藏于', shelfRec.addedAt);
+      if (shelfRec.rating) addRow('评分', '★'.repeat(shelfRec.rating) + ' ' + shelfRec.rating + '/5');
+      if (shelfRec.note) addRow('笔记', shelfRec.note);
+    }
 
     var initial = title.replace(/^[《「]/, '').charAt(0) || '?';
     // 阅读进度（用于 CTA 文案与跳转落点）；多来源兜底，缺失则回退为「开始阅读」
