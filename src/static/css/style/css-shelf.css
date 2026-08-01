@@ -164,12 +164,13 @@
 [data-theme="dark"] .bk-shelf-tab.is-active { color: var(--brand, #5EAE7E); }
 [data-theme="dark"] .bk-shelf-tab-count { color: var(--brand, #5EAE7E); }
 [data-theme="dark"] .bk-shelf-tab.is-active .bk-shelf-tab-count { background: var(--brand, #5EAE7E); color: var(--text, #1A1918); }
-/* 书架：海报网格（与书城 L3 统一 auto-fill 布局，保证卡片大小一致） */
+/* 书架：海报网格（与书城 L3 统一 auto-fill 布局，保证卡片大小一致）。
+   水平 padding 由父级 .bk-shelf-page 提供，此处不再叠加，否则书架卡比书城窄 10px。 */
 .bk-shelf-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
-  padding: 8px 16px 24px;
+  padding: 8px 0 24px;
   align-items: start;
 }
 

@@ -25,11 +25,15 @@
   .play-pause-btn { font-size: var(--text-md); }
   .control-select { min-width: 44px; min-height: 32px; padding: 3px 5px; font-size: 0.6875rem; }
   .speech-time { font-size: 0.6875rem; padding-left: 0; margin-top: 6px; }
-  /* 3 列小屏：收敛封面基准字号，海报文字在 ~88–106px 窄卡内完整可读不溢出 */
+  /* 3 列小屏：封面字号与 L1/L2 对齐 13px（原 11px 偏小不可读）；
+     L3/书架海报标题移动端收敛 3 行——窄卡更清爽、杜绝 320px 小屏溢出，完整书名由信息条兜底；
+     L1/L2 保留 clamp 4（信息条无书名，需在封面上显示完整系列/分类名） */
   .category-card .bk-cover,
   .series-catalog-card .bk-cover { font-size: 13px; }
   div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover,
-  .bk-shelf-row-cover .bk-cover { font-size: 11px; }
+  .bk-shelf-row-cover .bk-cover { font-size: 13px; }
+  div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover-title,
+  .bk-shelf-row .bk-cover-title { -webkit-line-clamp: 3; }
 }
 
 /* ── 全局交互反馈增强 ──────────────────────────────────────────── */
@@ -78,7 +82,7 @@ button:active { transition-duration: 0.05s; }
   .category-card .bk-cover,
   .series-catalog-card .bk-cover { font-size: 13px; }
   div.bk-city-book-grid .zl-book-card.is-city-book .bk-cover,
-  .bk-shelf-row-cover .bk-cover { font-size: 11px; }
+  .bk-shelf-row-cover .bk-cover { font-size: 13px; }
   .bk-reading-chapter-title { font-size: var(--text-lg); }
   .nav-link { padding: 8px 12px; font-size: var(--text-sm); min-width: 40px; min-height: 40px; }
   .nav-label { max-width: 72px; }
