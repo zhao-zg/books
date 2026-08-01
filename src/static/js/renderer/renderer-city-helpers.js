@@ -424,11 +424,79 @@
   }
 
   /**
+   * 创建下载悬浮窗（仅创建一次，复用 DOM）
+   */
+  function _createDlFloat() {
+    if (_dlFloatEl) return _dlFloatEl;
+    var el = document.createElement('div');
+    el.className = 'dl-float';
+    el.id = 'dlFloat';
+    el.innerHTML =
+      '<div class="dl-float-ring">' +
+        '<svg viewBox="0 0 36 36" class="dl-float-svg">' +
+          '<circle class="dl-float-bg" cx="18" cy="18" r="15.9"/>' +
+          '<circle class="dl-float-progress" id="dlFloatProgress" cx="18" cy="18" r="15.9"/>' +
+        '</svg>' +
+        '<span class="dl-float-pct" id="dlFloatPct">0%</span>' +
+      '</div>' +
+      '<span class="dl-float-label">下载中</span>';
+    el.addEventListener('click', function () {
+      _openDownloadDialog();
+    });
+    document.body.appendChild(el);
+    _dlFloatEl = el;
+    return el;
+  }
+
+  /**
+   * 显示下载悬浮窗
+   */
+  function _showDlFloat(pct) {
+    var el = _createDlFloat();
+    _updateDlFloat(pct || 0);
+    el.classList.add('dl-float--visible');
+    el.classList.remove('dl-float--hiding');
+  }
+
+  /**
+   * 隐藏下载悬浮窗
+   */
+  function _hideDlFloat() {
+    if (!_dlFloatEl) return;
+    _dlFloatEl.classList.add('dl-float--hiding');
+    setTimeout(function () {
+      if (_dlFloatEl) {
+        _dlFloatEl.classList.remove('dl-float--visible', 'dl-float--hiding');
+      }
+    }, 300);
+  }
+
+  /**
+   * 更新悬浮窗进度
+   */
+  function _updateDlFloat(pct) {
+    if (!_dlFloatEl) return;
+    var pctEl = _dlFloatEl.querySelector('#dlFloatPct');
+    var circleEl = _dlFloatEl.querySelector('#dlFloatProgress');
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    if (circleEl) {
+      // 圆周长 = 2 * π * r ≈ 2 * 3.1416 * 15.9 ≈ 100
+      var circumference = 2 * Math.PI * 15.9;
+      circleEl.style.strokeDasharray = circumference;
+      circleEl.style.strokeDashoffset = circumference * (1 - pct / 100);
+    }
+  }
+
+  /**
    * 打开下载管理对话框（使用 BK.openDialog 居中弹出）
    */
   function _openDownloadDialog() {
     // 防重复：如果对话框已存在，直接返回
     if (_dlDialog) return;
+
+    // 重新打开面板时隐藏悬浮窗、停止悬浮窗轮询
+    _hideDlFloat();
+    _stopFloatProgressPolling();
 
     var html =
       '<div class="bk-dialog bk-download-dialog">' +
@@ -459,7 +527,7 @@
               '<span class="dl-current-book-pct" id="dlCurrentBookPct">0%</span>' +
             '</div>' +
           '</div>' +
-          '<div class="download-bg-hint" id="dlBgHint" style="display:none">支持后台下载：切到其他应用或锁屏，下载会继续进行</div>' +
+          '<div class="download-bg-hint" id="dlBgHint" style="display:none">关闭面板后下载将继续</div>' +
           '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
           '<div class="download-controls" id="dlControls" style="display:none">' +
             '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
@@ -481,6 +549,12 @@
         if (win.BK && win.BK.BackgroundDownload && win.BK.BackgroundDownload.isActive()) {
           // 下载还在进行：保持 WakeLock，仅 UI 不可见，下载后台继续
           console.log('[下载面板] 关闭面板，下载继续在后台进行');
+          // 显示悬浮窗，让用户可以随时回到下载面板
+          var status = win.DataManager ? win.DataManager.getDownloadStatus() : null;
+          var pct = (status && status.progress) ? (status.progress.totalPercent || 0) : 0;
+          _showDlFloat(pct);
+          // 启动悬浮窗进度轮询
+          _startFloatProgressPolling();
         }
       }
     });
@@ -506,6 +580,8 @@
     if (dlCancel) dlCancel.addEventListener('click', function () {
       if (win.DataManager) win.DataManager.cancelDownload();
       _stopProgressPolling();
+      _hideDlFloat();
+      _stopFloatProgressPolling();
       // ★ 取消时释放后台保活
       _releaseBackgroundDownload();
       _hideDownloadProgress();
@@ -862,6 +938,8 @@
   function _onDownloadComplete(result, label) {
     _stopProgressPolling();
     _releaseBackgroundDownload();
+    _hideDlFloat();
+    _stopFloatProgressPolling();
     var bar = document.getElementById('dlProgressBar');
     var pctEl = document.getElementById('dlProgressPct');
     var line1 = document.getElementById('dlDetailLine1');
@@ -899,6 +977,8 @@
   function _onDownloadError(err) {
     _stopProgressPolling();
     _releaseBackgroundDownload();
+    _hideDlFloat();
+    _stopFloatProgressPolling();
     var line1 = document.getElementById('dlDetailLine1');
     var line2 = document.getElementById('dlDetailLine2');
     var currentBookWrap = document.getElementById('dlCurrentBookWrap');
@@ -990,6 +1070,37 @@
     if (_dlProgressTimer) {
       clearInterval(_dlProgressTimer);
       _dlProgressTimer = null;
+    }
+  }
+
+  var _dlFloatTimer = null; // 悬浮窗进度轮询定时器
+
+  /**
+   * 启动悬浮窗进度轮询（面板关闭后，仍需更新悬浮窗进度）
+   */
+  function _startFloatProgressPolling() {
+    _stopFloatProgressPolling();
+    _dlFloatTimer = setInterval(function () {
+      if (!win.DataManager) { _stopFloatProgressPolling(); return; }
+      var status = win.DataManager.getDownloadStatus();
+      if (!status || !status.isDownloading) {
+        // 下载已结束（完成/出错/取消），隐藏悬浮窗
+        _hideDlFloat();
+        _stopFloatProgressPolling();
+        return;
+      }
+      var pct = status.progress ? (status.progress.totalPercent || 0) : 0;
+      _updateDlFloat(pct);
+    }, 1000);
+  }
+
+  /**
+   * 停止悬浮窗进度轮询
+   */
+  function _stopFloatProgressPolling() {
+    if (_dlFloatTimer) {
+      clearInterval(_dlFloatTimer);
+      _dlFloatTimer = null;
     }
   }
 

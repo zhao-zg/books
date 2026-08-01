@@ -215,6 +215,17 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .dl-current-book-bar { height: 100%; background: var(--brand, #3D8A5A); border-radius: 2px; transition: width 0.2s ease-out; }
 .dl-current-book-pct { font-size: var(--text-xs); color: var(--text-muted); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
 .download-bg-hint { font-size: 11px; color: var(--text-muted); background: var(--surface-alt, #f7f6f2); border-radius: 6px; padding: 6px 10px; margin: 6px 0 8px; line-height: 1.4; }
+/* 下载悬浮窗 */
+.dl-float { position: fixed; bottom: 80px; right: 16px; z-index: 9999; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; transform: translateY(16px) scale(0.9); pointer-events: none; transition: opacity .3s ease, transform .3s ease; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.dl-float--visible { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.dl-float--hiding { opacity: 0; transform: translateY(8px) scale(0.9); pointer-events: none; }
+.dl-float:active { transform: translateY(0) scale(0.95) !important; }
+.dl-float-ring { position: relative; width: 48px; height: 48px; border-radius: 50%; background: var(--surface, #fff); box-shadow: 0 2px 12px rgba(0,0,0,.15); overflow: hidden; }
+.dl-float-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.dl-float-bg { fill: none; stroke: var(--surface-alt, #f0f0f0); stroke-width: 3; }
+.dl-float-progress { fill: none; stroke: var(--brand, #3D8A5A); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
+.dl-float-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.dl-float-label { font-size: 10px; color: var(--text-muted); line-height: 1; }
 .download-progress-text { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 8px; }
 .download-controls { display: flex; gap: 8px; margin-bottom: 10px; }
 .dl-ctrl-btn { padding: 6px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-size: var(--text-sm); cursor: pointer; transition: background .15s; }
