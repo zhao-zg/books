@@ -16,6 +16,11 @@ on:
       - 'generate_version.py'
   workflow_dispatch:
 
+# 同一时刻只允许一个部署实例运行，新的会取消旧的，避免 gh-pages 推送冲突
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest

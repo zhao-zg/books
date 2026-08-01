@@ -885,47 +885,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: 等待 Release APK 上传完成
+    - name: 部署完成
       if: startsWith(github.ref, 'refs/tags/')
       run: |
-        echo "⏳ 等待 Release APK 上传完成..."
-        VERSION=${GITHUB_REF#refs/tags/v}
-        APK_NAME="Books-v${VERSION}.apk"
-        
-        # 最多等待 120 秒
-        for i in {1..12}; do
-          echo "检查 Release APK... (第 $i 次)"
-          
-          # 获取 Release 信息
-          RELEASE_INFO=$(curl -sf "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" || echo "{}")
-          
-          # 检查 APK 是否存在
-          APK_URL=$(echo "$RELEASE_INFO" | jq -r "(.assets // [])[] | select(.name == \"$APK_NAME\") | .browser_download_url // empty")
-          
-          if [ -n "$APK_URL" ] && [ "$APK_URL" != "null" ]; then
-            echo "✓ APK 已上传: $APK_URL"
-            break
-          fi
-          
-          if [ $i -eq 12 ]; then
-            echo "⚠️ 等待超时，继续触发部署"
-            break
-          fi
-          
-          echo "APK 尚未就绪，等待 10 秒..."
-          sleep 10
-        done
-    
-    - name: 触发网站重新部署（包含 APK）
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        echo "🔄 触发 deploy.yml 重新部署..."
-        
-        # 触发 workflow_dispatch
-        curl -X POST \
-          -H "Accept: application/vnd.github.v3+json" \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/deploy.yml/dispatches" \
-          -d '{"ref":"main"}'
-        
-        echo "✓ 已触发网站重新部署"
+        echo "✓ APK 已发布到 GitHub Release"
+        echo "ℹ️ deploy.yml 会由 main 分支的 push 自动触发，无需手动触发（避免并发冲突）"

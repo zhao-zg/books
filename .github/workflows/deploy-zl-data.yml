@@ -12,6 +12,11 @@ on:
       - '.github/workflows/deploy-zl-data.yml'
   workflow_dispatch:
 
+# 同一时刻只允许一个部署实例运行，避免 Cloudflare Pages 部署冲突
+concurrency:
+  group: deploy-zl-data
+  cancel-in-progress: true
+
 jobs:
   deploy:
     name: Regenerate & deploy zl-merged to Cloudflare Pages
