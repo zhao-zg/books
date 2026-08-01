@@ -138,6 +138,10 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   font-size: var(--text-xs); color: var(--text-muted);
 }
+/* 封面已是书名主体（kicker 标线 + 衬线书名），信息条书名行冗余 → 隐藏，卡片聚焦封面、更紧凑。
+   完整书名仍由封面 aria-label 读出（无障碍不受损）；长书名点进详情/阅读可见全文。 */
+.bk-poster-card .book-caption-title,
+.bk-poster-card .bk-shelf-row-title { display: none; }
 
 /* ── 书城 L1/L2 卡片：与 L3 一致的「海报封面 + 信息条」卡片式布局 ──
    L1 系列卡 / L2 分类卡 / L3 书籍卡 三级统一为「海报封面(.bk-cover 填满卡顶) + 信息条」卡片：

@@ -187,17 +187,16 @@
 
 /* 封面海报：填满卡顶（圆角由卡片 overflow:hidden 裁切） */
 .bk-shelf-row-cover { width: 100%; position: relative; }
+/* 封面右下来源徽标：纯图标无底背景（用户反馈不要底背景），text-shadow 保证彩色 emoji 在任意封面色上可读 */
 .bk-shelf-row-badge {
   position: absolute;
   right: 4px;
   bottom: 4px;
   font-size: 12px;
   line-height: 1;
-  background: rgba(0,0,0,.35);
-  border-radius: 4px;
-  padding: 2px 3px;
-  backdrop-filter: blur(4px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
 }
+.bk-shelf-row-badge .book-source-badge { background: none; padding: 0; border-radius: 0; }
 /* 书架封面：基础属性已下沉到共享 .bk-poster-card .bk-cover*；仅保留书架专属基准字号 */
 .bk-shelf-row-cover .bk-cover { font-size: 13px; }
 
