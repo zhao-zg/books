@@ -225,6 +225,8 @@
     // 取消所有进行中的单本下载（即使没有批量下载在进行）
     // 推进 token 使 downloadBook 在下一次校验时识别为「已被取消」
     _singleDlToken++;
+    // ★ 并发适配：清空活跃任务追踪
+    _activeTasks = {};
     // ★ I2修复：删除此处冗余的 didCancel=true（原代码无条件覆盖 line 223 的条件赋值，
     //   导致即使没有任何下载在进行也打印"下载已取消"日志，污染诊断信息）。
     //   单本下载被取消时不打印 console 日志是有意的——单本下载场景前端 UI 已有反馈，
@@ -260,15 +262,40 @@
    *   - etaSeconds: 剩余时间（秒），基于 speedBps 与未下载字节估算；无可用数据时为 -1
    */
   function getDownloadStatus() {
+    // ★ 并发适配：聚合所有活跃任务的字节进度
+    var agg = _aggregateTaskBytes();
+    // 更新导出变量（供外部读取）
+    _dlBytesReceived = agg.totalReceived;
+    _dlBytesTotal = agg.grandTotal;
+    // 当前本书百分比：取活跃任务中的最大值（最接近完成的那个）
+    var maxPercent = 0;
+    var keys = Object.keys(_activeTasks);
+    for (var i = 0; i < keys.length; i++) {
+      if (_activeTasks[keys[i]].percent > maxPercent) {
+        maxPercent = _activeTasks[keys[i]].percent;
+      }
+    }
+    _dlCurrentBookPercent = maxPercent;
+    // stage：取活跃任务中最靠后的阶段
+    var stageOrder = { '下载中': 1, '解析数据': 2, '写入本地': 3, '完成': 4 };
+    var bestStage = '';
+    var bestOrder = 0;
+    for (var j = 0; j < keys.length; j++) {
+      var s = _activeTasks[keys[j]].stage;
+      if (stageOrder[s] > bestOrder) { bestOrder = stageOrder[s]; bestStage = s; }
+    }
+    if (bestStage) _dlStage = bestStage;
+
     // 计算 etaSeconds：仅在有总进度且速度大于阈值时计算
     var etaSeconds = -1;
     if (_dlSpeedBps > 1024 && _dlTotal > 0) {
       // 估算剩余本数的字节数：用已接收字节平均到 completed，得到每本平均大小
+      var completedBytes = _dlBatchBytesReceived + agg.totalReceived;
       var avgBookBytes = _dlCompleted > 0
-        ? (_dlBatchBytesReceived + _dlBytesReceived) / _dlCompleted
-        : _dlBytesTotal;
+        ? completedBytes / _dlCompleted
+        : (agg.grandTotal || agg.totalReceived);
       var remainBooks = _dlTotal - _dlCompleted;
-      var remainBytes = remainBooks * avgBookBytes + (_dlBytesTotal - _dlBytesReceived);
+      var remainBytes = remainBooks * avgBookBytes + (agg.grandTotal - agg.totalReceived);
       if (remainBytes > 0) {
         etaSeconds = Math.ceil(remainBytes / _dlSpeedBps);
       }

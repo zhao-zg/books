@@ -118,6 +118,10 @@
     var myToken = _singleDlToken;
     var isBatch = _dlTotal > 0;  // 是否在批次下载中（影响是否更新全局状态）
 
+    // ★ 并发适配：每本 downloadBook 占一个独立的 task slot
+    var taskId = bookId;
+    _activeTasks[taskId] = { received: 0, total: 0, percent: 0, stage: '下载中' };
+
     // 使用公共方法查找 series
     var resolvePromise = series
       ? Promise.resolve(series)
@@ -125,9 +129,13 @@
 
     return resolvePromise.then(function (resolvedSeries) {
       // ★ 校验取消（系列查找期间可能已被取消）
-      if (myToken !== _singleDlToken) throw _makeCancelledErr();
+      if (myToken !== _singleDlToken) {
+        delete _activeTasks[taskId];
+        throw _makeCancelledErr();
+      }
 
       if (!resolvedSeries) {
+        delete _activeTasks[taskId];
         var err = new Error('未找到书籍 ' + bookId + ' 所属系列，无法下载');
         if (onProgress) onProgress(-1, err.message);
         throw err;
@@ -135,62 +143,78 @@
       var url = buildUrl(resolvedSeries + '/' + bookId + '.json');
       console.log('[DataManager] 下载书籍: ' + bookId + ' → ' + url);
       if (onProgress) onProgress(0, '开始下载...');
-      _dlStage = '下载中';
 
-      // ★ 字节级流式读取：在 0-95 区间推送百分比
-      //   总进度 = 95 * received/total（无 Content-Length 时按 33%~95% 渐进，避免一直 0）
+      // ★ 字节级流式读取：写入独立 task slot，不再写共享变量
       function _onByteProgress(received, total) {
-        _dlBytesReceived = received;
-        _dlBytesTotal = total;
+        var slot = _activeTasks[taskId];
+        if (!slot) return; // 任务已结束/取消
+        slot.received = received;
+        slot.total = total;
         if (total > 0) {
-          _dlCurrentBookPercent = Math.min(95, Math.floor(received / total * 95));
+          slot.percent = Math.min(95, Math.floor(received / total * 95));
         } else {
-          // 无 Content-Length：用对数曲线模拟渐进，到 95% 封顶
-          _dlCurrentBookPercent = Math.min(95, 33 + Math.floor(Math.log10(received + 1) * 8));
+          slot.percent = Math.min(95, 33 + Math.floor(Math.log10(received + 1) * 8));
         }
-        _calcSpeedBps(isBatch ? _dlBatchBytesReceived + received : received);
-        if (isBatch && _dlTotal > 0) {
-          _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+        slot.stage = '下载中';
+        // ★ 并发速度：用聚合字节计算总吞吐
+        if (isBatch) {
+          var agg = _aggregateTaskBytes();
+          _calcSpeedBps(_dlBatchBytesReceived + agg.totalReceived);
+          if (_dlTotal > 0) {
+            _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
+          }
         }
         if (onProgress) {
           onProgress(
-            _dlCurrentBookPercent,
+            slot.percent,
             '下载中 ' + formatSize(received) + (total > 0 ? ' / ' + formatSize(total) : '')
           );
         }
       }
+
+      _dlStage = '下载中';
 
       return fetchJsonStreamed(url, _onByteProgress, function () {
         return myToken !== _singleDlToken;
       })
         .then(function (rawBook) {
           // ★ 校验取消（流式读取期间可能已被取消）
-          if (myToken !== _singleDlToken) throw _makeCancelledErr();
+          if (myToken !== _singleDlToken) {
+            delete _activeTasks[taskId];
+            throw _makeCancelledErr();
+          }
           // 96%：解析数据
-          _dlCurrentBookPercent = 96;
+          var slot = _activeTasks[taskId];
+          if (slot) { slot.percent = 96; slot.stage = '解析数据'; }
           _dlStage = '解析数据';
           if (onProgress) onProgress(96, '解析数据...');
           var converted = convertBookData(rawBook);
           // 98%：写入 IndexedDB
-          _dlCurrentBookPercent = 98;
+          if (slot) { slot.percent = 98; slot.stage = '写入本地'; }
           _dlStage = '写入本地';
           if (onProgress) onProgress(98, '写入本地...');
           return storeSet(KEY_BOOK_PREFIX + bookId, converted)
             .then(function () {
               // ★ 校验取消（IndexedDB 写入期间可能已被取消）
-              if (myToken !== _singleDlToken) throw _makeCancelledErr();
+              if (myToken !== _singleDlToken) {
+                delete _activeTasks[taskId];
+                throw _makeCancelledErr();
+              }
               return addDownloadedId(bookId);
             })
             .then(function () {
               // ★ 校验取消（addDownloadedId 期间可能已被取消；
               //   若已取消则不再构建索引，避免对已取消的下载做无用功）
-              if (myToken !== _singleDlToken) throw _makeCancelledErr();
+              if (myToken !== _singleDlToken) {
+                delete _activeTasks[taskId];
+                throw _makeCancelledErr();
+              }
               // 为下载的书构建全文内容索引（不阻塞返回）
               buildContentIndex(converted);
               addToBookIndex(converted);
               // 失效占用缓存（书籍数据已变更）
               _invalidateBookSizeCache();
-              _dlCurrentBookPercent = 100;
+              delete _activeTasks[taskId];
               _dlStage = '完成';
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
@@ -198,6 +222,8 @@
             });
         });
     }).catch(function (err) {
+      // ★ 确保任务 slot 被清理（无论成功还是失败）
+      delete _activeTasks[taskId];
       // ★ 用户主动取消：单独记日志，不当作失败，onProgress 用 -1 通知 UI（UI 会做无声清理）
       // ★ M5修复：使用 ERR_CANCELLED 常量替代字面量
       if (err && err.code === ERR_CANCELLED) {
@@ -430,36 +456,30 @@
           }
 
           // 构建任务列表（downloadBook 会自动查找 series）
-          // ★ 字节级进度：在每本任务内部用 onProgress 把单本进度合并到批次总进度，
-          //   并主动广播 _broadcastProgress，供 UI 实时刷新
+          // ★ 字节级进度：每本 downloadBook 写入独立的 _activeTasks slot，
+          //   不再覆盖共享变量，并发安全。_broadcastProgress 广播聚合结果给 UI。
           var tasks = filtered.map(function (book) {
             var fn = function () {
-              // 任务开始：重置当前本书进度状态
-              _resetBookProgressState();
               _dlCurrentTitle = book.title || book.id;
-              _dlStage = '下载中';
               _broadcastProgress();
               return downloadBook(book.id, book.series, function (percent, status) {
-                // downloadBook 在 0/96/98/100/字节区间都会回调；percent 是单本百分比
-                // 这里不直接更新 _dlCompleted，只刷新 _dlBytesReceived/_dlBytesTotal/_dlCurrentBookPercent（已在 downloadBook 内完成）
                 // 重新计算批次总进度并广播
                 if (_dlTotal > 0) {
-                  _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+                  _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
                 }
                 _broadcastProgress();
               });
             };
             fn._bookTitle = book.title || book.id;
+            fn._bookId = book.id;
             return fn;
           });
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
-            // 书完成时累加批次字节（用本本的 _dlBytesTotal 近似）
-            if (_dlBytesTotal > 0) {
-              _dlBatchBytesReceived += _dlBytesTotal;
-            }
-            _dlTotalPercent = _calcTotalPercent(completed, total);
+            // ★ 并发适配：用聚合字节替代单本 _dlBytesTotal
+            var agg = _aggregateTaskBytes();
+            _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
             _broadcastProgress();
           }, myToken).then(function (result) {
             // 收集首轮失败的书名
@@ -563,27 +583,24 @@
 
           var tasks = toDownload.map(function (book) {
             var fn = function () {
-              _resetBookProgressState();
               _dlCurrentTitle = book.title || book.id;
-              _dlStage = '下载中';
               _broadcastProgress();
               return downloadBook(book.id, book.series, function (percent, status) {
                 if (_dlTotal > 0) {
-                  _dlTotalPercent = _calcTotalPercent(_dlCompleted, _dlTotal);
+                  _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
                 }
                 _broadcastProgress();
               });
             };
             fn._bookTitle = book.title || book.id;
+            fn._bookId = book.id;
             return fn;
           });
 
           return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
             _dlCompleted = completed;
-            if (_dlBytesTotal > 0) {
-              _dlBatchBytesReceived += _dlBytesTotal;
-            }
-            _dlTotalPercent = _calcTotalPercent(completed, total);
+            var agg = _aggregateTaskBytes();
+            _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
             _broadcastProgress();
           }, myToken).then(function (result) {
             var acc = {

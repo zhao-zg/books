@@ -80,11 +80,68 @@
   // 与 _dlRunToken 独立：批量下载的取消走 _dlRunToken，单本下载的取消走 _singleDlToken，
   // 同一次 cancelDownload 会同时推进两者，使两种下载都被取消。
   var _singleDlToken = 0;
-  // 并发控制（顺序下载更稳定，减少网络波动导致的失败）
-  var MAX_CONCURRENT = 1;
+  // 并发控制（3 路并发可显著提升批量下载速度，同时不会对 CDN 造成过大压力）
+  var MAX_CONCURRENT = 3;
   var MAX_RETRIES = 3;
 
+  // ── 并发任务进度追踪 ──────────────────────────────────────────────────
+  // 当 MAX_CONCURRENT > 1 时，多个 downloadBook 同时运行，各自写入独立的 task slot，
+  // 聚合函数从 _activeTasks 汇总所有活跃任务的字节/百分比，避免共享变量互相覆盖。
+  // key = taskId（bookId），value = { received, total, percent, stage }
+  var _activeTasks = {};
+
+  /**
+   * 聚合所有活跃任务的字节进度，返回 { totalReceived, grandTotal, activeCount }
+   */
+  function _aggregateTaskBytes() {
+    var totalReceived = 0;
+    var grandTotal = 0;
+    var activeCount = 0;
+    var keys = Object.keys(_activeTasks);
+    for (var i = 0; i < keys.length; i++) {
+      var t = _activeTasks[keys[i]];
+      totalReceived += t.received;
+      grandTotal += t.total;
+      activeCount++;
+    }
+    return { totalReceived: totalReceived, grandTotal: grandTotal, activeCount: activeCount };
+  }
+
+  /**
+   * 聚合所有活跃任务的加权进度分数（每本按 received/total 计算分数进度）
+   * 返回 0~activeCount 之间的浮点数，表示所有活跃任务折算的等效完成本数
+   */
+  function _aggregateTaskFraction() {
+    var fraction = 0;
+    var keys = Object.keys(_activeTasks);
+    for (var i = 0; i < keys.length; i++) {
+      var t = _activeTasks[keys[i]];
+      if (t.total > 0) {
+        fraction += Math.min(1, t.received / t.total);
+      }
+    }
+    return fraction;
+  }
+
+  /**
+   * 计算并发场景下的批次总进度百分比
+   * completed + 活跃任务的分数进度 / total * 100
+   * @param {number} completed 已完成本数
+   * @param {number} total 总本数
+   * @returns {number} 0-100
+   */
+  function _calcTotalPercentConcurrent(completed, total) {
+    if (total <= 0) return 0;
+    var fraction = _aggregateTaskFraction();
+    var pct = ((completed + fraction) / total) * 100;
+    if (pct > 99.5) pct = 99.5;
+    if (pct < 0) pct = 0;
+    return pct;
+  }
+
   // ── 实时进度状态（字节级）─────────────────────────────────────────────
+  // 以下变量在并发模式下仅用于 getDownloadStatus 向外暴露的聚合结果，
+  // 不再被单个 downloadBook 直接写入（改为写 _activeTasks slot）。
   // 当前本书的字节进度（onProgress 推送时刷新，getDownloadStatus 读取）
   // 当 _dlBytesTotal=0 时表示该响应无 Content-Length，只能显示"已接收"
   var _dlBytesReceived = 0;
@@ -115,6 +172,7 @@
     _dlCurrentBookPercent = 0;
     _dlSpeedBps = 0;
     _dlStage = '';
+    _activeTasks = {};
   }
 
   /**
@@ -131,7 +189,7 @@
 
   /**
    * 更新瞬时速度：根据时间差和字节差计算 B/s
-   * @param {number} received 当前累计接收字节
+   * @param {number} received 当前累计接收字节（全局/聚合值）
    * @returns {number} B/s
    *
    * ★ 鲁棒性：
@@ -139,6 +197,9 @@
    *   - 50-200ms 区间也计算（真实 CDN 下载时 onByteProgress 间隔常在该区间）
    *   - db <= 0 时仅"心跳"刷新 _dlLastProgressTs（避免长时间挂起）
    *   - 平滑系数 0.5：让新数据有适当权重，又不至于被瞬时毛刺带偏
+   *
+   * ★ 并发适配：当 MAX_CONCURRENT > 1 时，调用方应传入所有活跃任务的字节总和，
+   *   而非单本的 received，这样速度反映的是整体吞吐而非单路带宽。
    */
   function _calcSpeedBps(received) {
     var now = Date.now();
