@@ -547,10 +547,11 @@
           // ── 导出 Tab ──
           '<div class="dl-tab-content" id="dlTabExport" style="display:none">' +
             '<div class="dl-export-hint">将已缓存的书籍打包为 ZIP 文件，包含阅读进度和标注数据</div>' +
+            '<div class="dl-export-status" id="dlExportStatus"></div>' +
             '<div class="dl-export-series-list" id="dlExportSeriesList"></div>' +
             '<div class="dl-export-actions">' +
               '<button class="dl-export-btn" id="dlExportSelectAll">全选</button>' +
-              '<button class="dl-export-btn dl-export-btn-primary" id="dlExportStart">📤 导出选中</button>' +
+              '<button class="dl-export-btn dl-export-btn-primary" id="dlExportStart">导出选中</button>' +
             '</div>' +
           '</div>' +
           // ── 导入 Tab ──
@@ -738,7 +739,7 @@
       return;
     }
 
-    var statusEl = document.getElementById('dlExportSeriesList');
+    var statusEl = document.getElementById('dlExportStatus');
     var startBtn = document.getElementById('dlExportStart');
     if (startBtn) startBtn.disabled = true;
 
@@ -869,7 +870,14 @@
         // 3. 导入后刷新书城数据（合并导入书到列表）
         // _mergeImportedBooks 与本函数同属一个闭包，可直接调用
         if (typeof _mergeImportedBooks === 'function') {
-          _mergeImportedBooks();
+          _mergeImportedBooks().then(function () {
+            // 刷新当前书城视图（重新渲染书架/书城）
+            var homeView = document.getElementById('homeView');
+            if (homeView && win.BKRenderer && typeof win.BKRenderer.renderHome === 'function') {
+              win.BKRenderer.renderHome();
+            }
+            _refreshAfterDownload();
+          });
         } else {
           // 退化：刷新已下载列表
           _refreshAfterDownload();

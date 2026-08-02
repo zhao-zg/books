@@ -566,6 +566,22 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(61,138,90,0.3); }
   transition: background .15s, color .15s, transform .15s;
 }
 .bk-city-search-btn:active { background: var(--nav-hover); transform: scale(0.94); }
+.bk-city-dl-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-bg, var(--surface));
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, color .15s, transform .15s;
+}
+.bk-city-dl-btn:active { background: var(--nav-hover); transform: scale(0.94); }
 
 /* 方案 7：书架首屏 header 复用书城 .bk-city-header，横向内距对齐到 20px */
 .bk-shelf-page .bk-city-header {
