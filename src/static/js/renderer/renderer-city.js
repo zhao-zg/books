@@ -185,7 +185,7 @@
     if (_cityObserver) { _cityObserver.disconnect(); _cityObserver = null; }
     var seriesList = _getSeriesList();
     var html = '<div class="bk-city-page">';
-    html += '<div class="bk-city-header"><h1 class="bk-city-title">书城</h1></div>';
+    html += '<div class="bk-city-header"><h1 class="bk-city-title">书城</h1><button type="button" id="cityDlMgrBtn" class="bk-city-search-btn" aria-label="下载管理">📥</button></div>';
     html += '<div class="bk-section-header"><span class="bk-section-title-lg">系列</span></div>';
     html += '<div class="series-catalog-grid bk-poster-grid">';
     for (var i = 0; i < seriesList.length; i++) {
@@ -206,6 +206,11 @@
     homeView.innerHTML = html;
     startScrollTracking('city');
     restoreScrollPosition('city');
+    // 书城右上角下载管理按钮
+    var cityDlBtn = document.getElementById('cityDlMgrBtn');
+    if (cityDlBtn) cityDlBtn.addEventListener('click', function () {
+      if (win.BKRenderer && win.BKRenderer.openDownloadManager) win.BKRenderer.openDownloadManager();
+    });
   }
 
   /**

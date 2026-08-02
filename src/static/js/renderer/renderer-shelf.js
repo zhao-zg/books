@@ -477,14 +477,16 @@
     var DesktopShortcut = win.Capacitor && win.Capacitor.Plugins &&
                           win.Capacitor.Plugins.DesktopShortcut;
     if (DesktopShortcut && DesktopShortcut.create) {
+      _toast('正在创建快捷方式…');
       DesktopShortcut.create({
         bookId: book.id,
         bookTitle: name,
         coverBase64: book.cover || ''
       }).then(function() {
-        _toast('正在为《' + name + '》创建桌面快捷方式…');
+        _toast('《' + name + '》快捷方式已添加');
       }).catch(function(err) {
-        _toast('创建快捷方式失败：' + (err && err.message ? err.message : '不支持'));
+        var errMsg = err && err.message ? err.message : '不支持';
+        _toast('创建失败：' + errMsg);
       });
     } else {
       _toast('当前环境不支持桌面快捷方式');

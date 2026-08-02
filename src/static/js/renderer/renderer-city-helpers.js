@@ -501,40 +501,69 @@
     var html =
       '<div class="bk-dialog bk-download-dialog">' +
         '<div class="bk-drawer-header">' +
-          '<span class="bk-drawer-title">📥 下载管理</span>' +
+          '<span class="bk-drawer-title">📥 数据管理</span>' +
           '<button class="bk-drawer-close" id="dlPanelClose" aria-label="关闭">✕</button>' +
         '</div>' +
         '<hr class="bk-drawer-divider">' +
         '<div class="bk-drawer-body">' +
-          '<div class="dl-overview">' +
-            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSeries">—</span><span class="dl-ov-label">系列</span></div>' +
-            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvCached">—</span><span class="dl-ov-label">已缓存</span></div>' +
-            '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSize">—</span><span class="dl-ov-label">占用</span></div>' +
+          // ── Tab 栏 ──
+          '<div class="dl-tab-bar">' +
+            '<button class="dl-tab-btn active" data-dl-tab="download">下载</button>' +
+            '<button class="dl-tab-btn" data-dl-tab="export">导出</button>' +
+            '<button class="dl-tab-btn" data-dl-tab="import">导入</button>' +
           '</div>' +
-          '<div class="download-resource-summary" id="dlResourceSummary">资源统计加载中...</div>' +
-          '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>' +
-          '<div class="download-progress" id="dlProgressWrap" style="display:none">' +
-            '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>' +
-            '<span class="download-progress-pct" id="dlProgressPct">0%</span>' +
-          '</div>' +
-          '<div class="download-progress-detail" id="dlProgressDetail" style="display:none">' +
-            '<div class="dl-detail-line1" id="dlDetailLine1">准备中...</div>' +
-            '<div class="dl-detail-line2" id="dlDetailLine2"></div>' +
-            '<div class="dl-current-book" id="dlCurrentBookWrap" style="display:none">' +
-              '<div class="dl-current-book-bar-wrap">' +
-                '<div class="dl-current-book-bar" id="dlCurrentBookBar" style="width:0%"></div>' +
+          // ── 下载 Tab（原面板内容） ──
+          '<div class="dl-tab-content" id="dlTabDownload">' +
+            '<div class="dl-overview">' +
+              '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSeries">—</span><span class="dl-ov-label">系列</span></div>' +
+              '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvCached">—</span><span class="dl-ov-label">已缓存</span></div>' +
+              '<div class="dl-ov-item"><span class="dl-ov-num" id="dlOvSize">—</span><span class="dl-ov-label">占用</span></div>' +
+            '</div>' +
+            '<div class="download-resource-summary" id="dlResourceSummary">资源统计加载中...</div>' +
+            '<div class="download-storage-info" id="dlStorageInfo">存储统计加载中...</div>' +
+            '<div class="download-progress" id="dlProgressWrap" style="display:none">' +
+              '<div class="download-progress-bar" id="dlProgressBar" style="width:0%"></div>' +
+              '<span class="download-progress-pct" id="dlProgressPct">0%</span>' +
+            '</div>' +
+            '<div class="download-progress-detail" id="dlProgressDetail" style="display:none">' +
+              '<div class="dl-detail-line1" id="dlDetailLine1">准备中...</div>' +
+              '<div class="dl-detail-line2" id="dlDetailLine2"></div>' +
+              '<div class="dl-current-book" id="dlCurrentBookWrap" style="display:none">' +
+                '<div class="dl-current-book-bar-wrap">' +
+                  '<div class="dl-current-book-bar" id="dlCurrentBookBar" style="width:0%"></div>' +
+                '</div>' +
+                '<span class="dl-current-book-pct" id="dlCurrentBookPct">0%</span>' +
               '</div>' +
-              '<span class="dl-current-book-pct" id="dlCurrentBookPct">0%</span>' +
+            '</div>' +
+            '<div class="download-bg-hint" id="dlBgHint" style="display:none">关闭面板后下载将继续</div>' +
+            '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
+            '<div class="download-controls" id="dlControls" style="display:none">' +
+              '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
+              '<button class="dl-ctrl-btn" id="dlCancelBtn">取消</button>' +
+            '</div>' +
+            '<div class="download-series-list" id="dlSeriesList"></div>' +
+            '<button class="download-all-btn" id="dlAllBtn">全部下载</button>' +
+          '</div>' +
+          // ── 导出 Tab ──
+          '<div class="dl-tab-content" id="dlTabExport" style="display:none">' +
+            '<div class="dl-export-hint">将已缓存的书籍打包为 ZIP 文件，包含阅读进度和标注数据</div>' +
+            '<div class="dl-export-series-list" id="dlExportSeriesList"></div>' +
+            '<div class="dl-export-actions">' +
+              '<button class="dl-export-btn" id="dlExportSelectAll">全选</button>' +
+              '<button class="dl-export-btn dl-export-btn-primary" id="dlExportStart">📤 导出选中</button>' +
             '</div>' +
           '</div>' +
-          '<div class="download-bg-hint" id="dlBgHint" style="display:none">关闭面板后下载将继续</div>' +
-          '<div class="download-progress-text" id="dlProgressText" style="display:none"></div>' +
-          '<div class="download-controls" id="dlControls" style="display:none">' +
-            '<button class="dl-ctrl-btn" id="dlPauseBtn">暂停</button>' +
-            '<button class="dl-ctrl-btn" id="dlCancelBtn">取消</button>' +
+          // ── 导入 Tab ──
+          '<div class="dl-tab-content" id="dlTabImport" style="display:none">' +
+            '<div class="dl-import-hint">从 ZIP 备份文件恢复书籍数据，导入后自动缓存无需重新下载</div>' +
+            '<div class="dl-import-actions">' +
+              '<button class="dl-import-btn dl-import-btn-primary" id="dlImportPick">📂 选择 ZIP 文件</button>' +
+            '</div>' +
+            '<div class="dl-import-status" id="dlImportStatus"></div>' +
+            '<div class="dl-import-progress" id="dlImportProgress" style="display:none">' +
+              '<div class="download-progress-bar" id="dlImportBar" style="width:0%"></div>' +
+            '</div>' +
           '</div>' +
-          '<div class="download-series-list" id="dlSeriesList"></div>' +
-          '<button class="download-all-btn" id="dlAllBtn">全部下载</button>' +
         '</div>' +
       '</div>';
 
@@ -593,6 +622,276 @@
 
     // ★ 修复：重新打开面板时，检查是否有正在进行的下载，恢复下载状态UI
     _restoreDownloadState();
+
+    // ── Tab 切换 ──
+    var _dlActiveTab = 'download';
+    var tabBtns = document.querySelectorAll('.dl-tab-btn[data-dl-tab]');
+    for (var ti = 0; ti < tabBtns.length; ti++) {
+      tabBtns[ti].addEventListener('click', function () {
+        var tab = this.getAttribute('data-dl-tab');
+        if (tab === _dlActiveTab) return;
+        _dlActiveTab = tab;
+        // 切换 Tab 高亮
+        var allBtns = document.querySelectorAll('.dl-tab-btn[data-dl-tab]');
+        for (var bi = 0; bi < allBtns.length; bi++) {
+          allBtns[bi].classList.toggle('active', allBtns[bi].getAttribute('data-dl-tab') === tab);
+        }
+        // 切换内容区
+        document.getElementById('dlTabDownload').style.display = (tab === 'download') ? '' : 'none';
+        document.getElementById('dlTabExport').style.display = (tab === 'export') ? '' : 'none';
+        document.getElementById('dlTabImport').style.display = (tab === 'import') ? '' : 'none';
+        // 导出 Tab 切换时刷新系列列表
+        if (tab === 'export') _renderExportSeriesList();
+      });
+    }
+
+    // ── 导出 Tab 事件 ──
+    _initExportTab();
+    _initImportTab();
+  }
+
+  // ── 导出 Tab ──────────────────────────────────────────────────────────
+
+  /**
+   * 渲染导出 Tab 中的系列列表
+   * 每行含：勾选框 + 系列名 + 已缓存数/总数
+   * 仅展示有已缓存书籍的系列（或全部系列，方便全选后导出）
+   */
+  function _renderExportSeriesList() {
+    var list = document.getElementById('dlExportSeriesList');
+    if (!list) return;
+    if (!_zlDmReady || !win.DataManager || !win.DataManager.getBooksBySeriesStatus) {
+      list.innerHTML = '<div class="dl-export-empty">加载中...</div>';
+      return;
+    }
+    win.DataManager.getBooksBySeriesStatus().then(function (result) {
+      var seriesArr = (result && result.series) || [];
+      if (!seriesArr.length) {
+        list.innerHTML = '<div class="dl-export-empty">暂无可导出的系列</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < seriesArr.length; i++) {
+        var s = seriesArr[i];
+        var cached = s.cached || 0;
+        var total = s.total || 0;
+        html += '<div class="dl-export-series-row">';
+        html += '<label class="dl-export-label">';
+        html += '<input type="checkbox" class="dl-export-check" data-series="' + escAttr(s.id) + '"' + (cached > 0 ? '' : ' disabled') + '>';
+        html += '<span class="dl-export-series-name">' + escText(_getSeriesTitle(s.id)) + '</span>';
+        html += '</label>';
+        html += '<span class="dl-export-cache-info' + (cached === 0 ? ' dl-export-empty-hint' : '') + '">' + cached + '/' + total + ' 已缓存</span>';
+        html += '</div>';
+      }
+      list.innerHTML = html;
+    }).catch(function () {
+      list.innerHTML = '<div class="dl-export-empty">加载失败</div>';
+    });
+  }
+
+  /**
+   * 初始化导出 Tab 事件（全选 + 导出按钮）
+   */
+  function _initExportTab() {
+    var selectAllBtn = document.getElementById('dlExportSelectAll');
+    var startBtn = document.getElementById('dlExportStart');
+
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', function () {
+        var checks = document.querySelectorAll('.dl-export-check');
+        var allChecked = true;
+        for (var i = 0; i < checks.length; i++) {
+          if (!checks[i].disabled && !checks[i].checked) { allChecked = false; break; }
+        }
+        // 全选→取消全选，非全选→全选
+        var targetChecked = !allChecked;
+        for (var j = 0; j < checks.length; j++) {
+          if (!checks[j].disabled) checks[j].checked = targetChecked;
+        }
+        selectAllBtn.textContent = targetChecked ? '取消全选' : '全选';
+      });
+    }
+
+    if (startBtn) {
+      startBtn.addEventListener('click', function () {
+        var checks = document.querySelectorAll('.dl-export-check:checked');
+        if (!checks.length) {
+          _toast('请先选择要导出的系列');
+          return;
+        }
+        var selectedIds = [];
+        for (var i = 0; i < checks.length; i++) {
+          selectedIds.push(checks[i].getAttribute('data-series'));
+        }
+        _doCityExport(selectedIds);
+      });
+    }
+  }
+
+  /**
+   * 执行按系列导出已缓存书籍
+   * @param {string[]} selectedSeriesIds  选中的系列 ID 列表
+   */
+  function _doCityExport(selectedSeriesIds) {
+    if (!_zlDmReady || !win.DataManager) {
+      _toast('DataManager 未就绪');
+      return;
+    }
+
+    var statusEl = document.getElementById('dlExportSeriesList');
+    var startBtn = document.getElementById('dlExportStart');
+    if (startBtn) startBtn.disabled = true;
+
+    // 1. 获取已下载的书籍 ID
+    win.DataManager.getDownloadedBookIds().then(function (downloadedIds) {
+      // 2. 按系列过滤已下载的书籍
+      var bookIds = [];
+      for (var i = 0; i < _zlBooks.length; i++) {
+        var b = _zlBooks[i];
+        if (selectedSeriesIds.indexOf(b.series) !== -1 && downloadedIds.indexOf(b.id) !== -1) {
+          bookIds.push(b.id);
+        }
+      }
+
+      if (!bookIds.length) {
+        _toast('选中系列中没有已缓存的书籍');
+        if (startBtn) startBtn.disabled = false;
+        return;
+      }
+
+      // 3. 调用 exportBatch
+      if (!win.BK || !win.BK.Export || !win.BK.Export.exportBatch) {
+        _toast('导出模块未加载');
+        if (startBtn) startBtn.disabled = false;
+        return;
+      }
+
+      if (statusEl) {
+        statusEl.innerHTML = '<div class="dl-export-progress">正在导出 0/' + bookIds.length + '...</div>';
+      }
+
+      win.BK.Export.exportBatch(bookIds, {
+        onProgress: function (current, total, title) {
+          if (statusEl) {
+            statusEl.innerHTML = '<div class="dl-export-progress">正在导出 ' + current + '/' + total + '《' + escText(title) + '》</div>';
+          }
+        }
+      }).then(function () {
+        if (statusEl) {
+          statusEl.innerHTML = '<div class="dl-export-done">导出完成，共 ' + bookIds.length + ' 本书</div>';
+        }
+        _toast('导出完成');
+      }).catch(function (err) {
+        var msg = (err && err.message) ? err.message : '导出失败';
+        if (statusEl) {
+          statusEl.innerHTML = '<div class="dl-export-error">导出失败：' + escText(msg) + '</div>';
+        }
+        _toast('导出失败：' + msg);
+      }).finally(function () {
+        if (startBtn) startBtn.disabled = false;
+      });
+    }).catch(function (err) {
+      _toast('获取已下载列表失败');
+      if (startBtn) startBtn.disabled = false;
+    });
+  }
+
+  // ── 导入 Tab ──────────────────────────────────────────────────────────
+
+  /**
+   * 初始化导入 Tab 事件（选择文件按钮）
+   */
+  function _initImportTab() {
+    var pickBtn = document.getElementById('dlImportPick');
+    if (!pickBtn) return;
+
+    pickBtn.addEventListener('click', function () {
+      // 创建隐藏的 file input
+      var input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.zip';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (file) {
+          _doCityImport(file);
+        }
+        // 清理
+        if (input.parentNode) input.parentNode.removeChild(input);
+      });
+
+      input.click();
+    });
+  }
+
+  /**
+   * 从 ZIP 文件导入书籍数据
+   * @param {File} file  用户选择的 ZIP 文件
+   */
+  function _doCityImport(file) {
+    if (!win.BK || !win.BK.ImportZip || !win.BK.ImportZip.importFromZip) {
+      _toast('导入模块未加载');
+      return;
+    }
+
+    var statusEl = document.getElementById('dlImportStatus');
+    var progressEl = document.getElementById('dlImportProgress');
+    var barEl = document.getElementById('dlImportBar');
+    var pickBtn = document.getElementById('dlImportPick');
+
+    if (pickBtn) pickBtn.disabled = true;
+    if (statusEl) statusEl.textContent = '正在读取文件...';
+    if (progressEl) progressEl.style.display = '';
+    if (barEl) barEl.style.width = '0%';
+
+    // 1. 读取文件为 ArrayBuffer
+    var reader = new FileReader();
+    reader.onload = function () {
+      var buffer = reader.result;
+      if (statusEl) statusEl.textContent = '正在解析 ZIP...';
+
+      // 2. 调用 importFromZip
+      win.BK.ImportZip.importFromZip(buffer, file.name, {
+        onProgress: function (current, total, title) {
+          if (statusEl) statusEl.textContent = '正在导入 ' + current + '/' + total + '《' + (title || '') + '》';
+          var pct = total > 0 ? Math.round(current / total * 100) : 0;
+          if (barEl) barEl.style.width = pct + '%';
+        }
+      }).then(function (result) {
+        var msg = '导入完成：成功 ' + result.success + ' 本';
+        if (result.failed > 0) msg += '，失败 ' + result.failed + ' 本';
+        if (statusEl) statusEl.textContent = msg;
+        if (barEl) barEl.style.width = '100%';
+        _toast(msg);
+
+        // 3. 导入后刷新书城数据（合并导入书到列表）
+        // _mergeImportedBooks 与本函数同属一个闭包，可直接调用
+        if (typeof _mergeImportedBooks === 'function') {
+          _mergeImportedBooks();
+        } else {
+          // 退化：刷新已下载列表
+          _refreshAfterDownload();
+        }
+      }).catch(function (err) {
+        var msg = (err && err.message) ? err.message : '导入失败';
+        if (statusEl) statusEl.textContent = '导入失败：' + msg;
+        if (progressEl) progressEl.style.display = 'none';
+        _toast('导入失败：' + msg);
+      }).finally(function () {
+        if (pickBtn) pickBtn.disabled = false;
+      });
+    };
+
+    reader.onerror = function () {
+      if (statusEl) statusEl.textContent = '文件读取失败';
+      if (progressEl) progressEl.style.display = 'none';
+      if (pickBtn) pickBtn.disabled = false;
+      _toast('文件读取失败');
+    };
+
+    reader.readAsArrayBuffer(file);
   }
 
   /**

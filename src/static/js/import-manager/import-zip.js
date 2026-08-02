@@ -6,13 +6,15 @@
  *   ├── manifest.json
  *   └── books/
  *       ├── <bookId-1>/
- *       │   ├── book.json
- *       │   └── original.pdf
+ *       │   ├── book.json       # 书籍数据
+ *       │   ├── userdata.json   # 用户数据（阅读进度、书签、高亮等，v2+）
+ *       │   └── original.pdf    # （仅 PDF 书）原始 PDF 二进制
  *       ...
  *
  * 导入策略：
  *   - book.json 中已有完整书籍数据，直接写入本地存储，无需重新解析
  *   - PDF 书额外写入原始 PDF 二进制到 pdfStore
+ *   - userdata.json 中的用户数据恢复到 localStorage
  *   - 对已有 ID 的书籍执行覆盖写（备份还原场景）
  *   - 非导入书 ID 自动加 'imported-' 前缀，避免与书城书冲突
  *
@@ -109,6 +111,35 @@
     // ── 单本导入 ──────────────────────────────────────────────────────────
 
     /**
+     * 恢复单本书的用户数据到 localStorage
+     * @param {Object} userData  从 userdata.json 解析的数据
+     * @param {string} bookId    目标书籍 ID（可能已变化，如书城书加了 imported- 前缀）
+     */
+    function _restoreUserData(userData, bookId) {
+        try {
+            var ls = win.localStorage;
+            if (!ls || !userData) return;
+
+            if (userData.progress) ls.setItem('bk_progress:' + bookId, userData.progress);
+            if (userData.lastReadTs) ls.setItem('bk_lastread_ts:' + bookId, userData.lastReadTs);
+            if (userData.pdfPos) ls.setItem('bk_pdf_pos:' + bookId, userData.pdfPos);
+            if (userData.pdfBookmarks) ls.setItem('bk_pdf_bm:' + bookId, userData.pdfBookmarks);
+            if (userData.pdfHighlights) ls.setItem('bk_pdf_hl:' + bookId, userData.pdfHighlights);
+
+            // 恢复章节已读标记
+            var chapterReads = userData.chapterReads;
+            if (Array.isArray(chapterReads)) {
+                for (var i = 0; i < chapterReads.length; i++) {
+                    var chNum = String(chapterReads[i]);
+                    if (chNum) ls.setItem('bk_chapter_read:' + bookId + '/' + chNum, '1');
+                }
+            }
+        } catch (e) {
+            console.warn('[导入] 恢复用户数据失败:', bookId, e);
+        }
+    }
+
+    /**
      * 从 ZIP 中导入单本书
      * @param {JSZip} zip    JSZip 实例
      * @param {string} bookDirName  书籍目录名（books/ 下的子目录名）
@@ -121,6 +152,8 @@
             return Promise.resolve({ success: false, id: bookDirName, error: 'book.json 未找到' });
         }
 
+        var originalId = null;
+
         return bookJsonEntry.async('string').then(function (bookJsonText) {
             var bookData;
             try {
@@ -132,6 +165,8 @@
             if (!bookData || !bookData.id) {
                 return { success: false, id: bookDirName, error: 'book.json 缺少 id' };
             }
+
+            originalId = bookData.id;
 
             // 非 imported- 前缀的 ID（书城书导出后再导入），自动加前缀避免冲突
             if (bookData.id.indexOf('imported-') !== 0) {
@@ -154,6 +189,21 @@
                     }
                 }
                 return { success: true, id: bookData.id, title: bookData.title || bookData.id };
+            }).then(function (result) {
+                // 恢复用户数据（阅读进度、书签、高亮等）
+                var udPath = 'books/' + bookDirName + '/userdata.json';
+                var udEntry = zip.file(udPath);
+                if (udEntry) {
+                    return udEntry.async('string').then(function (udText) {
+                        try {
+                            var userData = JSON.parse(udText);
+                            // 书城书的 ID 已变更为 imported- 前缀，需用新 ID 写入
+                            _restoreUserData(userData, bookData.id);
+                        } catch (e) { /* 静默失败 */ }
+                        return result;
+                    }).catch(function () { return result; });
+                }
+                return result;
             }).catch(function (err) {
                 return { success: false, id: bookData.id, title: bookData.title, error: (err && err.message) || '保存失败' };
             });
@@ -192,8 +242,8 @@
                     return Promise.reject(new Error('无效的 manifest.json'));
                 }
 
-                if (!manifest || manifest.version !== 1) {
-                    return Promise.reject(new Error('不支持的书籍包版本（期望 v1）'));
+                if (!manifest || (manifest.version !== 1 && manifest.version !== 2)) {
+                    return Promise.reject(new Error('不支持的书籍包版本（期望 v1/v2）'));
                 }
 
                 // 2. 收集书籍目录名

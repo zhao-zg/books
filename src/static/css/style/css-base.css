@@ -239,6 +239,44 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .download-all-btn { display: block; width: 100%; padding: 12px; margin-top: 10px; border-radius: 12px; border: none; background: linear-gradient(135deg, var(--accent-color, #3D8A5A), var(--brand)); color: #fff; font-size: var(--text-md); font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .download-all-btn:active { transform: scale(0.98); opacity: 0.88; }
 
+/* ── 数据管理面板 Tab 栏 ────────────────────── */
+.dl-tab-bar { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 12px; gap: 0; }
+.dl-tab-btn { flex: 1; padding: 10px 0; border: none; background: transparent; color: var(--text-muted); font-size: var(--text-base); font-weight: 500; cursor: pointer; transition: color .15s, border-color .15s; border-bottom: 2px solid transparent; }
+.dl-tab-btn.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+.dl-tab-btn:active { opacity: 0.8; }
+.dl-tab-content { overflow-y: auto; }
+
+/* ── 导出 Tab ─────────────────────────────── */
+.dl-export-hint { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+.dl-export-series-list { margin: 8px 0; max-height: 260px; overflow-y: auto; }
+.dl-export-series-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); gap: 8px; }
+.dl-export-label { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.dl-export-check { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; flex-shrink: 0; }
+.dl-export-check:disabled { opacity: 0.4; cursor: not-allowed; }
+.dl-export-series-name { font-size: var(--text-base); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-export-cache-info { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+.dl-export-empty-hint { color: var(--text-muted); opacity: 0.5; }
+.dl-export-empty { text-align: center; color: var(--text-muted); padding: 20px 0; font-size: var(--text-sm); }
+.dl-export-actions { display: flex; gap: 8px; margin-top: 10px; }
+.dl-export-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-size: var(--text-sm); cursor: pointer; transition: all .15s; }
+.dl-export-btn:active { transform: scale(0.96); }
+.dl-export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dl-export-btn-primary { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; flex: 1; }
+.dl-export-progress, .dl-export-done { text-align: center; padding: 16px 0; font-size: var(--text-sm); color: var(--text-muted); }
+.dl-export-done { color: var(--success-text, #3D8A5A); }
+.dl-export-error { text-align: center; padding: 16px 0; font-size: var(--text-sm); color: var(--danger-text, #C8553D); }
+
+/* ── 导入 Tab ─────────────────────────────── */
+.dl-import-hint { font-size: var(--text-xs); color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+.dl-import-actions { margin: 8px 0; }
+.dl-import-btn { padding: 10px 20px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-alt); color: var(--text); font-size: var(--text-base); cursor: pointer; transition: all .15s; }
+.dl-import-btn:active { transform: scale(0.96); }
+.dl-import-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dl-import-btn-primary { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 600; display: block; width: 100%; }
+.dl-import-status { margin-top: 8px; font-size: var(--text-sm); color: var(--text-muted); min-height: 20px; }
+.dl-import-progress { margin-top: 8px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+
+
 /* ── 加载 / 空状态 / 错误 ───────────────────────────────── */
 .bk-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); }
 .bk-spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: bk-spin 0.8s linear infinite; margin-bottom: 12px; }

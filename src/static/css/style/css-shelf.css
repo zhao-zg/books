@@ -301,7 +301,11 @@
   background: var(--card-bg, #fff);
   border-top: 1px solid var(--border, #E5E2DD);
   box-shadow: 0 -4px 16px rgba(60, 40, 10, .10);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.bk-shelf-editbar::-webkit-scrollbar { display: none; }
 .bk-shelf-page.is-editing .bk-shelf-editbar { display: flex; }
 .bk-shelf-edit-selectall {
   appearance: none;

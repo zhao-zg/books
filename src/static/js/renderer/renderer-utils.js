@@ -21,7 +21,7 @@
           '.bk-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(12px);' +
           'background:rgba(26,25,24,.92);color:#fff;padding:10px 18px;border-radius:22px;' +
           'font-size:14px;z-index:99999;opacity:0;transition:opacity .2s,transform .2s;' +
-          'pointer-events:none;max-width:80vw;white-space:nowrap}' +
+          'pointer-events:none;max-width:80vw;overflow-wrap:break-word;word-break:break-all;text-align:center}' +
           '.bk-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}';
         document.head.appendChild(st);
       }
