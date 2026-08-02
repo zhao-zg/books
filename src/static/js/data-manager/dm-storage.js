@@ -55,23 +55,29 @@
   }
 
   function addDownloadedId(bookId) {
-    return getDownloadedIdsList().then(function (list) {
-      if (list.indexOf(bookId) === -1) {
-        list.push(bookId);
-      }
-      if (_downloadedIdCache) _downloadedIdCache.add(bookId);
-      return saveDownloadedIdsList(list);
-    });
+    // ★ 并发适配：直接操作内存缓存（Set.add 天然幂等且原子），
+    //   再从缓存序列化写回 IndexedDB，杜绝 read-modify-write 竞态。
+    //   旧代码先读再写，3路并发时 Worker 2 读到旧列表覆盖 Worker 1 的写入，
+    //   导致约 1/3 的书籍 ID 丢失（下载了但不记录为"已下载"）。
+    if (!_downloadedIdCache) {
+      // 缓存未初始化，先初始化再操作
+      return getDownloadedIdsList().then(function () {
+        return addDownloadedId(bookId);
+      });
+    }
+    _downloadedIdCache.add(bookId);
+    // 从内存缓存序列化写回，保证包含所有已添加的 ID
+    return saveDownloadedIdsList(Array.from(_downloadedIdCache));
   }
 
   function removeDownloadedId(bookId) {
-    return getDownloadedIdsList().then(function (list) {
-      var idx = list.indexOf(bookId);
-      if (idx !== -1) {
-        list.splice(idx, 1);
-      }
-      if (_downloadedIdCache) _downloadedIdCache.delete(bookId);
-      return saveDownloadedIdsList(list);
-    });
+    // ★ 并发适配：直接操作内存缓存，杜绝 read-modify-write 竞态
+    if (!_downloadedIdCache) {
+      return getDownloadedIdsList().then(function () {
+        return removeDownloadedId(bookId);
+      });
+    }
+    _downloadedIdCache.delete(bookId);
+    return saveDownloadedIdsList(Array.from(_downloadedIdCache));
   }
 
