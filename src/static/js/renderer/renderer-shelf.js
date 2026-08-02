@@ -476,43 +476,53 @@
 
     var DesktopShortcut = win.Capacitor && win.Capacitor.Plugins &&
                           win.Capacitor.Plugins.DesktopShortcut;
-    if (DesktopShortcut && DesktopShortcut.create) {
-      _toast('正在创建快捷方式…');
-      // 超时保护：部分 ROM 的 requestPinShortcut 无回调，避免 Promise 永远挂起
-      var resolved = false;
-      var timeout = setTimeout(function() {
-        if (!resolved) {
-          resolved = true;
-          _toast('请查看桌面是否已添加快捷方式');
-        }
-      }, 4000);
-      DesktopShortcut.create({
-        bookId: book.id,
-        bookTitle: name,
-        coverBase64: book.cover || ''
-      }).then(function(ret) {
-        clearTimeout(timeout);
-        if (!resolved) {
-          resolved = true;
-          var msg = (ret && ret.message) || '';
-          // requestPinShortcut 场景：系统弹窗确认中，不一定已真正添加
-          if (msg.indexOf('已请求') >= 0) {
-            _toast('请在弹窗中确认添加到桌面');
-          } else {
-            _toast('《' + name + '》快捷方式已添加');
-          }
-        }
-      }).catch(function(err) {
-        clearTimeout(timeout);
-        if (!resolved) {
-          resolved = true;
-          var errMsg = err && err.message ? err.message : '不支持';
-          _toast('创建失败：' + errMsg);
-        }
-      });
-    } else {
+    if (!DesktopShortcut || !DesktopShortcut.create) {
       _toast('当前环境不支持桌面快捷方式');
+      return;
     }
+
+    _toast('正在创建快捷方式…');
+    console.log('[DesktopShortcut] 调用 create, bookId=' + book.id);
+
+    // 超时保护：部分 ROM 的 requestPinShortcut 无回调，避免 Promise 永远挂起
+    var settled = false;
+    var timeout = setTimeout(function() {
+      if (!settled) {
+        settled = true;
+        _toast('请查看桌面是否已添加快捷方式');
+      }
+    }, 5000);
+
+    DesktopShortcut.create({
+      bookId: book.id,
+      bookTitle: name,
+      coverBase64: book.cover || ''
+    }).then(function(ret) {
+      clearTimeout(timeout);
+      console.log('[DesktopShortcut] resolve:', JSON.stringify(ret));
+      if (!settled) {
+        settled = true;
+        // 根据原生端返回的 result 区分提示
+        var result = ret && ret.result;
+        if (result === 'pin_requested') {
+          // requestPinShortcut 场景：系统弹窗确认中
+          _toast('请在弹窗中确认添加到桌面');
+        } else if (result === 'broadcast_sent') {
+          // 广播方式：无法确认，引导用户查看
+          _toast('已注册快捷方式，请查看桌面');
+        } else {
+          _toast('《' + name + '》快捷方式已添加');
+        }
+      }
+    }).catch(function(err) {
+      clearTimeout(timeout);
+      console.error('[DesktopShortcut] reject:', err);
+      if (!settled) {
+        settled = true;
+        var errMsg = (err && err.message) ? err.message : String(err || '不支持');
+        _toast('创建失败：' + errMsg);
+      }
+    });
   }
 
   var _shelfQuickLockCleanup = null;
