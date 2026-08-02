@@ -505,8 +505,11 @@
         // 根据原生端返回的 result 区分提示
         var result = ret && ret.result;
         if (result === 'pin_requested') {
-          // requestPinShortcut 场景：系统弹窗确认中
-          _toast('请在弹窗中确认添加到桌面');
+          // requestPinShortcut 已请求（可能弹窗也可能静默吞掉）
+          _toast('已注册，请确认弹窗或长按应用图标添加');
+        } else if (result === 'dynamic_registered') {
+          // pin 不支持，动态快捷方式已注册
+          _toast('已注册，请长按应用图标拖到桌面');
         } else if (result === 'broadcast_sent') {
           // 广播方式：无法确认，引导用户查看
           _toast('已注册快捷方式，请查看桌面');

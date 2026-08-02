@@ -1,5 +1,7 @@
 package com.books.app;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
@@ -28,13 +30,11 @@ import java.util.Collections;
  * DesktopShortcutPlugin
  * 在 Android 桌面创建书籍快捷方式。
  *
- * 兼容策略（按优先级尝试，确保所有路径都有 resolve/reject）：
- * 1. API 26+ 且 requestPinShortcutSupported → requestPinShortcut（系统确认弹窗）
- * 2. API 26+ 不支持 pin → addDynamicShortcuts + 尝试 pin + 降级广播
- * 3. API 25 及以下 → INSTALL_SHORTCUT 广播
- *
- * 点击快捷方式后通过深链 Intent 传递书籍 ID，
- * 主 Activity 接收后在 WebView 中路由到对应书籍。
+ * 三种方式全部执行，哪个生效算哪个：
+ * 1. addDynamicShortcuts — 注册动态快捷方式（长按图标可见）
+ * 2. requestPinShortcut — 请求固定到桌面（原生 ROM 弹确认框）
+ * 3. INSTALL_SHORTCUT 广播 — 直接写入桌面（部分国产 ROM 仍然支持）
+ * 4. Launcher ContentProvider — 直接往桌面数据库写记录（MIUI/EMUI 等的终极方案）
  */
 @CapacitorPlugin(name = "DesktopShortcut")
 public class DesktopShortcutPlugin extends Plugin {
@@ -57,105 +57,120 @@ public class DesktopShortcutPlugin extends Plugin {
         Log.i(TAG, "创建快捷方式: bookId=" + bookId + " title=" + bookTitle);
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                createOnApi26(call, bookId, bookTitle, coverBase64);
-            } else {
-                createByBroadcast(call, bookId, bookTitle, coverBase64);
-            }
+            Intent shortcutIntent = buildDeepLinkIntent(bookId);
+            Bitmap bmp = buildBitmap(coverBase64, bookTitle);
+            Icon icon = Icon.createWithBitmap(bmp);
+
+            // 方式1：注册动态快捷方式（长按应用图标可看到）
+            tryDynamic(bookId, bookTitle, shortcutIntent, icon);
+
+            // 方式2：requestPinShortcut（原生 ROM 会弹确认框直接加到桌面）
+            tryRequestPin(bookId, bookTitle, shortcutIntent, icon);
+
+            // 方式3：INSTALL_SHORTCUT 广播（部分国产 ROM 仍然支持，可直接加到桌面）
+            tryBroadcast(bookId, bookTitle, shortcutIntent, bmp);
+
+            // 方式4：Launcher ContentProvider（MIUI/EMUI/ColorOS 等国产 ROM 终极方案）
+            tryLauncherProvider(bookId, bookTitle, shortcutIntent, bmp);
+
+            resolveWith(call, "created", "《" + bookTitle + "》快捷方式已添加");
+
         } catch (Exception e) {
             Log.e(TAG, "创建快捷方式异常", e);
             call.reject("创建快捷方式失败: " + e.getMessage());
         }
     }
 
-    /**
-     * Android 8+ (API 26) 创建快捷方式
-     * 优先 requestPinShortcut，不支持则降级
-     */
-    private void createOnApi26(PluginCall call, String bookId, String bookTitle, String coverBase64) {
-        ShortcutManager sm = getContext().getSystemService(ShortcutManager.class);
-        if (sm == null) {
-            Log.w(TAG, "ShortcutManager 不可用，降级广播");
-            createByBroadcast(call, bookId, bookTitle, coverBase64);
-            return;
-        }
+    // ── 方式1：动态快捷方式 ─────────────────────────────────────────────
 
-        // 1. 尝试 requestPinShortcut（标准方式）
-        if (sm.isRequestPinShortcutSupported()) {
-            Log.i(TAG, "使用 requestPinShortcut（标准方式）");
-            try {
-                ShortcutInfo info = buildShortcutInfo(bookId, bookTitle, coverBase64);
-                sm.requestPinShortcut(info, null);
-                resolveWith(call, "pin_requested", "请在弹窗中确认添加到桌面");
-                return;
-            } catch (Exception e) {
-                Log.w(TAG, "requestPinShortcut 异常，尝试降级", e);
-            }
-        }
-
-        // 2. requestPinShortcut 不支持：注册动态快捷方式 + 再尝试 pin
-        Log.i(TAG, "requestPinShortcut 不支持，尝试动态快捷方式方案");
+    private void tryDynamic(String bookId, String bookTitle, Intent intent, Icon icon) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         try {
-            ShortcutInfo info = buildShortcutInfo(bookId, bookTitle, coverBase64);
+            ShortcutManager sm = getContext().getSystemService(ShortcutManager.class);
+            if (sm == null) return;
 
-            // 先注册为动态快捷方式（用户可长按应用图标看到）
-            try {
-                sm.addDynamicShortcuts(Collections.singletonList(info));
-                Log.i(TAG, "动态快捷方式注册成功");
-            } catch (Exception e) {
-                Log.w(TAG, "动态快捷方式注册失败: " + e.getMessage());
-            }
-
-            // 再尝试 pin（某些 ROM 在动态快捷方式存在后允许 pin）
-            try {
-                if (sm.isRequestPinShortcutSupported()) {
-                    sm.requestPinShortcut(info, null);
-                    resolveWith(call, "pin_requested", "请在弹窗中确认添加到桌面");
-                    return;
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "动态注册后 requestPinShortcut 仍失败", e);
-            }
-
-            // 3. 仍然不支持 pin：广播作为最后手段
-            Log.i(TAG, "所有 pin 方式均不支持，广播作为最后手段");
-            createByBroadcast(call, bookId, bookTitle, coverBase64);
-
+            ShortcutInfo info = buildShortcutInfo(bookId, bookTitle, intent, icon);
+            sm.addDynamicShortcuts(Collections.singletonList(info));
+            Log.i(TAG, "动态快捷方式注册成功");
         } catch (Exception e) {
-            Log.e(TAG, "动态快捷方式方案异常", e);
-            createByBroadcast(call, bookId, bookTitle, coverBase64);
+            Log.w(TAG, "动态快捷方式注册失败: " + e.getMessage());
         }
     }
 
-    /**
-     * 通过 INSTALL_SHORTCUT 广播创建快捷方式
-     * Android 8+ 已废弃，仅作为最后降级手段
-     */
-    private void createByBroadcast(PluginCall call, String bookId, String bookTitle, String coverBase64) {
-        try {
-            Intent shortcutIntent = buildDeepLinkIntent(bookId);
+    // ── 方式2：requestPinShortcut ────────────────────────────────────────
 
+    private void tryRequestPin(String bookId, String bookTitle, Intent intent, Icon icon) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        try {
+            ShortcutManager sm = getContext().getSystemService(ShortcutManager.class);
+            if (sm == null || !sm.isRequestPinShortcutSupported()) return;
+
+            ShortcutInfo info = buildShortcutInfo(bookId, bookTitle, intent, icon);
+            sm.requestPinShortcut(info, null);
+            Log.i(TAG, "requestPinShortcut 已请求");
+        } catch (Exception e) {
+            Log.w(TAG, "requestPinShortcut 失败: " + e.getMessage());
+        }
+    }
+
+    // ── 方式3：INSTALL_SHORTCUT 广播 ─────────────────────────────────────
+
+    private void tryBroadcast(String bookId, String bookTitle, Intent shortcutIntent, Bitmap bmp) {
+        try {
             Intent addIntent = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
             addIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
             addIntent.putExtra(Intent.EXTRA_SHORTCUT_NAME, "《" + bookTitle + "》");
             addIntent.putExtra("duplicate", false);
-
-            // 广播方式只接受 Bitmap，不能放 Icon
-            Bitmap bmp = buildBitmap(coverBase64, bookTitle);
             if (bmp != null) {
                 addIntent.putExtra(Intent.EXTRA_SHORTCUT_ICON, bmp);
             }
-
             getContext().sendBroadcast(addIntent);
             Log.i(TAG, "广播已发送");
-
-            // 广播无法确认结果
-            resolveWith(call, "broadcast_sent",
-                    "已注册，请查看桌面；也可长按应用图标拖出快捷方式");
         } catch (Exception e) {
-            Log.e(TAG, "广播创建快捷方式失败", e);
-            call.reject("创建快捷方式失败: " + e.getMessage());
+            Log.w(TAG, "广播发送失败: " + e.getMessage());
         }
+    }
+
+    // ── 方式4：Launcher ContentProvider ─────────────────────────────────
+    // 部分国产 ROM（MIUI/EMUI/ColorOS）通过 ContentProvider 管理桌面快捷方式，
+    // 可以直接写入数据库来创建快捷方式。
+
+    private void tryLauncherProvider(String bookId, String bookTitle, Intent shortcutIntent, Bitmap bmp) {
+        // 常见国产 ROM 的 Launcher Provider URI
+        String[] providerUris = {
+            "content://com.android.launcher3.settings/favorites",   // AOSP/Pixel
+            "content://com.android.launcher.settings/favorites",     // 旧版 AOSP
+            "content://com.miui.launcher.settings/favorites",        // MIUI
+            "content://com.huawei.android.launcher.settings/favorites", // EMUI
+            "content://com.oppo.launcher.settings/favorites",        // ColorOS
+            "content://com.vivo.launcher.settings/favorites",       // OriginOS
+            "content://com.samsung.android.app.launcher.settings/favorites" // OneUI
+        };
+
+        for (String uriStr : providerUris) {
+            try {
+                ContentResolver cr = getContext().getContentResolver();
+                Uri uri = Uri.parse(uriStr);
+
+                ContentValues values = new ContentValues();
+                values.put("title", "《" + bookTitle + "》");
+                values.put("intent", shortcutIntent.toUri(0));
+                values.put("itemType", 1); // 1 = APPLICATION
+                values.put("container", -100); // -100 = CONTAINER_DESKTOP
+                values.put("screen", -1); // 自动选择屏幕
+                values.put("cellX", -1); // 自动选择位置
+                values.put("cellY", -1);
+                values.put("spanX", 1);
+                values.put("spanY", 1);
+
+                cr.insert(uri, values);
+                Log.i(TAG, "Provider 写入成功: " + uriStr);
+                return; // 第一个成功的就够了
+            } catch (Exception e) {
+                // 这个 Provider 不存在或没权限，试下一个
+            }
+        }
+        Log.w(TAG, "所有 Launcher Provider 均不可用");
     }
 
     // ── 辅助方法 ──────────────────────────────────────────────────────
@@ -168,12 +183,8 @@ public class DesktopShortcutPlugin extends Plugin {
         call.resolve(ret);
     }
 
-    private ShortcutInfo buildShortcutInfo(String bookId, String bookTitle, String coverBase64) {
-        Intent intent = buildDeepLinkIntent(bookId);
-        Icon icon = buildIcon(coverBase64, bookTitle);
-
+    private ShortcutInfo buildShortcutInfo(String bookId, String bookTitle, Intent intent, Icon icon) {
         String shortLabel = bookTitle.length() > 10 ? bookTitle.substring(0, 10) : bookTitle;
-
         return new ShortcutInfo.Builder(getContext(), "book_" + bookId)
                 .setShortLabel(shortLabel)
                 .setLongLabel("《" + bookTitle + "》")
@@ -195,19 +206,7 @@ public class DesktopShortcutPlugin extends Plugin {
 
     // ── 图标生成 ──────────────────────────────────────────────────────
 
-    /**
-     * 生成 Icon（用于 ShortcutInfo）
-     */
-    private Icon buildIcon(String coverBase64, String bookTitle) {
-        Bitmap bmp = buildBitmap(coverBase64, bookTitle);
-        return Icon.createWithBitmap(bmp);
-    }
-
-    /**
-     * 生成 Bitmap 图标：优先用封面图，否则用书名首字彩色图标
-     */
     private Bitmap buildBitmap(String coverBase64, String bookTitle) {
-        // 尝试用封面图
         if (coverBase64 != null && !coverBase64.isEmpty()) {
             try {
                 String b64 = coverBase64;
@@ -230,9 +229,6 @@ public class DesktopShortcutPlugin extends Plugin {
         return buildTextBitmap(bookTitle);
     }
 
-    /**
-     * 裁剪为正方形（取中心区域）
-     */
     private Bitmap cropCenterSquare(Bitmap bmp) {
         int size = Math.min(bmp.getWidth(), bmp.getHeight());
         int x = (bmp.getWidth() - size) / 2;
@@ -240,9 +236,6 @@ public class DesktopShortcutPlugin extends Plugin {
         return Bitmap.createBitmap(bmp, x, y, size, size);
     }
 
-    /**
-     * 用书名首字生成彩色圆角矩形图标
-     */
     private Bitmap buildTextBitmap(String bookTitle) {
         int size = 108;
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
