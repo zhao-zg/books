@@ -72,9 +72,12 @@
               });
           }
           // 切换备用地址
-          if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1) {
+          // ★ 并发适配：加锁防止多个 fetch 同时切换导致 _currentUrlIndex 越界
+          if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1 && !_urlSwitching) {
+            _urlSwitching = true;
             _currentUrlIndex++;
             DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
+            _urlSwitching = false;
             console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
               (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
             var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
@@ -214,10 +217,13 @@
               addToBookIndex(converted);
               // 失效占用缓存（书籍数据已变更）
               _invalidateBookSizeCache();
+              // ★ 并发适配：在删除 slot 前读取字节总量，供 onTaskComplete 累加 _dlBatchBytesReceived
+              var _bookBytesForBatch = slot ? slot.total : 0;
               delete _activeTasks[taskId];
               _dlStage = '完成';
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
+              converted._dlBookBytes = _bookBytesForBatch;
               return converted;
             });
         });
@@ -274,7 +280,7 @@
       // 检查暂停：Promise 挂起，恢复时直接 resolve，无需轮询
       if (_isPaused) {
         return new Promise(function (resolve) {
-          _pauseResolve = resolve;
+          _pauseResolves.push(resolve);
         }).then(function () {
           // ★ 恢复后再次校验批次与取消状态（暂停期间可能被取消或被新批次取代）
           if (runToken !== _dlActiveToken) return Promise.resolve();
@@ -293,11 +299,11 @@
       var taskFn = tasks[idx];
 
       return taskFn()
-        .then(function () {
+        .then(function (result) {
           // ★ 任务完成后也需校验批次，避免取消后成功回调仍累加计数
           if (runToken !== _dlActiveToken) return;
           success++;
-          if (onTaskComplete) onTaskComplete(success + failed, tasks.length);
+          if (onTaskComplete) onTaskComplete(success + failed, tasks.length, result);
         })
         .catch(function (err) {
           if (runToken !== _dlActiveToken) return;
@@ -475,10 +481,12 @@
             return fn;
           });
 
-          return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
+          return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
             _dlCompleted = completed;
-            // ★ 并发适配：用聚合字节替代单本 _dlBytesTotal
-            var agg = _aggregateTaskBytes();
+            // ★ 并发适配：累加已完成书籍的字节总量到 _dlBatchBytesReceived
+            if (taskResult && taskResult._dlBookBytes) {
+              _dlBatchBytesReceived += taskResult._dlBookBytes;
+            }
             _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
             _broadcastProgress();
           }, myToken).then(function (result) {
@@ -597,9 +605,12 @@
             return fn;
           });
 
-          return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total) {
+          return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
             _dlCompleted = completed;
-            var agg = _aggregateTaskBytes();
+            // ★ 并发适配：累加已完成书籍的字节总量到 _dlBatchBytesReceived
+            if (taskResult && taskResult._dlBookBytes) {
+              _dlBatchBytesReceived += taskResult._dlBookBytes;
+            }
             _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
             _broadcastProgress();
           }, myToken).then(function (result) {

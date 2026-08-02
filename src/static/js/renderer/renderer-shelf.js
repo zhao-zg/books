@@ -478,15 +478,37 @@
                           win.Capacitor.Plugins.DesktopShortcut;
     if (DesktopShortcut && DesktopShortcut.create) {
       _toast('正在创建快捷方式…');
+      // 超时保护：部分 ROM 的 requestPinShortcut 无回调，避免 Promise 永远挂起
+      var resolved = false;
+      var timeout = setTimeout(function() {
+        if (!resolved) {
+          resolved = true;
+          _toast('请查看桌面是否已添加快捷方式');
+        }
+      }, 4000);
       DesktopShortcut.create({
         bookId: book.id,
         bookTitle: name,
         coverBase64: book.cover || ''
-      }).then(function() {
-        _toast('《' + name + '》快捷方式已添加');
+      }).then(function(ret) {
+        clearTimeout(timeout);
+        if (!resolved) {
+          resolved = true;
+          var msg = (ret && ret.message) || '';
+          // requestPinShortcut 场景：系统弹窗确认中，不一定已真正添加
+          if (msg.indexOf('已请求') >= 0) {
+            _toast('请在弹窗中确认添加到桌面');
+          } else {
+            _toast('《' + name + '》快捷方式已添加');
+          }
+        }
       }).catch(function(err) {
-        var errMsg = err && err.message ? err.message : '不支持';
-        _toast('创建失败：' + errMsg);
+        clearTimeout(timeout);
+        if (!resolved) {
+          resolved = true;
+          var errMsg = err && err.message ? err.message : '不支持';
+          _toast('创建失败：' + errMsg);
+        }
       });
     } else {
       _toast('当前环境不支持桌面快捷方式');

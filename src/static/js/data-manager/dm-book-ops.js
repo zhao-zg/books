@@ -190,11 +190,13 @@
   function resumeDownload() {
     if (_isDownloading && _isPaused && _dlActiveToken > 0) {
       _isPaused = false;
-      // resolve 挂起的 Promise，唤醒等待中的 worker
-      if (_pauseResolve) {
-        var r = _pauseResolve;
-        _pauseResolve = null;
-        r();
+      // resolve 所有挂起的 Promise，唤醒等待中的 worker
+      // ★ 并发适配：改为逐个 resolve 队列中的所有 resolve，
+      //   确保所有并发 worker 都被唤醒（旧代码只唤醒 1 个）
+      var resolves = _pauseResolves.slice();
+      _pauseResolves = [];
+      for (var i = 0; i < resolves.length; i++) {
+        resolves[i]();
       }
       console.log('[DataManager] 下载已恢复');
     }
@@ -231,11 +233,11 @@
     //   导致即使没有任何下载在进行也打印"下载已取消"日志，污染诊断信息）。
     //   单本下载被取消时不打印 console 日志是有意的——单本下载场景前端 UI 已有反馈，
     //   日志主要用于批量下载的诊断需要。
-    // 唤醒可能挂起的暂停 Promise
-    if (_pauseResolve) {
-      var r = _pauseResolve;
-      _pauseResolve = null;
-      r();
+    // 唤醒可能挂起的暂停 Promise（所有 worker）
+    var resolves = _pauseResolves.slice();
+    _pauseResolves = [];
+    for (var i = 0; i < resolves.length; i++) {
+      resolves[i]();
     }
     if (didCancel) {
       console.log('[DataManager] 下载已取消');

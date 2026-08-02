@@ -33,6 +33,10 @@
   var DATA_BASE_URLS = [];   // 多个基础 URL，容灾兜底
   var DATA_BASE_URL = '';    // 当前生效的 URL
   var _currentUrlIndex = 0;
+  // ★ 并发适配：CDN 地址切换锁。当多个 fetch 并发失败时，只允许一个 worker 执行切换逻辑，
+  //   避免并发 ++_currentUrlIndex 导致越界或多个 worker 切到不同地址。
+  //   JS 单线程但 Promise 微任务交错执行，"读-改-写"并非原子。
+  var _urlSwitching = false;
 
   // ── localforage 实例 ─────────────────────────────────────────────────
   var store = (typeof localforage !== 'undefined')
@@ -71,8 +75,12 @@
   var _dlTotal = 0;
   var _dlCurrentTitle = '';
   // 暂停/恢复机制：暂停时挂起 Promise，恢复时 resolve
-  var _pauseResolve = null;
-  // 当前活跃批次的 token（与 _pauseResolve/_isPaused 配合；pauseDownload/resumeDownload/cancelDownload
+  // ★ 并发适配：改为数组队列，每个 worker 挂起时 push 自己的 resolve，
+  //   恢复时逐个 resolve，确保所有并发 worker 都被唤醒。
+  //   旧代码用单个变量只存了最后一个 worker 的 resolve，导致并发 >1 时
+  //   其余 worker 永久挂死（根因：下载不全的 Bug 1）
+  var _pauseResolves = [];
+  // 当前活跃批次的 token（与 _pauseResolves/_isPaused 配合；pauseDownload/resumeDownload/cancelDownload
   // 需验证调用方对应的批次仍是当前活跃批次，避免跨批次误操作）
   var _dlActiveToken = 0;
   // 单本下载取消令牌：cancelDownload 推进此 token，各 downloadBook 闭包捕获本次 token，
@@ -296,9 +304,12 @@
           });
         }
         // 当前地址重试耗尽（或 HTML 响应），尝试切换到下一个地址
-        if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1) {
+        // ★ 并发适配：加锁防止多个 fetch 同时切换导致 _currentUrlIndex 越界
+        if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1 && !_urlSwitching) {
+          _urlSwitching = true;
           _currentUrlIndex++;
           DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
+          _urlSwitching = false;
           console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
             (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
           // 用新地址重新构建 URL 并重试（保留完整相对路径，含子目录）
