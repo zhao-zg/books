@@ -586,7 +586,7 @@
 
     // 长按书籍卡（≥450ms）弹快捷菜单；移动超 12px 视为滚动取消
     var _cityLpTimer = null, _cityLpFired = false, _cityLpX = 0, _cityLpY = 0;
-    function _cityClearLp() { if (_cityLpTimer) { clearTimeout(_cityLpTimer); _cityLpTimer = null; } _cityLpFired = false; }
+    function _cityClearLp() { if (_cityLpTimer) { clearTimeout(_cityLpTimer); _cityLpTimer = null; } /* 保留 _cityLpFired：长按触发后 pointerup 不应重置，留待 click 拦截消费 */ }
     homeView.addEventListener('pointerdown', function (e) {
       if (!e.target || !e.target.closest) return;
       var bookLink = e.target.closest('.book-link[data-book-id]');

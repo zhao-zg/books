@@ -458,6 +458,7 @@
   touch-action: none;
 }
 .bk-city-quick-mask.is-open { background: rgba(0, 0, 0, .42); }
+.bk-city-quick-mask.is-open .bk-shelf-quick-menu { transform: translateY(0); }
 
 /* 书架卡片置顶角标（左上，与右上已读角标对称） */
 .bk-shelf-pin-mark {
