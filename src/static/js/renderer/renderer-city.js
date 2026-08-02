@@ -355,6 +355,108 @@
     _renderCityCategoryList(homeView, _citySeries);
   }
 
+  var _cityQuickLockCleanup = null;
+
+  function _closeCityQuickMenu() {
+    if (_cityQuickLockCleanup) { _cityQuickLockCleanup(); _cityQuickLockCleanup = null; }
+    var m = document.querySelector('.bk-city-quick-mask');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+  }
+
+  /** 书城长按快捷菜单（底部 action sheet，复用书架快捷菜单样式） */
+  function _openCityQuickMenu(bookId) {
+    if (!bookId) return;
+    _closeCityQuickMenu();
+    var page = document.getElementById('homeView');
+    if (!page) return;
+    var book = _findBookById(bookId) || { id: bookId };
+    var title = book.title || bookId;
+    var author = book.author || '';
+    var initial = title.replace(/^[\d]+\s*[-–—:：·.\s]+/, '').replace(/^[《「]/, '').charAt(0) || '?';
+    var isRead = (win.BKShelf && win.BKShelf.isRead) ? win.BKShelf.isRead(bookId) : false;
+    var isOnShelf = !!(win.BKShelf && win.BKShelf.get && win.BKShelf.get(bookId));
+
+    var mask = document.createElement('div');
+    mask.className = 'bk-city-quick-mask';
+    mask.setAttribute('role', 'presentation');
+    var sheet = document.createElement('div');
+    // 复用书架快捷菜单样式（bk-shelf-quick-*），确保视觉一致
+    sheet.className = 'bk-shelf-quick-menu';
+    sheet.setAttribute('role', 'menu');
+    sheet.setAttribute('aria-label', '书籍操作');
+
+    // 头部：迷你封面 + 书名 + 作者
+    sheet.innerHTML =
+      '<div class="bk-shelf-quick-head">' +
+        '<div class="bk-shelf-quick-cover" style="background:' + _getSeriesColor(book.series) + '">' + escText(initial) + '</div>' +
+        '<div class="bk-shelf-quick-headtext">' +
+          '<div class="bk-shelf-quick-title">' + escText(title) + '</div>' +
+          (author ? '<div class="bk-shelf-quick-author">' + escText(author) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+
+    var actions = [];
+    actions.push({ icon: ICON_INFO, label: '书籍详情', act: 'detail' });
+    if (isOnShelf) {
+      if (!isRead) {
+        actions.push({ icon: ICON_CHECK, label: '标记已读', act: 'mark-read' });
+      } else {
+        actions.push({ icon: ICON_UNDO, label: '移回在读', act: 'mark-unread' });
+      }
+    }
+    // 添加到桌面：仅 APK 原生环境（PWA 无法为单本书创建独立桌面图标）
+    if (win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform()) {
+      actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
+    }
+
+    actions.forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bk-shelf-quick-item';
+      b.setAttribute('role', 'menuitem');
+      b.setAttribute('data-act', a.act || '');
+      b.innerHTML =
+        '<span class="qi-ico" aria-hidden="true">' + (a.icon || '') + '</span>' +
+        '<span class="qi-label">' + escText(a.label) + '</span>';
+      b.addEventListener('click', function () {
+        if (a.act === 'detail') {
+          _closeCityQuickMenu();
+          _openBookDetail(book);
+        } else if (a.act === 'mark-read') {
+          _closeCityQuickMenu();
+          if (win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(bookId);
+        } else if (a.act === 'mark-unread') {
+          _closeCityQuickMenu();
+          if (win.BKShelf && win.BKShelf.unmarkRead) win.BKShelf.unmarkRead(bookId);
+        } else if (a.act === 'desktop') {
+          _closeCityQuickMenu();
+          _addBookToDesktop(book);
+        }
+      });
+      sheet.appendChild(b);
+    });
+
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'bk-shelf-quick-item bk-shelf-quick-cancel';
+    cancel.textContent = '取消';
+    cancel.setAttribute('role', 'menuitem');
+    cancel.addEventListener('click', function () { _closeCityQuickMenu(); });
+    sheet.appendChild(cancel);
+
+    mask.appendChild(sheet);
+    mask.addEventListener('click', function (e) { if (e.target === mask) _closeCityQuickMenu(); });
+    page.appendChild(mask);
+    if (win.BK && win.BK.lockOverlayScroll) {
+      _cityQuickLockCleanup = win.BK.lockOverlayScroll(mask, function() { _closeCityQuickMenu(); });
+    }
+    if (win.requestAnimationFrame) {
+      win.requestAnimationFrame(function () { mask.classList.add('is-open'); });
+    } else {
+      mask.classList.add('is-open');
+    }
+  }
+
   /** 书城事件委托（绑定在 homeView 容器一次；重渲染 innerHTML 不丢失监听） */
   function _bindCityEvents(homeView) {
     if (_cityEventsBound) return;
@@ -404,6 +506,7 @@
       // 书籍卡 → 进入阅读（与书架 / 搜索一致的导航逻辑）
       var bookLink = e.target.closest('.book-link[data-book-id]');
       if (bookLink) {
+        if (_cityLpFired) { _cityLpFired = false; return; } // 长按刚触发，吞掉后续 click 防误跳转
         e.preventDefault();
         var bookId = bookLink.getAttribute('data-book-id');
         var series = bookLink.getAttribute('data-series');
@@ -480,6 +583,38 @@
 
     homeView.addEventListener('click', onClick);
     homeView.addEventListener('keydown', onKeyDown);
+
+    // 长按书籍卡（≥450ms）弹快捷菜单；移动超 12px 视为滚动取消
+    var _cityLpTimer = null, _cityLpFired = false, _cityLpX = 0, _cityLpY = 0;
+    function _cityClearLp() { if (_cityLpTimer) { clearTimeout(_cityLpTimer); _cityLpTimer = null; } _cityLpFired = false; }
+    homeView.addEventListener('pointerdown', function (e) {
+      if (!e.target || !e.target.closest) return;
+      var bookLink = e.target.closest('.book-link[data-book-id]');
+      if (!bookLink) return;
+      _cityLpFired = false; _cityLpX = e.clientX; _cityLpY = e.clientY;
+      _cityLpTimer = setTimeout(function () {
+        _cityLpFired = true;
+        var bookId = bookLink.getAttribute('data-book-id');
+        _openCityQuickMenu(bookId);
+      }, 450);
+    });
+    homeView.addEventListener('pointermove', function (e) {
+      if (!_cityLpTimer) return;
+      if (Math.abs(e.clientX - _cityLpX) > 12 || Math.abs(e.clientY - _cityLpY) > 12) _cityClearLp();
+    });
+    homeView.addEventListener('pointerup', _cityClearLp);
+    homeView.addEventListener('pointercancel', _cityClearLp);
+    homeView.addEventListener('pointerleave', _cityClearLp);
+    // 右键书籍卡弹快捷菜单（桌面端）
+    homeView.addEventListener('contextmenu', function (e) {
+      if (!e.target || !e.target.closest) return;
+      var bookLink = e.target.closest('.book-link[data-book-id]');
+      if (!bookLink) return;
+      e.preventDefault();
+      var bookId = bookLink.getAttribute('data-book-id');
+      _openCityQuickMenu(bookId);
+      _cityLpFired = true; // 吞掉后续 click
+    });
   }
 
   /** 注册书城所需的全局监听（bk-shelf-changed 就地翻转 + 后台索引更新）仅一次 */

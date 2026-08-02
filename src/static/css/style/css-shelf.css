@@ -445,6 +445,20 @@
 .bk-shelf-quick-cancel .qi-ico { display: none; }
 [data-theme="dark"] .bk-shelf-quick-menu { background: var(--card-bg, #201F1D); }
 
+/* 书城长按快捷菜单遮罩（内部元素复用 bk-shelf-quick-* 样式） */
+.bk-city-quick-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background .2s ease;
+  touch-action: none;
+}
+.bk-city-quick-mask.is-open { background: rgba(0, 0, 0, .42); }
+
 /* 书架卡片置顶角标（左上，与右上已读角标对称） */
 .bk-shelf-pin-mark {
   position: absolute;

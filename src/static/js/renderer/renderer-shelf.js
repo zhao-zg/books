@@ -469,25 +469,25 @@
     }
   }
 
-  // 添加到桌面快捷方式：复制本书深链 + 唤起 PWA 安装（可用时）；否则提示手动添加
+  // 添加到桌面快捷方式（仅 APK 环境可用）
   function _addBookToDesktop(book) {
     if (!book) return;
     var name = book.title || '本书';
-    var link = (win.location.origin || '') + (win.location.pathname || '/') + '#/' + book.id;
-    var copied = false;
-    try {
-      if (win.navigator && win.navigator.clipboard && typeof win.navigator.clipboard.writeText === 'function') {
-        win.navigator.clipboard.writeText(link);
-        copied = true;
-      }
-    } catch (e) {}
-    if (win.BK && typeof win.BK.installPWA === 'function' && win._pwaInstallPrompt) {
-      win.BK.installPWA();
-      _toast(copied ? ('《' + name + '》链接已复制，可安装到桌面快速打开') : ('正在安装《' + name + '》到桌面…'));
+
+    var DesktopShortcut = win.Capacitor && win.Capacitor.Plugins &&
+                          win.Capacitor.Plugins.DesktopShortcut;
+    if (DesktopShortcut && DesktopShortcut.create) {
+      DesktopShortcut.create({
+        bookId: book.id,
+        bookTitle: name,
+        coverBase64: book.cover || ''
+      }).then(function() {
+        _toast('正在为《' + name + '》创建桌面快捷方式…');
+      }).catch(function(err) {
+        _toast('创建快捷方式失败：' + (err && err.message ? err.message : '不支持'));
+      });
     } else {
-      _toast(copied
-        ? ('《' + name + '》的打开链接已复制，请在浏览器菜单「添加到主屏幕」')
-        : ('当前环境暂不支持安装，已复制《' + name + '》链接'));
+      _toast('当前环境不支持桌面快捷方式');
     }
   }
 
@@ -647,7 +647,10 @@
     var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
     var hasNote = !!(shelfRec && shelfRec.note);
     actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑笔记' : '添加笔记', act: 'edit-note', hasNote: hasNote });
-    actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
+    // 添加到桌面：仅 APK 原生环境（PWA 无法为单本书创建独立桌面图标）
+    if (win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform()) {
+      actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
+    }
     actions.push({ icon: ICON_EXPORT, label: '导出书籍', act: 'export' });
     actions.push({ icon: ICON_TRASH, label: '移出书架', sel: '.bk-shelf-remove-btn', danger: true });
 

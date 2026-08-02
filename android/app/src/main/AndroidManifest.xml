@@ -39,6 +39,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- 桌面快捷方式深链：bookapp://book/{bookId} -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="bookapp" android:host="book" />
+            </intent-filter>
         </activity>
 
         <!-- NativeTTS 前台服务 -->
