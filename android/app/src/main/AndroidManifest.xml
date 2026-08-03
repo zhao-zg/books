@@ -13,10 +13,6 @@
     <!-- 申请加入电池优化白名单（引导用户设置"无限制"，保障息屏朗读） -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- 安装桌面快捷方式（Android 7 及以下使用广播方式） -->
-    <uses-permission android:name="android.permission.INSTALL_SHORTCUT"
-        android:maxSdkVersion="25" />
-
     <!-- 安装 APK（应用内更新） -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- 读取外部存储（Android 12 以下，下载 APK 到公共目录后需要读取） -->

@@ -356,7 +356,7 @@
   var ICON_PIN    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.5V4h6v6.5l2 3.5H7l2-3.5Z"/></svg>';
   var ICON_PIN_ON = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.5V4h6v6.5l2 3.5H7l2-3.5Z"/></svg>';
   var ICON_INFO   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>';
-  var ICON_DESKTOP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>';
+
   var ICON_TRASH  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
   var ICON_NOTE   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>';
   var ICON_EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>';
@@ -467,65 +467,6 @@
         });
       }
     }
-  }
-
-  // 添加到桌面快捷方式（仅 APK 环境可用）
-  function _addBookToDesktop(book) {
-    if (!book) return;
-    var name = book.title || '本书';
-
-    var DesktopShortcut = win.Capacitor && win.Capacitor.Plugins &&
-                          win.Capacitor.Plugins.DesktopShortcut;
-    if (!DesktopShortcut || !DesktopShortcut.create) {
-      _toast('当前环境不支持桌面快捷方式');
-      return;
-    }
-
-    _toast('正在创建快捷方式…');
-    console.log('[DesktopShortcut] 调用 create, bookId=' + book.id);
-
-    // 超时保护：部分 ROM 的 requestPinShortcut 无回调，避免 Promise 永远挂起
-    var settled = false;
-    var timeout = setTimeout(function() {
-      if (!settled) {
-        settled = true;
-        _toast('请查看桌面是否已添加快捷方式');
-      }
-    }, 5000);
-
-    DesktopShortcut.create({
-      bookId: book.id,
-      bookTitle: name,
-      coverBase64: book.cover || ''
-    }).then(function(ret) {
-      clearTimeout(timeout);
-      console.log('[DesktopShortcut] resolve:', JSON.stringify(ret));
-      if (!settled) {
-        settled = true;
-        // 根据原生端返回的 result 区分提示
-        var result = ret && ret.result;
-        if (result === 'pin_requested') {
-          // requestPinShortcut 已请求（可能弹窗也可能静默吞掉）
-          _toast('已注册，请确认弹窗或长按应用图标添加');
-        } else if (result === 'dynamic_registered') {
-          // pin 不支持，动态快捷方式已注册
-          _toast('已注册，请长按应用图标拖到桌面');
-        } else if (result === 'broadcast_sent') {
-          // 广播方式：无法确认，引导用户查看
-          _toast('已注册快捷方式，请查看桌面');
-        } else {
-          _toast('《' + name + '》快捷方式已添加');
-        }
-      }
-    }).catch(function(err) {
-      clearTimeout(timeout);
-      console.error('[DesktopShortcut] reject:', err);
-      if (!settled) {
-        settled = true;
-        var errMsg = (err && err.message) ? err.message : String(err || '不支持');
-        _toast('创建失败：' + errMsg);
-      }
-    });
   }
 
   var _shelfQuickLockCleanup = null;
@@ -684,10 +625,6 @@
     var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
     var hasNote = !!(shelfRec && shelfRec.note);
     actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑笔记' : '添加笔记', act: 'edit-note', hasNote: hasNote });
-    // 添加到桌面：仅 APK 原生环境（PWA 无法为单本书创建独立桌面图标）
-    if (win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform()) {
-      actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
-    }
     actions.push({ icon: ICON_EXPORT, label: '导出书籍', act: 'export' });
     actions.push({ icon: ICON_TRASH, label: '移出书架', sel: '.bk-shelf-remove-btn', danger: true });
 
@@ -715,9 +652,6 @@
         } else if (a.act === 'edit-note') {
           _closeShelfQuickMenu();
           _editShelfNote(bookId);
-        } else if (a.act === 'desktop') {
-          _closeShelfQuickMenu();
-          _addBookToDesktop(book);
         } else if (a.act === 'export') {
           _closeShelfQuickMenu();
           _showExportBookMenu(bookId, title);

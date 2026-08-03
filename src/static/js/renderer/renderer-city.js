@@ -409,10 +409,7 @@
         actions.push({ icon: ICON_UNDO, label: '移回在读', act: 'mark-unread' });
       }
     }
-    // 添加到桌面：仅 APK 原生环境（PWA 无法为单本书创建独立桌面图标）
-    if (win.Capacitor && win.Capacitor.isNativePlatform && win.Capacitor.isNativePlatform()) {
-      actions.push({ icon: ICON_DESKTOP, label: '添加到桌面', act: 'desktop' });
-    }
+
 
     actions.forEach(function (a) {
       var b = document.createElement('button');
@@ -433,10 +430,6 @@
         } else if (a.act === 'mark-unread') {
           _closeCityQuickMenu();
           if (win.BKShelf && win.BKShelf.unmarkRead) win.BKShelf.unmarkRead(bookId);
-        } else if (a.act === 'desktop') {
-          _closeCityQuickMenu();
-          _addBookToDesktop(book);
-        }
       });
       sheet.appendChild(b);
     });
