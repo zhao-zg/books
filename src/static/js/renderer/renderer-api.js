@@ -169,12 +169,6 @@
       html += '<button class="bk-settings-row" data-action="sponsor" id="bkSponsorBtn" style="display:none"><span class="bk-row-icon">❤️</span><span class="bk-row-label">顾念微工</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
 
-      // 资源管理
-      html += '<div class="bk-settings-section">';
-      html += '<div class="bk-settings-section-title">资源管理</div>';
-      html += '<button class="bk-settings-row" data-action="download-mgr"><span class="bk-row-icon">📥</span><span class="bk-row-label">下载管理</span><span class="bk-row-arrow">›</span></button>';
-      html += '</div>';
-
       // 高级（内联开关）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">高级</div>';

@@ -251,3 +251,9 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
   body.bk-split-mode #bkTocDrawer { width: 200px; }
 }
 
+/* ── 暗色主题：反馈对话框适配 ──────────────────────────────────── */
+[data-theme="dark"] .bk-feedback-box { background: var(--card-bg, #2A2A2A); }
+[data-theme="dark"] .bk-feedback-textarea { background: var(--surface-alt, #333); border-color: var(--border, #444); color: var(--text, #E0E0E0); }
+[data-theme="dark"] .bk-pill { border-color: var(--border, #555); color: var(--text-muted, #AAA); }
+[data-theme="dark"] .bk-pill.active { background: var(--brand, #3D8A5A); color: #FFFFFF; border-color: var(--brand, #3D8A5A); }
+

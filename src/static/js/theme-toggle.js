@@ -416,7 +416,9 @@
 
     // 反馈问题对话框
     function showFeedbackDialog() {
+        var PUSH_URLS = (window.BK_SERVERS && window.BK_SERVERS.push) || [];
         var MAX_LEN = 500;
+
         var dlg = window.BK.openDialog({
             id: 'bkFeedbackMask',
             html: [
@@ -434,10 +436,12 @@
                 '    </div>',
                 '    <textarea class="bk-feedback-textarea" id="bkFeedbackText" maxlength="' + MAX_LEN + '" placeholder="请描述您遇到的问题或建议…" style="margin-top:14px"></textarea>',
                 '    <div class="bk-feedback-count" id="bkFeedbackCount">0/' + MAX_LEN + '</div>',
+                '    <div class="bk-feedback-tip">请先确认已是最新版本，部分问题在新版中已修复。</div>',
                 '    <div class="bk-feedback-status" id="bkFeedbackStatus"></div>',
                 '  </div>',
                 '  <div class="bk-feedback-actions">',
-                '    <button class="bk-feedback-submit" id="bkFeedbackSubmitBtn">提交反馈</button>',
+                '    <button class="bk-feedback-cancel" id="bkFeedbackCancelBtn">取消</button>',
+                '    <button class="bk-feedback-submit" id="bkFeedbackSubmitBtn">发送</button>',
                 '  </div>',
                 '</div>'
             ].join('')
@@ -451,6 +455,9 @@
 
         var closeBtn = document.getElementById('bkFeedbackClose');
         if (closeBtn) closeBtn.addEventListener('click', dlg.close);
+
+        var cancelBtn = document.getElementById('bkFeedbackCancelBtn');
+        if (cancelBtn) cancelBtn.addEventListener('click', dlg.close);
 
         var feedbackType = 'suggest';
         var typePills = dlg.mask ? dlg.mask.querySelectorAll('.bk-pill') : [];
@@ -484,29 +491,86 @@
                 }
                 submitBtn.disabled = true;
                 submitBtn.textContent = '发送中…';
-                // GitHub Issues 反馈
+                if (statusEl) { statusEl.textContent = ''; statusEl.className = 'bk-feedback-status'; }
+
                 var typeLabel = feedbackType === 'bug' ? '遇到问题' : (feedbackType === 'other' ? '其他' : '功能建议');
-                var content = '【' + typeLabel + '】\n' + text + '\n\n---\n环境: ' + (window.Capacitor ? 'APK' : (window.navigator.standalone ? 'PWA' : '浏览器'));
-                // 简单反馈：复制到剪贴板
-                var done = function() {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '发送';
-                };
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(content).then(function() {
-                        if (statusEl) { statusEl.textContent = '✓ 已复制到剪贴板，请粘贴到 GitHub Issues'; statusEl.className = 'bk-feedback-status success'; }
-                        setTimeout(function() { dlg.close(); }, 2000);
-                        done();
-                    }).catch(function() {
-                        if (statusEl) { statusEl.textContent = '复制失败，请手动复制'; statusEl.className = 'bk-feedback-status error'; }
-                        done();
-                    });
-                } else {
-                    // 回退：选中 textarea 内容供手动复制
-                    if (textarea) { textarea.value = content; textarea.select(); }
-                    if (statusEl) { statusEl.textContent = '请手动复制选中内容到 GitHub Issues'; statusEl.className = 'bk-feedback-status success'; }
-                    done();
+
+                // 采集设备信息
+                var platform = navigator.platform || '';
+                var screenInfo = (screen.width || 0) + 'x' + (screen.height || 0);
+                var appVer = '';
+                try {
+                    var vEl = document.querySelector('meta[name="app-version"]');
+                    if (vEl) appVer = vEl.getAttribute('content') || '';
+                    if (!appVer) appVer = localStorage.getItem('bk_apk_version') || localStorage.getItem('bk_pwa_version') || '';
+                } catch(e) {}
+
+                var runEnv = '浏览器';
+                try {
+                    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) runEnv = 'APK';
+                    else if (window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) runEnv = 'PWA';
+                } catch(e) {}
+
+                var deviceLines = [
+                    '环境: ' + runEnv,
+                    '平台: ' + platform,
+                    '屏幕: ' + screenInfo,
+                    appVer ? '版本: ' + appVer : ''
+                ].filter(Boolean).join('\n');
+
+                // 采集错误日志
+                var errorLog = (window.BK && window.BK.errorLog) ? window.BK.errorLog.get() : [];
+                var logLines = '';
+                if (errorLog.length > 0) {
+                    var fmt = errorLog.slice(-12).map(function(e) {
+                        var d = new Date(e.t);
+                        var ts = (d.getMonth()+1) + '/' + d.getDate() + ' '
+                               + String(d.getHours()).padStart(2,'0') + ':'
+                               + String(d.getMinutes()).padStart(2,'0') + ':'
+                               + String(d.getSeconds()).padStart(2,'0');
+                        return '[' + ts + '] ' + (e.s ? e.s + ' ' : '') + e.m;
+                    }).join('\n');
+                    logLines = '\n\n--- 错误日志 ---\n' + fmt;
                 }
+
+                // 采集原生崩溃日志
+                var crashLog = (window.BK && window.BK.nativeCrashLog) ? window.BK.nativeCrashLog.get() : '';
+                if (crashLog) {
+                    logLines += '\n\n--- 崩溃日志 ---\n' + crashLog.substring(0, 1200);
+                }
+
+                var content = '【' + typeLabel + '】\n' + text + '\n\n---\n' + deviceLines + logLines;
+
+                // 串行重试推送
+                function tryPush(idx) {
+                    if (idx >= PUSH_URLS.length) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '发送';
+                        if (statusEl) { statusEl.textContent = '发送失败，请稍后重试'; statusEl.className = 'bk-feedback-status error'; }
+                        return;
+                    }
+                    var ctrl = new AbortController();
+                    var timer = setTimeout(function() { ctrl.abort(); }, 10000);
+                    fetch(PUSH_URLS[idx], {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: '用户反馈', content: content }),
+                        signal: ctrl.signal
+                    })
+                    .then(function(r) {
+                        clearTimeout(timer);
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function() {
+                        if (window.BK && window.BK.errorLog) window.BK.errorLog.clear();
+                        if (window.BK && window.BK.nativeCrashLog) window.BK.nativeCrashLog.clear();
+                        if (statusEl) { statusEl.textContent = '发送成功，感谢您的反馈！'; statusEl.className = 'bk-feedback-status success'; }
+                        setTimeout(dlg.close, 1800);
+                    })
+                    .catch(function() { clearTimeout(timer); tryPush(idx + 1); });
+                }
+                tryPush(0);
             });
         }
     }

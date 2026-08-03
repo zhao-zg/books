@@ -414,7 +414,10 @@
 .bk-feedback-close:active { background: #E5E2DD; }
 .bk-feedback-body { padding: 16px 24px 8px; }
 .bk-feedback-textarea { border-radius: 12px; background: #FFFFFF; }
-.bk-feedback-actions { gap: 12px; padding: 16px 24px 24px; }
+.bk-feedback-tip { margin-top: 8px; }
+.bk-pill-row { gap: 10px; }
+.bk-pill { padding: 8px 16px; border-radius: 20px; font-size: var(--text-sm, .875rem); }
+.bk-feedback-actions { gap: 12px; padding: 16px 24px 24px; border-top: none; }
 .bk-feedback-cancel, .bk-feedback-submit {
   flex: 1; height: 44px; border-radius: 8px; border: none;
   font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600; cursor: pointer;

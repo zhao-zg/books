@@ -280,6 +280,12 @@
 .bk-feedback-status { font-size: var(--text-xs); min-height: 18px; margin-top: 6px; text-align: center; }
 .bk-feedback-status.success { color: #2e7d32; }
 .bk-feedback-status.error { color: #c62828; }
+.bk-feedback-tip { font-size: var(--text-xs, .75rem); color: var(--text-muted, #9A958C); margin-top: 6px; line-height: 1.4; }
+/* ── 反馈类型切换按钮（pill） ──────────────────────────────── */
+.bk-pill-row { display: flex; gap: 8px; margin-bottom: 4px; }
+.bk-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border, #E5E2DD); background: transparent; color: var(--text-muted, #9A958C); font: inherit; font-size: var(--text-sm, .875rem); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, border-color .15s; }
+.bk-pill:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
+.bk-pill.active { background: var(--brand, #3D8A5A); color: #FFFFFF; border-color: var(--brand, #3D8A5A); }
 .bk-feedback-actions { display: flex; border-top: 1px solid var(--border); flex-shrink: 0; }
 .bk-feedback-cancel, .bk-feedback-submit { flex: 1; padding: 13px 8px; border: none; background: transparent; font: inherit; font-size: var(--text-md); cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
 .bk-feedback-cancel { color: var(--text-muted); border-right: 1px solid var(--border); }
