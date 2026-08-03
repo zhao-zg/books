@@ -430,6 +430,7 @@
         } else if (a.act === 'mark-unread') {
           _closeCityQuickMenu();
           if (win.BKShelf && win.BKShelf.unmarkRead) win.BKShelf.unmarkRead(bookId);
+        }
       });
       sheet.appendChild(b);
     });
