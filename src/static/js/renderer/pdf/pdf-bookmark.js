@@ -193,6 +193,13 @@
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) _hideEditDialog();
     });
+    // 移动端：拦截触摸事件，防止穿透到底层 PDF 页面
+    overlay.addEventListener('touchstart', function (e) {
+      if (e.target === overlay) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+    overlay.addEventListener('touchmove', function (e) {
+      if (e.target === overlay) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
 
     return overlay;
   }

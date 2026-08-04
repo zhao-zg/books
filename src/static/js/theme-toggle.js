@@ -511,66 +511,161 @@
                     else if (window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) runEnv = 'PWA';
                 } catch(e) {}
 
-                var deviceLines = [
-                    '环境: ' + runEnv,
-                    '平台: ' + platform,
-                    '屏幕: ' + screenInfo,
-                    appVer ? '版本: ' + appVer : ''
-                ].filter(Boolean).join('\n');
-
-                // 采集错误日志
-                var errorLog = (window.BK && window.BK.errorLog) ? window.BK.errorLog.get() : [];
-                var logLines = '';
-                if (errorLog.length > 0) {
-                    var fmt = errorLog.slice(-12).map(function(e) {
-                        var d = new Date(e.t);
-                        var ts = (d.getMonth()+1) + '/' + d.getDate() + ' '
-                               + String(d.getHours()).padStart(2,'0') + ':'
-                               + String(d.getMinutes()).padStart(2,'0') + ':'
-                               + String(d.getSeconds()).padStart(2,'0');
-                        return '[' + ts + '] ' + (e.s ? e.s + ' ' : '') + e.m;
-                    }).join('\n');
-                    logLines = '\n\n--- 错误日志 ---\n' + fmt;
-                }
-
-                // 采集原生崩溃日志
-                var crashLog = (window.BK && window.BK.nativeCrashLog) ? window.BK.nativeCrashLog.get() : '';
-                if (crashLog) {
-                    logLines += '\n\n--- 崩溃日志 ---\n' + crashLog.substring(0, 1200);
-                }
-
-                var content = '【' + typeLabel + '】\n' + text + '\n\n---\n' + deviceLines + logLines;
-
-                // 串行重试推送
-                function tryPush(idx) {
-                    if (idx >= PUSH_URLS.length) {
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = '发送';
-                        if (statusEl) { statusEl.textContent = '发送失败，请稍后重试'; statusEl.className = 'bk-feedback-status error'; }
-                        return;
+                // 拆解 UA 字段
+                var ua = navigator.userAgent || '';
+                function parseUA(uaStr) {
+                    var lines = [];
+                    var os = '';
+                    var m;
+                    if ((m = uaStr.match(/Android\s+([\d.]+)/i))) {
+                        os = 'Android ' + m[1];
+                        var dev = uaStr.match(/;\s*([^;()]+?)\s+Build\//i) ||
+                                  uaStr.match(/;\s*([^;()]+?)\s*\)/i);
+                        if (dev) {
+                            var model = dev[1].trim();
+                            if (!/^Android\s/i.test(model) && !/^Linux$/i.test(model)) {
+                                os += ' / ' + model;
+                            }
+                        }
+                    } else if ((m = uaStr.match(/iPhone OS ([\d_]+)/i))) {
+                        os = 'iOS ' + m[1].replace(/_/g, '.');
+                    } else if ((m = uaStr.match(/iPad.*OS ([\d_]+)/i))) {
+                        os = 'iPadOS ' + m[1].replace(/_/g, '.');
+                    } else if ((m = uaStr.match(/Windows NT ([\d.]+)/i))) {
+                        var winMap = {'10.0':'10/11','6.3':'8.1','6.2':'8','6.1':'7'};
+                        os = 'Windows ' + (winMap[m[1]] || m[1]);
+                    } else if ((m = uaStr.match(/Mac OS X ([\d_]+)/i))) {
+                        os = 'macOS ' + m[1].replace(/_/g, '.');
+                    } else if (/Linux/i.test(uaStr)) {
+                        os = 'Linux';
                     }
-                    var ctrl = new AbortController();
-                    var timer = setTimeout(function() { ctrl.abort(); }, 10000);
-                    fetch(PUSH_URLS[idx], {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title: '用户反馈', content: content }),
-                        signal: ctrl.signal
-                    })
-                    .then(function(r) {
-                        clearTimeout(timer);
-                        if (!r.ok) throw new Error('HTTP ' + r.status);
-                        return r.json();
-                    })
-                    .then(function() {
-                        if (window.BK && window.BK.errorLog) window.BK.errorLog.clear();
-                        if (window.BK && window.BK.nativeCrashLog) window.BK.nativeCrashLog.clear();
-                        if (statusEl) { statusEl.textContent = '发送成功，感谢您的反馈！'; statusEl.className = 'bk-feedback-status success'; }
-                        setTimeout(dlg.close, 1800);
-                    })
-                    .catch(function() { clearTimeout(timer); tryPush(idx + 1); });
+                    if (os) lines.push('系统: ' + os);
+                    var browser = '';
+                    if (/wv\)/.test(uaStr) || /; wv/.test(uaStr)) {
+                        var wvVer = uaStr.match(/Chrome\/([\d.]+)/i);
+                        browser = 'WebView (Chrome/' + (wvVer ? wvVer[1] : '?') + ')';
+                    } else if ((m = uaStr.match(/Edg\/([\d.]+)/i))) {
+                        browser = 'Edge ' + m[1];
+                    } else if ((m = uaStr.match(/OPR\/([\d.]+)/i))) {
+                        browser = 'Opera ' + m[1];
+                    } else if ((m = uaStr.match(/Chrome\/([\d.]+)/i))) {
+                        browser = 'Chrome ' + m[1];
+                    } else if ((m = uaStr.match(/Firefox\/([\d.]+)/i))) {
+                        browser = 'Firefox ' + m[1];
+                    } else if ((m = uaStr.match(/Version\/([\d.]+).*Safari/i))) {
+                        browser = 'Safari ' + m[1];
+                    }
+                    if (browser) lines.push('浏览器: ' + browser);
+                    return lines;
                 }
-                tryPush(0);
+                var uaLines = parseUA(ua);
+
+                function doSend(ip, region) {
+                    var ipStr = region ? ip + ' (' + region + ')' : ip;
+                    var deviceLines = [
+                        'IP: ' + ipStr,
+                        '环境: ' + runEnv,
+                        '平台: ' + platform,
+                        '屏幕: ' + screenInfo,
+                        appVer ? '版本: ' + appVer : ''
+                    ].concat(uaLines).filter(Boolean).join('\n');
+
+                    // 采集错误日志
+                    var errorLog = (window.BK && window.BK.errorLog) ? window.BK.errorLog.get() : [];
+                    var logLines = '';
+                    if (errorLog.length > 0) {
+                        var fmt = errorLog.slice(-12).map(function(e) {
+                            var d = new Date(e.t);
+                            var ts = (d.getMonth()+1) + '/' + d.getDate() + ' '
+                                   + String(d.getHours()).padStart(2,'0') + ':'
+                                   + String(d.getMinutes()).padStart(2,'0') + ':'
+                                   + String(d.getSeconds()).padStart(2,'0');
+                            return '[' + ts + '] ' + (e.s ? e.s + ' ' : '') + e.m;
+                        }).join('\n');
+                        logLines = '\n\n--- 错误日志 ---\n' + fmt;
+                    }
+
+                    // 采集原生崩溃日志
+                    var crashLog = (window.BK && window.BK.nativeCrashLog) ? window.BK.nativeCrashLog.get() : '';
+                    if (crashLog) {
+                        logLines += '\n\n--- 崩溃日志 ---\n' + crashLog.substring(0, 1200);
+                    }
+
+                    var content = '【' + typeLabel + '】\n' + text + '\n\n---\n' + deviceLines + logLines;
+
+                    // 串行重试推送
+                    function tryPush(idx) {
+                        if (idx >= PUSH_URLS.length) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = '发送';
+                            if (statusEl) { statusEl.textContent = '发送失败，请稍后重试'; statusEl.className = 'bk-feedback-status error'; }
+                            return;
+                        }
+                        var ctrl = new AbortController();
+                        var timer = setTimeout(function() { ctrl.abort(); }, 10000);
+                        fetch(PUSH_URLS[idx], {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title: '用户反馈', content: content }),
+                            signal: ctrl.signal
+                        })
+                        .then(function(r) {
+                            clearTimeout(timer);
+                            if (!r.ok) throw new Error('HTTP ' + r.status);
+                            return r.json();
+                        })
+                        .then(function() {
+                            if (window.BK && window.BK.errorLog) window.BK.errorLog.clear();
+                            if (window.BK && window.BK.nativeCrashLog) window.BK.nativeCrashLog.clear();
+                            if (statusEl) { statusEl.textContent = '发送成功，感谢您的反馈！'; statusEl.className = 'bk-feedback-status success'; }
+                            setTimeout(dlg.close, 1800);
+                        })
+                        .catch(function() { clearTimeout(timer); tryPush(idx + 1); });
+                    }
+                    tryPush(0);
+                }
+
+                // 获取真实 IP 及归属地（多级降级，每次最多等 5s）
+                var _ip = window.BK_SERVERS && window.BK_SERVERS.ipApis;
+                var IP_APIS = [
+                    {
+                        url: (_ip && _ip[0]) || '',
+                        parse: function(t) {
+                            var m = t.match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+                            if (!m) return null;
+                            var ip = m[1];
+                            var rm = t.match(/来自于[：:]\s*(.+)/);
+                            var region = rm ? rm[1].trim().replace(/\s+/g, ' ') : '';
+                            return { ip: ip, region: region };
+                        }
+                    },
+                    {
+                        url: (_ip && _ip[1]) || '',
+                        parse: function(t) {
+                            try {
+                                var d = JSON.parse(t);
+                                var ip = d.ip || '';
+                                var parts = [d.country, d.region, d.city].filter(Boolean);
+                                return ip ? { ip: ip, region: parts.join(' ') } : null;
+                            } catch(e) { return null; }
+                        }
+                    }
+                ];
+                function fetchIp(idx) {
+                    if (idx >= IP_APIS.length) { doSend('未知', ''); return; }
+                    var api = IP_APIS[idx];
+                    if (!api.url) { fetchIp(idx + 1); return; }
+                    var ctrl = new AbortController();
+                    var timer = setTimeout(function() { ctrl.abort(); }, 5000);
+                    fetch(api.url, { cache: 'no-cache', signal: ctrl.signal })
+                        .then(function(r) { clearTimeout(timer); return r.text(); })
+                        .then(function(t) {
+                            var res = api.parse(t);
+                            if (res && res.ip) { doSend(res.ip, res.region || ''); } else { fetchIp(idx + 1); }
+                        })
+                        .catch(function() { clearTimeout(timer); fetchIp(idx + 1); });
+                }
+                fetchIp(0);
             });
         }
     }

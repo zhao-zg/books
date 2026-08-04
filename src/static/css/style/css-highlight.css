@@ -46,7 +46,7 @@
 .hl-underline-btn.active { background: var(--brand, #3D8A5A); color: #fff; border-color: var(--brand, #3D8A5A); border-bottom-color: #ffcdd2; }
 
 /* ── 笔记模态框 ──────────────────────────────────────────────── */
-.hl-modal-mask { display: none; position: fixed; inset: 0; background: rgba(26,25,23,0.4); z-index: 10100; align-items: center; justify-content: center; padding: 16px; }
+.hl-modal-mask { display: none; position: fixed; inset: 0; background: rgba(26,25,23,0.4); z-index: 10100; align-items: center; justify-content: center; padding: 16px; touch-action: none; overscroll-behavior: none; }
 .hl-modal-card { background: var(--card-bg, #FFFFFF); border-radius: 16px; padding: 18px; width: 100%; max-width: 420px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
 .hl-modal-title { font-size: var(--text-lg); font-weight: 700; color: var(--text, #1A1918); }
 .hl-note-textarea { width: 100%; box-sizing: border-box; resize: vertical; overflow-y: auto; border: 1px solid var(--border, #E5E2DD); border-radius: 8px; padding: 10px; font-size: var(--text-base); color: var(--text, #1A1918); background: var(--surface-alt, #EDEAE4); font-family: inherit; line-height: 1.6; min-height: 100px; max-height: 60vh; }

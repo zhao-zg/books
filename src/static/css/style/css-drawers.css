@@ -379,6 +379,12 @@
 .bk-dialog-cancel:active { background: #F1F0ED; }
 .bk-dialog-confirm { background: var(--brand, #3D8A5A); color: #FFFFFF; }
 .bk-dialog-confirm:active { opacity: .85; }
+/* 标记面板：次级操作按钮（outline 风格） */
+.bk-dialog-outline {
+  background: transparent; color: var(--brand, #3D8A5A);
+  border: 1px solid var(--brand, #3D8A5A);
+}
+.bk-dialog-outline:active { background: rgba(61,138,90,.08); }
 /* 书籍详情：主操作（继续阅读 / 开始阅读） */
 .bk-dialog-primary {
   flex: 1; height: 44px; border-radius: 8px; border: none;

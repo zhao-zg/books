@@ -173,6 +173,21 @@
         // lockOverlayScroll 统一处理防滚动穿透
         var _cleanupScroll = lockOverlayScroll(mask, function() { close(); });
 
+        // 移动端：拦截触摸事件，防止穿透到底层内容（滑动、点击等）
+        // 只在遮罩背景区域（e.target === mask）拦截，弹框内容区域的触摸仍正常冒泡
+        mask.addEventListener('touchstart', function (e) {
+            if (e.target === mask) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, { passive: false });
+        mask.addEventListener('touchmove', function (e) {
+            if (e.target === mask) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, { passive: false });
+
         // 桌面/鼠标端：click 处理
         mask.addEventListener('click', function (e) {
             if (e.target === mask) {
@@ -276,12 +291,18 @@
 
         function onTouchStart(e) {
             touchStartY = e.touches ? e.touches[0].clientY : 0;
+            // 遮罩背景区域的触摸事件阻止穿透到底层内容
+            if (e.target === overlayEl) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
 
         function onTouchMove(e) {
-            // 如果触摸目标就是遮罩本身（非子元素），阻止滚动
+            // 如果触摸目标就是遮罩本身（非子元素），阻止滚动 + 阻止冒泡
             if (e.target === overlayEl) {
                 e.preventDefault();
+                e.stopPropagation();
             }
         }
 
@@ -292,7 +313,7 @@
         }
 
         if (overlayEl) {
-            overlayEl.addEventListener('touchstart', onTouchStart, { passive: true });
+            overlayEl.addEventListener('touchstart', onTouchStart, { passive: false });
             overlayEl.addEventListener('touchmove', onTouchMove, { passive: false });
             overlayEl.addEventListener('wheel', onWheel, { passive: false });
         }

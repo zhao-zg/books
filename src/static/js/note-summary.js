@@ -181,15 +181,15 @@
 
             // 底部操作栏
             var addBmBtnHtml = (this._addBookmarkBtn && this._isContentPage())
-                ? '<button class="bk-dialog-confirm" data-action="add-bookmark">添加当前页书签</button>'
+                ? '<button class="bk-dialog-outline" data-action="add-bookmark">添加书签</button>'
                 : '';
             var exportBtnHtml = notes.length
                 ? '<button class="bk-dialog-confirm" data-action="export">导出</button>'
                 : '';
             var footerHtml = '<div class="bk-dialog-actions">' +
                 '<button class="bk-dialog-cancel" data-action="close">关闭</button>' +
-                addBmBtnHtml +
                 exportBtnHtml +
+                addBmBtnHtml +
                 '</div>';
 
             var dialogHtml = '<div class="bk-dialog" style="width:min(460px,calc(100vw - 32px));max-height:85vh">' +
@@ -301,11 +301,6 @@
                     }
                     bodyHtml += '>';
 
-                    bodyHtml += '<div class="bk-ns-item-header">';
-                    bodyHtml += '<span class="bk-ns-item-type">' + typeLabel + '</span>';
-                    if (timeStr) bodyHtml += '<span class="bk-ns-item-time">' + _escHtml(timeStr) + '</span>';
-                    bodyHtml += '</div>';
-
                     // 书签标题（书签类型优先显示标题）
                     if (item.type === 'bookmark' && item.title) {
                         bodyHtml += '<div class="bk-ns-item-title">' + _escHtml(item.title) + '</div>';
@@ -325,6 +320,12 @@
                     if (item.type === 'bookmark' && !item.hasNote && !item.title) {
                         bodyHtml += '<div class="bk-ns-item-source">来源：' + _escHtml(item.source) + '</div>';
                     }
+
+                    // 底部元信息行：类型 chip + 时间
+                    bodyHtml += '<div class="bk-ns-item-meta">';
+                    bodyHtml += '<span class="bk-ns-item-type">' + typeLabel + '</span>';
+                    if (timeStr) bodyHtml += '<span class="bk-ns-item-time">' + _escHtml(timeStr) + '</span>';
+                    bodyHtml += '</div>';
 
                     bodyHtml += '</div>';
                 }
@@ -534,13 +535,7 @@
                 _bindItemInteraction(items[j], self);
             }
 
-            // 重新聚焦搜索输入框并将光标放到末尾
-            var input = dlg.querySelector('#bkNsSearchInput');
-            if (input) {
-                input.focus();
-                var len = input.value.length;
-                try { input.setSelectionRange(len, len); } catch (e) { /* some input types don't support setSelectionRange */ }
-            }
+            // 切换Tab时不自动聚焦搜索框（避免移动端弹出键盘）
         },
 
         // ─── 条目交互 ─────────────────────────────────────────────────
@@ -1046,7 +1041,7 @@
             if (win.__bkBooks) {
                 for (var i = 0; i < win.__bkBooks.length; i++) {
                     if (win.__bkBooks[i].id === parts[0]) {
-                        bookTitle = win.__bkBooks[i].title || '';
+                    bookTitle = win.__bkBooks[i].title || '';
                         break;
                     }
                 }
@@ -1063,9 +1058,17 @@
                     bookTitle: bookTitle,
                     chapterNum: parseInt(parts[1], 10) || parts[1],
                     silent: true
-                }).then(function () {
+                }).then(function (bm) {
                     // 添加成功后重新打开面板（默认书签Tab）
-                    self.show({ tab: 'bookmark', showAddBookmark: true });
+                    if (bm) {
+                        // 提示已添加
+                        if (win.BKBookmark && win.BKBookmark.showList) {
+                            // 关闭标记面板，打开书签标题编辑
+                            self.show({ tab: 'bookmark', showAddBookmark: true });
+                        }
+                    } else {
+                        self.show({ tab: 'bookmark', showAddBookmark: true });
+                    }
                 });
             }
         }

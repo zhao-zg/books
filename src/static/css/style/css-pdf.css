@@ -1964,6 +1964,8 @@ body.bk-pdf-reading {
   pointer-events: none;
   transition: opacity 0.2s ease-out;
   -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 .bk-pdf-page-jump-overlay.bk-pdf-page-jump-visible {

@@ -104,8 +104,7 @@
 }
 .bk-bm-note-quote {
   font-size: var(--text-sm); color: var(--text-soft, #5A564F); line-height: 1.6;
-  background: var(--surface-alt, #EDEAE4); border-left: 3px solid var(--brand, #3D8A5A);
-  border-radius: var(--radius-sm, 8px); padding: 10px 12px; margin-bottom: 14px;
+  background: var(--surface-alt, #EDEAE4); border-radius: var(--radius-sm, 8px); padding: 10px 12px; margin-bottom: 14px;
 }
 .bk-bm-note-textarea {
   width: 100%; min-height: 140px; resize: vertical; box-sizing: border-box;
