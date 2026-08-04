@@ -20,6 +20,22 @@
   var _started = false;
   var _skipNextDispatch = false;
 
+  /**
+   * 保存最后路由到 localStorage
+   * 应用重启时可用于恢复上次退出时的页面
+   */
+  function _saveLastRoute(path) {
+    try { localStorage.setItem('bk_last_route', path || ''); } catch(e) {}
+  }
+
+  /**
+   * 获取保存的最后路由
+   * 仅在启动时 hash 为空（未指定深链）时使用
+   */
+  function _getLastRoute() {
+    try { return localStorage.getItem('bk_last_route') || ''; } catch(e) { return ''; }
+  }
+
   function getPath() {
     var h = win.location.hash || '#/';
     var raw = h.replace(/^#\/?/, '');
@@ -30,6 +46,8 @@
   function dispatch(path) {
     var parts = path.split('/').filter(Boolean);
     win.__bkCurrentPath = path;
+    // ★ 保存最后路由到 localStorage，应用重启后可恢复
+    _saveLastRoute(path);
     // 路由切换时关闭搜索面板（skipHistory: 导航已在进行中，不需要 history.back()）
     if (win.BKSearch && win.BKSearch.close) {
       try { win.BKSearch.close(true); } catch (e) {}
@@ -83,7 +101,19 @@
       _started = true;
       win.addEventListener('hashchange', onHashChange);
       console.log('[Router] start() initialHash="' + win.location.hash + '"');
-      dispatch(getPath());
+
+      // ★ 启动路由恢复：若 URL hash 为空（未指定深链），恢复上次退出时的页面
+      var initialPath = getPath();
+      if (!initialPath) {
+        var saved = _getLastRoute();
+        if (saved) {
+          console.log('[Router] 恢复上次路由: "' + saved + '"');
+          // 用 replaceState 恢复 URL，不新增历史条目
+          try { win.history.replaceState(null, '', win.location.pathname + '#/' + saved); } catch(e) {}
+          initialPath = saved;
+        }
+      }
+      dispatch(initialPath);
     },
 
     navigate: function (hashPath) {
@@ -130,6 +160,11 @@
 
     currentPath: function () {
       return getPath();
+    },
+
+    /** 保存当前路由到 localStorage（供 AppLifecycle 切后台时调用） */
+    saveCurrentRoute: function () {
+      _saveLastRoute(win.__bkCurrentPath || getPath());
     }
   };
 

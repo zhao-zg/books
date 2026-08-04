@@ -100,8 +100,31 @@
     _state.background = true;
     _state.backgroundSince = _now();
     console.log('[AppLifecycle] → 后台');
+    // ★ 切后台时主动保存滚动位置和路由状态
+    //    避免进程被杀后 300ms debounce 未完成导致滚动位置丢失
+    _saveStateOnBackground();
     // 通知 refresher 停止渲染
     _notifyBackground();
+  }
+
+  /**
+   * 切后台时保存关键状态到 localStorage
+   * - 滚动位置：直接调用 saveScrollPosition()，不中断跟踪
+   * - 最后路由：确保重启后能恢复到正确页面
+   */
+  function _saveStateOnBackground() {
+    try {
+      // 保存滚动位置（renderer-data.js 的 saveScrollPosition，不中断 scroll 跟踪）
+      if (win.BKRenderer && win.BKRenderer.saveScrollPosition) {
+        win.BKRenderer.saveScrollPosition();
+      }
+      // 保存最后路由（router.js 的 _saveLastRoute）
+      if (win.BKRouter && win.BKRouter.saveCurrentRoute) {
+        win.BKRouter.saveCurrentRoute();
+      }
+    } catch(e) {
+      console.warn('[AppLifecycle] 保存后台状态失败:', e && e.message);
+    }
   }
 
   /**

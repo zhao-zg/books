@@ -912,6 +912,15 @@
     //   返回 0 表示无进度；> 0 为上次阅读的章节号。
     getReadingProgress: function (bookId) {
       return getReadingProgress(bookId);
+    },
+
+    // ★ 暴露滚动位置保存方法（供 AppLifecycle 切后台时调用）
+    stopScrollTracking: function () {
+      stopScrollTracking();
+    },
+
+    saveScrollPosition: function () {
+      saveScrollPosition();
     }
   };
 
