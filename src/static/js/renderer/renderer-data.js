@@ -134,21 +134,19 @@
         var cfServers = (win.BK_SERVERS && win.BK_SERVERS.cloudflare) || [];
 
         if (isNativeApp || isPwaStandalone) {
-          // APK/PWA：优先使用本地 bundled 索引数据，回退到 CDN
+          // APK/PWA：优先使用本地 bundled 索引数据，回退到同源 zl-data
           var localZlData = './zl-data';
           var cfFallbackUrls = [];
           if (cfServers.length > 0) {
             for (var si = 0; si < cfServers.length; si++) {
               cfFallbackUrls.push(cfServers[si].replace(/\/+$/, '') + '/zl-data');
             }
-          } else {
-            cfFallbackUrls.push('https://books-data.pages.dev/zl-data');
           }
           // APK/PWA 本地数据始终可用（APK 打包 / PWA 安装时缓存），
           // DataManager.loadIndex() 对本地路径走 localforage 缓存优先，无需探路 fetch
           dmUrl = localZlData;
           dmUrls = [localZlData].concat(cfFallbackUrls);
-          console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据，CDN 备用');
+          console.log('[Renderer] ' + (isNativeApp ? 'APK' : 'PWA') + '模式：使用本地索引数据' + (cfFallbackUrls.length ? '，CDN 备用' : ''));
           return _setupDataManager(dmUrl, dmUrls);
         } else if (isLocal) {
           // 本地开发模式：使用 output/zl-data/（由 main.py copy_zl_merged_data 完整复制）
@@ -158,7 +156,7 @@
           console.log('[Renderer] 本地模式：DataManager 使用 ' + dmUrl);
         } else {
           dmUrls.push(win.location.origin + '/zl-data');
-          // 添加 CDN 兜底地址，与 APK/PWA 分支保持一致
+          // 添加 CDN 备用地址（如有配置）
           if (cfServers.length > 0) {
             for (var bi = 0; bi < cfServers.length; bi++) {
               var cfUrl = cfServers[bi].replace(/\/+$/, '') + '/zl-data';
@@ -166,8 +164,6 @@
                 dmUrls.push(cfUrl);
               }
             }
-          } else {
-            dmUrls.push('https://books-data.pages.dev/zl-data');
           }
           dmUrl = dmUrls[0];
           console.log('[Renderer] 浏览器模式：DataManager 使用 ' + dmUrl + '（' + dmUrls.length + ' 个地址）');
