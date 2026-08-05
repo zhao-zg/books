@@ -26,7 +26,7 @@
 
     function _getBookId() {
         var s = _getS();
-        return s ? s._pdfCurrentBookId : null;
+        return (s && typeof s.currentBookId === 'function') ? s.currentBookId() : null;
     }
 
     win.BK.MarkPanelAdapters.PdfAdapter = {

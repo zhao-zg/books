@@ -40,7 +40,7 @@
                 MarkPanel._bookTitle = (win.BKRenderer && win.BKRenderer._currentBookTitle) || '';
             } else {
                 var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
-                var _bookId = _s && _s._pdfCurrentBookId;
+                var _bookId = _s && typeof _s.currentBookId === 'function' ? _s.currentBookId() : null;
                 if (_bookId && win.__bkBooks) {
                     for (var bi = 0; bi < win.__bkBooks.length; bi++) {
                         var b = win.__bkBooks[bi];
@@ -130,13 +130,12 @@
         // ─── 内部方法 ──────────────────────────────────────────────────
 
         _detectReaderType: function () {
-            // PDF 阅读器：BKPdf._internal 存在且包含真实的 state（非空对象）
-            // EPUB 阅读器：BKPdf._internal 不存在，或为空对象 {}
+            // 判断当前是否在 PDF 阅读模式
+            // BKPdf._internal 在 EPUB 页也存在（JS 文件都加载了），但不能仅凭其存在判断
+            // 可靠方式：state.currentBookId() 返回非空值 → 正在阅读 PDF
             var internal = win.BKPdf && win.BKPdf._internal;
-            var isPdf = internal && (
-                (internal.state && internal.state._pdfCurrentBookId) ||
-                (internal.nav && internal.nav.goToPage)
-            );
+            var state = internal && internal.state;
+            var isPdf = state && typeof state.currentBookId === 'function' && state.currentBookId();
             MarkPanel._readerType = isPdf ? 'pdf' : 'epub';
         },
 
@@ -764,7 +763,7 @@
                     win.BKHighlight.saveNote(item.id, newNote);
                 } else if (MarkPanel._readerType === 'pdf') {
                     var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
-                    var _bookId = _s && _s._pdfCurrentBookId;
+                    var _bookId = (_s && typeof _s.currentBookId === 'function') ? _s.currentBookId() : null;
                     if (_s && _bookId && _s.setHighlightNote) _s.setHighlightNote(_bookId, item.id, newNote);
                 }
                 // 更新本地缓存
