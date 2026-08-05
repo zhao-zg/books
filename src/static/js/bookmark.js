@@ -371,9 +371,14 @@
         },
 
         /**
-         * 显示书签列表弹框
+         * 显示书签列表弹框（桥接到 MarkPanel）
          */
         showList: function () {
+            // 优先使用 MarkPanel
+            if (win.BK && win.BK.MarkPanel) {
+                win.BK.MarkPanel.open('bookmark');
+                return;
+            }
             BKBookmark.getAll().then(function (arr) {
                 var curPath = win.__bkCurrentPath || '';
                 var curParts = curPath.split('/').filter(Boolean);

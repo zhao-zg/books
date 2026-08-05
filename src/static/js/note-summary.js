@@ -23,10 +23,17 @@
         _addBookmarkBtn: false, // 是否显示"添加当前页书签"按钮
 
         /**
-         * 打开标记面板弹框
+         * 打开标记面板弹框（桥接到 MarkPanel）
          * @param {Object} [options] - {tab: 'bookmark'|'highlight'|'note'|'', showAddBookmark: boolean}
          */
         show: function (options) {
+            // 优先使用 MarkPanel
+            if (win.BK && win.BK.MarkPanel) {
+                var mpTab = 'bookmark';
+                if (options && options.tab === 'highlight') mpTab = 'mark';
+                win.BK.MarkPanel.open(mpTab);
+                return;
+            }
             var self = this;
             options = options || {};
             // 先关闭已有弹窗

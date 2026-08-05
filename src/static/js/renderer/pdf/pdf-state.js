@@ -550,6 +550,10 @@ var PRERENDER_ADJACENT = 3;   // 预渲染相邻页数（前后各 3 页），�
       var mod = subs[drawerNames[i]];
       if (mod && mod.hide) mod.hide();
     }
+    // MarkPanel 互斥：关闭旧抽屉时也关闭 MarkPanel
+    if (except !== 'markPanel' && win.BK && win.BK.MarkPanel) {
+      win.BK.MarkPanel.close();
+    }
   }
 
   // ==================== 导出 ====================

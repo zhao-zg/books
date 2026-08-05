@@ -190,8 +190,13 @@
         _bmPressTimer = setTimeout(function () {
           _bmLongPressed = true;
           _bmPressTimer = null;
-          var bm = win.BKPdf._internal.bookmark;
-          if (bm && bm.show) bm.show();
+          // 长按 → 打开 MarkPanel 书签 Tab
+          if (win.BK && win.BK.MarkPanel) {
+            win.BK.MarkPanel.open('bookmark');
+          } else {
+            var bm = win.BKPdf._internal.bookmark;
+            if (bm && bm.show) bm.show();
+          }
           if (navigator.vibrate) navigator.vibrate(10);
         }, BM_LONGPRESS_MS);
       }
@@ -222,12 +227,16 @@
       _updateBookmarkBtnState();
     }
 
-    // 高亮列表按钮
+    // 高亮列表按钮 → 打开 MarkPanel 标记 Tab
     var highlightBtn = _bottomBar.querySelector('.bk-pdf-tb-highlight');
     if (highlightBtn) {
       highlightBtn.addEventListener('click', function () {
-        var hl = win.BKPdf._internal.highlight;
-        if (hl && hl.toggle) hl.toggle();
+        if (win.BK && win.BK.MarkPanel) {
+          win.BK.MarkPanel.toggle('mark');
+        } else {
+          var hl = win.BKPdf._internal.highlight;
+          if (hl && hl.toggle) hl.toggle();
+        }
       });
     }
 
