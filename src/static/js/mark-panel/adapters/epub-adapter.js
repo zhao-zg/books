@@ -263,6 +263,8 @@
             updateNote: function (id, note) {
                 if (win.BKHighlight && win.BKHighlight.saveNote) {
                     win.BKHighlight.saveNote(id, note);
+                    // saveNote 是异步存储的，通知 MarkPanel 刷新
+                    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
                 }
                 return Promise.resolve();
             },

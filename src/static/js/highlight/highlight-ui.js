@@ -38,7 +38,7 @@ Object.assign(BKHighlight, {
                     colorDotsHTML +
                     '<button class="hl-underline-btn" id="hl-sel-ul" title="下划线">U</button>' +
                     '<span class="hl-sel-sep"></span>' +
-                    '<button class="hl-menu-btn hl-sel-note-btn" id="hl-sel-note">添加笔记</button>' +
+                    '<button class="hl-menu-btn hl-sel-note-btn" id="hl-sel-note">添加批注</button>' +
                 '</div>';
 
             ['touchstart', 'touchend', 'mousedown'].forEach(function (evt) {
@@ -119,7 +119,7 @@ Object.assign(BKHighlight, {
                 if (id) {
                     var h = self.highlights.find(function (x) { return x.id === id; });
                     var hasNote = h && h.note;
-                    var msg = hasNote ? '确定删除此划线？含笔记将一并删除' : '确定删除此划线？';
+                    var msg = hasNote ? '确定删除此划线？含批注将一并删除' : '确定删除此划线？';
                     if (confirm(msg)) self.removeMark(id);
                 }
             });
@@ -136,7 +136,7 @@ Object.assign(BKHighlight, {
                     html:
                         '<div class="bk-hl-note-expanded-card">' +
                             '<div class="bk-hl-note-expanded-header">' +
-                                '<span class="bk-hl-note-expanded-title">笔记</span>' +
+                                '<span class="bk-hl-note-expanded-title">批注</span>' +
                                 '<button class="bk-hl-note-expanded-edit" id="bk-hl-note-exp-edit">编辑</button>' +
                             '</div>' +
                             '<div class="bk-hl-note-expanded-body"></div>' +
@@ -163,7 +163,7 @@ Object.assign(BKHighlight, {
                 e.stopPropagation();
                 var id = self._pendingHighlightId;
                 self.hideAllMenus();
-                if (id && confirm('确定删除此笔记？')) self.removeNote(id);
+                if (id && confirm('确定删除此批注？')) self.removeNote(id);
             });
 
             self._bindColorPanel(menu.querySelector('.hl-color-panel'), 'existing');
@@ -177,8 +177,8 @@ Object.assign(BKHighlight, {
             modal.className = 'hl-modal-mask';
             modal.innerHTML =
                 '<div class="hl-modal-card">' +
-                    '<div class="hl-modal-title">笔记</div>' +
-                    '<textarea class="hl-note-textarea" id="hl-note-textarea" placeholder="输入笔记内容…" rows="5"></textarea>' +
+                    '<div class="hl-modal-title">批注</div>' +
+                    '<textarea class="hl-note-textarea" id="hl-note-textarea" placeholder="输入批注内容…" rows="5"></textarea>' +
                     '<div class="hl-modal-actions">' +
                         '<button class="hl-modal-btn hl-modal-cancel" id="hl-note-cancel">取消</button>' +
                         '<button class="hl-modal-btn hl-modal-save"   id="hl-note-save">保存</button>' +
@@ -306,7 +306,7 @@ Object.assign(BKHighlight, {
             }
 
             var noteEditLabel = document.getElementById('hl-ann-edit-note-label');
-            if (noteEditLabel) noteEditLabel.textContent = h.note ? '编辑' : '笔记';
+            if (noteEditLabel) noteEditLabel.textContent = h.note ? '编辑' : '批注';
             document.getElementById('hl-ann-del-note').style.display = h.note ? '' : 'none';
 
             var hasVisibleMark = !!(h.color || h.underline);

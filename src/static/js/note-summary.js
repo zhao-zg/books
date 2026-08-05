@@ -661,12 +661,12 @@
 
             // 编辑/添加笔记
             if (item.type === 'bookmark' || item.type === 'shelf' || item.type === 'highlight') {
-                var editLabel = item.hasNote ? '编辑笔记' : '添加笔记';
+                var editLabel = item.hasNote ? '编辑批注' : '添加批注';
                 html += '<button class="bk-ns-action-btn" data-action="edit"><span class="bk-row-icon">✏️</span><span class="bk-row-label">' + editLabel + '</span></button>';
             }
 
             // 删除
-            var deleteLabel = item.type === 'bookmark' ? '删除书签' : item.type === 'highlight' ? (item.hasNote ? '删除笔记' : '删除划线') : '删除笔记';
+            var deleteLabel = item.type === 'bookmark' ? '删除书签' : item.type === 'highlight' ? (item.hasNote ? '删除批注' : '删除划线') : '删除批注';
             html += '<button class="bk-ns-action-btn bk-ns-action-danger" data-action="delete"><span class="bk-row-icon">🗑</span><span class="bk-row-label">' + deleteLabel + '</span></button>';
 
             html += '</div>';
@@ -715,12 +715,12 @@
         _editBookmarkNote: function (item) {
             var self = this;
             var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px))">';
-            html += '<div class="bk-dialog-title">' + (item.hasNote ? '编辑笔记' : '添加笔记') + '</div>';
-            html += '<div class="bk-dialog-body" style="padding:12px 16px">';
-            if (item.title) {
-                html += '<div class="bk-ns-item-title" style="margin-bottom:8px">' + _escHtml(item.title) + '</div>';
-            }
-            html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入笔记...">' + _escHtml(item.text) + '</textarea>';
+html += '<div class="bk-dialog-title">' + (item.hasNote ? '编辑批注' : '添加批注') + '</div>';
+html += '<div class="bk-dialog-body" style="padding:12px 16px">';
+if (item.title) {
+html += '<div class="bk-ns-item-title" style="margin-bottom:8px">' + _escHtml(item.title) + '</div>';
+}
+html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入批注...">' + _escHtml(item.text) + '</textarea>';
             html += '</div>';
             html += '<div class="bk-dialog-actions">';
             html += '<button class="bk-dialog-cancel" data-action="cancel">取消</button>';
@@ -768,12 +768,12 @@
         _editHighlightNote: function (item) {
             var self = this;
             var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px))">';
-            html += '<div class="bk-dialog-title">' + (item.hasNote ? '编辑笔记' : '添加笔记') + '</div>';
-            html += '<div class="bk-dialog-body" style="padding:12px 16px">';
-            if (item.highlightText) {
-                html += '<div class="bk-ns-item-hl" style="margin-bottom:8px">「' + _escHtml(item.highlightText) + '」</div>';
-            }
-            html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入笔记...">' + _escHtml(item.text) + '</textarea>';
+html += '<div class="bk-dialog-title">' + (item.hasNote ? '编辑批注' : '添加批注') + '</div>';
+html += '<div class="bk-dialog-body" style="padding:12px 16px">';
+if (item.highlightText) {
+html += '<div class="bk-ns-item-hl" style="margin-bottom:8px">「' + _escHtml(item.highlightText) + '」</div>';
+}
+html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入批注...">' + _escHtml(item.text) + '</textarea>';
             html += '</div>';
             html += '<div class="bk-dialog-actions">';
             html += '<button class="bk-dialog-cancel" data-action="cancel">取消</button>';
@@ -838,7 +838,7 @@
                     });
                 }
             } else if (item.type === 'shelf') {
-                if (!win.confirm('确定删除此书架笔记？')) return;
+                if (!win.confirm('确定删除此书架批注？')) return;
                 var shelfBookId = item.bookId || '';
                 if (shelfBookId && win.BKShelf && win.BKShelf.removeNote) {
                     win.BKShelf.removeNote(shelfBookId).then(function () {
@@ -949,10 +949,10 @@
         _editShelfNote: function (item) {
             var self = this;
             var html = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px))">';
-            html += '<div class="bk-dialog-title">编辑书架笔记</div>';
+            html += '<div class="bk-dialog-title">编辑书架批注</div>';
             html += '<div class="bk-dialog-body" style="padding:12px 16px">';
             html += '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escHtml(item.source) + '》</div>';
-            html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入读书笔记…">' + _escHtml(item.text) + '</textarea>';
+            html += '<textarea id="bkNsEditNote" class="bk-ns-edit-textarea" rows="4" placeholder="输入批注…">' + _escHtml(item.text) + '</textarea>';
             html += '</div>';
             html += '<div class="bk-dialog-actions">';
             html += '<button class="bk-dialog-cancel" data-action="cancel">取消</button>';

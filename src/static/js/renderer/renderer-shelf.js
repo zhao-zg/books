@@ -624,7 +624,7 @@
     // 笔记操作：有笔记显示"编辑笔记"，无笔记显示"添加笔记"
     var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
     var hasNote = !!(shelfRec && shelfRec.note);
-    actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑笔记' : '添加笔记', act: 'edit-note', hasNote: hasNote });
+    actions.push({ icon: ICON_NOTE, label: hasNote ? '编辑批注' : '添加批注', act: 'edit-note', hasNote: hasNote });
     actions.push({ icon: ICON_EXPORT, label: '导出书籍', act: 'export' });
     actions.push({ icon: ICON_TRASH, label: '移出书架', sel: '.bk-shelf-remove-btn', danger: true });
 
@@ -706,13 +706,13 @@
 
     var html =
       '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
-        '<div class="bk-dialog-title">' + (existingNote ? '编辑笔记' : '添加笔记') + '</div>' +
+        '<div class="bk-dialog-title">' + (existingNote ? '编辑批注' : '添加批注') + '</div>' +
         '<div class="bk-dialog-body" style="padding:12px 16px">' +
           '<div style="font-size:0.8125em;color:var(--text-secondary);margin-bottom:10px">《' + _escShelfHtml(name) + '》</div>' +
-          '<textarea class="bk-note-textarea" id="bkShelfEditNoteTa" placeholder="输入读书笔记…" rows="5" style="width:100%;box-sizing:border-box">' + _escShelfHtml(existingNote) + '</textarea>' +
+          '<textarea class="bk-note-textarea" id="bkShelfEditNoteTa" placeholder="输入批注…" rows="5" style="width:100%;box-sizing:border-box">' + _escShelfHtml(existingNote) + '</textarea>' +
         '</div>' +
         '<div class="bk-dialog-actions">' +
-          (existingNote ? '<button class="bk-dialog-cancel" style="color:var(--danger,#d9534f)" id="bkShelfEditNoteDel">删除笔记</button>' : '') +
+          (existingNote ? '<button class="bk-dialog-cancel" style="color:var(--danger,#d9534f)" id="bkShelfEditNoteDel">删除批注</button>' : '') +
           '<button class="bk-dialog-cancel" id="bkShelfEditNoteCancel">取消</button>' +
           '<button class="bk-dialog-confirm" id="bkShelfEditNoteOk">保存</button>' +
         '</div>' +
@@ -736,7 +736,7 @@
       dlg.close();
     });
     if (delBtn) delBtn.addEventListener('click', function () {
-      if (win.confirm && !win.confirm('确定删除此笔记？')) return;
+      if (win.confirm && !win.confirm('确定删除此批注？')) return;
       if (win.BKShelf && win.BKShelf.removeNote) win.BKShelf.removeNote(bookId);
       dlg.close();
     });

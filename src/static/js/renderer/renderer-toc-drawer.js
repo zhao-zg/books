@@ -270,12 +270,12 @@
 
     // 全局事件代理：点击 nav-toc 按钮打开 drawer，点击 drawer 内章节链接关闭 drawer 并导航
     document.addEventListener('click', function(e) {
-      // nav-toc 按钮
+      // nav-toc 按钮（已桥接到 MarkPanel，此处仅作 fallback：非阅读页才走旧抽屉）
       var tocBtn = e.target.closest ? e.target.closest('[data-toc-drawer]') : null;
       if (tocBtn) {
         e.preventDefault();
-        var bookId = tocBtn.getAttribute('data-book-id');
-        if (bookId) _openTocDrawer(bookId);
+        // 阅读页的目录按钮由 nav-float-bar 桥接到 MarkPanel.open('toc')
+        // 此 capture 监听不应再打开旧抽屉，否则动画会闪两次
         return;
       }
       // drawer 内章节链接

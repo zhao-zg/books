@@ -30,8 +30,11 @@ Object.assign(BKHighlight, {
         // ─── 应用单个划线到 DOM ──────────────────────────────────────
         applyHighlight: function (highlight) {
             var container = document.querySelector('#carouselPageCurr .content')
+                         || document.querySelector('#carouselPageCurr .bible-reading')
                          || document.querySelector('#app .content')
-                         || document.querySelector('.content');
+                         || document.querySelector('#app .bible-reading')
+                         || document.querySelector('.content')
+                         || document.querySelector('.bible-reading');
             if (!container) return;
             if (document.querySelector('.bk-highlight[data-highlight-id="' + highlight.id + '"]')) return;
             var textNodes = this.getTextNodes(container);
@@ -210,8 +213,8 @@ Object.assign(BKHighlight, {
                 while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
                 parent.removeChild(mark);
             });
-            // normalize 所有 .content 容器，避免文本节点碎片化
-            document.querySelectorAll('.content').forEach(function (c) { c.normalize(); });
+            // normalize 所有 .content / .bible-reading 容器，避免文本节点碎片化
+            document.querySelectorAll('.content, .bible-reading').forEach(function (c) { c.normalize(); });
         },
 
 });

@@ -107,7 +107,7 @@ Object.assign(BKHighlight, {
             if (!sel.rangeCount) return;
             var range     = sel.getRangeAt(0);
             var rangeNode = range.commonAncestorContainer;
-            var container = (rangeNode.nodeType === 3 ? rangeNode.parentElement : rangeNode).closest('.content');
+            var container = (rangeNode.nodeType === 3 ? rangeNode.parentElement : rangeNode).closest('.content, .bible-reading');
             if (!container) return;
             // PDF 阅读器的文本层由 pdf-highlight 模块独立处理，跳过主应用高亮菜单
             if (container.querySelector('.bk-pdf-text-layer') || (rangeNode.nodeType === 3 ? rangeNode.parentElement : rangeNode).closest('.bk-pdf-text-layer')) return;

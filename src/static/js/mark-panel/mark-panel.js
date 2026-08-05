@@ -22,6 +22,7 @@
         _autoCloseTimer: null,
         _bookTitle: '',
         _dirtyTabs: { toc: true, bookmark: true, mark: true },
+        _scrollCleanup: null,  // lockOverlayScroll 的 cleanup 函数
 
         // ─── 公开 API ──────────────────────────────────────────────────
 
@@ -51,6 +52,12 @@
             MarkPanel._drawer.classList.add('bk-mp-visible');
             MarkPanel._overlay.classList.add('bk-mp-visible');
 
+            // 触摸穿透防护 + 点空白关闭（使用通用 lockOverlayScroll）
+            if (MarkPanel._scrollCleanup) { MarkPanel._scrollCleanup(); MarkPanel._scrollCleanup = null; }
+            if (win.BK && win.BK.lockOverlayScroll) {
+                MarkPanel._scrollCleanup = win.BK.lockOverlayScroll(MarkPanel._overlay, function () { MarkPanel.close(); });
+            }
+
             // 关闭旧 TOC 抽屉（EPUB 端）
             var tocDrawer = document.getElementById('bkTocDrawer');
             if (tocDrawer) tocDrawer.classList.remove('open');
@@ -60,9 +67,9 @@
             // 关闭 PDF 旧抽屉
             MarkPanel._closePdfDrawers();
 
-            // 推入 backStack
+            // 推入 backStack（系统返回键关闭面板）
             if (win.BKBackStack && win.BKBackStack.push) {
-                win.BKBackStack.push('markPanel', function () { MarkPanel.close(); });
+                win.BKBackStack.push(function () { MarkPanel.close(); });
             }
 
             // ESC 键关闭
@@ -82,6 +89,9 @@
             if (MarkPanel._drawer) MarkPanel._drawer.classList.remove('bk-mp-visible');
             if (MarkPanel._overlay) MarkPanel._overlay.classList.remove('bk-mp-visible');
 
+            // 释放滚动锁定
+            if (MarkPanel._scrollCleanup) { MarkPanel._scrollCleanup(); MarkPanel._scrollCleanup = null; }
+
             document.removeEventListener('keydown', MarkPanel._onEsc);
 
             if (MarkPanel._autoCloseTimer) {
@@ -89,9 +99,9 @@
                 MarkPanel._autoCloseTimer = null;
             }
 
-            // 退出 backStack
+            // 退出 backStack（仅弹出回调，不触发 history.back）
             if (win.BKBackStack && win.BKBackStack.silentPop) {
-                win.BKBackStack.silentPop('markPanel');
+                win.BKBackStack.silentPop();
             }
         },
 
@@ -137,12 +147,13 @@
         _ensureDOM: function () {
             if (MarkPanel._drawer) return;
 
-            // Overlay
+            // Overlay（触摸穿透防护 + 点空白关闭统一由 lockOverlayScroll 处理）
             MarkPanel._overlay = document.createElement('div');
             MarkPanel._overlay.className = 'bk-mp-overlay';
-            MarkPanel._overlay.addEventListener('click', function () { MarkPanel.close(); });
-            // 移动端：阻止滚动穿透，但不阻止 touchstart 的默认行为（否则 click 不触发）
-            MarkPanel._overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+            // 桌面端：点击遮罩区域关闭
+            MarkPanel._overlay.addEventListener('click', function (e) {
+                if (e.target === MarkPanel._overlay) MarkPanel.close();
+            });
             document.body.appendChild(MarkPanel._overlay);
 
             // Drawer
@@ -158,13 +169,8 @@
             titleEl.id = 'bk-mp-title';
             MarkPanel._titleEl = titleEl;
 
-            var closeBtn = document.createElement('button');
-            closeBtn.className = 'bk-mp-close';
-            closeBtn.textContent = '\u2715'; // ✕
-            closeBtn.addEventListener('click', function () { MarkPanel.close(); });
-
             header.appendChild(titleEl);
-            header.appendChild(closeBtn);
+            // 不添加关闭按钮，用户可通过点击遮罩层或滑动关闭
             MarkPanel._drawer.appendChild(header);
 
             // Tab 栏

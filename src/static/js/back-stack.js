@@ -262,7 +262,7 @@
     document.addEventListener('touchstart', function () {
         if (_scrollLockCount > 0) {
             // 检查是否还有可见的 bk-dialog-mask 或 bk-modal-mask
-            var masks = document.querySelectorAll('.bk-dialog-mask.show, .bk-modal-mask.show, .hl-modal-mask, .scripture-popup-overlay, .bk-toc-overlay.open, .bk-lightbox-overlay.bk-lightbox-active, .bk-image-viewer-overlay.show, .bk-shelf-quick-mask.is-open, .bk-install-mask, .bk-search-overlay');
+            var masks = document.querySelectorAll('.bk-dialog-mask.show, .bk-modal-mask.show, .hl-modal-mask, .scripture-popup-overlay, .bk-toc-overlay.open, .bk-lightbox-overlay.bk-lightbox-active, .bk-image-viewer-overlay.show, .bk-shelf-quick-mask.is-open, .bk-install-mask, .bk-search-overlay, .bk-mp-overlay.bk-mp-visible');
             var hasVisibleMask = false;
             for (var i = 0; i < masks.length; i++) {
                 if (masks[i].offsetParent !== null) {

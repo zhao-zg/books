@@ -59,24 +59,8 @@
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    padding-right: 14px;
 }
-.bk-mp-close {
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 50%;
-    border: none;
-    background: var(--surface-alt, #EDEAE4);
-    color: var(--text-muted, #888);
-    cursor: pointer;
-    font-size: var(--text-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s;
-}
-.bk-mp-close:active { background: var(--nav-hover, #ECEAE5); }
 
 /* ── Tab 栏 ─────────────────────────────────── */
 .bk-mp-tabs {

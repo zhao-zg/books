@@ -5,7 +5,7 @@ Object.assign(BKHighlight, {
             var range = this._pendingRange;
             if (!range) return null;
             var rangeNode = range.commonAncestorContainer;
-            var container = (rangeNode.nodeType === 3 ? rangeNode.parentElement : rangeNode).closest('.content');
+            var container = (rangeNode.nodeType === 3 ? rangeNode.parentElement : rangeNode).closest('.content, .bible-reading');
             if (!container) return null;
             var position = this.getSelectionPosition(container, range);
             if (!position) return null;
@@ -36,6 +36,7 @@ Object.assign(BKHighlight, {
                 self.clearAllMarks();
                 self.restoreHighlights();
                 self._suppressSelMenuUntil = 0;
+                try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
             }).catch(function () {
                 self._suppressSelMenuUntil = 0;
             });
@@ -51,6 +52,7 @@ Object.assign(BKHighlight, {
             this.saveHighlights().then(function () {
                 self.clearAllMarks();
                 self.restoreHighlights();
+                try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
             });
         },
 
@@ -60,6 +62,7 @@ Object.assign(BKHighlight, {
             this.saveHighlights().then(function () {
                 self.clearAllMarks();
                 self.restoreHighlights();
+                try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
             });
         },
 
@@ -76,6 +79,7 @@ Object.assign(BKHighlight, {
             this.saveHighlights().then(function () {
                 self.clearAllMarks();
                 self.restoreHighlights();
+                try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
             });
         },
 
@@ -91,6 +95,7 @@ Object.assign(BKHighlight, {
             this.saveHighlights().then(function () {
                 self.clearAllMarks();
                 self.restoreHighlights();
+                try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
             });
         },
 
