@@ -35,6 +35,24 @@
             MarkPanel._getAdapter();
             MarkPanel._ensureDOM();
 
+            // 书名：EPUB 从 BKRenderer 缓存取，PDF 从 BKPdf._internal.state 取
+            if (MarkPanel._readerType === 'epub') {
+                MarkPanel._bookTitle = (win.BKRenderer && win.BKRenderer._currentBookTitle) || '';
+            } else {
+                var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
+                var _bookId = _s && _s._pdfCurrentBookId;
+                if (_bookId && win.__bkBooks) {
+                    for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+                        var b = win.__bkBooks[bi];
+                        if (b && (b.id === _bookId || b.bookId === _bookId)) {
+                            MarkPanel._bookTitle = b.title || '';
+                            break;
+                        }
+                    }
+                }
+            }
+            MarkPanel._titleEl.textContent = MarkPanel._bookTitle || document.title || '';
+
             // 确定打开的 Tab
             var targetTab = tab || localStorage.getItem(LAST_TAB_KEY) || 'toc';
             if (TABS.indexOf(targetTab) < 0) targetTab = 'toc';
@@ -112,8 +130,14 @@
         // ─── 内部方法 ──────────────────────────────────────────────────
 
         _detectReaderType: function () {
-            // PDF 阅读器通过 BKPdf._internal 判断
-            MarkPanel._readerType = (win.BKPdf && win.BKPdf._internal) ? 'pdf' : 'epub';
+            // PDF 阅读器：BKPdf._internal 存在且包含真实的 state（非空对象）
+            // EPUB 阅读器：BKPdf._internal 不存在，或为空对象 {}
+            var internal = win.BKPdf && win.BKPdf._internal;
+            var isPdf = internal && (
+                (internal.state && internal.state._pdfCurrentBookId) ||
+                (internal.nav && internal.nav.goToPage)
+            );
+            MarkPanel._readerType = isPdf ? 'pdf' : 'epub';
         },
 
         _getAdapter: function () {
@@ -499,16 +523,21 @@
                 btn.textContent = hasBookmark ? '移除当前页书签' : '添加当前页书签';
                 btn.addEventListener('click', function () {
                     if (hasBookmark) {
-                        // 删除当前页书签
-                        adapter.getItems().then(function (items) {
-                            // 找到当前页书签并删除
-                            // 简单做法：toggle
-                            if (adapter.toggleCurrentPage) adapter.toggleCurrentPage();
-                            MarkPanel._loadBookmarks();
-                        });
+                        // 删除当前页书签：toggle
+                        if (adapter.toggleCurrentPage) adapter.toggleCurrentPage();
+                        MarkPanel._loadBookmarks();
                     } else {
-                        adapter.add({}).then(function () {
+                        // 传入 titleInfo 以生成正确的书签标题
+                        var titleInfo = {
+                            bookTitle: MarkPanel._bookTitle || ''
+                        };
+                        // EPUB: 补充 chapterTitle
+                        if (MarkPanel._readerType === 'epub') {
+                            titleInfo.chapterTitle = (win.BKRenderer && win.BKRenderer._currentChapterTitle) || '';
+                        }
+                        adapter.add(titleInfo).then(function () {
                             MarkPanel._loadBookmarks();
+                            MarkPanel._fireMarksChanged();
                         });
                     }
                 });
@@ -734,9 +763,9 @@
                 if (MarkPanel._readerType === 'epub' && win.BKHighlight && win.BKHighlight.saveNote) {
                     win.BKHighlight.saveNote(item.id, newNote);
                 } else if (MarkPanel._readerType === 'pdf') {
-                    var s = (win.BKPdf && win.BKPdf._state) || win.BKPdfState;
-                    var bookId = s ? s.currentBookId() : null;
-                    if (s && bookId) s.setHighlightNote(bookId, item.id, newNote);
+                    var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
+                    var _bookId = _s && _s._pdfCurrentBookId;
+                    if (_s && _bookId && _s.setHighlightNote) _s.setHighlightNote(_bookId, item.id, newNote);
                 }
                 // 更新本地缓存
                 var mark = (MarkPanel._allMarks || []).find(function (m) { return m.id === item.id; });
@@ -771,17 +800,27 @@
 
         _closePdfDrawers: function () {
             if (MarkPanel._readerType !== 'pdf') return;
-            var s = (win.BKPdf && win.BKPdf._state) || win.BKPdfState;
+            var s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
             if (s && s.closeAllDrawersExcept) {
                 s.closeAllDrawersExcept('markPanel');
             }
+        },
+
+        /**
+         * 派发 marks-changed 事件，通知其他组件（如书架统计等）
+         */
+        _fireMarksChanged: function () {
+            try {
+                document.dispatchEvent(new CustomEvent('marks-changed'));
+            } catch (e) {}
         }
     };
 
-    // 监听外部标记变更事件
-    document.addEventListener('marks-changed', function () {
-        MarkPanel.refresh();
-    });
+        // 监听外部标记变更事件（如书签添加/删除、高亮变更等）
+        // 事件可由任何模块派发：document.dispatchEvent(new CustomEvent('marks-changed'))
+        document.addEventListener('marks-changed', function () {
+            MarkPanel.refresh();
+        });
 
     win.BK.MarkPanel = MarkPanel;
 })(window);

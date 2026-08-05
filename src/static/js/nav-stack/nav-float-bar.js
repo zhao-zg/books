@@ -177,14 +177,22 @@
         _bottomEl.addEventListener('click', function(e) {
             var t = e.target;
             while (t && t !== _bottomEl) {
-                // 目录按钮 → 双栏模式下滚动 TOC 到当前章；否则隐藏浮动栏，让全局事件委托打开 drawer
+                // 目录按钮 → 打开统一标记面板（目录 Tab）；双栏模式下滚动 TOC 到当前章
                 if (t.classList && t.classList.contains('bk-float-bottom-btn') && t.hasAttribute('data-toc-drawer')) {
                     if (document.body.classList.contains('bk-split-mode')) {
                         var cur = document.querySelector('#bkTocDrawerBody .bk-toc-current');
                         if (cur) cur.scrollIntoView({ block: 'center', behavior: 'auto' });
                         return;
                     }
+                    // 桥接到 MarkPanel 目录 Tab
+                    e.preventDefault();
+                    e.stopPropagation();
                     hide();
+                    setTimeout(function () {
+                        if (window.BK && window.BK.MarkPanel) {
+                            window.BK.MarkPanel.open('toc');
+                        }
+                    }, 100);
                     return;
                 }
                 // 朗读按钮 → 切换朗读栏（不隐藏边栏，重置自动隐藏计时器）

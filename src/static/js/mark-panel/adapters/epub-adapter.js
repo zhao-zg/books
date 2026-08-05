@@ -8,47 +8,31 @@
     win.BK = win.BK || {};
     win.BK.MarkPanelAdapters = win.BK.MarkPanelAdapters || {};
 
+    /** 获取当前阅读的 EPUB 书籍 ID */
+    function _getCurrentBookId() {
+        var path = win.__bkCurrentPath || '';
+        var parts = path.split('/').filter(Boolean);
+        return parts[0] || '';
+    }
+
     win.BK.MarkPanelAdapters.EpubAdapter = {
         // ─── 目录 ──────────────────────────────────────────────────────
         toc: {
+            /**
+             * 获取目录数据：直接通过 loadBook 获取章节数据，不依赖旧 TOC 抽屉 DOM
+             */
             getItems: function () {
-                var items = [];
+                // 优先从旧抽屉 DOM 读取（已打开过的场景）
                 var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
-                for (var i = 0; i < chapterItems.length; i++) {
-                    var el = chapterItems[i];
-                    if (el.classList.contains('bk-toc-hidden')) continue;
-                    var numEl = el.querySelector('.bk-toc-chapter-num');
-                    var titleEl = el.querySelector('.bk-toc-chapter-title');
-                    items.push({
-                        id: el.getAttribute('data-toc-nav') || el.getAttribute('href') || ('toc-' + i),
-                        title: (numEl ? numEl.textContent.trim() + ' ' : '') + (titleEl ? titleEl.textContent.trim() : ''),
-                        depth: 0,
-                        position: i,
-                        isActive: el.classList.contains('bk-toc-current'),
-                        element: el
-                    });
-                }
-                return Promise.resolve(items);
-            },
-
-            navigate: function (item) {
-                if (item && item.element) item.element.click();
-            },
-
-            hasSearch: function () { return true; },
-
-            search: function (keyword) {
-                var items = [];
-                var q = (keyword || '').toLowerCase();
-                var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
-                for (var i = 0; i < chapterItems.length; i++) {
-                    var el = chapterItems[i];
-                    var text = el.textContent.toLowerCase();
-                    if (!q || text.indexOf(q) >= 0) {
+                if (chapterItems.length > 0) {
+                    var items = [];
+                    for (var i = 0; i < chapterItems.length; i++) {
+                        var el = chapterItems[i];
+                        if (el.classList.contains('bk-toc-hidden')) continue;
                         var numEl = el.querySelector('.bk-toc-chapter-num');
                         var titleEl = el.querySelector('.bk-toc-chapter-title');
                         items.push({
-                            id: 'toc-' + i,
+                            id: el.getAttribute('data-toc-nav') || el.getAttribute('href') || ('toc-' + i),
                             title: (numEl ? numEl.textContent.trim() + ' ' : '') + (titleEl ? titleEl.textContent.trim() : ''),
                             depth: 0,
                             position: i,
@@ -56,8 +40,89 @@
                             element: el
                         });
                     }
+                    return Promise.resolve(items);
                 }
-                return items;
+
+                // 降级：通过 loadBook API 获取章节列表
+                var bookId = _getCurrentBookId();
+                if (!bookId) return Promise.resolve([]);
+
+                if (typeof loadBook !== 'function') return Promise.resolve([]);
+                return loadBook(bookId).then(function (book) {
+                    if (!book || !book.chapters) return [];
+                    var chapters = book.chapters;
+                    // 去重
+                    var seen = {};
+                    var unique = [];
+                    for (var j = 0; j < chapters.length; j++) {
+                        var ch = chapters[j];
+                        var chNum = ch.number || (j + 1);
+                        if (!seen[chNum]) {
+                            seen[chNum] = true;
+                            unique.push(ch);
+                        }
+                    }
+                    var progress = (typeof getReadingProgress === 'function') ? getReadingProgress(bookId) : 0;
+                    var items = [];
+                    for (var k = 0; k < unique.length; k++) {
+                        var c = unique[k];
+                        var num = c.number || (k + 1);
+                        items.push({
+                            id: 'toc-' + num,
+                            title: num + ' ' + (c.title || '第' + num + '章'),
+                            depth: 0,
+                            position: k,
+                            isActive: (num === progress),
+                            chapterNum: num,
+                            bookId: bookId
+                        });
+                    }
+                    return items;
+                }).catch(function () { return []; });
+            },
+
+            navigate: function (item) {
+                if (item && item.element) {
+                    // 从旧 DOM 取的条目，直接 click
+                    item.element.click();
+                    return;
+                }
+                // 从 loadBook 取的条目，通过路由跳转
+                if (item && item.bookId && item.chapterNum) {
+                    if (win.BKRouter && win.BKRouter.navigate) {
+                        win.BKRouter.navigate(item.bookId + '/' + item.chapterNum);
+                    }
+                }
+            },
+
+            hasSearch: function () { return true; },
+
+            search: function (keyword) {
+                var q = (keyword || '').toLowerCase();
+                // 先尝试从 DOM 读取
+                var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
+                if (chapterItems.length > 0) {
+                    var items = [];
+                    for (var i = 0; i < chapterItems.length; i++) {
+                        var el = chapterItems[i];
+                        var text = el.textContent.toLowerCase();
+                        if (!q || text.indexOf(q) >= 0) {
+                            var numEl = el.querySelector('.bk-toc-chapter-num');
+                            var titleEl = el.querySelector('.bk-toc-chapter-title');
+                            items.push({
+                                id: 'toc-' + i,
+                                title: (numEl ? numEl.textContent.trim() + ' ' : '') + (titleEl ? titleEl.textContent.trim() : ''),
+                                depth: 0,
+                                position: i,
+                                isActive: el.classList.contains('bk-toc-current'),
+                                element: el
+                            });
+                        }
+                    }
+                    return items;
+                }
+                // 降级：无法搜索（未加载 DOM），返回空
+                return [];
             }
         },
 
@@ -70,7 +135,7 @@
                         return {
                             id: bm.id,
                             title: bm.title || '未命名书签',
-                            subtitle: bm.path ? bm.path.replace(/.*\//, '第') + '章' : '',
+                            subtitle: bm.chapterNum ? '第' + bm.chapterNum + '章' : '',
                             position: bm.chapterNum || 0,
                             timestamp: bm.timestamp,
                             note: bm.note || '',
@@ -82,9 +147,17 @@
                 });
             },
 
-            add: function (opts) {
+            add: function (titleInfo) {
                 if (!win.BKBookmark || !win.BKBookmark.addCurrent) return Promise.resolve();
-                return win.BKBookmark.addCurrent(opts || {});
+                // 补充 bookTitle（如果外部未传）
+                titleInfo = titleInfo || {};
+                if (!titleInfo.bookTitle) {
+                    titleInfo.bookTitle = (win.BKRenderer && win.BKRenderer._currentBookTitle) || '';
+                }
+                if (!titleInfo.chapterTitle) {
+                    titleInfo.chapterTitle = (win.BKRenderer && win.BKRenderer._currentChapterTitle) || '';
+                }
+                return win.BKBookmark.addCurrent(titleInfo);
             },
 
             remove: function (id) {
@@ -110,7 +183,7 @@
             hasCurrentPage: function () {
                 if (!win.BKBookmark || !win.BKBookmark.getAll) return Promise.resolve(false);
                 return win.BKBookmark.getAll().then(function (bms) {
-                    var current = (win.BKRouter && win.BKRouter.currentPath) ? win.BKRouter.currentPath() : '';
+                    var current = win.__bkCurrentPath || '';
                     return (bms || []).some(function (bm) { return bm.path === current; });
                 });
             },
@@ -176,12 +249,9 @@
 
             navigate: function (item) {
                 if (!item || !item.pageKey) return;
-                var parts = item.pageKey.split('/').filter(Boolean);
-                if (parts.length >= 2) {
-                    var route = 'books-' + parts[0] + '/' + parts[1];
-                    if (win.BKRouter && win.BKRouter.navigate) {
-                        win.BKRouter.navigate(route);
-                    }
+                // pageKey 格式为 "bookId/chapterNum"，直接作为路由路径
+                if (win.BKRouter && win.BKRouter.navigate) {
+                    win.BKRouter.navigate(item.pageKey);
                 }
             },
 

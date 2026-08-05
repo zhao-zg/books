@@ -8,13 +8,25 @@
     win.BK = win.BK || {};
     win.BK.MarkPanelAdapters = win.BK.MarkPanelAdapters || {};
 
+    /**
+     * 获取 PDF state 对象
+     * 正确路径：win.BKPdf._internal.state（而非 BKPdf._state）
+     */
     function _getS() {
-        return (win.BKPdf && win.BKPdf._state) || win.BKPdfState;
+        return (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state) || null;
+    }
+
+    /**
+     * 获取 PDF navigator 对象
+     * 挂载在 win.BKPdf._internal.nav
+     */
+    function _getNav() {
+        return (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.nav) || null;
     }
 
     function _getBookId() {
         var s = _getS();
-        return s ? s.currentBookId() : null;
+        return s ? s._pdfCurrentBookId : null;
     }
 
     win.BK.MarkPanelAdapters.PdfAdapter = {
@@ -53,7 +65,10 @@
                 if (!item || !item._node) return;
                 var pageNum = item._node.pageNumber;
                 var s = _getS();
-                if (pageNum && s && s.nav) s.nav.goToPage(pageNum);
+                if (pageNum) {
+                    var nav = _getNav();
+                    if (nav && nav.goToPage) nav.goToPage(pageNum, true);
+                }
             },
 
             hasSearch: function () { return false; },
@@ -115,8 +130,8 @@
 
             navigate: function (item) {
                 if (!item || !item.page) return;
-                var s = _getS();
-                if (s && s.nav) s.nav.goToPage(item.page);
+                var nav = _getNav();
+                if (nav && nav.goToPage) nav.goToPage(item.page, true);
             },
 
             hasCurrentPage: function () {
@@ -169,8 +184,8 @@
 
             navigate: function (item) {
                 if (!item || !item.page) return;
-                var s = _getS();
-                if (s && s.nav) s.nav.goToPage(item.page);
+                var nav = _getNav();
+                if (nav && nav.goToPage) nav.goToPage(item.page, true);
             },
 
             getColors: function () {

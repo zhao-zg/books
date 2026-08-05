@@ -115,7 +115,17 @@
         _bindEvents: function (li, item, opts) {
             // 点击跳转
             li.addEventListener('click', function (e) {
-                if (li._swiped) { li._swiped = false; return; }
+                // 如果处于左滑状态，先收回滑动再处理
+                if (li._swiped) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    li.style.transition = 'transform 0.2s ease';
+                    li.style.transform = 'translateX(0)';
+                    li._swiped = false;
+                    var existingDel = li.querySelector('.bk-mp-item-delete');
+                    if (existingDel) existingDel.remove();
+                    return;
+                }
                 if (e.target.closest('.bk-mp-item-delete')) return;
                 if (opts.onNavigate) opts.onNavigate(item);
             });
