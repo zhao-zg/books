@@ -85,11 +85,19 @@ Thumbs.db
 __review_*.tmp
 run*_*.png
 .temp/
+test-book*.pdf
 
 # Test screenshots
 test_*.png
 verify_*.png
 audit_*.png
+*-screenshot*.png
+mark-panel-*.png
+shelf*.png
+epub-*.png
+book-catalog.png
+series*.png
+webdav-*.png
 
 # Temp review/search/diff files
 review_diff.txt
