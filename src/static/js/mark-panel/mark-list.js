@@ -3,7 +3,7 @@
  * - 紧凑列表 + 左侧颜色条
  * - 左滑删除手势
  * - 点击跳转 / 长按编辑
- * - 笔记折叠预览
+ * - 批注折叠预览
  */
 (function (win) {
     'use strict';
@@ -93,7 +93,7 @@
                 content.appendChild(meta);
             }
 
-            // 笔记预览行
+            // 批注预览行
             if (item.note) {
                 var noteEl = document.createElement('div');
                 noteEl.className = 'bk-mp-item-note';

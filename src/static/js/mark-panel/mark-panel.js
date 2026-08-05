@@ -141,8 +141,7 @@
             MarkPanel._overlay = document.createElement('div');
             MarkPanel._overlay.className = 'bk-mp-overlay';
             MarkPanel._overlay.addEventListener('click', function () { MarkPanel.close(); });
-            // 触摸穿透阻止
-            MarkPanel._overlay.addEventListener('touchstart', function (e) { e.preventDefault(); }, { passive: false });
+            // 移动端：阻止滚动穿透，但不阻止 touchstart 的默认行为（否则 click 不触发）
             MarkPanel._overlay.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
             document.body.appendChild(MarkPanel._overlay);
 
@@ -196,30 +195,10 @@
             MarkPanel._searchInput = searchInput;
             MarkPanel._drawer.appendChild(search);
 
-            // 筛选栏（标记 Tab）
+            // 筛选栏（标记 Tab）— 容器，内容由 _renderFilterBar 动态填充
             var filter = document.createElement('div');
             filter.className = 'bk-mp-filter';
             filter.id = 'bk-mp-filter';
-            var filterTypes = [
-                { key: 'all', label: '全部' },
-                { key: 'highlight', label: '\uD83D\uDD8C高亮' },
-                { key: 'underline', label: 'U\u0332下划线' },
-                { key: 'strikethrough', label: 'S\u0336删除线' },
-                { key: 'note', label: '\uD83D\uDCDD批注' }
-            ];
-            filterTypes.forEach(function (ft) {
-                var tag = document.createElement('span');
-                tag.className = 'bk-mp-filter-tag' + (ft.key === 'all' ? ' active' : '');
-                tag.setAttribute('data-filter', ft.key);
-                tag.textContent = ft.label;
-                tag.addEventListener('click', function () {
-                    MarkPanel._activeFilter = ft.key;
-                    filter.querySelectorAll('.bk-mp-filter-tag').forEach(function (t) { t.classList.remove('active'); });
-                    tag.classList.add('active');
-                    MarkPanel._renderMarks();
-                });
-                filter.appendChild(tag);
-            });
             MarkPanel._filterEl = filter;
             MarkPanel._activeFilter = 'all';
             MarkPanel._drawer.appendChild(filter);
@@ -392,6 +371,8 @@
                 row.addEventListener('click', function () {
                     MarkPanel._adapter.toc.navigate(item);
                     MarkPanel._scheduleAutoClose();
+                    // 跳转后延迟刷新目录高亮
+                    setTimeout(function () { MarkPanel.markDirty('toc'); MarkPanel._loadTabData('toc'); }, 300);
                 });
 
                 ul.appendChild(li);
@@ -518,10 +499,10 @@
             titleInput.value = item.title || '';
             body.appendChild(titleInput);
 
-            // 笔记输入
+            // 批注输入
             var noteLabel = document.createElement('div');
             noteLabel.style.cssText = 'font-size:var(--text-sm);color:var(--text-muted);margin:12px 0 4px;';
-            noteLabel.textContent = '笔记';
+            noteLabel.textContent = '批注';
             body.appendChild(noteLabel);
 
             var noteInput = document.createElement('textarea');
@@ -590,10 +571,41 @@
             var pane = document.getElementById('bk-mp-pane-mark');
             if (!pane || !adapter) return;
 
+            // 根据适配器动态渲染筛选栏
+            MarkPanel._renderFilterBar();
+
             adapter.getItems().then(function (items) {
                 MarkPanel._allMarks = items || [];
                 MarkPanel._renderMarks();
                 MarkPanel._updateMarkFooter(items);
+            });
+        },
+
+        /**
+         * 根据适配器返回的 getFilterTypes() 动态渲染筛选栏
+         * EPUB 无删除线，PDF 有删除线
+         */
+        _renderFilterBar: function () {
+            var filter = MarkPanel._filterEl;
+            if (!filter) return;
+            var adapter = MarkPanel._adapter && MarkPanel._adapter.mark;
+            if (!adapter || !adapter.getFilterTypes) return;
+
+            var filterTypes = adapter.getFilterTypes();
+            filter.innerHTML = '';
+
+            filterTypes.forEach(function (ft) {
+                var tag = document.createElement('span');
+                tag.className = 'bk-mp-filter-tag' + (ft.key === MarkPanel._activeFilter ? ' active' : '');
+                tag.setAttribute('data-filter', ft.key);
+                tag.textContent = ft.label;
+                tag.addEventListener('click', function () {
+                    MarkPanel._activeFilter = ft.key;
+                    filter.querySelectorAll('.bk-mp-filter-tag').forEach(function (t) { t.classList.remove('active'); });
+                    tag.classList.add('active');
+                    MarkPanel._renderMarks();
+                });
+                filter.appendChild(tag);
             });
         },
 
@@ -662,7 +674,7 @@
             var body = document.createElement('div');
             body.className = 'bk-mp-edit-body';
 
-            // 笔记输入
+            // 批注输入
             var noteLabel = document.createElement('div');
             noteLabel.style.cssText = 'font-size:var(--text-sm);color:var(--text-muted);margin-bottom:4px;';
             noteLabel.textContent = '批注';

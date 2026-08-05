@@ -207,7 +207,7 @@
             }
         },
 
-        // ─── 标记（高亮+笔记）──────────────────────────────────────────
+        // ─── 标记（高亮+批注）──────────────────────────────────────────
         mark: {
             getItems: function () {
                 if (!win.BKStorage || !win.BKStorage.getAllPages) return Promise.resolve([]);
@@ -277,6 +277,15 @@
 
             getColors: function () {
                 return ['yellow', 'green', 'blue', 'pink'];
+            },
+
+            getFilterTypes: function () {
+                return [
+                    { key: 'all', label: '全部' },
+                    { key: 'highlight', label: '\uD83D\uDD8C高亮' },
+                    { key: 'underline', label: 'U\u0332下划线' },
+                    { key: 'note', label: '\uD83D\uDCDD批注' }
+                ];
             },
 
             filterByType: function (items, type) {

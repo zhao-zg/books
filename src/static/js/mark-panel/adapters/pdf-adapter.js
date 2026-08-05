@@ -170,7 +170,7 @@
             }
         },
 
-        // ─── 标记（高亮+笔记）──────────────────────────────────────────
+        // ─── 标记（高亮+批注）──────────────────────────────────────────
         mark: {
             getItems: function () {
                 var s = _getS();
@@ -219,6 +219,16 @@
 
             getColors: function () {
                 return ['yellow', 'green', 'blue', 'pink', 'orange'];
+            },
+
+            getFilterTypes: function () {
+                return [
+                    { key: 'all', label: '全部' },
+                    { key: 'highlight', label: '\uD83D\uDD8C高亮' },
+                    { key: 'underline', label: 'U\u0332下划线' },
+                    { key: 'strikethrough', label: 'S\u0336删除线' },
+                    { key: 'note', label: '\uD83D\uDCDD批注' }
+                ];
             },
 
             filterByType: function (items, type) {
