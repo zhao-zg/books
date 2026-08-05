@@ -264,7 +264,7 @@
     top: 0;
     bottom: 0;
     width: 80px;
-    background: #E54D42;
+    background: var(--color-danger, #E54D42);
     color: #fff;
     border: none;
     font-size: var(--text-base);
@@ -440,7 +440,7 @@
 .bk-mp-edit-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.3);
+    background: var(--overlay-medium, rgba(0,0,0,0.3));
     z-index: 2000;
     display: flex;
     align-items: center;
@@ -506,7 +506,7 @@ textarea.bk-mp-edit-input {
     border-left: 1px solid var(--border, #E5E2DD);
 }
 .bk-mp-edit-btn.bk-mp-edit-destructive {
-    color: #E54D42;
+    color: var(--color-danger, #E54D42);
 }
 
 /* ── 响应式 ─────────────────────────────────── */
@@ -516,7 +516,7 @@ textarea.bk-mp-edit-input {
 }
 
 @media (min-width: 768px) {
-    .bk-mp-drawer { width: 320px; }
+    .bk-mp-drawer { width: 380px; }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

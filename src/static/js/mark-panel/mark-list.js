@@ -130,13 +130,17 @@
                 if (opts.onNavigate) opts.onNavigate(item);
             });
 
-            // 长按编辑
+            // 长按编辑 + 左滑删除（合并 touchstart/touchmove 避免冲突）
             var longPressTimer = null;
             var moved = false;
             var touchStartY = 0;
+            var startX = 0, currentDx = 0, swiping = false;
             li.addEventListener('touchstart', function (e) {
                 moved = false;
                 touchStartY = e.touches[0].clientY;
+                startX = e.touches[0].clientX;
+                currentDx = 0;
+                swiping = false;
                 longPressTimer = setTimeout(function () {
                     if (!moved && opts.onEdit) opts.onEdit(item);
                 }, LONG_PRESS_MS);
@@ -144,21 +148,6 @@
             li.addEventListener('touchmove', function (e) {
                 var dy = Math.abs(e.touches[0].clientY - touchStartY);
                 if (dy > 12) { moved = true; clearTimeout(longPressTimer); }
-            }, { passive: true });
-            li.addEventListener('touchend', function () {
-                clearTimeout(longPressTimer);
-            });
-            li.addEventListener('touchcancel', function () {
-                clearTimeout(longPressTimer);
-            });
-
-            // 左滑删除手势
-            var startX = 0, currentDx = 0, swiping = false;
-            li.addEventListener('touchstart', function (e) {
-                startX = e.touches[0].clientX;
-                currentDx = 0;
-            }, { passive: true });
-            li.addEventListener('touchmove', function (e) {
                 var dx = e.touches[0].clientX - startX;
                 if (dx < -20 && !swiping) {
                     // 取消长按
@@ -173,6 +162,7 @@
                 }
             }, { passive: true });
             li.addEventListener('touchend', function () {
+                clearTimeout(longPressTimer);
                 li.style.transition = 'transform 0.2s ease';
                 if (currentDx < -SWIPE_THRESHOLD) {
                     li.style.transform = 'translateX(-80px)';
@@ -196,13 +186,21 @@
                 }
                 swiping = false;
             });
+            li.addEventListener('touchcancel', function () {
+                clearTimeout(longPressTimer);
+                li.style.transition = 'transform 0.2s ease';
+                li.style.transform = 'translateX(0)';
+                swiping = false;
+            });
         },
 
         /**
          * 移除单个条目（带动画）
          */
         removeItem: function (li) {
-            li.style.maxHeight = li.offsetHeight + 'px';
+            var h = li.offsetHeight;
+            if (!h) { li.remove(); return; }
+            li.style.maxHeight = h + 'px';
             li.style.overflow = 'hidden';
             li.style.transition = 'max-height 0.25s ease, opacity 0.25s ease, padding 0.25s ease';
             // force reflow

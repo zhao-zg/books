@@ -30,6 +30,20 @@
     }
 
     win.BK.MarkPanelAdapters.PdfAdapter = {
+        // ─── 通用 ──────────────────────────────────────────────────────
+        getBookTitle: function () {
+            var bookId = _getBookId();
+            if (bookId && win.__bkBooks) {
+                for (var i = 0; i < win.__bkBooks.length; i++) {
+                    var b = win.__bkBooks[i];
+                    if (b && (b.id === bookId || b.bookId === bookId)) {
+                        return b.title || '';
+                    }
+                }
+            }
+            return '';
+        },
+
         // ─── 目录 ──────────────────────────────────────────────────────
         toc: {
             getItems: function () {
@@ -97,12 +111,19 @@
                 }).sort(function (a, b) { return a.position - b.position; }));
             },
 
-            add: function () {
+            add: function (titleInfo) {
                 var s = _getS();
                 var bookId = _getBookId();
                 if (!s || !bookId) return Promise.resolve();
                 var page = s.currentPage ? s.currentPage() : 1;
-                if (s.addBookmark) s.addBookmark(bookId, page, '第 ' + page + ' 页');
+                // 生成书签标题：优先使用 titleInfo，否则默认"第 X 页"
+                var title;
+                if (titleInfo && titleInfo.bookTitle) {
+                    title = titleInfo.bookTitle + ' - 第 ' + page + ' 页';
+                } else {
+                    title = '第 ' + page + ' 页';
+                }
+                if (s.addBookmark) s.addBookmark(bookId, page, title);
                 return Promise.resolve();
             },
 
@@ -179,6 +200,14 @@
                 var bookId = _getBookId();
                 if (!s || !bookId) return Promise.resolve();
                 if (s.removeHighlight) s.removeHighlight(bookId, id);
+                return Promise.resolve();
+            },
+
+            updateNote: function (id, note) {
+                var s = _getS();
+                var bookId = _getBookId();
+                if (!s || !bookId || !s.setHighlightNote) return Promise.resolve();
+                s.setHighlightNote(bookId, id, note);
                 return Promise.resolve();
             },
 

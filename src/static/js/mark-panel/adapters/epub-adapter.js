@@ -16,6 +16,11 @@
     }
 
     win.BK.MarkPanelAdapters.EpubAdapter = {
+        // ─── 通用 ──────────────────────────────────────────────────────
+        getBookTitle: function () {
+            return (win.BKRenderer && win.BKRenderer._currentBookTitle) || '';
+        },
+
         // ─── 目录 ──────────────────────────────────────────────────────
         toc: {
             /**
@@ -189,8 +194,16 @@
             },
 
             toggleCurrentPage: function (opts) {
-                if (!win.BKBookmark || !win.BKBookmark.addCurrent) return Promise.resolve();
-                return win.BKBookmark.addCurrent(opts || {});
+                if (!win.BKBookmark || !win.BKBookmark.getAll || !win.BKBookmark.addCurrent || !win.BKBookmark.remove) return Promise.resolve();
+                var current = win.__bkCurrentPath || '';
+                return win.BKBookmark.getAll().then(function (bms) {
+                    var existing = (bms || []).find(function (bm) { return bm.path === current; });
+                    if (existing) {
+                        return win.BKBookmark.remove(existing.id);
+                    } else {
+                        return win.BKBookmark.addCurrent(opts || {});
+                    }
+                });
             }
         },
 
@@ -245,6 +258,13 @@
                     });
                     return Promise.all(promises);
                 });
+            },
+
+            updateNote: function (id, note) {
+                if (win.BKHighlight && win.BKHighlight.saveNote) {
+                    win.BKHighlight.saveNote(id, note);
+                }
+                return Promise.resolve();
             },
 
             navigate: function (item) {

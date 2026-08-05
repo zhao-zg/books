@@ -21,6 +21,7 @@
         _readerType: null,  // 'epub' | 'pdf'
         _autoCloseTimer: null,
         _bookTitle: '',
+        _dirtyTabs: { toc: true, bookmark: true, mark: true },
 
         // ─── 公开 API ──────────────────────────────────────────────────
 
@@ -35,22 +36,8 @@
             MarkPanel._getAdapter();
             MarkPanel._ensureDOM();
 
-            // 书名：EPUB 从 BKRenderer 缓存取，PDF 从 BKPdf._internal.state 取
-            if (MarkPanel._readerType === 'epub') {
-                MarkPanel._bookTitle = (win.BKRenderer && win.BKRenderer._currentBookTitle) || '';
-            } else {
-                var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
-                var _bookId = _s && typeof _s.currentBookId === 'function' ? _s.currentBookId() : null;
-                if (_bookId && win.__bkBooks) {
-                    for (var bi = 0; bi < win.__bkBooks.length; bi++) {
-                        var b = win.__bkBooks[bi];
-                        if (b && (b.id === _bookId || b.bookId === _bookId)) {
-                            MarkPanel._bookTitle = b.title || '';
-                            break;
-                        }
-                    }
-                }
-            }
+            // 书名：通过适配器获取（适配器内部区分 EPUB/PDF 数据源）
+            MarkPanel._bookTitle = (MarkPanel._adapter && MarkPanel._adapter.getBookTitle) ? MarkPanel._adapter.getBookTitle() : '';
             MarkPanel._titleEl.textContent = MarkPanel._bookTitle || document.title || '';
 
             // 确定打开的 Tab
@@ -124,6 +111,7 @@
          */
         refresh: function () {
             if (!MarkPanel._isOpen) return;
+            MarkPanel.markDirty(MarkPanel._activeTab);
             MarkPanel._loadTabData(MarkPanel._activeTab);
         },
 
@@ -286,12 +274,15 @@
             // Footer 只在书签/标记 Tab 显示
             MarkPanel._footerEl.style.display = (tabId === 'toc') ? 'none' : 'flex';
 
-            // 加载数据
+            // 加载数据（仅在脏标记为 true 时加载）
             MarkPanel._loadTabData(tabId);
         },
 
         _loadTabData: function (tabId) {
             if (!MarkPanel._adapter) return;
+            // 跳过已加载且未脏的 Tab
+            if (!MarkPanel._dirtyTabs[tabId]) return;
+            MarkPanel._dirtyTabs[tabId] = false;
 
             if (tabId === 'toc') {
                 MarkPanel._loadToc();
@@ -299,6 +290,18 @@
                 MarkPanel._loadBookmarks();
             } else if (tabId === 'mark') {
                 MarkPanel._loadMarks();
+            }
+        },
+
+        /**
+         * 标记某个 Tab 数据已过期，下次切换时重新加载
+         */
+        markDirty: function (tabId) {
+            if (tabId) {
+                MarkPanel._dirtyTabs[tabId] = true;
+            } else {
+                // 无参数时全部标记脏
+                MarkPanel._dirtyTabs = { toc: true, bookmark: true, mark: true };
             }
         },
 
@@ -359,67 +362,6 @@
         _renderPdfToc: function (pane, items) {
             var ul = document.createElement('ul');
             ul.className = 'bk-mp-toc-tree';
-
-            // 按树形结构渲染
-            function renderLevel(levelItems, depth) {
-                var parentUl = document.createElement('ul');
-                parentUl.className = 'bk-mp-toc-tree';
-                if (depth > 0) parentUl.classList.add('bk-mp-toc-tree-children', 'bk-mp-expanded');
-
-                levelItems.forEach(function (item) {
-                    var li = document.createElement('li');
-                    li.className = 'bk-mp-toc-tree-item';
-
-                    var row = document.createElement('div');
-                    row.className = 'bk-mp-toc-tree-row';
-                    row.style.paddingLeft = (16 + depth * 16) + 'px';
-
-                    var toggle = document.createElement('button');
-                    toggle.className = 'bk-mp-toc-tree-toggle';
-                    if (item.hasChildren) {
-                        toggle.textContent = '▾';
-                    }
-
-                    var title = document.createElement('span');
-                    title.className = 'bk-mp-toc-tree-title';
-                    title.textContent = item.title;
-
-                    var page = document.createElement('span');
-                    page.className = 'bk-mp-toc-tree-page';
-                    if (item.position) page.textContent = item.position;
-
-                    row.appendChild(toggle);
-                    row.appendChild(title);
-                    row.appendChild(page);
-
-                    li.appendChild(row);
-
-                    // 点击跳转
-                    row.addEventListener('click', function () {
-                        MarkPanel._adapter.toc.navigate(item);
-                        MarkPanel._scheduleAutoClose();
-                    });
-
-                    // 展开/折叠
-                    if (item.hasChildren) {
-                        var childContainer = document.createElement('div');
-                        childContainer.className = 'bk-mp-toc-tree-children';
-
-                        toggle.addEventListener('click', function (e) {
-                            e.stopPropagation();
-                            var expanded = childContainer.classList.contains('bk-mp-expanded');
-                            childContainer.classList.toggle('bk-mp-expanded', !expanded);
-                            toggle.textContent = expanded ? '▸' : '▾';
-                        });
-
-                        li.appendChild(childContainer);
-                    }
-
-                    parentUl.appendChild(li);
-                });
-
-                return parentUl;
-            }
 
             // 简单平铺（flat items），通过 depth 缩进
             items.forEach(function (item) {
@@ -523,8 +465,11 @@
                 btn.addEventListener('click', function () {
                     if (hasBookmark) {
                         // 删除当前页书签：toggle
-                        if (adapter.toggleCurrentPage) adapter.toggleCurrentPage();
-                        MarkPanel._loadBookmarks();
+                        var toggleP = adapter.toggleCurrentPage ? adapter.toggleCurrentPage() : Promise.resolve();
+                        toggleP.then(function () {
+                            MarkPanel._fireMarksChanged();
+                            MarkPanel._loadBookmarks();
+                        });
                     } else {
                         // 传入 titleInfo 以生成正确的书签标题
                         var titleInfo = {
@@ -601,6 +546,7 @@
             deleteBtn.addEventListener('click', function () {
                 MarkPanel._adapter.bookmark.remove(item.id).then(function () {
                     menu.remove();
+                    MarkPanel._fireMarksChanged();
                     MarkPanel._loadBookmarks();
                 });
             });
@@ -745,6 +691,7 @@
                 MarkPanel._adapter.mark.remove(item.id).then(function () {
                     menu.remove();
                     MarkPanel._allMarks = (MarkPanel._allMarks || []).filter(function (m) { return m.id !== item.id; });
+                    MarkPanel._fireMarksChanged();
                     MarkPanel._renderMarks();
                     MarkPanel._updateMarkFooter(MarkPanel._allMarks);
                 });
@@ -755,21 +702,16 @@
             saveBtn.textContent = '保存';
             saveBtn.style.fontWeight = '600';
             saveBtn.addEventListener('click', function () {
-                // 笔记更新需要通过各自的底层 API
-                // EPUB: BKHighlight.saveNote
-                // PDF: pdf-state.setHighlightNote
+                // 笔记更新通过适配器统一处理
                 var newNote = noteInput.value.trim();
-                if (MarkPanel._readerType === 'epub' && win.BKHighlight && win.BKHighlight.saveNote) {
-                    win.BKHighlight.saveNote(item.id, newNote);
-                } else if (MarkPanel._readerType === 'pdf') {
-                    var _s = win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.state;
-                    var _bookId = (_s && typeof _s.currentBookId === 'function') ? _s.currentBookId() : null;
-                    if (_s && _bookId && _s.setHighlightNote) _s.setHighlightNote(_bookId, item.id, newNote);
+                if (MarkPanel._adapter && MarkPanel._adapter.mark && MarkPanel._adapter.mark.updateNote) {
+                    MarkPanel._adapter.mark.updateNote(item.id, newNote);
                 }
                 // 更新本地缓存
                 var mark = (MarkPanel._allMarks || []).find(function (m) { return m.id === item.id; });
                 if (mark) mark.note = newNote;
                 menu.remove();
+                MarkPanel._fireMarksChanged();
                 MarkPanel._renderMarks();
             });
 
@@ -809,6 +751,9 @@
          * 派发 marks-changed 事件，通知其他组件（如书架统计等）
          */
         _fireMarksChanged: function () {
+            // 数据变更后标记书签和标记 Tab 为脏
+            MarkPanel._dirtyTabs.bookmark = true;
+            MarkPanel._dirtyTabs.mark = true;
             try {
                 document.dispatchEvent(new CustomEvent('marks-changed'));
             } catch (e) {}
