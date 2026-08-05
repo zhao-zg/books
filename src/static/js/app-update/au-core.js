@@ -83,70 +83,45 @@
             return 0;
         },
 
-        // P3-2: 拆分为独立方法，提升可读性和可维护性
+        // P3-2: 下载竞速——speedtest.bin 带宽测速，独立于 version 竞速
         _selectFastestMirror: async function(url, onProgress) {
-            var CapacitorHttp = getCapacitorHttp();
-            var isGitHubUrl = url.indexOf('github.com') !== -1 || url.indexOf('githubusercontent.com') !== -1;
-            if (!isGitHubUrl || !CapacitorHttp) return url;
+            var mirrors = this.config.mirrors || [];
             
-            if (onProgress) onProgress('正在选择最快线路...', 0, 0, 0);
-            var downloadSources = [{ name: '线路 1', url: url }];
-            this.config.mirrors.forEach(function(mirror, index) {
-                var mirrorUrl = mirror.replace(/\/+$/, '') + '/' + url;
-                downloadSources.push({ name: '线路 ' + (index + 2), url: mirrorUrl });
-            });
-            
-            var testPromises = downloadSources.map(function(source) {
-                return new Promise(function(resolve) {
-                    var startTime = Date.now();
-                    var timeout = setTimeout(function() {
-                        resolve({ source: source, responseTime: Infinity, success: false });
-                    }, 5000);
-                    CapacitorHttp.get({
-                        url: source.url,
-                        headers: { 'Range': 'bytes=0-102399' },
-                        connectTimeout: 5000,
-                        readTimeout: 5000
-                    }).then(function(response) {
-                        clearTimeout(timeout);
-                        var responseTime = Date.now() - startTime;
-                        if (response.status === 200 || response.status === 206) {
-                            resolve({ source: source, responseTime: responseTime, success: true });
-                        } else {
-                            resolve({ source: source, responseTime: Infinity, success: false });
-                        }
-                    }).catch(function() {
-                        clearTimeout(timeout);
-                        resolve({ source: source, responseTime: Infinity, success: false });
-                    });
-                });
-            });
-            
-            var fastestSource = null, fastestTime = Infinity;
-            var racePromise = Promise.race(testPromises.map(function(p) {
-                return p.then(function(r) { return r.success ? r : new Promise(function(){}); });
-            }));
-            
-            var quickResult = await Promise.race([
-                racePromise,
-                new Promise(function(resolve) { setTimeout(function() { resolve(null); }, 2000); })
-            ]);
-            
-            if (quickResult && quickResult.success) {
-                fastestSource = quickResult.source;
-                fastestTime = quickResult.responseTime;
-            } else {
-                var testResults = await Promise.all(testPromises);
-                testResults.forEach(function(r) {
-                    if (r.success && r.responseTime < fastestTime) {
-                        fastestTime = r.responseTime;
-                        fastestSource = r.source;
-                    }
-                });
+            // ★ 收集候选 CF 服务器 URL 列表
+            // 从原始 URL 提取 APK 文件名，从 CF 服务器列表竞速选最优
+            var cfServers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
+            if (cfServers.length === 0) {
+                console.log('[更新] 无 CF 服务器列表，使用原 URL');
+                return url;
             }
             
-            if (!fastestSource) throw new Error('所有下载线路都不可用');
-            return fastestSource.url;
+            // 单 CF 服务器无需竞速，直接拼接
+            var filename = url.split('/').pop();
+            if (cfServers.length === 1) {
+                var directUrl = cfServers[0].replace(/\/+$/, '') + '/' + filename;
+                console.log('[更新] 单 CF 服务器，直接使用: ' + directUrl);
+                return directUrl;
+            }
+            
+            if (onProgress) onProgress('正在测速选最优线路...', 0, 0, 0);
+            
+            // ★ 使用全局下载竞速：speedtest.bin 测速，选带宽最高的 CF 服务器
+            var Race = window.BK && window.BK.RaceFastest;
+            if (Race) {
+                try {
+                    var result = await Race.download(cfServers);
+                    var bestUrl = result.serverUrl.replace(/\/+$/, '') + '/' + filename;
+                    console.log('[更新] 下载竞速完成，最优: ' + bestUrl);
+                    return bestUrl;
+                } catch (e) {
+                    console.warn('[更新] 下载竞速失败，使用原 URL:', e.message);
+                    return url;
+                }
+            }
+            
+            // 兜底：无 RaceFastest 时直接用原 URL
+            console.log('[更新] RaceFastest 不可用，使用原 URL');
+            return url;
         },
 
         _downloadAndSave: async function(downloadUrl, filename, onProgress) {

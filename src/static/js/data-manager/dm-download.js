@@ -369,9 +369,82 @@
   }
 
   /**
+   * 逐本下载系列中的待下载书籍（ZIP 通道不可用时的回退路径）
+   * @param {Array} filtered  待下载书籍列表
+   * @param {Array} downloadedIds  已下载 ID 列表
+   * @param {number} myToken  批次令牌
+   * @param {function} onProgress  进度回调
+   * @param {function} _broadcastProgress  进度广播
+   * @returns {Promise<object>}
+   */
+  function _downloadSeriesBookByBook(filtered, downloadedIds, myToken, onProgress, _broadcastProgress) {
+    // 构建任务列表（downloadBook 会自动查找 series）
+    // ★ 字节级进度：每本 downloadBook 写入独立的 _activeTasks slot，
+    //   不再覆盖共享变量，并发安全。_broadcastProgress 广播聚合结果给 UI。
+    var tasks = filtered.map(function (book) {
+      var fn = function () {
+        _dlCurrentTitle = book.title || book.id;
+        _broadcastProgress();
+        return downloadBook(book.id, book.series, function (percent, status) {
+          // 重新计算批次总进度并广播
+          if (_dlTotal > 0) {
+            _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
+          }
+          _broadcastProgress();
+        });
+      };
+      fn._bookTitle = book.title || book.id;
+      fn._bookId = book.id;
+      return fn;
+    });
+
+    return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
+      _dlCompleted = completed;
+      // ★ 并发适配：累加已完成书籍的字节总量到 _dlBatchBytesReceived
+      if (taskResult && taskResult._dlBookBytes) {
+        _dlBatchBytesReceived += taskResult._dlBookBytes;
+      }
+      _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
+      _broadcastProgress();
+    }, myToken).then(function (result) {
+      // 收集首轮失败的书名
+      var acc = {
+        success: result.success,
+        failed: result.failed,
+        errors: result.errors,
+        failedBookNames: []
+      };
+      for (var i = 0; i < result.failedTasks.length; i++) {
+        var t = result.failedTasks[i];
+        if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+      }
+      if (result.failed > 0) {
+        return _retryFailed(result.failedTasks, 2, onProgress, acc, myToken);
+      }
+      return acc;
+    }).then(function (result) {
+      // ★ 只有本批次仍是活跃批次时才复位状态（避免被新批次的状态被覆盖）
+      if (myToken === _dlActiveToken) {
+        _isDownloading = false;
+        _dlCurrentTitle = '';
+        _dlTotalPercent = 100;
+        _dlCurrentBookPercent = 100;
+        _dlStage = '完成';
+      }
+      console.log('[DataManager] 下载完成: 成功=' + result.success + ' 失败=' + result.failed);
+      return result;
+    });
+  }
+
+  /**
    * 批量下载某系列（或多个系列）所有书籍
    * 使用全局索引查找书籍列表，避免单独请求系列 index.json
    * 支持拾遗系列 (sy_auto)：自动从全局索引中筛选小系列书籍
+   *
+   * ★ 混合策略：当待下载本数 >= PACK_THRESHOLD 且系列有对应的 ZIP 包时，
+   *   优先走 ZIP 通道（单次 HTTP 请求下载整个系列包并解压入库），
+   *   否则回退到逐本下载（3路并发 + 重试）。
+   *
    * @param {string|Array<string>} seriesId 如 "lee8" 或 ["lee8", "lee9"]
    * @param {function} [onProgress] (completed, total, currentTitle) => {}
    */
@@ -445,7 +518,7 @@
         }
 
         // 获取已下载列表，跳过已下载的
-        return getDownloadedIdsList().then(function (downloadedIds) {
+          return getDownloadedIdsList().then(function (downloadedIds) {
           var filtered = toDownloadBooks.filter(function (b) {
             return downloadedIds.indexOf(b.id) === -1;
           });
@@ -461,63 +534,53 @@
             return { success: 0, failed: 0, errors: [] };
           }
 
-          // 构建任务列表（downloadBook 会自动查找 series）
-          // ★ 字节级进度：每本 downloadBook 写入独立的 _activeTasks slot，
-          //   不再覆盖共享变量，并发安全。_broadcastProgress 广播聚合结果给 UI。
-          var tasks = filtered.map(function (book) {
-            var fn = function () {
-              _dlCurrentTitle = book.title || book.id;
-              _broadcastProgress();
-              return downloadBook(book.id, book.series, function (percent, status) {
-                // 重新计算批次总进度并广播
-                if (_dlTotal > 0) {
-                  _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
-                }
-                _broadcastProgress();
-              });
-            };
-            fn._bookTitle = book.title || book.id;
-            fn._bookId = book.id;
-            return fn;
-          });
+          // ── 混合策略：尝试走 ZIP 通道 ──────────────────────────────
+          // 当待下载本数 >= 阈值且 packs/manifest.json 可用时，
+          // 下载整个系列 ZIP 并解压入库，跳过已下载的书籍。
+          // 如果 ZIP 不可用或待下载本数较少，回退到逐本下载。
+          var _packDl = win.DataManager && win.DataManager._packDl;
+          if (_packDl) {
+            return _packDl.shouldUsePack(seriesIds[0], filtered.length).then(function (usePack) {
+              if (usePack && seriesIds.length === 1) {
+                // ZIP 通道
+                console.log('[DataManager] 系列 ' + seriesIds[0] + ' 走 ZIP 通道');
+                _dlStage = '下载系列包';
+                return _packDl.downloadPack(seriesIds[0], {
+                  skipIds: downloadedIds,
+                  onProgress: function (pct, status) {
+                    _dlTotalPercent = pct;
+                    _dlStage = status || '下载系列包';
+                    _broadcastProgress();
+                  },
+                  shouldAbort: function () {
+                    return _isCancelled || myToken !== _dlActiveToken;
+                  },
+                  shouldPause: function () {
+                    return _isPaused;
+                  }
+                }).then(function (result) {
+                  if (myToken === _dlActiveToken) {
+                    _isDownloading = false;
+                    _dlCurrentTitle = '';
+                    _dlTotalPercent = 100;
+                    _dlCurrentBookPercent = 100;
+                    _dlStage = '完成';
+                  }
+                  return {
+                    success: result.success,
+                    failed: result.failed,
+                    errors: result.errors,
+                    failedBookNames: []
+                  };
+                });
+              }
+              // 逐本通道（ZIP 不可用或多系列场景）
+              return _downloadSeriesBookByBook(filtered, downloadedIds, myToken, onProgress, _broadcastProgress);
+            });
+          }
 
-          return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
-            _dlCompleted = completed;
-            // ★ 并发适配：累加已完成书籍的字节总量到 _dlBatchBytesReceived
-            if (taskResult && taskResult._dlBookBytes) {
-              _dlBatchBytesReceived += taskResult._dlBookBytes;
-            }
-            _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
-            _broadcastProgress();
-          }, myToken).then(function (result) {
-            // 收集首轮失败的书名
-            var acc = {
-              success: result.success,
-              failed: result.failed,
-              errors: result.errors,
-              failedBookNames: []
-            };
-            for (var i = 0; i < result.failedTasks.length; i++) {
-              var t = result.failedTasks[i];
-              if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
-            }
-            if (result.failed > 0) {
-              return _retryFailed(result.failedTasks, 2, onProgress, acc, myToken);
-            }
-            return acc;
-          }).then(function (result) {
-            // ★ 只有本批次仍是活跃批次时才复位状态（避免被新批次的状态被覆盖）
-            if (myToken === _dlActiveToken) {
-              _isDownloading = false;
-              _dlCurrentTitle = '';
-              _dlTotalPercent = 100;
-              _dlCurrentBookPercent = 100;
-              _dlStage = '完成';
-            }
-            console.log('[DataManager] 系列 ' + seriesIds.join(',') + ' 下载完成: 成功=' +
-              result.success + ' 失败=' + result.failed);
-            return result;
-          });
+          // 逐本通道（无 _packDl 模块时的回退）
+          return _downloadSeriesBookByBook(filtered, downloadedIds, myToken, onProgress, _broadcastProgress);
         });
       })
       .catch(function (err) {
@@ -589,6 +652,159 @@
             return { success: 0, failed: 0, errors: [] };
           }
 
+          // 先计算总本数（ZIP 通道 + 逐本通道），避免后续 _dlTotal 被覆盖
+          var _totalBookCount = toDownload.length;
+
+          // ── 混合策略：按系列分组，尝试走 ZIP 通道 ────────────────────
+          // 将待下载书籍按系列分组，对大系列走 ZIP，小系列走逐本。
+          var _packDl = win.DataManager && win.DataManager._packDl;
+          if (_packDl) {
+            // 按系列分组
+            var seriesGroups = {};
+            for (var gi = 0; gi < toDownload.length; gi++) {
+              var sid = toDownload[gi].series || '_unknown';
+              if (!seriesGroups[sid]) seriesGroups[sid] = [];
+              seriesGroups[sid].push(toDownload[gi]);
+            }
+
+            // 检查每个系列是否走 ZIP
+            var checkPromises = [];
+            var seriesIds = Object.keys(seriesGroups);
+            for (var si = 0; si < seriesIds.length; si++) {
+              (function (sid) {
+                checkPromises.push(
+                  _packDl.shouldUsePack(sid, seriesGroups[sid].length)
+                    .then(function (usePack) { return { id: sid, usePack: usePack }; })
+                );
+              })(seriesIds[si]);
+            }
+
+            return Promise.all(checkPromises).then(function (decisions) {
+              var packSeries = [];
+              var bookByBookSeries = [];
+              var decisionMap = {};
+              for (var di = 0; di < decisions.length; di++) {
+                decisionMap[decisions[di].id] = decisions[di].usePack;
+                if (decisions[di].usePack) {
+                  packSeries.push(decisions[di].id);
+                } else {
+                  bookByBookSeries.push(decisions[di].id);
+                }
+              }
+
+              if (packSeries.length > 0) {
+                console.log('[DataManager] downloadAll: ZIP 通道系列=' + packSeries.join(',') +
+                  '，逐本通道系列=' + bookByBookSeries.join(','));
+              }
+
+              // 收集所有逐本下载的书籍
+              var bookByBookList = [];
+              for (var bi = 0; bi < bookByBookSeries.length; bi++) {
+                var group = seriesGroups[bookByBookSeries[bi]] || [];
+                for (var bj = 0; bj < group.length; bj++) {
+                  bookByBookList.push(group[bj]);
+                }
+              }
+
+              // 保留完整的总本数，不被逐本通道覆盖
+              _dlTotal = _totalBookCount;
+
+              // 先执行 ZIP 通道的系列，再逐本下载剩余
+              var chain = Promise.resolve({ success: 0, failed: 0, errors: [], failedBookNames: [] });
+
+              // ZIP 通道（顺序执行，避免内存峰值）
+              for (var pi = 0; pi < packSeries.length; pi++) {
+                (function (sid) {
+                  chain = chain.then(function (acc) {
+                    if (_isCancelled || myToken !== _dlActiveToken) return acc;
+                    _dlCurrentTitle = '下载系列包: ' + sid;
+                    _dlStage = '下载系列包';
+                    _broadcastProgress();
+                    return _packDl.downloadPack(sid, {
+                      skipIds: downloadedIds,
+                      onProgress: function (pct, status) {
+                        _dlStage = status || '下载系列包';
+                        _broadcastProgress();
+                      },
+                      shouldAbort: function () {
+                        return _isCancelled || myToken !== _dlActiveToken;
+                      },
+                      shouldPause: function () {
+                        return _isPaused;
+                      }
+                    }).then(function (result) {
+                      acc.success += result.success;
+                      acc.failed += result.failed;
+                      if (result.errors) {
+                        acc.errors = acc.errors.concat(result.errors);
+                      }
+                      return acc;
+                    });
+                  });
+                })(packSeries[pi]);
+              }
+
+              // 逐本通道
+              chain = chain.then(function (acc) {
+                if (_isCancelled || myToken !== _dlActiveToken) return acc;
+                if (!bookByBookList.length) return acc;
+
+                // 不再覆盖 _dlTotal，改为单独跟踪逐本通道的进度
+                var bookByBookTotal = bookByBookList.length;
+                var tasks = bookByBookList.map(function (book) {
+                  var fn = function () {
+                    _dlCurrentTitle = book.title || book.id;
+                    _broadcastProgress();
+                    return downloadBook(book.id, book.series, function (percent, status) {
+                      if (bookByBookTotal > 0) {
+                        _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, bookByBookTotal);
+                      }
+                      _broadcastProgress();
+                    });
+                  };
+                  fn._bookTitle = book.title || book.id;
+                  fn._bookId = book.id;
+                  return fn;
+                });
+
+                return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
+                  _dlCompleted = completed;
+                  if (taskResult && taskResult._dlBookBytes) {
+                    _dlBatchBytesReceived += taskResult._dlBookBytes;
+                  }
+                  _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
+                  _broadcastProgress();
+                }, myToken).then(function (result) {
+                  acc.success += result.success;
+                  acc.failed += result.failed;
+                  if (result.errors) acc.errors = acc.errors.concat(result.errors);
+                  for (var i = 0; i < result.failedTasks.length; i++) {
+                    var t = result.failedTasks[i];
+                    if (t._bookTitle) acc.failedBookNames.push(t._bookTitle);
+                  }
+                  if (result.failed > 0) {
+                    return _retryFailed(result.failedTasks, 2, onProgress, acc, myToken);
+                  }
+                  return acc;
+                });
+              });
+
+              return chain.then(function (result) {
+                if (myToken === _dlActiveToken) {
+                  _isDownloading = false;
+                  _dlCurrentTitle = '';
+                  _dlTotalPercent = 100;
+                  _dlCurrentBookPercent = 100;
+                  _dlStage = '完成';
+                }
+                console.log('[DataManager] 全部下载完成: 成功=' +
+                  result.success + ' 失败=' + result.failed);
+                return result;
+              });
+            });
+          }
+
+          // 逐本通道（无 _packDl 模块时的回退）
           var tasks = toDownload.map(function (book) {
             var fn = function () {
               _dlCurrentTitle = book.title || book.id;

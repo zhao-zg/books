@@ -10,25 +10,13 @@
                            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
         if (isCapacitor) {
-            var CLOUDFLARE_SERVERS = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
-            if (!CLOUDFLARE_SERVERS.length) return;
+            // ★ 使用全局 version 竞速：一次竞速，结果缓存 5 分钟复用
+            var Race = window.BK && window.BK.RaceFastest;
+            if (!Race) return;
             getCurrentApkVersion().then(function(currentVersion) {
-                var ts = Date.now();
-                var fetches = CLOUDFLARE_SERVERS.map(function(url) {
-                    return fetch(url + 'version.json?t=' + ts, { cache: 'no-cache' })
-                        .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                        .then(function(d) { return { serverUrl: url, versionInfo: d }; });
-                });
-                var race = typeof Promise.any === 'function'
-                    ? Promise.any(fetches)
-                    : new Promise(function(resolve) {
-                        var done = false;
-                        fetches.forEach(function(p) { p.then(function(d) { if (!done) { done = true; resolve(d); } }).catch(function() {}); });
-                        setTimeout(function() { if (!done) resolve(null); }, 8000);
-                    });
-                race.then(function(result) {
+                Race.version().then(function(result) {
                     if (!result) return;
-                    var latest = result.versionInfo.apk_version || result.versionInfo.version || '';
+                    var latest = result.data.apk_version || result.data.version || '';
                     if (!latest) return;
                     var cmp = AppUpdate.compareVersion(latest.replace('v', ''), currentVersion.replace('v', ''));
                     if (cmp > 0) showUpdateToast(latest, 'capacitor');

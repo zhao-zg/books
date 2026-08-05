@@ -233,12 +233,16 @@
         window.BK = window.BK || {};
 
         // 安卓 APK 下载函数（被「我的」页面通过 window.BKDownloadApk 调用）
+        // ★ 优先使用全局 version 竞速，缓存复用；兜底走本地 version.json
         function downloadApk(statusEl) {
-            var root = window.BK_ROOT || './';
             if (statusEl) { statusEl.textContent = '正在获取最新版本...'; statusEl.className = 'cache-status'; }
-            fetch(root + 'version.json?t=' + Date.now(), { cache: 'no-cache' })
-                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                .then(function(v) {
+            var Race = window.BK && window.BK.RaceFastest;
+            var verPromise = Race
+                ? Race.version().then(function(r) { return r.data; })
+                : fetch((window.BK_ROOT || './') + 'version.json?t=' + Date.now(), { cache: 'no-cache' })
+                    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+
+            verPromise.then(function(v) {
                     var f = v.apk_file || ('Books-v' + (v.apk_version || v.version) + '.apk');
                     var sz = v.apk_size ? ' (' + (v.apk_size / 1024 / 1024).toFixed(1) + ' MB)' : '';
                     var apkUrl;

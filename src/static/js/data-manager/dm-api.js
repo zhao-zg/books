@@ -325,6 +325,9 @@
         _currentUrlIndex = 0;
         DATA_BASE_URL = DATA_BASE_URLS[0] || '';
       }
-    }
+    },
+    // 内部方法（供 dm-pack-download.js 引用）
+    _getBaseUrl: function () { return DATA_BASE_URL; },
+    _getBaseUrls: function () { return DATA_BASE_URLS.slice(); }
   };
 

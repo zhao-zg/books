@@ -234,21 +234,31 @@
         getCurrentApkVersion().then(function(currentVersion) {
             statusEl.innerHTML = '当前版本: ' + currentVersion + '<br>正在检查远程版本...';
 
-            var ts = Date.now();
-            var fetches = CLOUDFLARE_SERVERS.map(function(serverUrl) {
-                return fetch(serverUrl + 'version.json?t=' + ts, { cache: 'no-cache' })
-                    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                    .then(function(d) { return { serverUrl: serverUrl, versionInfo: d }; });
-            });
-            var race = typeof Promise.any === 'function'
-                ? Promise.any(fetches)
-                : new Promise(function(resolve) {
-                    var done = false;
-                    fetches.forEach(function(p) { p.then(function(d) { if (!done) { done = true; resolve(d); } }).catch(function() {}); });
-                    setTimeout(function() { if (!done) resolve(null); }, 8000);
-                });
+            // ★ 使用全局 version 竞速：一次竞速，结果缓存 5 分钟复用
+            var Race = window.BK && window.BK.RaceFastest;
+            var racePromise = Race
+                ? Race.version().then(function(result) {
+                    return { serverUrl: result.serverUrl, versionInfo: result.data };
+                  })
+                : (function() {
+                    // 兜底：手动竞速
+                    var ts = Date.now();
+                    var fetches = CLOUDFLARE_SERVERS.map(function(serverUrl) {
+                        return fetch(serverUrl + 'version.json?t=' + ts, { cache: 'no-cache' })
+                            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                            .then(function(d) { return { serverUrl: serverUrl, versionInfo: d }; });
+                    });
+                    var race = typeof Promise.any === 'function'
+                        ? Promise.any(fetches)
+                        : new Promise(function(resolve) {
+                            var done = false;
+                            fetches.forEach(function(p) { p.then(function(d) { if (!done) { done = true; resolve(d); } }).catch(function() {}); });
+                            setTimeout(function() { if (!done) resolve(null); }, 8000);
+                        });
+                    return race;
+                })();
 
-            return race.then(function(result) {
+            return racePromise.then(function(result) {
                 if (!result) { statusEl.innerHTML = '❌ 所有服务器均无法访问'; return; }
                 var serverUrl = result.serverUrl;
                 var versionInfo = result.versionInfo;
@@ -288,7 +298,8 @@
                     }
                 }
 
-                fetchChangelogRace(CLOUDFLARE_SERVERS).then(function(changelog) {
+                // ★ changelog 也走最快服务器（复用 version 竞速结果），不再逐个试
+                fetchChangelog(serverUrl).then(function(changelog) {
                     if (changelog) fillChangelogPanel('cloudflareUpdateDialog', changelog, currentVersion, latestVersion, comparison);
                 });
             }).catch(function(error) {
@@ -343,8 +354,13 @@
                         }
                     }
 
+                    // ★ changelog 走 version 竞速的最快服务器
                     var CL_SERVERS = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
-                    fetchChangelogRace(CL_SERVERS).then(function(changelog) {
+                    var Race = window.BK && window.BK.RaceFastest;
+                    var clPromise = Race
+                        ? Race.version().then(function(r) { return fetchChangelog(r.serverUrl); })
+                        : fetchChangelogRace(CL_SERVERS);
+                    clPromise.then(function(changelog) {
                         if (changelog) fillChangelogPanel('githubUpdateDialog', changelog, currentVersion, latestVersion, comparison);
                     }).catch(function() {});
                 });

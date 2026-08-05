@@ -143,6 +143,26 @@ class BooksGenerator:
         if os.path.exists(headers_src):
             shutil.copy2(headers_src, os.path.join(self.output_dir, '_headers'))
 
+    def generate_speedtest_bin(self):
+        """生成测速文件（供 download 竞速测带宽）
+
+        部署到 CF 后，race-fastest.js 的 download 竞速直接下载此文件，
+        而非对目标 APK 发 Range 请求，避免目标文件不支持 Range 的问题。
+        文件大小和名称由 config.yaml 的 speedtest 配置控制。
+        """
+        import struct
+        st_cfg = self.config.get('speedtest', {})
+        size_kb = st_cfg.get('size_kb', 100)
+        filename = st_cfg.get('filename', 'speedtest.bin')
+        size = size_kb * 1024
+        bin_path = os.path.join(self.output_dir, filename)
+        # 生成确定性内容：用重复 pattern 填充，确保每次构建结果一致
+        pattern = struct.pack('>I', 0x53504545)  # "SPEE" magic
+        data = (pattern * (size // len(pattern) + 1))[:size]
+        with open(bin_path, 'wb') as f:
+            f.write(data)
+        print(f"✓ {filename} 已生成 ({size_kb}KB)")
+
     def generate_version_json(self, app_config: dict):
         """生成 version.json（从 app_config.json 读取版本信息）"""
         version_data = {
@@ -209,3 +229,6 @@ class BooksGenerator:
         nojekyll_path = os.path.join(self.output_dir, '.nojekyll')
         with open(nojekyll_path, 'w') as f:
             f.write('')
+
+        # 8. 生成测速文件 speedtest.bin（300KB 随机数据，供 download 竞速使用）
+        self.generate_speedtest_bin()

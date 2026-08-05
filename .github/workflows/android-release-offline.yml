@@ -91,6 +91,9 @@ jobs:
         # 删除赞助二维码（APK 走远程获取，不需要打包）
         rm -rf output/images/zanzhu-wx.png output/images/zanzhu-zfb.jpg
         echo "✓ 已移除赞助图片（APK 不打包）"
+        # 删除测速文件（竞速时从 CF 远程下载，不需要打包进 APK）
+        rm -f output/speedtest.bin
+        echo "✓ 已移除测速文件（APK 不打包）"
         # 保留 books-index.json 和 manifest.json（索引打包进 APK，确保书籍列表正确）
         # 删除单本书籍 JSON（体积大，通过 CDN 在线加载）
         if [ -d "output/zl-data" ]; then
@@ -98,6 +101,11 @@ jobs:
           find output/zl-data -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
           echo "✓ 已移除单本书籍 JSON（仅保留索引文件）"
           du -sh output/zl-data/
+        fi
+        # 删除系列 ZIP 压缩包（115MB+，仅部署到 CDN，不打进 APK）
+        if [ -d "output/zl-data/packs" ]; then
+          rm -rf output/zl-data/packs
+          echo "✓ 已移除系列 ZIP 压缩包（APK 不打包，仅走 CDN）"
         fi
         du -sh output/
         find output/ -type f | wc -l

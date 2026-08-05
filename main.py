@@ -207,6 +207,13 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
     sponsor_enabled = config.get('sponsor_enabled', True)
     encoded['sponsor_enabled'] = sponsor_enabled
 
+    # 下载竞速测速配置（数值/字符串，不编码，直接透传）
+    st_cfg = config.get('speedtest', {})
+    if st_cfg:
+        encoded['speedtest_size_kb'] = st_cfg.get('size_kb', 100)
+        encoded['speedtest_filename'] = st_cfg.get('filename', 'speedtest.bin')
+        encoded['speedtest_timeout_per_kb'] = st_cfg.get('timeout_per_kb', 20)
+
 
     # 生成 JS 内容
     js_content = f"""\
@@ -568,6 +575,22 @@ def main():
 
     # 准备 zl-data（将 output/zl-merged/ 重命名为 output/zl-data/）
     prepare_zl_data(output_dir)
+
+    # ── 系列打包：将每个系列的 JSON 打包为 ZIP（减少 HTTP 请求次数）────
+    print("── 系列打包 ──")
+    _pack_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'pack_series.py')
+    if os.path.exists(_pack_script):
+        zl_data_dir = os.path.join(output_dir, 'zl-data')
+        if os.path.isdir(zl_data_dir):
+            try:
+                from src.pack_series import pack_all_series
+                pack_all_series(zl_data_dir)
+            except Exception as e:
+                print(f"⚠ 系列打包失败（不影响功能，仅失去 ZIP 下载优化）: {e}")
+        else:
+            print("⚠ zl-data 目录不存在，跳过系列打包")
+    else:
+        print("⚠ src/pack_series.py 未找到，跳过系列打包")
 
     # resource/books/ 下的源文件已由 ysz_to_md.py 在构建时处理并入 zl-merged
     # 此开关仅用于本地调试时需要直接访问原始文件（EPUB/MD/TXT）的场景
