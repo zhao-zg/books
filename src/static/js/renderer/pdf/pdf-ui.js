@@ -109,12 +109,16 @@
       });
     }
 
-    // 目录
+    // 目录 → 桥接到 MarkPanel
     var outlineBtn = _topBar.querySelector('.bk-pdf-tb-outline');
     if (outlineBtn) {
       outlineBtn.addEventListener('click', function () {
-        var outline = win.BKPdf._internal.outline;
-        if (outline && outline.toggle) outline.toggle();
+        if (win.BK && win.BK.MarkPanel) {
+          win.BK.MarkPanel.toggle('toc');
+        } else {
+          var outline = win.BKPdf._internal.outline;
+          if (outline && outline.toggle) outline.toggle();
+        }
       });
     }
 
