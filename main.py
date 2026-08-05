@@ -213,6 +213,7 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
         encoded['speedtest_size_kb'] = st_cfg.get('size_kb', 100)
         encoded['speedtest_filename'] = st_cfg.get('filename', 'speedtest.bin')
         encoded['speedtest_timeout_per_kb'] = st_cfg.get('timeout_per_kb', 20)
+        encoded['speedtest_fast_enough_ms'] = st_cfg.get('fast_enough_ms', 2000)
 
 
     # 生成 JS 内容

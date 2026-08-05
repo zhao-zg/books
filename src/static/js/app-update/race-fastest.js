@@ -44,7 +44,8 @@
     return {
       filename: cfg.speedtest_filename || 'speedtest.bin',
       sizeKb: cfg.speedtest_size_kb || 100,
-      timeoutPerKb: cfg.speedtest_timeout_per_kb || 20  // ms per KB
+      timeoutPerKb: cfg.speedtest_timeout_per_kb || 20,  // ms per KB
+      fastEnoughMs: cfg.speedtest_fast_enough_ms || 2000  // 下载耗时≤此值认为够快
     };
   }
 
@@ -211,8 +212,8 @@
             best = result;
           }
           // 已经够快，无需再测后续服务器
-          if (bestBps >= 5 * 1024 * 1024) { // ≥5MB/s
-            console.log('[RaceFastest] 带宽充足 (' + Math.round(bestBps / 1024 / 1024) + ' MB/s)，跳过剩余服务器');
+          if (result.elapsed <= stCfg.fastEnoughMs) {
+            console.log('[RaceFastest] 耗时 ' + result.elapsed + 'ms ≤ ' + stCfg.fastEnoughMs + 'ms，跳过剩余服务器');
             return best;
           }
         } else {

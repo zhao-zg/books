@@ -50,7 +50,8 @@ sponsor_enabled: true
 speedtest:
   size_kb: 200          # 测速文件大小（KB），越大测速越准但耗时越长
   filename: "speedtest.bin"  # 测速文件名
-  timeout_per_kb: 20    # 每 KB 超时(ms)，总超时 = size_kb × timeout_per_kb（300KB=9s）
+  timeout_per_kb: 20    # 每 KB 超时(ms)，总超时 = size_kb × timeout_per_kb（200KB=4s）
+  fast_enough_ms: 1000  # 下载耗时≤此值时认为够快，跳过剩余服务器（200KB约2s）
 
 # WebDAV 预置服务器（可选，由 config.yaml 配置，随构建产物下发；用户不可删除）
 # 用途：让打包者内置常用 WebDAV 服务器，普通用户开箱即用，无需手动填写。
