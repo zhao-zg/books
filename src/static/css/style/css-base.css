@@ -26,7 +26,7 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
 .book-grid { display: grid; gap: 12px; padding: 8px 20px 24px; background: transparent; }
 @media (min-width: 768px) { .book-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 @media (min-width: 1024px) { .book-grid { grid-template-columns: repeat(3, 1fr); } }
-.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 16px; overflow: hidden; transition: background-color .2s, transform 0.25s var(--ease-out, ease); border: 1px solid var(--border); border-left: 3px solid var(--series-color, var(--accent-color, #3D8A5A)); contain: layout style paint; }
+.zl-book-card { background: var(--card-bg, var(--surface)); border-radius: 16px; overflow: hidden; transition: background-color .2s, transform 0.25s var(--ease-out, ease); border: 1px solid var(--border); border-top: 3px solid var(--series-color, var(--accent-color, #3D8A5A)); contain: layout style paint; }
 .zl-book-card:hover { background: var(--nav-hover); transform: translateY(-2px); }
 .zl-book-card:active { transform: scale(0.98); transition-duration: 0.1s; }
 /* [data-theme="dark"] book cards: flat, no shadow (Soft Nordic — white cards distinguished by 1px border) */
@@ -170,7 +170,7 @@ body { font-size: 16px; font-family: var(--ui-font-family); background: var(--su
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--tag-text, #3D8A5A);
-  background: var(--tag-bg, rgba(61, 138, 90, .10));
+  background: var(--tag-bg, rgba(var(--brand-rgb, 61,138,90), .10));
   border-radius: 10px;
   padding: 2px 8px;
   margin: 0;

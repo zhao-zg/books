@@ -175,10 +175,12 @@
 
         // 移动端：拦截触摸事件，防止穿透到底层内容（滑动、点击等）
         // 只在遮罩背景区域（e.target === mask）拦截，弹框内容区域的触摸仍正常冒泡
+        // touchstart 上 preventDefault 会阻止 click 合成，因此需要在此主动关闭弹框
         mask.addEventListener('touchstart', function (e) {
             if (e.target === mask) {
                 e.preventDefault();
                 e.stopPropagation();
+                close();
             }
         }, { passive: false });
         mask.addEventListener('touchmove', function (e) {
@@ -295,6 +297,8 @@
             if (e.target === overlayEl) {
                 e.preventDefault();
                 e.stopPropagation();
+                // preventDefault 会阻止 click 合成，需要在此主动调用关闭回调
+                if (closeFn) closeFn();
             }
         }
 

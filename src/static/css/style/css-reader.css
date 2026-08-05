@@ -70,16 +70,15 @@
 .bk-quote {
   margin: 1.4em 0;
   padding: 0;
-  border-left: 4px solid var(--brand, #3D8A5A);
-  border-radius: 0 var(--radius-md, 12px) var(--radius-md, 12px) 0;
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90),.18);
+  border-radius: var(--radius-md, 12px);
   overflow: hidden;
 }
 .bk-quote-content {
   padding: 14px 20px;
-  background: linear-gradient(135deg, var(--surface-alt, #EDEAE4), rgba(var(--brand-rgb, 61,138,90), 0.04));
+  background: rgba(var(--brand-rgb, 61,138,90),.04);
   color: var(--text-soft, var(--text-muted));
   font-style: italic;
-  border-radius: 0 var(--radius-md, 12px) var(--radius-md, 12px) 0;
   line-height: 1.75;
 }
 .bk-figure {

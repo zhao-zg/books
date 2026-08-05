@@ -50,7 +50,7 @@
 .hl-modal-card { background: var(--card-bg, #FFFFFF); border-radius: 16px; padding: 18px; width: 100%; max-width: 420px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
 .hl-modal-title { font-size: var(--text-lg); font-weight: 700; color: var(--text, #1A1918); }
 .hl-note-textarea { width: 100%; box-sizing: border-box; resize: vertical; overflow-y: auto; border: 1px solid var(--border, #E5E2DD); border-radius: 8px; padding: 10px; font-size: var(--text-base); color: var(--text, #1A1918); background: var(--surface-alt, #EDEAE4); font-family: inherit; line-height: 1.6; min-height: 100px; max-height: 60vh; }
-.hl-note-textarea:focus { outline: none; border-color: var(--brand, #3D8A5A); box-shadow: 0 0 0 2px var(--interactive-soft-border, rgba(61,138,90,.16)); }
+.hl-note-textarea:focus { outline: none; border-color: var(--brand, #3D8A5A); box-shadow: 0 0 0 2px var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.16)); }
 .hl-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .hl-modal-btn { min-height: 34px; padding: 5px 16px; border-radius: 8px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; border: 1px solid var(--border, #E5E2DD); flex-shrink: 0; white-space: nowrap; }
 .hl-modal-cancel { background: var(--surface-alt, #EDEAE4); color: var(--text, #1A1918); }

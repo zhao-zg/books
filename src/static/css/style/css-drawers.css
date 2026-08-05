@@ -83,8 +83,8 @@
 .bk-btn-secondary:hover { background: #F7F5F1; }
 .bk-btn-secondary:active { background: #F1F0ED; }
 .bk-btn-outline { background: transparent; color: var(--brand, #3D8A5A); border: 1px solid var(--brand, #3D8A5A); }
-.bk-btn-outline:hover { background: rgba(61,138,90,.06); }
-.bk-btn-outline:active { background: rgba(61,138,90,.12); }
+.bk-btn-outline:hover { background: rgba(var(--brand-rgb, 61,138,90),.06); }
+.bk-btn-outline:active { background: rgba(var(--brand-rgb, 61,138,90),.12); }
 .bk-btn-outline:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
 .bk-btn-danger { background: var(--danger-text, #C8553D); color: #FFFFFF; }
 .bk-btn-danger:active { opacity: .85; }
@@ -106,8 +106,8 @@
 }
 .bk-source-card:hover { border-color: #C5C0B8; background: #FAFAF8; }
 .bk-source-card.active {
-  border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.06);
-  box-shadow: 0 0 0 3px rgba(61,138,90,.08);
+  border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.06);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 61,138,90),.08);
 }
 .bk-source-card-icon { font-size: 1.5em; line-height: 1; }
 .bk-source-card-label {
@@ -125,7 +125,7 @@
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background .15s, box-shadow .15s;
 }
-.bk-import-action-primary:hover { background: #358A50; box-shadow: 0 2px 8px rgba(61,138,90,.2); }
+.bk-import-action-primary:hover { background: #358A50; box-shadow: 0 2px 8px rgba(var(--brand-rgb, 61,138,90),.2); }
 .bk-import-action-primary:active { background: #2D7A44; }
 .bk-import-action-primary:disabled { opacity: .5; cursor: default; box-shadow: none; }
 .bk-import-action-primary:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
@@ -180,7 +180,7 @@
   transition: background .15s, border-color .15s;
 }
 .bk-import-file-card:hover { border-color: #C5C0B8; }
-.bk-import-file-card.checked { background: rgba(61,138,90,.04); border-color: rgba(61,138,90,.25); }
+.bk-import-file-card.checked { background: rgba(var(--brand-rgb, 61,138,90),.04); border-color: rgba(var(--brand-rgb, 61,138,90),.25); }
 .bk-import-file-icon { font-size: 1.2em; flex-shrink: 0; }
 .bk-import-file-info { flex: 1; min-width: 0; }
 .bk-import-file-name {
@@ -210,7 +210,7 @@
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background .15s, box-shadow .15s, opacity .15s;
 }
-.bk-import-confirm-btn:hover { background: #358A50; box-shadow: 0 2px 8px rgba(61,138,90,.2); }
+.bk-import-confirm-btn:hover { background: #358A50; box-shadow: 0 2px 8px rgba(var(--brand-rgb, 61,138,90),.2); }
 .bk-import-confirm-btn:active { background: #2D7A44; }
 .bk-import-confirm-btn:disabled { opacity: .5; cursor: default; box-shadow: none; }
 .bk-import-confirm-btn:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
@@ -228,7 +228,7 @@
 /* sage 半透 chip r16（用于「更新大小」「引用检测」等状态标签） */
 .bk-chip-sage {
   display: inline-flex; align-items: center; padding: 5px 12px;
-  background: rgba(61,138,90,0.12); color: var(--brand, #3D8A5A);
+  background: rgba(var(--brand-rgb, 61,138,90),0.12); color: var(--brand, #3D8A5A);
   border-radius: 16px; font-size: var(--text-xs, .75rem); font-weight: 600;
 }
 
@@ -246,7 +246,7 @@
 .bk-webdav-save input { width: 16px; height: 16px; accent-color: var(--brand, #3D8A5A); }
 /* 预置服务器备注（config.yaml → webdav-presets.js 注入的 note 字段） */
 .bk-webdav-note { display: none; margin-top: 6px; padding: 8px 12px; border-radius: 10px;
-  background: rgba(61,138,90,.08); color: var(--text-muted, #9A958C);
+  background: rgba(var(--brand-rgb, 61,138,90),.08); color: var(--text-muted, #9A958C);
   font-size: var(--text-sm, .8125rem); line-height: 1.5; border: 1px solid var(--border, #E5E2DD); }
 .bk-webdav-actions { display: flex; gap: 12px; margin-top: 4px; }
 .bk-webdav-actions .bk-btn { flex: 1; }
@@ -255,7 +255,7 @@
 .bk-webdav-error { display: none; margin-top: 4px; padding: 10px 12px; border-radius: 10px;
   background: rgba(200,85,61,.10); color: var(--danger-text, #C8553D);
   font-size: var(--text-sm, .8125rem); line-height: 1.5; }
-.bk-webdav-error-ok { background: rgba(61,138,90,.12); color: var(--brand, #3D8A5A); }
+.bk-webdav-error-ok { background: rgba(var(--brand-rgb, 61,138,90),.12); color: var(--brand, #3D8A5A); }
 
 /* 连接中 */
 .bk-webdav-connecting { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 32px 0;
@@ -292,8 +292,8 @@
 .bk-webdav-dir .bk-webdav-name { font-weight: 500; color: var(--text, #1A1918); }
 .bk-webdav-file { padding: 10px 14px; border-radius: 12px;
   border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; }
-.bk-webdav-file.selected { border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.06); }
-.bk-webdav-file.done { background: rgba(61,138,90,.05); border-color: rgba(61,138,90,.35); }
+.bk-webdav-file.selected { border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.06); }
+.bk-webdav-file.done { background: rgba(var(--brand-rgb, 61,138,90),.05); border-color: rgba(var(--brand-rgb, 61,138,90),.35); }
 /* 第一行：勾选框 + 文件名 */
 .bk-webdav-file-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 /* 第二行：标签 + 大小 + 操作按钮 */
@@ -301,7 +301,7 @@
 .bk-webdav-check input { width: 18px; height: 18px; accent-color: var(--brand, #3D8A5A); cursor: pointer; flex-shrink: 0; }
 .bk-webdav-name { flex: 1; min-width: 0; color: var(--text, #1A1918); font-size: var(--text-base, .9375rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bk-webdav-done-tag { display: inline-block; flex-shrink: 0; color: var(--brand, #3D8A5A); font-size: var(--text-xs, .75rem);
-  font-weight: 600; background: rgba(61,138,90,.12); border-radius: 999px; padding: 2px 8px; }
+  font-weight: 600; background: rgba(var(--brand-rgb, 61,138,90),.12); border-radius: 999px; padding: 2px 8px; }
 .bk-webdav-size { color: var(--text-muted, #9A958C); font-size: var(--text-xs, .75rem); flex-shrink: 0; }
 .bk-webdav-dl { border: none; background: var(--brand, #3D8A5A); color: #FFFFFF; border-radius: 8px;
   padding: 5px 12px; font: inherit; font-size: var(--text-xs, .75rem); font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
@@ -343,9 +343,9 @@
 
 /* 卡片内「重新同步」按钮（与删除按钮并列，定位在其左侧） */
 .bk-resync-btn { position: absolute; top: 8px; right: 44px; width: 28px; height: 28px; border-radius: 50%; border: none;
-  background: rgba(61,138,90,.10); color: var(--brand, #3D8A5A); font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
+  background: rgba(var(--brand-rgb, 61,138,90),.10); color: var(--brand, #3D8A5A); font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
   display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; transition: background .15s; z-index: 2; }
-.bk-resync-btn:hover { background: rgba(61,138,90,.18); }
+.bk-resync-btn:hover { background: rgba(var(--brand-rgb, 61,138,90),.18); }
 .bk-resync-btn:active { background: var(--border, #E5E2DD); }
 .bk-resync-btn:disabled { opacity: .5; cursor: default; }
 .bk-resync-btn.is-loading { opacity: .5; cursor: default; }
@@ -367,7 +367,7 @@
 
 /* ── 标准 .bk-dialog 动作栏改造为底部抽屉风格（取消=次 / 确认=主）── */
 .bk-dialog-actions { gap: 12px; padding: 16px 24px 24px; }
-.bk-dialog-cancel, .bk-dialog-confirm {
+.bk-dialog-cancel, .bk-dialog-confirm, .bk-dialog-outline {
   flex: 1; height: 44px; border-radius: 8px; border: none;
   font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600; cursor: pointer;
   -webkit-tap-highlight-color: transparent; transition: opacity .15s, background .15s;
@@ -384,7 +384,11 @@
   background: transparent; color: var(--brand, #3D8A5A);
   border: 1px solid var(--brand, #3D8A5A);
 }
-.bk-dialog-outline:active { background: rgba(61,138,90,.08); }
+.bk-dialog-outline:active { background: rgba(var(--brand-rgb, 61,138,90),.08); }
+.bk-dialog-outline-disabled,
+.bk-dialog-outline[disabled] {
+  opacity: .45; cursor: default; pointer-events: none;
+}
 /* 书籍详情：主操作（继续阅读 / 开始阅读） */
 .bk-dialog-primary {
   flex: 1; height: 44px; border-radius: 8px; border: none;
@@ -478,7 +482,7 @@
   background: #FFFFFF; border: 1px solid var(--border, #E5E2DD); border-radius: 12px; align-items: center;
 }
 #bkClearDialogMask .bk-dialog-opt.selected {
-  border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.08);
+  border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.08);
 }
 
 /* ── WebDAV 上传对话框 ─────────────────────────────────────────── */
@@ -486,13 +490,13 @@
 .bk-wdu-section { margin-bottom: 16px; }
 .bk-wdu-label { font-size: var(--text-sm, .8125rem); font-weight: 600; color: var(--text-muted, #9A958C); margin-bottom: 8px; }
 .bk-wdu-note { display: none; margin-top: 6px; padding: 8px 12px; border-radius: 10px;
-  background: rgba(61,138,90,.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
+  background: rgba(var(--brand-rgb, 61,138,90),.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .bk-wdu-select { appearance: none; -webkit-appearance: none; }
 .bk-wdu-format-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .bk-wdu-format-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border, #E5E2DD);
   background: #FFFFFF; color: var(--text, #1A1918); font: inherit; font-size: var(--text-sm, .8125rem); cursor: pointer;
   transition: all .15s; }
-.bk-wdu-format-btn.active { border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.08); color: var(--brand, #3D8A5A); }
+.bk-wdu-format-btn.active { border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.08); color: var(--brand, #3D8A5A); }
 .bk-wdu-format-btn:active { opacity: .85; }
 .bk-wdu-path-row { display: flex; gap: 8px; align-items: center; }
 .bk-wdu-path-row .bk-field { flex: 1; }
@@ -510,7 +514,7 @@
   background: rgba(200,85,61,.10); color: var(--danger-text, #C8553D); font-size: var(--text-sm, .8125rem); line-height: 1.6;
   white-space: pre-line; }
 .bk-wdu-status { display: none; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px;
-  background: rgba(61,138,90,.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); }
+  background: rgba(var(--brand-rgb, 61,138,90),.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); }
 .bk-wdu-progress-section { margin-top: 12px; }
 .bk-wdu-progress-text { font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C); margin-bottom: 6px; }
 .bk-wdu-progress-bar-wrap { height: 6px; border-radius: 3px; background: var(--surface-alt, #EDEAE4); overflow: hidden; }
@@ -558,7 +562,7 @@
 .bk-wdfm-label { font-size: var(--text-sm, .8125rem); font-weight: 600; color: var(--text-muted, #9A958C); margin-bottom: 8px; }
 .bk-wdfm-select { appearance: none; -webkit-appearance: none; }
 .bk-wdfm-note { display: none; margin-top: 6px; padding: 8px 12px; border-radius: 10px;
-  background: rgba(61,138,90,.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
+  background: rgba(var(--brand-rgb, 61,138,90),.08); color: var(--brand, #3D8A5A); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .bk-wdfm-error { display: none; margin-top: 4px; padding: 10px 12px; border-radius: 10px;
   background: rgba(200,85,61,.10); color: var(--danger-text, #C8553D); font-size: var(--text-sm, .8125rem); line-height: 1.6; }
 .bk-wdfm-footer { display: flex; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border, #E5E2DD); }
@@ -591,7 +595,7 @@
   border: 1px solid var(--border, #E5E2DD); background: #FFFFFF; cursor: pointer;
   transition: background .15s, border-color .15s; }
 .bk-wdfm-item:active { background: var(--surface-alt, #EDEAE4); }
-.bk-wdfm-item.is-selected { border-color: var(--brand, #3D8A5A); background: rgba(61,138,90,.06); }
+.bk-wdfm-item.is-selected { border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.06); }
 .bk-wdfm-check { display: flex; align-items: center; flex-shrink: 0; }
 .bk-wdfm-check input { width: 18px; height: 18px; accent-color: var(--brand, #3D8A5A); cursor: pointer; }
 .bk-wdfm-icon { font-size: 1.1em; flex-shrink: 0; }

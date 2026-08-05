@@ -7,7 +7,7 @@
   transition: color .2s, background .2s; -webkit-tap-highlight-color: transparent;
   line-height: 1; vertical-align: middle; flex: 0 0 auto;
 }
-.bk-bm-btn:active { background: var(--interactive-soft-bg, rgba(61,138,90,.08)); }
+.bk-bm-btn:active { background: var(--interactive-soft-bg, rgba(var(--brand-rgb, 61,138,90),.08)); }
 .bk-bm-btn.bookmarked { color: var(--brand, #3D8A5A); }
 
 /* Toast 通知 */

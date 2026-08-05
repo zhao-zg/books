@@ -233,6 +233,8 @@ def _convert_via_node(input_path: Path, book_id: str, series_id: str) -> Optiona
             ['node', str(script), str(input_path), book_id, series_id],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=60,
             cwd=str(BASE_DIR),
         )

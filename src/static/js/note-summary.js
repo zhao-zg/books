@@ -162,8 +162,9 @@
 
             var bodyHtml = '';
 
-            // 搜索栏
-            bodyHtml += '<div class="bk-ns-search-bar">';
+            // 搜索栏（默认收起，显示搜索图标按钮）
+            bodyHtml += '<div class="bk-ns-search-bar' + (this._query ? ' bk-ns-search-open' : '') + '">';
+            bodyHtml += '<button class="bk-ns-search-toggle" data-action="toggle-search">🔍 搜索标记...</button>';
             bodyHtml += '<input type="text" id="bkNsSearchInput" class="bk-ns-search-input" placeholder="搜索标记内容..." value="' + _escAttr(this._query) + '">';
             bodyHtml += '</div>';
 
@@ -173,17 +174,17 @@
             // 按书筛选Tab
             bodyHtml += this._renderTabBarHtml();
 
-            // 统计
-            bodyHtml += this._renderStatsHtml(notes);
-
             // 标记列表
             bodyHtml += this._renderListHtml(notes);
 
             // 底部操作栏
-            var addBmBtnHtml = (this._addBookmarkBtn && this._isContentPage())
-                ? '<button class="bk-dialog-outline" data-action="add-bookmark">添加书签</button>'
+            // 「添加书签」只在书签Tab且在内容页时显示；「导出」仅在非阅读器场景显示
+            var isBookmarkTab = this._activeType === 'bookmark' || this._activeType === '';
+            var hasBm = this._hasCurrentPageBookmark();
+            var addBmBtnHtml = (this._addBookmarkBtn && this._isContentPage() && isBookmarkTab)
+                ? '<button class="bk-dialog-outline' + (hasBm ? ' bk-dialog-outline-disabled' : '') + '" data-action="add-bookmark"' + (hasBm ? ' disabled' : '') + '>' + (hasBm ? '已添加' : '添加书签') + '</button>'
                 : '';
-            var exportBtnHtml = notes.length
+            var exportBtnHtml = (!this._addBookmarkBtn && notes.length)
                 ? '<button class="bk-dialog-confirm" data-action="export">导出</button>'
                 : '';
             var footerHtml = '<div class="bk-dialog-actions">' +
@@ -220,9 +221,9 @@
 
             var html = '<div class="bk-ns-type-tabs">';
             html += '<button class="bk-ns-type-tab' + (!this._activeType ? ' active' : '') + '" data-type="">全部<span class="bk-ns-type-count">' + this._notes.length + '</span></button>';
-            html += '<button class="bk-ns-type-tab' + (this._activeType === 'bookmark' ? ' active' : '') + '" data-type="bookmark">📑 书签<span class="bk-ns-type-count">' + bmCount + '</span></button>';
-            html += '<button class="bk-ns-type-tab' + (this._activeType === 'highlight' ? ' active' : '') + '" data-type="highlight">✏️ 划线<span class="bk-ns-type-count">' + hlCount + '</span></button>';
-            html += '<button class="bk-ns-type-tab' + (this._activeType === 'note' ? ' active' : '') + '" data-type="note">📝 笔记<span class="bk-ns-type-count">' + noteCount + '</span></button>';
+            html += '<button class="bk-ns-type-tab' + (this._activeType === 'bookmark' ? ' active' : '') + '" data-type="bookmark">📑<span class="bk-ns-type-count">' + bmCount + '</span></button>';
+            html += '<button class="bk-ns-type-tab' + (this._activeType === 'highlight' ? ' active' : '') + '" data-type="highlight">✏️<span class="bk-ns-type-count">' + hlCount + '</span></button>';
+            html += '<button class="bk-ns-type-tab' + (this._activeType === 'note' ? ' active' : '') + '" data-type="note">📝<span class="bk-ns-type-count">' + noteCount + '</span></button>';
             html += '</div>';
             return html;
         },
@@ -254,7 +255,7 @@
             return html;
         },
 
-        /** 渲染统计信息 */
+        /** 渲染统计信息（已合并到类型Tab，保留方法用于导出等场景） */
         _renderStatsHtml: function (notes) {
             var total = this._notes.length;
             var bmCount = 0, hlCount = 0, shelfCount = 0;
@@ -263,17 +264,11 @@
                 else if (this._notes[i].type === 'shelf') shelfCount++;
                 else bmCount++;
             }
-
-            var html = '<div class="bk-ns-stats">';
-            html += '共 <strong>' + total + '</strong> 条标记';
-            if (bmCount || hlCount || shelfCount) {
-                html += '（<strong>' + bmCount + '</strong> 书签 · <strong>' + hlCount + '</strong> 划线 · <strong>' + shelfCount + '</strong> 书架）';
-            }
-            if (this._query && notes.length !== total) {
-                html += '，匹配 <strong>' + notes.length + '</strong> 条';
-            }
-            html += '</div>';
-            return html;
+            var parts = [];
+            if (bmCount) parts.push(bmCount + '书签');
+            if (hlCount) parts.push(hlCount + '划线');
+            if (shelfCount) parts.push(shelfCount + '书架');
+            return parts.length ? '（' + parts.join('·') + '）' : '';
         },
 
         /** 渲染标记列表HTML */
@@ -301,6 +296,11 @@
                     }
                     bodyHtml += '>';
 
+                    // 顶部类型芯片（仅在"全部"Tab 时显示）
+                    if (!this._activeType) {
+                        bodyHtml += '<div class="bk-ns-item-chip bk-ns-chip-' + item.type + '">' + typeLabel + '</div>';
+                    }
+
                     // 书签标题（书签类型优先显示标题）
                     if (item.type === 'bookmark' && item.title) {
                         bodyHtml += '<div class="bk-ns-item-title">' + _escHtml(item.title) + '</div>';
@@ -313,7 +313,9 @@
 
                     // 笔记内容（仅有笔记时显示）
                     if (item.hasNote && item.text) {
-                        bodyHtml += '<div class="bk-ns-item-text">' + _escHtml(item.text) + '</div>';
+                        bodyHtml += '<div class="bk-ns-item-text">';
+                        if (item.highlightText) bodyHtml += '<div class="bk-ns-item-note-label">📝 笔记</div>';
+                        bodyHtml += _escHtml(item.text) + '</div>';
                     }
 
                     // 来源（书签无笔记且无标题时显示）
@@ -321,9 +323,8 @@
                         bodyHtml += '<div class="bk-ns-item-source">来源：' + _escHtml(item.source) + '</div>';
                     }
 
-                    // 底部元信息行：类型 chip + 时间
+                    // 底部元信息行：时间
                     bodyHtml += '<div class="bk-ns-item-meta">';
-                    bodyHtml += '<span class="bk-ns-item-type">' + typeLabel + '</span>';
                     if (timeStr) bodyHtml += '<span class="bk-ns-item-time">' + _escHtml(timeStr) + '</span>';
                     bodyHtml += '</div>';
 
@@ -346,6 +347,19 @@
         _bindEvents: function (dlg) {
             var self = this;
 
+            // 搜索切换按钮
+            var searchToggle = dlg.querySelector('[data-action="toggle-search"]');
+            if (searchToggle) {
+                searchToggle.addEventListener('click', function () {
+                    var bar = dlg.querySelector('.bk-ns-search-bar');
+                    if (bar) {
+                        bar.classList.add('bk-ns-search-open');
+                        var inp = bar.querySelector('.bk-ns-search-input');
+                        if (inp) inp.focus();
+                    }
+                });
+            }
+
             // 搜索
             var input = dlg.querySelector('#bkNsSearchInput');
             if (input) {
@@ -358,7 +372,24 @@
                         self._updateList(dlg);
                     }, 250);
                 });
+                // 清空搜索时收起搜索栏
+                input.addEventListener('blur', function () {
+                    if (!input.value.trim()) {
+                        var bar = dlg.querySelector('.bk-ns-search-bar');
+                        if (bar) bar.classList.remove('bk-ns-search-open');
+                    }
+                });
             }
+
+            // 划线/笔记文本点击展开
+            dlg.addEventListener('click', function (e) {
+                var hl = e.target.closest('.bk-ns-item-hl, .bk-ns-item-text');
+                if (hl && hl.classList.contains('bk-expanded')) return;
+                if (hl) {
+                    hl.classList.add('bk-expanded');
+                    e.stopPropagation();
+                }
+            });
 
             // 类型Tab
             var typeTabs = dlg.querySelectorAll('.bk-ns-type-tab');
@@ -466,9 +497,6 @@
             // 按书Tab（类型变化后需要重建，因为书的列表可能不同）
             bodyHtml += this._renderTabBarHtml();
 
-            // 统计
-            bodyHtml += this._renderStatsHtml(notes);
-
             // 标记列表
             bodyHtml += this._renderListHtml(notes);
 
@@ -488,6 +516,37 @@
                         self._showExportMenu();
                     });
                 })(exportBtn);
+            }
+
+            // 更新「添加书签」按钮可见性（仅在书签Tab显示）
+            var addBmBtn = footerArea ? footerArea.querySelector('[data-action="add-bookmark"]') : null;
+            var showAddBm = this._addBookmarkBtn && this._isContentPage()
+                && (this._activeType === 'bookmark' || this._activeType === '');
+            if (showAddBm && !addBmBtn) {
+                var hasBm = this._hasCurrentPageBookmark();
+                var newBmBtn = document.createElement('button');
+                newBmBtn.className = 'bk-dialog-outline' + (hasBm ? ' bk-dialog-outline-disabled' : '');
+                newBmBtn.setAttribute('data-action', 'add-bookmark');
+                newBmBtn.textContent = hasBm ? '已添加' : '添加书签';
+                if (hasBm) newBmBtn.disabled = true;
+                if (footerArea) footerArea.appendChild(newBmBtn);
+                (function (btn) {
+                    btn.addEventListener('click', function () {
+                        self._addCurrentBookmark();
+                    });
+                })(newBmBtn);
+            } else if (showAddBm && addBmBtn) {
+                // 更新已有按钮的状态（书签可能刚刚被添加或删除）
+                var hasBm2 = this._hasCurrentPageBookmark();
+                addBmBtn.textContent = hasBm2 ? '已添加' : '添加书签';
+                addBmBtn.disabled = hasBm2;
+                if (hasBm2) {
+                    addBmBtn.classList.add('bk-dialog-outline-disabled');
+                } else {
+                    addBmBtn.classList.remove('bk-dialog-outline-disabled');
+                }
+            } else if (!showAddBm && addBmBtn) {
+                addBmBtn.parentNode.removeChild(addBmBtn);
             }
 
             // 替换 body 内容（保留搜索栏和类型Tab）
@@ -542,9 +601,18 @@
 
         /** 单击跳转原文 */
         _onItemTap: function (item) {
-            // 先关闭弹窗
-            if (this._dlg && this._dlg.close) {
-                this._dlg.close();
+            // 关闭弹窗（使用 silentPop 避免与后续 navigate 的 history 时序冲突）
+            if (this._dlg && this._dlg.mask) {
+                // 只销毁 DOM，不触发 history.back()
+                var maskEl = this._dlg.mask;
+                if (maskEl) {
+                    maskEl.classList.remove('show');
+                    setTimeout(function () { if (maskEl.parentNode) maskEl.parentNode.removeChild(maskEl); }, 220);
+                }
+                // 用 silentPop 弹出 backStack 记录，不消耗 history
+                if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) {
+                    win.BK.backStack.silentPop();
+                }
                 this._dlg = null;
             }
             if (item.type === 'bookmark' && item.path) {
@@ -562,7 +630,8 @@
                 }
             } else if (item.type === 'highlight' && item.pageKey) {
                 if (win.BKRouter && win.BKRouter.navigate) {
-                    win.BKRouter.navigate(item.pageKey);
+                    // pageKey 可能以 '/' 开头（如 '/books-1-1001/5'），navigate 会再加 '#/'，需去除前导 '/'
+                    win.BKRouter.navigate(item.pageKey.replace(/^\/+/, ''));
                 }
             } else if (item.type === 'shelf' && item.bookId) {
                 /* 书架笔记：跳转到书架页 */
@@ -608,7 +677,15 @@
                         if (act === 'close') {
                             if (dlg && dlg.close) dlg.close();
                         } else if (act === 'goto') {
-                            if (dlg && dlg.close) dlg.close();
+                            // 关闭操作菜单弹窗（silentPop 避免与后续 navigate 冲突）
+                            if (dlg && dlg.mask) {
+                                var actMask = dlg.mask;
+                                actMask.classList.remove('show');
+                                setTimeout(function () { if (actMask.parentNode) actMask.parentNode.removeChild(actMask); }, 220);
+                            }
+                            if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) {
+                                win.BK.backStack.silentPop();
+                            }
                             self._onItemTap(item);
                         } else if (act === 'edit') {
                             if (dlg && dlg.close) dlg.close();
@@ -1028,6 +1105,17 @@
             var curPath = win.__bkCurrentPath || '';
             var parts = curPath.split('/').filter(Boolean);
             return parts.length >= 2;
+        },
+
+        /** 判断当前页是否已有书签 */
+        _hasCurrentPageBookmark: function () {
+            var curPath = win.__bkCurrentPath || '';
+            if (!curPath) return false;
+            for (var i = 0; i < this._notes.length; i++) {
+                var n = this._notes[i];
+                if (n.type === 'bookmark' && n.path === curPath) return true;
+            }
+            return false;
         },
 
         /** 添加当前页书签 */

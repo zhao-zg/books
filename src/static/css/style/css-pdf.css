@@ -308,11 +308,11 @@
 }
 
 .bk-pdf-text-layer ::selection {
-  background: rgba(61, 138, 90, 0.25);                  /* DESIGN: Sage Moss selection */
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss selection */
 }
 
 .bk-pdf-text-layer ::-moz-selection {
-  background: rgba(61, 138, 90, 0.25);                  /* DESIGN: Sage Moss selection */
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss selection */
 }
 
 .bk-pdf-text-layer .highlight {
@@ -357,13 +357,13 @@
 }
 
 .bk-pdf-annotation-layer .linkAnnotation > a:hover {
-  background: rgba(61, 138, 90, 0.12);                  /* DESIGN: Sage Moss hover */
-  border: 1px solid rgba(61, 138, 90, 0.40);
+  background: rgba(var(--brand-rgb, 61,138,90), 0.12);                  /* DESIGN: Sage Moss hover */
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90), 0.40);
   box-sizing: border-box;
 }
 
 .bk-pdf-annotation-layer .linkAnnotation > a:active {
-  background: rgba(61, 138, 90, 0.25);                  /* DESIGN: Sage Moss active */
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss active */
 }
 
 .bk-pdf-annotation-layer .textWidgetAnnotation input,
@@ -371,7 +371,7 @@
 .bk-pdf-annotation-layer .choiceWidgetAnnotation select,
 .bk-pdf-annotation-layer .buttonWidgetAnnotation.checkBox input,
 .bk-pdf-annotation-layer .buttonWidgetAnnotation.radioButton input {
-  background-color: rgba(61, 138, 90, 0.10);           /* DESIGN: Sage Moss form widget */
+  background-color: rgba(var(--brand-rgb, 61,138,90), 0.10);           /* DESIGN: Sage Moss form widget */
   border: 1px solid transparent;
   box-sizing: border-box;
   width: 100%;
@@ -857,7 +857,7 @@
 .bk-pdf-search-input:focus {
   border-color: var(--brand);
   background: var(--card-bg);
-  box-shadow: 0 0 0 2px var(--interactive-soft-border, rgba(61,138,90,.16));  /* P1-1: 2px ring + 令牌，与通用 .bk-search-input 完全一致 */
+  box-shadow: 0 0 0 2px var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.16));  /* P1-1: 2px ring + 令牌，与通用 .bk-search-input 完全一致 */
 }
 
 .bk-pdf-search-prev,
@@ -1199,7 +1199,7 @@ body.bk-pdf-green .bk-pdf-bookmark-drawer,
 }
 
 .bk-pdf-bookmark-edit:hover {
-  background: var(--tag-bg, rgba(61, 138, 90, 0.1));
+  background: var(--tag-bg, rgba(var(--brand-rgb, 61,138,90), 0.1));
   color: var(--accent-color, var(--brand, #3D8A5A));
 }
 

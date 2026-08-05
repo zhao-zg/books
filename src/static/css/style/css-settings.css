@@ -27,7 +27,7 @@
   transition: all .2s cubic-bezier(.4,0,.2,1);
 }
 .theme-option:hover { border-color: var(--brand, #3D8A5A); }
-.theme-option.active { border-color: var(--brand, #3D8A5A); background: var(--interactive-soft-bg, rgba(61,138,90,.08)); }
+.theme-option.active { border-color: var(--brand, #3D8A5A); background: var(--interactive-soft-bg, rgba(var(--brand-rgb, 61,138,90),.08)); }
 .theme-preview {
   width: 100%;
   height: 36px;
@@ -163,8 +163,8 @@
 .action-btn.danger:active { background: var(--danger-bg-active, #ffe8e8); }
 .action-btn .cache-icon { font-size: 1.35em; line-height: 1; width: 1.4em; text-align: center; flex-shrink: 0; }
 .action-btn .cache-text { font-size: var(--text-sm); font-weight: 500; }
-.action-btn.feedback { color: var(--brand, #3D8A5A); border-color: var(--interactive-soft-border, rgba(61,138,90,.16)); background: var(--interactive-soft-bg, rgba(61,138,90,.08)); }
-.action-btn.feedback:active { background: var(--interactive-soft-hover, rgba(61,138,90,.12)); }
+.action-btn.feedback { color: var(--brand, #3D8A5A); border-color: var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.16)); background: var(--interactive-soft-bg, rgba(var(--brand-rgb, 61,138,90),.08)); }
+.action-btn.feedback:active { background: var(--interactive-soft-hover, rgba(var(--brand-rgb, 61,138,90),.12)); }
 /* 偏好设置行 */
 .pref-row {
   display: flex;

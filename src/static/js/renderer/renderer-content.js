@@ -354,7 +354,8 @@
       mask.className = 'bk-epub-fn-popup-mask';
       mask.addEventListener('click', _closeFootnotePopup);
       // 移动端：拦截触摸事件，防止穿透到底层阅读区
-      mask.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+      // touchstart 上 preventDefault 会阻止 click 合成，因此需要在此主动关闭弹窗
+      mask.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); _closeFootnotePopup(); }, { passive: false });
       mask.addEventListener('touchmove', function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
       document.body.appendChild(mask);
 
