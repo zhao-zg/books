@@ -144,14 +144,12 @@
 /* ── 筛选栏（标记 Tab）────────────────────── */
 .bk-mp-filter {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     padding: 8px 12px;
     border-bottom: 1px solid var(--border, #E5E2DD);
     flex-shrink: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
 }
-.bk-mp-filter::-webkit-scrollbar { display: none; }
 .bk-mp-filter-tag {
     display: inline-flex;
     align-items: center;
