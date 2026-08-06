@@ -37,6 +37,8 @@
   //   避免并发 ++_currentUrlIndex 导致越界或多个 worker 切到不同地址。
   //   JS 单线程但 Promise 微任务交错执行，"读-改-写"并非原子。
   var _urlSwitching = false;
+  // ★ 竞速标记：避免多个下载批次同时触发竞速
+  var _racePending = null;
 
   // ── localforage 实例 ─────────────────────────────────────────────────
   var store = (typeof localforage !== 'undefined')
@@ -240,6 +242,96 @@
     if (pct > 99.5) pct = 99.5;  // 留 0.5% 给完成阶段
     if (pct < 0) pct = 0;
     return pct;
+  }
+
+  // ── 镜像竞速（复用 RaceFastest） ─────────────────────────────────────
+
+  /**
+   * 竞速选最快 CDN，将 DATA_BASE_URLS 重排为最快在前
+   *
+   * 原理：调用 RaceFastest.version() 并行请求所有 CDN 的 version.json，
+   *       取最先响应的 CDN，将其排到 DATA_BASE_URLS[0]，
+   *       后续下载自动走最快域名。
+   *       RaceFastest 自带 localStorage 缓存，页面刷新后仍可用，
+   *       不会每次都重新竞速（仅首次或缓存失效时才触发）。
+   *
+   * 调用时机：downloadSeries / downloadAll 启动前调用，
+   *           单本下载不需要（代价大于收益）。
+   *
+   * @returns {Promise<void>}
+   */
+  function _raceBaseUrl() {
+    // 无 RaceFastest 或只有一个地址，无需竞速
+    if (!win.BK || !win.BK.RaceFastest || DATA_BASE_URLS.length <= 1) {
+      return Promise.resolve();
+    }
+
+    // 防重复：已有进行中的竞速，复用
+    if (_racePending) return _racePending;
+
+    // 从 DATA_BASE_URLS 中提取 CDN 地址（跳过本地 ./zl-data 开头的）
+    var cfBaseUrls = [];
+    for (var i = 0; i < DATA_BASE_URLS.length; i++) {
+      var u = DATA_BASE_URLS[i];
+      if (u.indexOf('://') !== -1 && u.indexOf('localhost') === -1 && u.indexOf('127.0.0.1') === -1) {
+        // 提取站点根路径：DATA_BASE_URLS 是 xxx/zl-data 格式，需还原为站点根
+        var siteRoot = u.replace(/\/zl-data\/?$/, '/');
+        if (siteRoot === u) siteRoot = u + '/'; // 兜底
+        cfBaseUrls.push({ siteRoot: siteRoot, dataUrl: u });
+      }
+    }
+
+    if (cfBaseUrls.length <= 1) {
+      return Promise.resolve();
+    }
+
+    console.log('[DataManager] 开始镜像竞速（' + cfBaseUrls.length + ' 个 CDN）');
+
+    _racePending = win.BK.RaceFastest.version().then(function (result) {
+      if (!result || !result.serverUrl) {
+        console.log('[DataManager] 镜像竞速无结果，保持原顺序');
+        _racePending = null;
+        return;
+      }
+
+      var fastestRoot = result.serverUrl.replace(/\/+$/, '');
+
+      // 找到最快 CDN 对应的 dataUrl
+      var fastestDataUrl = '';
+      for (var i = 0; i < cfBaseUrls.length; i++) {
+        if (cfBaseUrls[i].siteRoot.replace(/\/+$/, '') === fastestRoot) {
+          fastestDataUrl = cfBaseUrls[i].dataUrl;
+          break;
+        }
+      }
+
+      if (!fastestDataUrl) {
+        console.log('[DataManager] 竞速最快域名 ' + fastestRoot + ' 不在数据源列表中，保持原顺序');
+        _racePending = null;
+        return;
+      }
+
+      // 重排 DATA_BASE_URLS：最快在前，其余保持原顺序
+      var newUrls = [fastestDataUrl];
+      for (var j = 0; j < DATA_BASE_URLS.length; j++) {
+        if (DATA_BASE_URLS[j] !== fastestDataUrl) {
+          newUrls.push(DATA_BASE_URLS[j]);
+        }
+      }
+      DATA_BASE_URLS = newUrls;
+      _currentUrlIndex = 0;
+      DATA_BASE_URL = DATA_BASE_URLS[0];
+
+      console.log('[DataManager] 镜像竞速完成，最快: ' + DATA_BASE_URL +
+        '（' + DATA_BASE_URLS.length + ' 个地址已重排）');
+
+      _racePending = null;
+    }).catch(function (err) {
+      console.warn('[DataManager] 镜像竞速失败，保持原顺序: ' + (err.message || err));
+      _racePending = null;
+    });
+
+    return _racePending;
   }
 
   // ── 工具函数 ──────────────────────────────────────────────────────────

@@ -227,7 +227,9 @@ def generate_remote_config(config: dict, output_dir: str = 'output'):
   var _c = {json.dumps(encoded, ensure_ascii=False)};
 
   function _d(v) {{
-    return typeof v === 'string' ? atob(v) : v;
+    if (typeof v !== 'string') return v;
+    if (!/^[A-Za-z0-9+/=]+$/.test(v)) return v;
+    try {{ return atob(v); }} catch(e) {{ return v; }}
   }}
 
   var config = {{}};

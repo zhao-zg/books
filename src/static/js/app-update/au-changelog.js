@@ -2,24 +2,46 @@
     // Changelog 辅助函数
     // ——————————————————————————————————
 
+    function _getCapacitorHttp() {
+        if (!window.Capacitor) return null;
+        return window.Capacitor.CapacitorHttp
+            || (window.Capacitor.Plugins && (window.Capacitor.Plugins.CapacitorHttp || window.Capacitor.Plugins.Http))
+            || null;
+    }
+
     function fetchChangelog(serverUrl) {
-        return fetch(serverUrl + 'changelog.json?t=' + Date.now(), { cache: 'no-cache' })
-            .then(function(resp) {
-                if (!resp.ok) {
-                    // 请求失败，version 缓存可能已过期（该服务器可能已不可达）
-                    if (window.BK && window.BK.RaceFastest) {
-                        window.BK.RaceFastest.invalidateVersion();
-                    }
-                    return null;
-                }
-                return resp.json();
-            })
-            .catch(function() {
-                if (window.BK && window.BK.RaceFastest) {
-                    window.BK.RaceFastest.invalidateVersion();
-                }
-                return null;
-            });
+        var fullUrl = serverUrl + 'changelog.json?t=' + Date.now();
+        var CapacitorHttp = _getCapacitorHttp();
+        console.log('[Changelog] 请求: ' + fullUrl + ' 方式: ' + (CapacitorHttp ? 'CapacitorHttp' : 'fetch'));
+
+        var promise;
+        if (CapacitorHttp) {
+            promise = CapacitorHttp.get({ url: fullUrl, connectTimeout: 5000, readTimeout: 8000 })
+                .then(function(resp) {
+                    console.log('[Changelog] CapacitorHttp 响应: HTTP ' + resp.status);
+                    if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+                    return (typeof resp.data === 'string') ? JSON.parse(resp.data) : resp.data;
+                });
+        } else {
+            promise = fetch(fullUrl, { cache: 'no-cache' })
+                .then(function(resp) {
+                    console.log('[Changelog] fetch 响应: HTTP ' + resp.status);
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    return resp.json();
+                });
+        }
+
+        return promise.then(function(data) {
+            console.log('[Changelog] 加载成功');
+            return data;
+        }).catch(function(e) {
+            console.warn('[Changelog] 加载失败: ' + (e.message || e) + '，已失效 version 缓存');
+            // 请求失败，version 缓存可能已过期（该服务器可能已不可达）
+            if (window.BK && window.BK.RaceFastest) {
+                window.BK.RaceFastest.invalidateVersion();
+            }
+            return null;
+        });
     }
 
     function fetchChangelogRace(serverUrls) {
@@ -255,12 +277,35 @@
                     return { serverUrl: result.serverUrl, versionInfo: result.data };
                   })
                 : (function() {
-                    // 兜底：手动竞速
+                    // 兜底：手动竞速（同样使用 CapacitorHttp 绕过 CORS）
                     var ts = Date.now();
+                    var CapacitorHttp = _getCapacitorHttp();
+                    console.log('[更新检查] 兜底竞速请求方式: ' + (CapacitorHttp ? 'CapacitorHttp' : 'fetch') + '，' + CLOUDFLARE_SERVERS.length + ' 个服务器');
                     var fetches = CLOUDFLARE_SERVERS.map(function(serverUrl) {
-                        return fetch(serverUrl + 'version.json?t=' + ts, { cache: 'no-cache' })
-                            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                            .then(function(d) { return { serverUrl: serverUrl, versionInfo: d }; });
+                        var fullUrl = serverUrl + 'version.json?t=' + ts;
+                        if (CapacitorHttp) {
+                            return CapacitorHttp.get({ url: fullUrl, connectTimeout: 5000, readTimeout: 8000 })
+                                .then(function(resp) {
+                                    console.log('[更新检查] 兜底竞速 CapacitorHttp 响应: ' + serverUrl + ' → HTTP ' + resp.status);
+                                    if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+                                    var d = (typeof resp.data === 'string') ? JSON.parse(resp.data) : resp.data;
+                                    return { serverUrl: serverUrl, versionInfo: d };
+                                })
+                                .catch(function(e) {
+                                    console.warn('[更新检查] 兜底竞速 CapacitorHttp 失败: ' + serverUrl + ' → ' + (e.message || e));
+                                    throw e;
+                                });
+                        }
+                        return fetch(fullUrl, { cache: 'no-cache' })
+                            .then(function(r) {
+                                console.log('[更新检查] 兜底竞速 fetch 响应: ' + serverUrl + ' → HTTP ' + r.status);
+                                if (!r.ok) throw new Error('HTTP ' + r.status); return r.json();
+                            })
+                            .then(function(d) { return { serverUrl: serverUrl, versionInfo: d }; })
+                            .catch(function(e) {
+                                console.warn('[更新检查] 兜底竞速 fetch 失败: ' + serverUrl + ' → ' + (e.message || e));
+                                throw e;
+                            });
                     });
                     var race = typeof Promise.any === 'function'
                         ? Promise.any(fetches)

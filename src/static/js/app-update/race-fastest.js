@@ -116,13 +116,46 @@
 
     _verPending = new Promise(function (resolve) {
       var ts = Date.now();
+
+      // 检测 CapacitorHttp（APK 环境优先使用，绕过 WebView CORS 限制）
+      var CapacitorHttp = null;
+      if (window.Capacitor) {
+        CapacitorHttp = window.Capacitor.CapacitorHttp
+          || (window.Capacitor.Plugins && (window.Capacitor.Plugins.CapacitorHttp || window.Capacitor.Plugins.Http))
+          || null;
+      }
+      console.log('[RaceFastest] version 竞速请求方式: ' + (CapacitorHttp ? 'CapacitorHttp（原生HTTP，无CORS限制）' : 'fetch（浏览器标准请求）'));
+
       var fetches = servers.map(function (url) {
-        return fetch(url + 'version.json?t=' + ts, { cache: 'no-cache' })
+        var fullUrl = url + 'version.json?t=' + ts;
+        if (CapacitorHttp) {
+          // APK 环境：使用 CapacitorHttp 原生 HTTP 请求，无 CORS 限制
+          console.log('[RaceFastest] version 竞速 CapacitorHttp 请求: ' + fullUrl);
+          return CapacitorHttp.get({ url: fullUrl, connectTimeout: 5000, readTimeout: 8000 })
+            .then(function (resp) {
+              console.log('[RaceFastest] version 竞速 CapacitorHttp 响应: ' + url + ' → HTTP ' + resp.status);
+              if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+              var d = (typeof resp.data === 'string') ? JSON.parse(resp.data) : resp.data;
+              return { serverUrl: url, data: d };
+            })
+            .catch(function (e) {
+              console.warn('[RaceFastest] version 竞速 CapacitorHttp 失败: ' + url + ' → ' + (e.message || e));
+              throw e;
+            });
+        }
+        // Web/PWA 环境：使用 fetch
+        console.log('[RaceFastest] version 竞速 fetch 请求: ' + fullUrl);
+        return fetch(fullUrl, { cache: 'no-cache' })
           .then(function (r) {
+            console.log('[RaceFastest] version 竞速 fetch 响应: ' + url + ' → HTTP ' + r.status);
             if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json().then(function (d) {
               return { serverUrl: url, data: d };
             });
+          })
+          .catch(function (e) {
+            console.warn('[RaceFastest] version 竞速 fetch 失败: ' + url + ' → ' + (e.message || e));
+            throw e;
           });
       });
 
@@ -146,6 +179,7 @@
         _verPending = null;
         resolve(result || Promise.reject(new Error('所有服务器均无法访问')));
       }).catch(function (err) {
+        console.error('[RaceFastest] version 竞速全部失败:', err.message || err);
         _verPending = null;
         resolve(Promise.reject(err));
       });

@@ -485,6 +485,10 @@
     // 使用全局索引查找书籍（已加载，无需额外 HTTP 请求）
     var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
 
+    // ★ 竞速选最快 CDN，重排 DATA_BASE_URLS，使后续下载走最快域名
+    var racePromise = _raceBaseUrl();
+
+    return racePromise.then(function () {
     return indexPromise
       .then(function (indexData) {
         var allBooks = indexData.books || [];
@@ -596,6 +600,7 @@
         console.error('[DataManager] 批量下载系列失败: ' + seriesIds.join(','), err);
         throw err;
       });
+    }); // _raceBaseUrl().then()
   }
 
   /**
@@ -634,6 +639,10 @@
     // 先加载全局索引
     var indexPromise = _cachedIndex ? Promise.resolve(_cachedIndex) : loadIndex();
 
+    // ★ 竞速选最快 CDN，重排 DATA_BASE_URLS，使后续下载走最快域名
+    var racePromise = _raceBaseUrl();
+
+    return racePromise.then(function () {
     return indexPromise
       .then(function (indexData) {
         var allBooks = indexData.books || [];
@@ -880,5 +889,6 @@
         console.error('[DataManager] 下载全部书籍失败:', err);
         throw err;
       });
+    }); // _raceBaseUrl().then()
   }
 
