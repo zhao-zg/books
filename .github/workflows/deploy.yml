@@ -25,6 +25,8 @@ jobs:
   # ── 阶段0：扫描 Secrets，动态生成部署 matrix ──
   prepare:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
     outputs:
       matrix: ${{ steps.gen-matrix.outputs.matrix }}
     steps:
@@ -35,10 +37,20 @@ jobs:
         run: |
           echo "🔍 扫描 GitHub Secrets 中已有的 Cloudflare 账户..."
 
-          # 获取仓库所有 Secrets 名称列表
-          REPO="${{ github.repository }}"
-          SECRET_NAMES=$(gh api "repos/${REPO}/actions/secrets" --paginate \
-            -q '.secrets[].name' 2>/dev/null || echo "")
+          # 获取仓库所有 Secrets 名称列表（兼容权限不足的情况）
+          SECRET_NAMES=""
+          if SECRET_RAW=$(gh api "repos/${{ github.repository }}/actions/secrets" --paginate -q '.secrets[].name' 2>/dev/null) && [ -n "$SECRET_RAW" ]; then
+            SECRET_NAMES="$SECRET_RAW"
+            echo "✅ 通过 API 获取到 Secrets 列表"
+          else
+            echo "⚠️ 无法读取 Secrets 列表（权限不足），使用硬编码列表"
+            # 降级：直接列出已知 Cloudflare 相关 Secret 名称
+            # 如果后续添加账户3+，需手动在此补充
+            SECRET_NAMES="CLOUDFLARE_ACCOUNT_ID
+          CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID_2
+          CLOUDFLARE_API_TOKEN_2"
+          fi
 
           echo "📋 已发现的 Secrets:"
           echo "$SECRET_NAMES"
@@ -57,7 +69,7 @@ jobs:
                 account_id_secret: $id_secret,
                 api_token_secret: $token_secret,
                 project_name: "books"
-              }]'')
+              }]')
             echo "✓ 发现账户1"
           fi
 
@@ -76,7 +88,7 @@ jobs:
                   account_id_secret: $id_secret,
                   api_token_secret: $token_secret,
                   project_name: "books"
-                }]'')
+                }]')
               echo "✓ 发现账户${i}"
             fi
           done
