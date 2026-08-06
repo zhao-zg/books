@@ -159,20 +159,18 @@
         html += '<button class="bk-settings-row" data-action="android-apk"><span class="bk-row-icon">📱</span><span class="bk-row-label">安卓APK</span><span class="bk-row-arrow">›</span></button>';
         html += '<div class="cache-status" id="meApkStatus" style="display:none"></div>';
       }
-      if (canUpdate && window.BK_SERVERS_REACHABLE !== false) {
+      if (canUpdate) {
         html += '<button class="bk-settings-row" data-action="check-update"><span class="bk-row-icon">🔄</span><span class="bk-row-label">检查更新</span><span class="bk-row-arrow">›</span></button>';
       }
       html += '<button class="bk-settings-row" data-action="guide"><span class="bk-row-icon">📖</span><span class="bk-row-label">使用说明</span><span class="bk-row-arrow">›</span></button>';
-      if (window.BK_SERVERS_REACHABLE !== false) {
-        html += '<button class="bk-settings-row" data-action="feedback"><span class="bk-row-icon">💬</span><span class="bk-row-label">问题反馈</span><span class="bk-row-arrow">›</span></button>';
-      }
+      html += '<button class="bk-settings-row" data-action="feedback"><span class="bk-row-icon">💬</span><span class="bk-row-label">问题反馈</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="sponsor" id="bkSponsorBtn" style="display:none"><span class="bk-row-icon">❤️</span><span class="bk-row-label">顾念微工</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
 
       // 高级（内联开关）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">高级</div>';
-      if (canUpdate && window.BK_SERVERS_REACHABLE !== false) {
+      if (canUpdate) {
         html += '<div class="pref-row"><div class="pref-label-wrap"><span class="pref-title">自动检查更新</span><span class="pref-desc">启动时自动检查是否有新版本</span></div><label class="pref-toggle"><input type="checkbox" id="meAutoCheckToggle"><span class="pref-toggle-slider"></span></label></div>';
       }
       html += '<div class="pref-row"><div class="pref-label-wrap"><span class="pref-title">开发者模式</span><span class="pref-desc">在页面底部显示调试日志</span></div><label class="pref-toggle"><input type="checkbox" id="meDevToggle"><span class="pref-toggle-slider"></span></label></div>';

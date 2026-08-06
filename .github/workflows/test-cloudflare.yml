@@ -6,36 +6,48 @@ on:
 jobs:
   test-config:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - account_label: "账户1"
+            account_id_secret: CLOUDFLARE_ACCOUNT_ID
+            api_token_secret: CLOUDFLARE_API_TOKEN
+          - account_label: "账户2"
+            account_id_secret: CLOUDFLARE_ACCOUNT_ID_2
+            api_token_secret: CLOUDFLARE_API_TOKEN_2
     
     steps:
       - name: 检查 Secrets 是否配置
         run: |
-          echo "检查 GitHub Secrets..."
-          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
-            echo "❌ CLOUDFLARE_API_TOKEN 未配置"
+          echo "=== [${{ matrix.account_label }}] 检查 GitHub Secrets ==="
+          if [ -z "${{ secrets[matrix.account_id_secret] }}" ]; then
+            echo "❌ ${{ matrix.account_id_secret }} 未配置"
             exit 1
           else
-            echo "✓ CLOUDFLARE_API_TOKEN 已配置"
+            echo "✓ ${{ matrix.account_id_secret }} 已配置"
           fi
           
-          if [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
-            echo "❌ CLOUDFLARE_ACCOUNT_ID 未配置"
+          if [ -z "${{ secrets[matrix.api_token_secret] }}" ]; then
+            echo "❌ ${{ matrix.api_token_secret }} 未配置"
             exit 1
           else
-            echo "✓ CLOUDFLARE_ACCOUNT_ID 已配置"
-            echo "Account ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}"
+            echo "✓ ${{ matrix.api_token_secret }} 已配置"
           fi
       
       - name: 测试 Cloudflare API
+        env:
+          CF_ACCOUNT_ID: ${{ secrets[matrix.account_id_secret] }}
+          CF_API_TOKEN: ${{ secrets[matrix.api_token_secret] }}
         run: |
-          echo "测试 Cloudflare API 连接..."
-          echo "Account ID (前8位): ${ACCOUNT_ID:0:8}..."
+          echo "=== [${{ matrix.account_label }}] 测试 Cloudflare API 连接 ==="
+          echo "Account ID (前8位): ${CF_ACCOUNT_ID:0:8}..."
           echo ""
           
           # 列出所有 Pages 项目
           response=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json")
           
           # 分离响应体和状态码
@@ -51,11 +63,11 @@ jobs:
           # 检查是否成功
           success=$(echo "$body" | jq -r '.success' 2>/dev/null || echo "false")
           if [ "$success" = "true" ]; then
-            echo "✅ API 连接成功"
+            echo "✅ [${{ matrix.account_label }}] API 连接成功"
             
             # 列出所有项目名称
             echo ""
-            echo "📋 你的 Cloudflare Pages 项目列表:"
+            echo "📋 [${{ matrix.account_label }}] Cloudflare Pages 项目列表:"
             projects=$(echo "$body" | jq -r '.result[].name' 2>/dev/null)
             if [ -z "$projects" ]; then
               echo "  (没有找到任何项目)"
@@ -69,20 +81,15 @@ jobs:
             echo ""
             project_exists=$(echo "$body" | jq -r '.result[] | select(.name=="books") | .name' 2>/dev/null)
             if [ -n "$project_exists" ]; then
-              echo "✅ 找到项目: books"
+              echo "✅ [${{ matrix.account_label }}] 找到项目: books"
               echo ""
               echo "项目详情:"
               echo "$body" | jq '.result[] | select(.name=="books")' 2>/dev/null
             else
-              echo "❌ 未找到项目: books"
-              echo ""
-              echo "可能的原因:"
-              echo "1. 项目名称不匹配（区分大小写）"
-              echo "2. 项目在不同的 Account 下"
-              echo "3. API Token 权限不足"
+              echo "⚠️ [${{ matrix.account_label }}] 未找到项目: books（首次部署时会自动创建）"
             fi
           else
-            echo "❌ API 连接失败"
+            echo "❌ [${{ matrix.account_label }}] API 连接失败"
             echo ""
             echo "错误信息:"
             echo "$body" | jq -r '.errors[]' 2>/dev/null || echo "$body"
@@ -92,5 +99,3 @@ jobs:
             echo "2. API Token 无效或已过期"
             echo "3. API Token 权限不足（需要 'Cloudflare Pages - Edit'）"
           fi
-        env:
-          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

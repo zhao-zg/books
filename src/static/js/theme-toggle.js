@@ -41,63 +41,7 @@
     function initDevConsole()  { window.BKDevConsole && window.BKDevConsole.init(); }
 
     // 是否为本地开发环境（localhost / 127.0.0.1 / file://）
-    function _isLocalDevOrigin() {
-        var h = location.hostname;
-        // localhost / 127.0.0.1 / ::1：可能是本地开发，也可能是 Capacitor APP
-        if (h === 'localhost' || h === '127.0.0.1' || h === '::1') {
-            // Capacitor Bridge 已注入
-            if (window.Capacitor && window.Capacitor.isNativePlatform &&
-                window.Capacitor.isNativePlatform()) {
-                return false;
-            }
-            // Capacitor Bridge 尚未注入（同步脚本早于 Bridge 注入）
-            // Capacitor APP 在 localhost 上运行，但不会用 http:（本地开发才用 http://localhost）
-            // Capacitor 5+: capacitor: 协议；Capacitor 6+: https: + localhost
-            // 兜底策略：localhost + 非 http → Capacitor APP
-            if (location.protocol !== 'http:') {
-                return false; // capacitor: / https: / file: 都不算本地开发
-            }
-            return true; // http://localhost → 真正的本地开发
-        }
-        return location.protocol === 'file:';
-    }
 
-    // ── 服务器可达性检查（应用启动时执行）──────────────────────────
-    // 检查远程服务器是否可达，结果存入 window.BK_SERVERS_REACHABLE
-    // 不可达时隐藏：检查更新、问题反馈、顾念微工
-    function checkServerReachability() {
-        var servers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
-        if (!servers.length) {
-            window.BK_SERVERS_REACHABLE = false;
-            return Promise.resolve(false);
-        }
-        // 本地开发：跳过跨域探测，直接判不可达
-        if (_isLocalDevOrigin()) {
-            window.BK_SERVERS_REACHABLE = false;
-            return Promise.resolve(false);
-        }
-        var TIMEOUT = 5000;
-        var promises = servers.map(function(serverUrl) {
-            return new Promise(function(resolve) {
-                var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-                var timer = setTimeout(function() {
-                    if (ctrl) try { ctrl.abort(); } catch(e) {}
-                    resolve(false);
-                }, TIMEOUT);
-                var opts = { method: 'HEAD', cache: 'no-cache' };
-                if (ctrl) opts.signal = ctrl.signal;
-                fetch(serverUrl, opts)
-                    .then(function(r) { clearTimeout(timer); resolve(r.ok); })
-                    .catch(function() { clearTimeout(timer); resolve(false); });
-            });
-        });
-        return Promise.all(promises).then(function(results) {
-            var reachable = results.some(function(r) { return r === true; });
-            window.BK_SERVERS_REACHABLE = reachable;
-            console.log('[连通性] 服务器' + (reachable ? '可达' : '不可达'));
-            return reachable;
-        });
-    }
 
     function initThemeToggle() {
         // 内页启动缓存检测
@@ -185,55 +129,42 @@
             }
         }
 
-        // ── 触发服务器可达性检查，完成后探测赞助图片 ──────────────
-        checkServerReachability().then(function(reachable) {
-            if (!reachable) {
-                // 服务器不可达，隐藏依赖连通性的按钮（如果当前在「我的」页面）
-                var cu = document.querySelector('[data-action="check-update"]');
-                if (cu) cu.style.display = 'none';
-                var fb = document.querySelector('[data-action="feedback"]');
-                if (fb) fb.style.display = 'none';
-                var ac = document.getElementById('meAutoCheckToggle');
-                if (ac) { var row = ac.closest('.pref-row'); if (row) row.style.display = 'none'; }
-                return;
-            }
-            // 服务器可达时，探测赞助图片是否可获取，成功才显示按钮
+        // ── 延迟探测赞助图片（不阻塞启动，不影响按钮可见性）────────
+        setTimeout(function probeSponsor() {
             var sponsorEnabled = !(window.BK_SERVERS && window.BK_SERVERS.sponsor_enabled === false);
             if (!sponsorEnabled) return;
             try {
                 var firstUse = parseInt(localStorage.getItem('bk_first_use') || '0', 10);
                 var elapsed = firstUse ? (Date.now() - firstUse) : 0;
-                if (elapsed >= 5 * 60 * 1000 && !window._bkSponsorProbed) {
-                    window._bkSponsorProbed = true;
-                    var servers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
-                    var probeFile = 'images/zanzhu-wx.png';
-                    var tried = 0;
-                    var PROBE_TIMEOUT = 6000;
-                    (function tryNext() {
-                        if (tried >= servers.length) return;
-                        var url = servers[tried++] + probeFile + '?t=' + Date.now();
-                        var img = new Image();
-                        var timer = setTimeout(function() {
-                            img.onload = img.onerror = null;
-                            img.src = '';
-                            tryNext();
-                        }, PROBE_TIMEOUT);
-                        img.onload = function() {
-                            clearTimeout(timer);
-                            window._bkSponsorReady = true;
-                            // 如果当前页面有赞助按钮，显示它
-                            var sponsorBtn = document.getElementById('bkSponsorBtn');
-                            if (sponsorBtn) sponsorBtn.style.display = '';
-                        };
-                        img.onerror = function() {
-                            clearTimeout(timer);
-                            tryNext();
-                        };
-                        img.src = url;
-                    })();
-                }
+                if (elapsed < 5 * 60 * 1000 || window._bkSponsorProbed) return;
+                window._bkSponsorProbed = true;
+                var servers = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
+                var probeFile = 'images/zanzhu-wx.png';
+                var tried = 0;
+                var PROBE_TIMEOUT = 6000;
+                (function tryNext() {
+                    if (tried >= servers.length) return;
+                    var url = servers[tried++] + probeFile + '?t=' + Date.now();
+                    var img = new Image();
+                    var timer = setTimeout(function() {
+                        img.onload = img.onerror = null;
+                        img.src = '';
+                        tryNext();
+                    }, PROBE_TIMEOUT);
+                    img.onload = function() {
+                        clearTimeout(timer);
+                        window._bkSponsorReady = true;
+                        var sponsorBtn = document.getElementById('bkSponsorBtn');
+                        if (sponsorBtn) sponsorBtn.style.display = '';
+                    };
+                    img.onerror = function() {
+                        clearTimeout(timer);
+                        tryNext();
+                    };
+                    img.src = url;
+                })();
             } catch(e) {}
-        });
+        }, 3000);
     }
 
     /**

@@ -22,11 +22,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  # ── 阶段1：构建 ──
+  build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # 允许推送到 gh-pages 分支
-    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -64,6 +62,7 @@ jobs:
           echo "📦 安装 Node.js 依赖..."
           npm install
           echo "✓ Node.js 依赖安装完成"
+
       - name: 生成静态文件
         run: |
           echo "🔨 生成静态文件..."
@@ -185,39 +184,77 @@ jobs:
           else
             echo "ℹ️ Release 中没有 APK 文件"
           fi
-      
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: output/
+          retention-days: 1
+
+  # ── 阶段2：部署到 Cloudflare Pages（多账户 matrix 并行） ──
+  deploy-cloudflare:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # 一个账户失败不影响其他账户
+      matrix:
+        include:
+          - account_label: "账户1"
+            account_id_secret: CLOUDFLARE_ACCOUNT_ID
+            api_token_secret: CLOUDFLARE_API_TOKEN
+            project_name: "books"
+            # 账户1绑定的自定义域名
+            domains: "books.07170501.xyz books.1189.dpdns.org"
+          - account_label: "账户2"
+            account_id_secret: CLOUDFLARE_ACCOUNT_ID_2
+            api_token_secret: CLOUDFLARE_API_TOKEN_2
+            project_name: "books"
+            # 账户2绑定的自定义域名（待配置）
+            domains: ""
+    
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: output/
+
       - name: 检查并创建 Cloudflare Pages 项目
+        env:
+          CF_ACCOUNT_ID: ${{ secrets[matrix.account_id_secret] }}
+          CF_API_TOKEN: ${{ secrets[matrix.api_token_secret] }}
         run: |
-          echo "🔍 检查项目是否存在..."
+          echo "🔍 [${{ matrix.account_label }}] 检查项目是否存在..."
           
           # 检查项目是否存在
           response=$(curl -s -X GET \
-            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${{ matrix.project_name }}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
             -H "Content-Type: application/json")
           
           success=$(echo "$response" | jq -r '.success')
           
           if [ "$success" = "true" ]; then
-            echo "✓ 项目 books 已存在"
+            echo "✓ [${{ matrix.account_label }}] 项目 ${{ matrix.project_name }} 已存在"
           else
-            echo "📦 项目不存在，正在创建..."
+            echo "📦 [${{ matrix.account_label }}] 项目不存在，正在创建..."
             
             create_response=$(curl -s -X POST \
-              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
-              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d '{
-                "name": "books",
-                "production_branch": "main"
-              }')
+              -d "{
+                \"name\": \"${{ matrix.project_name }}\",
+                \"production_branch\": \"main\"
+              }")
             
             create_success=$(echo "$create_response" | jq -r '.success')
             
             if [ "$create_success" = "true" ]; then
-              echo "✓ 项目 books 创建成功"
+              echo "✓ [${{ matrix.account_label }}] 项目 ${{ matrix.project_name }} 创建成功"
             else
-              echo "❌ 项目创建失败"
+              echo "❌ [${{ matrix.account_label }}] 项目创建失败"
               echo "$create_response" | jq '.'
               exit 1
             fi
@@ -225,17 +262,17 @@ jobs:
       
       - name: 部署到 Cloudflare Pages
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets[matrix.api_token_secret] }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets[matrix.account_id_secret] }}
         run: |
-          echo "🚀 部署到 Cloudflare Pages..."
+          echo "🚀 [${{ matrix.account_label }}] 部署到 Cloudflare Pages..."
           
           # 安装最新版 wrangler
           npm install -g wrangler
           
           # 获取 commit 信息（转换为 ASCII，避免 UTF-8 问题）
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          COMMIT_MSG="Deploy $COMMIT_HASH"
+          COMMIT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT_MSG="Deploy $COMMIT_HASH via ${{ matrix.account_label }}"
           
           # 部署（带重试机制）
           MAX_RETRIES=3
@@ -250,37 +287,41 @@ jobs:
             fi
             
             if wrangler pages deploy output \
-              --project-name=books \
+              --project-name=${{ matrix.project_name }} \
               --branch=main \
-              --commit-hash="$COMMIT_HASH" \
+              --commit-hash="${{ github.sha }}" \
               --commit-message="$COMMIT_MSG"; then
               SUCCESS=true
-              echo "✓ Cloudflare Pages 部署成功"
+              echo "✓ [${{ matrix.account_label }}] Cloudflare Pages 部署成功"
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️ 部署失败，准备重试 ($RETRY_COUNT/$MAX_RETRIES)"
+                echo "⚠️ [${{ matrix.account_label }}] 部署失败，准备重试 ($RETRY_COUNT/$MAX_RETRIES)"
               else
-                echo "❌ 部署失败，已达到最大重试次数"
+                echo "❌ [${{ matrix.account_label }}] 部署失败，已达到最大重试次数"
                 exit 1
               fi
             fi
           done
       
       - name: 配置自定义域名
+        if: matrix.domains != ''
+        env:
+          CF_ACCOUNT_ID: ${{ secrets[matrix.account_id_secret] }}
+          CF_API_TOKEN: ${{ secrets[matrix.api_token_secret] }}
         run: |
-          echo "🌐 配置自定义域名..."
+          echo "🌐 [${{ matrix.account_label }}] 配置自定义域名..."
           
-          # 域名列表
-          DOMAINS=("books.07170501.xyz" "books.1189.dpdns.org")
+          # 域名列表（空格分隔）
+          DOMAINS=(${{ matrix.domains }})
           
           for DOMAIN in "${DOMAINS[@]}"; do
             echo "检查域名: $DOMAIN"
             
             # 检查域名是否已绑定
             existing=$(curl -s -X GET \
-              "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books/domains" \
-              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${{ matrix.project_name }}/domains" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
               -H "Content-Type: application/json")
             
             already_bound=$(echo "$existing" | jq -r --arg d "$DOMAIN" '.result[]? | select(.name == $d) | .name' 2>/dev/null)
@@ -290,8 +331,8 @@ jobs:
             else
               echo "绑定域名: $DOMAIN"
               response=$(curl -s -X POST \
-                "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/books/domains" \
-                -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${{ matrix.project_name }}/domains" \
+                -H "Authorization: Bearer ${CF_API_TOKEN}" \
                 -H "Content-Type: application/json" \
                 -d "{\"name\": \"$DOMAIN\"}")
               
@@ -304,7 +345,23 @@ jobs:
               fi
             fi
           done
-      
+
+  # ── 阶段3：部署到 GitHub Pages ──
+  deploy-github-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: output/
+
       - name: 部署到 GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -316,7 +373,18 @@ jobs:
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: '部署到 GitHub Pages'
           cname: books.07170501.xyz
-      
+
+  # ── 阶段4：上传资源包 Artifacts ──
+  upload-artifacts:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: output/
+
       - name: 上传全量资源包到 Artifacts
         uses: actions/upload-artifact@v4
         with:
