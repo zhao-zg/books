@@ -17,7 +17,7 @@
   'use strict';
 
   // ── 配置 ──────────────────────────────────────────────────────────
-  var PACK_THRESHOLD = 10;
+  var PACK_THRESHOLD = 3;
   var EXTRACT_CONCURRENCY = 5; // 解压入库并发数
 
   // 缓存 packs/manifest.json（60s TTL）
@@ -94,6 +94,10 @@
 
     // 尝试所有可用地址
     var urls = _buildAllPackUrls('packs/manifest.json');
+    console.log('[PackDL] fetchPacksManifest: 尝试 ' + urls.length + ' 个地址');
+    for (var ui = 0; ui < urls.length; ui++) {
+      console.log('[PackDL]   地址' + ui + ': ' + urls[ui]);
+    }
     return _fetchFirstAvailable(urls)
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -151,10 +155,14 @@
    */
   function shouldUsePack(seriesId, pendingCount) {
     if (pendingCount < PACK_THRESHOLD) {
+      console.log('[PackDL] shouldUsePack: 待下载 ' + pendingCount + ' 本 < 阈值 ' + PACK_THRESHOLD + '，跳过 ZIP 通道');
       return Promise.resolve(false);
     }
     return fetchPacksManifest().then(function (manifest) {
-      if (!manifest) return false;
+      if (!manifest) {
+        console.log('[PackDL] shouldUsePack: packs/manifest.json 不可用，跳过 ZIP 通道');
+        return false;
+      }
       var ids = Array.isArray(seriesId) ? seriesId : [seriesId];
       // 检查所有指定系列是否都有对应的 ZIP 包
       for (var i = 0; i < ids.length; i++) {
@@ -162,8 +170,12 @@
         for (var j = 0; j < manifest.packs.length; j++) {
           if (manifest.packs[j].id === ids[i]) { found = true; break; }
         }
-        if (!found) return false;
+        if (!found) {
+          console.log('[PackDL] shouldUsePack: 系列 ' + ids[i] + ' 不在 manifest 中，跳过 ZIP 通道');
+          return false;
+        }
       }
+      console.log('[PackDL] shouldUsePack: 系列 ' + ids.join(',') + ' 走 ZIP 通道（' + pendingCount + ' 本待下载）');
       return true;
     });
   }

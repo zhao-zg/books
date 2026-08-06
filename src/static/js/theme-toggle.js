@@ -42,13 +42,24 @@
 
     // 是否为本地开发环境（localhost / 127.0.0.1 / file://）
     function _isLocalDevOrigin() {
-        // Capacitor 原生应用 hostname 也是 localhost，但不是本地开发环境
-        if (window.Capacitor && window.Capacitor.isNativePlatform &&
-            window.Capacitor.isNativePlatform()) {
-            return false;
-        }
         var h = location.hostname;
-        return h === 'localhost' || h === '127.0.0.1' || h === '::1' || location.protocol === 'file:';
+        // localhost / 127.0.0.1 / ::1：可能是本地开发，也可能是 Capacitor APP
+        if (h === 'localhost' || h === '127.0.0.1' || h === '::1') {
+            // Capacitor Bridge 已注入
+            if (window.Capacitor && window.Capacitor.isNativePlatform &&
+                window.Capacitor.isNativePlatform()) {
+                return false;
+            }
+            // Capacitor Bridge 尚未注入（同步脚本早于 Bridge 注入）
+            // Capacitor APP 在 localhost 上运行，但不会用 http:（本地开发才用 http://localhost）
+            // Capacitor 5+: capacitor: 协议；Capacitor 6+: https: + localhost
+            // 兜底策略：localhost + 非 http → Capacitor APP
+            if (location.protocol !== 'http:') {
+                return false; // capacitor: / https: / file: 都不算本地开发
+            }
+            return true; // http://localhost → 真正的本地开发
+        }
+        return location.protocol === 'file:';
     }
 
     // ── 服务器可达性检查（应用启动时执行）──────────────────────────
