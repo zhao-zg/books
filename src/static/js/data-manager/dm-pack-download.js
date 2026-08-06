@@ -123,9 +123,20 @@
       return fetch(urls[idx], { cache: 'no-cache' })
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
+          // Cloudflare Pages 对不存在的路径返回 200 + index.html，需检测 content-type
+          var ct = r.headers.get('content-type') || '';
+          if (ct.indexOf('text/html') !== -1) {
+            var htmlErr = new Error('HTML_RESPONSE');
+            htmlErr._isHtmlResponse = true;
+            throw htmlErr;
+          }
           return r;
         })
-        .catch(function () {
+        .catch(function (err) {
+          // HTML 响应说明文件在该 CDN 不存在，跳过后续重试直接尝试下一个地址
+          if (err && err._isHtmlResponse) {
+            console.warn('[PackDL] 地址返回 HTML（文件不存在）: ' + urls[idx]);
+          }
           return tryUrl(idx + 1);
         });
     }
@@ -202,7 +213,7 @@
           function pump() {
             // 暂停支持：挂起 Promise，恢复时继续读取
             if (shouldPause && shouldPause()) {
-              return new Promise(function (resolve) {
+              return new Promise(function (resolve, reject) {
                 var checkInterval = setInterval(function () {
                   if (shouldAbort && shouldAbort()) {
                     clearInterval(checkInterval);
@@ -438,7 +449,7 @@
               }, opts.shouldAbort, opts.shouldPause)
                 .then(function (buffer) {
                   // 记录此分片完成后更新锚点
-                  prevPartReceived = partStartReceived - prevPartReceived + (totalSize > 0 ? Math.floor(totalSize / totalFiles) : received);
+                  prevPartReceived = overallReceived;
                   if (opts.shouldAbort && opts.shouldAbort()) {
                     var e2 = new Error('下载已取消');
                     e2.code = 'CANCELLED';

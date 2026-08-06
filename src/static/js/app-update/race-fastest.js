@@ -5,7 +5,7 @@
  *   1. version 竞速：轻量级（几百字节），延迟优先
  *      → 竞速 CF 服务器的 version.json，选最快响应的
  *      → 用于 version.json / changelog.json / 赞助图等所有轻量 CF 请求
- *      → 全局缓存 5 分钟，一次竞速复用全局
+ *      → 持久化缓存（localStorage），不过期；请求失败时调用 invalidateVersion 重新竞速
  *
  *   2. download 竞速：下载 300KB 测速文件，带宽优先
  *      → 顺序下载每个服务器的 speedtest.bin，独占带宽，结果真实
@@ -16,20 +16,51 @@
  * 暴露：window.BK.RaceFastest
  *   .version()            → Promise<{serverUrl, data}>  CF version.json 竞速
  *   .download(serverUrls) → Promise<{serverUrl}>        下载竞速（speedtest.bin 测速）
- *   .getVersionCache()     → {serverUrl, data}|null      同步读缓存
- *   .clearCache()          void                          清除所有缓存
+ *   .invalidateVersion()  void                        清除 version 缓存（请求失败时调用）
+ *   .getVersionCache()    → {serverUrl, data}|null      同步读缓存
+ *   .clearCache()         void                          清除所有缓存
  */
 (function () {
   'use strict';
 
-  var TTL = 5 * 60 * 1000; // 5 分钟
+  var _DL_TTL = 5 * 60 * 1000; // download 缓存 5 分钟
+  var _LS_KEY_VER = 'bk_race_version'; // localStorage key
 
   // ── 缓存 ──────────────────────────────────────────────────────────
   var _verCache = null;   // { serverUrl, data, ts }
   var _verPending = null; // 防重复竞速
 
-  var _dlCache = null;    // { url, ts }
+  var _dlCache = null;    // { serverUrl, bps, serverUrls, ts }
   var _dlPending = null;  // 防重复竞速
+
+  // ── localStorage 持久化（version 竞速）─────────────────────────────
+  function _lsLoadVer() {
+    try {
+      var raw = localStorage.getItem(_LS_KEY_VER);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (obj && obj.serverUrl) {
+        return obj;
+      }
+      localStorage.removeItem(_LS_KEY_VER);
+    } catch (e) {}
+    return null;
+  }
+
+  function _lsSaveVer(obj) {
+    try {
+      localStorage.setItem(_LS_KEY_VER, JSON.stringify(obj));
+    } catch (e) {}
+  }
+
+  // ── 网络变化监听（清除 download 缓存）────────────────────────────
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', function () {
+      console.log('[RaceFastest] 网络恢复，清除 download 缓存');
+      _dlCache = null;
+      _dlPending = null;
+    });
+  }
 
   function _getCfServers() {
     return (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
@@ -59,12 +90,18 @@
    *   data: version.json 解析后的对象
    */
   function raceVersion() {
-    var now = Date.now();
-
-    // 缓存命中
-    if (_verCache && (now - _verCache.ts < TTL)) {
+    // 内存缓存命中（不过期，仅 invalidateVersion 清除）
+    if (_verCache) {
       console.log('[RaceFastest] version 缓存命中: ' + _verCache.serverUrl);
       return Promise.resolve({ serverUrl: _verCache.serverUrl, data: _verCache.data });
+    }
+
+    // 尝试从 localStorage 恢复（页面刷新后仍可用）
+    var lsCache = _lsLoadVer();
+    if (lsCache) {
+      _verCache = lsCache;
+      console.log('[RaceFastest] version 缓存恢复(localStorage): ' + lsCache.serverUrl);
+      return Promise.resolve({ serverUrl: lsCache.serverUrl, data: lsCache.data });
     }
 
     // 防重复：已有进行中的竞速，复用
@@ -103,6 +140,7 @@
       race.then(function (result) {
         if (result) {
           _verCache = { serverUrl: result.serverUrl, data: result.data, ts: Date.now() };
+          _lsSaveVer(_verCache); // 持久化，重启后仍可用
           console.log('[RaceFastest] version 竞速完成: ' + result.serverUrl);
         }
         _verPending = null;
@@ -136,8 +174,8 @@
     }
 
     var now = Date.now();
-    // 缓存命中（相同服务器列表）
-    if (_dlCache && (now - _dlCache.ts < TTL) && _dlCache.serverUrls) {
+    // 缓存命中（相同服务器列表，TTL 内有效）
+    if (_dlCache && (now - _dlCache.ts < _DL_TTL) && _dlCache.serverUrls) {
       var match = true;
       if (_dlCache.serverUrls.length !== serverUrls.length) {
         match = false;
@@ -297,10 +335,18 @@
 
   // ── 同步缓存读取 ──────────────────────────────────────────────────
   function getVersionCache() {
-    if (_verCache && (Date.now() - _verCache.ts < TTL)) {
+    if (_verCache) {
       return { serverUrl: _verCache.serverUrl, data: _verCache.data };
     }
     return null;
+  }
+
+  /** 清除 version 缓存（请求失败时调用，下次 version() 会重新竞速） */
+  function invalidateVersion() {
+    console.log('[RaceFastest] version 缓存已失效，下次调用将重新竞速');
+    _verCache = null;
+    _verPending = null;
+    try { localStorage.removeItem(_LS_KEY_VER); } catch (e) {}
   }
 
   function clearCache() {
@@ -308,6 +354,7 @@
     _dlCache = null;
     _verPending = null;
     _dlPending = null;
+    try { localStorage.removeItem(_LS_KEY_VER); } catch (e) {}
   }
 
   // ── 注册全局 ──────────────────────────────────────────────────────
@@ -315,6 +362,7 @@
   window.BK.RaceFastest = {
     version: raceVersion,
     download: raceDownload,
+    invalidateVersion: invalidateVersion,
     getVersionCache: getVersionCache,
     clearCache: clearCache
   };

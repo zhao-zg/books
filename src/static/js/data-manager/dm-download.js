@@ -572,6 +572,11 @@
                     errors: result.errors,
                     failedBookNames: []
                   };
+                }).catch(function (err) {
+                  // ZIP 下载失败，自动降级到逐本通道
+                  if (err && err.code === 'CANCELLED') throw err;
+                  console.warn('[DataManager] ZIP 通道失败，降级到逐本下载: ' + (err.message || err));
+                  return _downloadSeriesBookByBook(filtered, downloadedIds, myToken, onProgress, _broadcastProgress);
                 });
               }
               // 逐本通道（ZIP 不可用或多系列场景）
@@ -737,6 +742,16 @@
                       acc.failed += result.failed;
                       if (result.errors) {
                         acc.errors = acc.errors.concat(result.errors);
+                      }
+                      return acc;
+                    }).catch(function (err) {
+                      // ZIP 下载失败，降级该系列到逐本下载
+                      if (err && err.code === 'CANCELLED') throw err;
+                      console.warn('[DataManager] downloadAll: ZIP 通道系列 ' + sid + ' 失败，降级到逐本: ' + (err.message || err));
+                      // 将该系列的书籍加入逐本列表
+                      var failedGroup = seriesGroups[sid] || [];
+                      for (var fi = 0; fi < failedGroup.length; fi++) {
+                        bookByBookList.push(failedGroup[fi]);
                       }
                       return acc;
                     });

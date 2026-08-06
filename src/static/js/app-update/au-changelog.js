@@ -4,8 +4,22 @@
 
     function fetchChangelog(serverUrl) {
         return fetch(serverUrl + 'changelog.json?t=' + Date.now(), { cache: 'no-cache' })
-            .then(function(resp) { return resp.ok ? resp.json() : null; })
-            .catch(function() { return null; });
+            .then(function(resp) {
+                if (!resp.ok) {
+                    // 请求失败，version 缓存可能已过期（该服务器可能已不可达）
+                    if (window.BK && window.BK.RaceFastest) {
+                        window.BK.RaceFastest.invalidateVersion();
+                    }
+                    return null;
+                }
+                return resp.json();
+            })
+            .catch(function() {
+                if (window.BK && window.BK.RaceFastest) {
+                    window.BK.RaceFastest.invalidateVersion();
+                }
+                return null;
+            });
     }
 
     function fetchChangelogRace(serverUrls) {
