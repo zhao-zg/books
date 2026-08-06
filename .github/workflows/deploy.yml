@@ -22,6 +22,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── 阶段0：扫描 Secrets，动态生成部署 matrix ──
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen-matrix.outputs.matrix }}
+    steps:
+      - name: 扫描 Cloudflare Secrets 并生成 matrix
+        id: gen-matrix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 扫描 GitHub Secrets 中已有的 Cloudflare 账户..."
+
+          # 获取仓库所有 Secrets 名称列表
+          REPO="${{ github.repository }}"
+          SECRET_NAMES=$(gh api "repos/${REPO}/actions/secrets" --paginate \
+            -q '.secrets[].name' 2>/dev/null || echo "")
+
+          echo "📋 已发现的 Secrets:"
+          echo "$SECRET_NAMES"
+
+          # 构建 matrix JSON
+          MATRIX_ITEMS='[]'
+
+          # ── 扫描账户1（无后缀）──
+          if echo "$SECRET_NAMES" | grep -qx 'CLOUDFLARE_ACCOUNT_ID' && \
+             echo "$SECRET_NAMES" | grep -qx 'CLOUDFLARE_API_TOKEN'; then
+            MATRIX_ITEMS=$(echo "$MATRIX_ITEMS" | jq -c \
+              --arg id_secret "CLOUDFLARE_ACCOUNT_ID" \
+              --arg token_secret "CLOUDFLARE_API_TOKEN" \
+              '. + [{
+                account_label: "账户1",
+                account_id_secret: $id_secret,
+                api_token_secret: $token_secret,
+                project_name: "books"
+              }]'')
+            echo "✓ 发现账户1"
+          fi
+
+          # ── 扫描账户2..20 ──
+          for i in $(seq 2 20); do
+            ID_SECRET="CLOUDFLARE_ACCOUNT_ID_${i}"
+            TOKEN_SECRET="CLOUDFLARE_API_TOKEN_${i}"
+            if echo "$SECRET_NAMES" | grep -qx "$ID_SECRET" && \
+               echo "$SECRET_NAMES" | grep -qx "$TOKEN_SECRET"; then
+              MATRIX_ITEMS=$(echo "$MATRIX_ITEMS" | jq -c \
+                --arg label "账户${i}" \
+                --arg id_secret "$ID_SECRET" \
+                --arg token_secret "$TOKEN_SECRET" \
+                '. + [{
+                  account_label: $label,
+                  account_id_secret: $id_secret,
+                  api_token_secret: $token_secret,
+                  project_name: "books"
+                }]'')
+              echo "✓ 发现账户${i}"
+            fi
+          done
+
+          # 输出 matrix
+          MATRIX_JSON=$(echo "$MATRIX_ITEMS" | jq -c '{include: .}')
+          echo ""
+          echo "📊 生成的部署 matrix:"
+          echo "$MATRIX_JSON" | jq '.'
+
+          if [ "$(echo "$MATRIX_ITEMS" | jq length)" -eq 0 ]; then
+            echo "⚠️ 未发现任何 Cloudflare 账户，跳过 Cloudflare 部署"
+            MATRIX_JSON='{"include":[]}'
+          fi
+
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+
   # ── 阶段1：构建 ──
   build:
     runs-on: ubuntu-latest
@@ -192,26 +264,14 @@ jobs:
           path: output/
           retention-days: 1
 
-  # ── 阶段2：部署到 Cloudflare Pages（多账户 matrix 并行） ──
+  # ── 阶段2：部署到 Cloudflare Pages（动态 matrix 并行） ──
   deploy-cloudflare:
-    needs: build
+    needs: [build, prepare]
+    if: fromJson(needs.prepare.outputs.matrix).include[0] != null
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # 一个账户失败不影响其他账户
-      matrix:
-        include:
-          - account_label: "账户1"
-            account_id_secret: CLOUDFLARE_ACCOUNT_ID
-            api_token_secret: CLOUDFLARE_API_TOKEN
-            project_name: "books"
-            # 账户1绑定的自定义域名
-            domains: "books.07170501.xyz books.1189.dpdns.org"
-          - account_label: "账户2"
-            account_id_secret: CLOUDFLARE_ACCOUNT_ID_2
-            api_token_secret: CLOUDFLARE_API_TOKEN_2
-            project_name: "books"
-            # 账户2绑定的自定义域名（待配置）
-            domains: ""
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     
     steps:
       - name: 下载构建产物
@@ -270,7 +330,7 @@ jobs:
           # 安装最新版 wrangler
           npm install -g wrangler
           
-          # 获取 commit 信息（转换为 ASCII，避免 UTF-8 问题）
+          # 获取 commit 信息
           COMMIT_HASH=$(echo "${{ github.sha }}" | cut -c1-7)
           COMMIT_MSG="Deploy $COMMIT_HASH via ${{ matrix.account_label }}"
           
@@ -304,47 +364,6 @@ jobs:
             fi
           done
       
-      - name: 配置自定义域名
-        if: matrix.domains != ''
-        env:
-          CF_ACCOUNT_ID: ${{ secrets[matrix.account_id_secret] }}
-          CF_API_TOKEN: ${{ secrets[matrix.api_token_secret] }}
-        run: |
-          echo "🌐 [${{ matrix.account_label }}] 配置自定义域名..."
-          
-          # 域名列表（空格分隔）
-          DOMAINS=(${{ matrix.domains }})
-          
-          for DOMAIN in "${DOMAINS[@]}"; do
-            echo "检查域名: $DOMAIN"
-            
-            # 检查域名是否已绑定
-            existing=$(curl -s -X GET \
-              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${{ matrix.project_name }}/domains" \
-              -H "Authorization: Bearer ${CF_API_TOKEN}" \
-              -H "Content-Type: application/json")
-            
-            already_bound=$(echo "$existing" | jq -r --arg d "$DOMAIN" '.result[]? | select(.name == $d) | .name' 2>/dev/null)
-            
-            if [ -n "$already_bound" ]; then
-              echo "✓ 域名 $DOMAIN 已绑定，跳过"
-            else
-              echo "绑定域名: $DOMAIN"
-              response=$(curl -s -X POST \
-                "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${{ matrix.project_name }}/domains" \
-                -H "Authorization: Bearer ${CF_API_TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d "{\"name\": \"$DOMAIN\"}")
-              
-              success=$(echo "$response" | jq -r '.success' 2>/dev/null)
-              if [ "$success" = "true" ]; then
-                echo "✓ 域名 $DOMAIN 绑定成功"
-              else
-                echo "⚠️ 域名 $DOMAIN 绑定失败（可能需要在 Cloudflare DNS 中手动配置）"
-                echo "$response" | jq '.' 2>/dev/null || echo "$response"
-              fi
-            fi
-          done
 
   # ── 阶段3：部署到 GitHub Pages ──
   deploy-github-pages:

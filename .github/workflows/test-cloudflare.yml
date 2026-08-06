@@ -4,18 +4,81 @@ on:
   workflow_dispatch:  # 手动触发
 
 jobs:
+  # ── 扫描 Secrets，动态生成测试 matrix ──
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen-matrix.outputs.matrix }}
+    steps:
+      - name: 扫描 Cloudflare Secrets 并生成 matrix
+        id: gen-matrix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 扫描 GitHub Secrets 中已有的 Cloudflare 账户..."
+
+          REPO="${{ github.repository }}"
+          SECRET_NAMES=$(gh api "repos/${REPO}/actions/secrets" --paginate \
+            -q '.secrets[].name' 2>/dev/null || echo "")
+
+          echo "📋 已发现的 Secrets:"
+          echo "$SECRET_NAMES"
+
+          MATRIX_ITEMS='[]'
+
+          # 账户1（无后缀）
+          if echo "$SECRET_NAMES" | grep -qx 'CLOUDFLARE_ACCOUNT_ID' && \
+             echo "$SECRET_NAMES" | grep -qx 'CLOUDFLARE_API_TOKEN'; then
+            MATRIX_ITEMS=$(echo "$MATRIX_ITEMS" | jq -c \
+              --arg id_secret "CLOUDFLARE_ACCOUNT_ID" \
+              --arg token_secret "CLOUDFLARE_API_TOKEN" \
+              '. + [{
+                account_label: "账户1",
+                account_id_secret: $id_secret,
+                api_token_secret: $token_secret
+              }]')
+            echo "✓ 发现账户1"
+          fi
+
+          # 账户2..20
+          for i in $(seq 2 20); do
+            ID_SECRET="CLOUDFLARE_ACCOUNT_ID_${i}"
+            TOKEN_SECRET="CLOUDFLARE_API_TOKEN_${i}"
+            if echo "$SECRET_NAMES" | grep -qx "$ID_SECRET" && \
+               echo "$SECRET_NAMES" | grep -qx "$TOKEN_SECRET"; then
+              MATRIX_ITEMS=$(echo "$MATRIX_ITEMS" | jq -c \
+                --arg label "账户${i}" \
+                --arg id_secret "$ID_SECRET" \
+                --arg token_secret "$TOKEN_SECRET" \
+                '. + [{
+                  account_label: $label,
+                  account_id_secret: $id_secret,
+                  api_token_secret: $token_secret
+                }]')
+              echo "✓ 发现账户${i}"
+            fi
+          done
+
+          MATRIX_JSON=$(echo "$MATRIX_ITEMS" | jq -c '{include: .}')
+          echo ""
+          echo "📊 生成的测试 matrix:"
+          echo "$MATRIX_JSON" | jq '.'
+
+          if [ "$(echo "$MATRIX_ITEMS" | jq length)" -eq 0 ]; then
+            echo "⚠️ 未发现任何 Cloudflare 账户"
+            MATRIX_JSON='{"include":[]}'
+          fi
+
+          echo "matrix=$MATRIX_JSON" >> "$GITHUB_OUTPUT"
+
+  # ── 测试各账户 API 连通性 ──
   test-config:
+    needs: prepare
+    if: fromJson(needs.prepare.outputs.matrix).include[0] != null
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - account_label: "账户1"
-            account_id_secret: CLOUDFLARE_ACCOUNT_ID
-            api_token_secret: CLOUDFLARE_API_TOKEN
-          - account_label: "账户2"
-            account_id_secret: CLOUDFLARE_ACCOUNT_ID_2
-            api_token_secret: CLOUDFLARE_API_TOKEN_2
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     
     steps:
       - name: 检查 Secrets 是否配置
@@ -65,7 +128,6 @@ jobs:
           if [ "$success" = "true" ]; then
             echo "✅ [${{ matrix.account_label }}] API 连接成功"
             
-            # 列出所有项目名称
             echo ""
             echo "📋 [${{ matrix.account_label }}] Cloudflare Pages 项目列表:"
             projects=$(echo "$body" | jq -r '.result[].name' 2>/dev/null)
@@ -77,7 +139,6 @@ jobs:
               done
             fi
             
-            # 检查 books 项目是否存在
             echo ""
             project_exists=$(echo "$body" | jq -r '.result[] | select(.name=="books") | .name' 2>/dev/null)
             if [ -n "$project_exists" ]; then
