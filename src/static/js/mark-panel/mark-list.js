@@ -135,7 +135,19 @@
             var moved = false;
             var touchStartY = 0;
             var startX = 0, currentDx = 0, swiping = false;
+            var swipeReturnDx = 0;  // 右滑收回时的累计偏移量
             li.addEventListener('touchstart', function (e) {
+                // 已处于左滑状态时，不启动新的滑动检测
+                // 让 click 事件自然触发（删除按钮的 click 会 stopPropagation）
+                if (li._swiped) {
+                    // 记录起点以支持右滑收回
+                    startX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    swipeReturnDx = 0;
+                    moved = true;  // 阻止长按
+                    swiping = false;
+                    return;
+                }
                 moved = false;
                 touchStartY = e.touches[0].clientY;
                 startX = e.touches[0].clientX;
@@ -146,6 +158,17 @@
                 }, LONG_PRESS_MS);
             }, { passive: true });
             li.addEventListener('touchmove', function (e) {
+                // 已处于左滑状态时，只处理右滑收回
+                if (li._swiped) {
+                    var dx = e.touches[0].clientX - startX;
+                    if (dx > 20) {
+                        swiping = true;
+                        swipeReturnDx = dx;
+                        li.style.transform = 'translateX(' + Math.min(0, -80 + dx) + 'px)';
+                        li.style.transition = 'none';
+                    }
+                    return;
+                }
                 var dy = Math.abs(e.touches[0].clientY - touchStartY);
                 if (dy > 12) { moved = true; clearTimeout(longPressTimer); }
                 var dx = e.touches[0].clientX - startX;
@@ -163,6 +186,23 @@
             }, { passive: true });
             li.addEventListener('touchend', function () {
                 clearTimeout(longPressTimer);
+                // 已处于左滑状态时，处理右滑收回
+                if (li._swiped) {
+                    if (swiping) {
+                        li.style.transition = 'transform 0.2s ease';
+                        // 右滑超过阈值则收回，否则回弹到 -80px
+                        if (swipeReturnDx > 40) {
+                            li.style.transform = 'translateX(0)';
+                            li._swiped = false;
+                            var existingDel = li.querySelector('.bk-mp-item-delete');
+                            if (existingDel) existingDel.remove();
+                        } else {
+                            li.style.transform = 'translateX(-80px)';
+                        }
+                    }
+                    swiping = false;
+                    return;
+                }
                 li.style.transition = 'transform 0.2s ease';
                 if (currentDx < -SWIPE_THRESHOLD) {
                     li.style.transform = 'translateX(-80px)';
@@ -188,6 +228,7 @@
             });
             li.addEventListener('touchcancel', function () {
                 clearTimeout(longPressTimer);
+                if (li._swiped) return;
                 li.style.transition = 'transform 0.2s ease';
                 li.style.transform = 'translateX(0)';
                 swiping = false;

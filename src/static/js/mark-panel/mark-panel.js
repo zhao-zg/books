@@ -424,6 +424,7 @@
                     onDelete: function (item, li) {
                         adapter.remove(item.id).then(function () {
                             win.BK.MarkList.removeItem(li);
+                            MarkPanel._fireMarksChanged();
                             MarkPanel._updateBookmarkFooter();
                         });
                     },
@@ -639,6 +640,7 @@
                         win.BK.MarkList.removeItem(li);
                         // 从缓存中移除
                         MarkPanel._allMarks = (MarkPanel._allMarks || []).filter(function (m) { return m.id !== item.id; });
+                        MarkPanel._fireMarksChanged();
                         MarkPanel._updateMarkFooter(MarkPanel._allMarks);
                     });
                 },
