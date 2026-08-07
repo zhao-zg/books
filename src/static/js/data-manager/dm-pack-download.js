@@ -303,7 +303,8 @@
    * 解压单个 ZIP buffer 并将书籍写入 IndexedDB（小批量并发）
    * @param {ArrayBuffer} zipBuffer
    * @param {Object} skipSet 跳过的书籍 ID 集合
-   * @param {Object} opts { shouldAbort, shouldPause }
+   * @param {Object} opts { shouldAbort, shouldPause, onBookStored }
+   *   - onBookStored(bookId) 每本书入库成功后触发，供外部实时更新进度
    * @returns {Promise<{success:number, failed:number, errors:Array}>}
    */
   function _extractAndStore(zipBuffer, skipSet, opts) {
@@ -356,6 +357,8 @@
                       addToBookIndex(converted);
                       _invalidateBookSizeCache();
                       success++;
+                      // ★ 每本书入库成功后通知外部，供实时更新已完成本数和"已缓存"计数
+                      if (opts.onBookStored) opts.onBookStored(bookId);
                     })
                     .catch(function (err) {
                       failed++;
@@ -427,6 +430,12 @@
         var overallReceived = 0;
         var prevPartReceived = 0; // 上一分片已接收字节的锚点
         var accResult = { success: 0, failed: 0, errors: [] };
+        // ★ 用于解压阶段的扩展 opts（包含 onBookStored 回调）
+        var extractOpts = {
+          shouldAbort: opts.shouldAbort,
+          shouldPause: opts.shouldPause,
+          onBookStored: opts.onBookStored
+        };
         var chain = Promise.resolve();
 
         for (var fi = 0; fi < files.length; fi++) {
@@ -470,7 +479,7 @@
 
                   // 解压+入库（90-99%）
                   if (opts.onProgress) opts.onProgress(90, label + '解压入库...');
-                  return _extractAndStore(buffer, skipSet, opts);
+                  return _extractAndStore(buffer, skipSet, extractOpts);
                 })
                 .then(function (result) {
                   accResult.success += result.success;

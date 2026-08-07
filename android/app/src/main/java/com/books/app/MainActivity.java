@@ -33,6 +33,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ImageSaverPlugin.class);
         registerPlugin(NativeTTSPlugin.class);
         registerPlugin(CrashLogPlugin.class);
+        registerPlugin(SaveFilePlugin.class);
 
         // 在 super.onCreate() 之前检查深链 Intent
         checkDeepLinkIntent(getIntent());

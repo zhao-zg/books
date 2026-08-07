@@ -381,6 +381,8 @@
   function _hideNotePanel() {
     if (_notePanel) _notePanel.classList.remove('bk-pdf-note-panel-visible');
     _noteTargetHlId = null;
+    // 关闭批注面板时通知刷新（高亮可能已创建但批注未保存）
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   function _saveNote() {
@@ -411,6 +413,7 @@
     if (_drawerVisible) _populateDrawer();
     // Reflow 模式下重建 HTML 以刷新徽章
     if (_isReflowMode()) _refreshReflowAnnotations();
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   function _doHighlightWithNote() {
@@ -472,6 +475,8 @@
     }
 
     _showNotePanel(hlId, '', anchorRect);
+    // 创建高亮后即通知 MarkPanel 刷新（即使批注尚未输入）
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   // ==================== 高亮渲染 ====================
@@ -499,6 +504,7 @@
     }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   function _doUnderline() {
@@ -523,6 +529,7 @@
     }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   function _doStrikethrough() {
@@ -805,6 +812,7 @@
       } else {
         renderAllVisibleHighlights();
       }
+      try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
     }
   }
 

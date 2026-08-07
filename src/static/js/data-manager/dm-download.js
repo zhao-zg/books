@@ -556,6 +556,11 @@
                     _dlStage = status || '下载系列包';
                     _broadcastProgress();
                   },
+                  // ★ 每本书入库成功后递增 _dlCompleted，使进度行显示实时本数
+                  onBookStored: function (/* bookId */) {
+                    _dlCompleted++;
+                    _broadcastProgress();
+                  },
                   shouldAbort: function () {
                     return _isCancelled || myToken !== _dlActiveToken;
                   },
@@ -740,6 +745,11 @@
                         _dlStage = status || '下载系列包';
                         _broadcastProgress();
                       },
+                      // ★ 每本书入库成功后递增 _dlCompleted，使进度行显示实时本数
+                      onBookStored: function (/* bookId */) {
+                        _dlCompleted++;
+                        _broadcastProgress();
+                      },
                       shouldAbort: function () {
                         return _isCancelled || myToken !== _dlActiveToken;
                       },
@@ -775,13 +785,15 @@
 
                 // 不再覆盖 _dlTotal，改为单独跟踪逐本通道的进度
                 var bookByBookTotal = bookByBookList.length;
+                // ★ 记录 ZIP 通道已累计的完成本数，作为逐本通道的基数
+                var _zipCompletedBase = _dlCompleted;
                 var tasks = bookByBookList.map(function (book) {
                   var fn = function () {
                     _dlCurrentTitle = book.title || book.id;
                     _broadcastProgress();
                     return downloadBook(book.id, book.series, function (percent, status) {
-                      if (bookByBookTotal > 0) {
-                        _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, bookByBookTotal);
+                      if (_dlTotal > 0) {
+                        _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
                       }
                       _broadcastProgress();
                     });
@@ -792,11 +804,12 @@
                 });
 
                 return runConcurrent(tasks, MAX_CONCURRENT, function (completed, total, taskResult) {
-                  _dlCompleted = completed;
+                  // ★ 累加 ZIP 通道基数，避免覆盖已由 onBookStored 递增的 _dlCompleted
+                  _dlCompleted = _zipCompletedBase + completed;
                   if (taskResult && taskResult._dlBookBytes) {
                     _dlBatchBytesReceived += taskResult._dlBookBytes;
                   }
-                  _dlTotalPercent = _calcTotalPercentConcurrent(completed, total);
+                  _dlTotalPercent = _calcTotalPercentConcurrent(_dlCompleted, _dlTotal);
                   _broadcastProgress();
                 }, myToken).then(function (result) {
                   acc.success += result.success;

@@ -127,8 +127,9 @@
             }
             if (chapterReads.length > 0) data.chapterReads = chapterReads;
 
-            // 有任何数据才返回
-            var hasData = data.progress || data.lastReadTs || data.pdfPos
+            // 有任何数据才返回（progress 值为 '0' 也算有效数据）
+            var hasData = data.progress != null
+                || data.lastReadTs || data.pdfPos
                 || data.pdfBookmarks || data.pdfHighlights || data.chapterReads;
             return hasData ? data : null;
         } catch (e) {
@@ -211,9 +212,28 @@
                         var title = bookData.title || bookId;
                         var folderName = _sanitizeFolderName(bookId);
                         var bookFolder = booksFolder.folder(folderName);
+                        var isPdf = _isPdfBookData(bookData);
 
                         // 写入 book.json（深拷贝，避免污染原始数据）
                         var exportData = JSON.parse(JSON.stringify(bookData));
+
+                        // 清理 PDF 页面大体积数据（已在 original.pdf 中单独保存）
+                        // PDF 书的章节 content 中 pdf_page 条目包含大体积数据，导出到 book.json 中无意义
+                        if (isPdf && exportData.chapters) {
+                            for (var ci = 0; ci < exportData.chapters.length; ci++) {
+                                var ch = exportData.chapters[ci];
+                                if (Array.isArray(ch.content)) {
+                                    for (var cj = ch.content.length - 1; cj >= 0; cj--) {
+                                        if (ch.content[cj] && ch.content[cj].type === 'pdf_page') {
+                                            ch.content.splice(cj, 1);
+                                        }
+                                    }
+                                    // 内容为空时设为空数组，避免导入时误判为无章书
+                                    if (!ch.content.length) ch.content = [];
+                                }
+                            }
+                        }
+
                         bookFolder.file('book.json', JSON.stringify(exportData, null, 2));
 
                         // 收集并写入用户数据（阅读进度、书签、高亮等）
@@ -223,7 +243,6 @@
                         }
 
                         // 如果是 PDF 书，尝试包含原始 PDF 二进制
-                        var isPdf = _isPdfBookData(bookData);
                         if (isPdf) {
                             return _getPdfData(bookId).then(function (pdfData) {
                                 if (pdfData) {

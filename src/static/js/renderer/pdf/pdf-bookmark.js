@@ -236,6 +236,8 @@
     S.setBookmarkTitle(bookId, _editingPage, newTitle);
     _populateBookmarks();
     _hideEditDialog();
+    // 通知 MarkPanel 刷新
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   /**
@@ -258,6 +260,8 @@
     // 通知 ui 模块更新书签按钮状态
     var ui = win.BKPdf._internal.ui;
     if (ui && ui.updateBookmarkBtn) ui.updateBookmarkBtn();
+    // 通知 MarkPanel 等组件刷新
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   // ==================== 展开/收起 ====================

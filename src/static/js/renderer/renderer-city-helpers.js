@@ -685,6 +685,9 @@
         html += '</div>';
       }
       list.innerHTML = html;
+      // 列表重新渲染后重置全选按钮状态（checkbox 已全部变为未勾选）
+      var selectAllBtn = document.getElementById('dlExportSelectAll');
+      if (selectAllBtn) selectAllBtn.textContent = '全选';
     }).catch(function () {
       list.innerHTML = '<div class="dl-export-empty">加载失败</div>';
     });
@@ -1362,9 +1365,11 @@
         return;
       }
       _applyStatusToUI(status);
-      // ★ 每5秒刷新一次存储统计和系列缓存状态（避免每秒都跑异步查询导致性能开销）
+      // ★ 每2秒刷新一次存储统计和系列缓存状态（ZIP通道下载中需更频繁，
+      //   因为 onBookStored 每本入库后 _dlCompleted 已递增，
+      //   checkResources 依赖 downloadedIds 内存缓存可即时反映）
       pollCount++;
-      if (pollCount % 5 === 0) {
+      if (pollCount % 2 === 0) {
         _refreshStorageStats();
       }
     }, 1000);

@@ -446,12 +446,21 @@
         });
     }
 
-    /** 获取书籍数据 */
+    /** 获取书籍数据（优先 ImportManager 导入书，降级 DataManager 下载书） */
     function _getBookData(bookId) {
+        if (win.ImportManager && typeof win.ImportManager.getImportedBook === 'function') {
+            return win.ImportManager.getImportedBook(bookId).then(function (book) {
+                if (book) return book;
+                if (win.DataManager && typeof win.DataManager.getBook === 'function') {
+                    return win.DataManager.getBook(bookId);
+                }
+                return null;
+            });
+        }
         if (win.DataManager && win.DataManager.getBook) {
             return win.DataManager.getBook(bookId);
         }
-        return Promise.reject(new Error('DataManager 不可用'));
+        return Promise.reject(new Error('数据管理器不可用'));
     }
 
     /** 仅获取书名（PDF 用） */
