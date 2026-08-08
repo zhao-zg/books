@@ -127,6 +127,17 @@
                 return Promise.resolve();
             },
 
+            addFromSnapshot: function (snapshot) {
+                // 从快照恢复书签（撤销删除用）
+                var s = _getS();
+                var bookId = _getBookId();
+                if (!s || !bookId || !snapshot) return Promise.resolve();
+                var page = snapshot.page || snapshot.position;
+                var title = snapshot.title || ('第 ' + page + ' 页');
+                if (page && s.addBookmark) s.addBookmark(bookId, page, title);
+                return Promise.resolve();
+            },
+
             remove: function (id) {
                 var s = _getS();
                 var bookId = _getBookId();
@@ -193,6 +204,15 @@
                     if (a.position !== b.position) return a.position - b.position;
                     return (a.timestamp || 0) - (b.timestamp || 0);
                 }));
+            },
+
+            addFromSnapshot: function (snapshot) {
+                // 从快照恢复标记（撤销删除用）
+                var s = _getS();
+                var bookId = _getBookId();
+                if (!s || !bookId || !snapshot || !s.restoreHighlight) return Promise.resolve();
+                s.restoreHighlight(bookId, snapshot);
+                return Promise.resolve();
             },
 
             remove: function (id) {

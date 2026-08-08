@@ -240,19 +240,17 @@
     word-break: break-all;
 }
 
-/* 删除按钮（左滑出现，预渲染在右侧不可见区域）*/
+/* 删除按钮（左滑出现，全宽红色背景 + "删除"文字，对齐市面主流风格）*/
 .bk-mp-item-delete {
     position: absolute;
     right: 0;
-    top: 4px;
-    bottom: 4px;
-    width: 72px;
+    top: 0;
+    bottom: 0;
+    width: 80px;
     background: var(--color-danger, #E54D42);
     color: #fff;
     border: none;
-    border-radius: 8px;
-    margin-right: 4px;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     display: flex;
@@ -261,7 +259,6 @@
     justify-content: center;
     gap: 2px;
     -webkit-tap-highlight-color: transparent;
-    opacity: 0.92;
 }
 .bk-mp-item-delete svg {
     width: 18px;
@@ -269,9 +266,7 @@
     flex-shrink: 0;
 }
 .bk-mp-item-delete:active {
-    opacity: 1;
-    transform: scale(0.92);
-    transition: transform 0.1s ease;
+    opacity: 0.85;
 }
 
 /* 空状态 */
@@ -504,7 +499,46 @@ textarea.bk-mp-edit-input {
     color: var(--color-danger, #E54D42);
 }
 
-/* ── 响应式 ─────────────────────────────────── */
+/* ── 删除撤销 Toast ────────────────────────── */
+.bk-mp-undo-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: var(--heading, #333);
+    color: #fff;
+    border-radius: 24px;
+    font-size: var(--text-sm);
+    z-index: 3000;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    animation: bk-mp-toast-in 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+    white-space: nowrap;
+}
+.bk-mp-undo-toast.bk-mp-toast-out {
+    animation: bk-mp-toast-out 0.2s ease forwards;
+}
+.bk-mp-undo-btn {
+    color: var(--brand, #5BC876);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 4px;
+    -webkit-tap-highlight-color: transparent;
+}
+.bk-mp-undo-btn:active {
+    opacity: 0.7;
+}
+@keyframes bk-mp-toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes bk-mp-toast-out {
+    from { opacity: 1; transform: translateX(-50%) translateY(0); }
+    to   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+}
 @media (max-width: 360px) {
     .bk-mp-drawer { width: 100vw; max-width: 100vw; }
     .bk-mp-filter-tag { padding: 3px 8px; font-size: 11px; }

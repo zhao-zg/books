@@ -120,8 +120,11 @@
          * 监听外部标记变更
          */
         refresh: function () {
+            // 无论面板是否打开，都标记所有相关 Tab 为脏
+            // 这样下次打开面板或切换 Tab 时会重新加载数据
+            MarkPanel._dirtyTabs.bookmark = true;
+            MarkPanel._dirtyTabs.mark = true;
             if (!MarkPanel._isOpen) return;
-            MarkPanel.markDirty(MarkPanel._activeTab);
             MarkPanel._loadTabData(MarkPanel._activeTab);
         },
 
@@ -422,10 +425,19 @@
                         MarkPanel._scheduleAutoClose();
                     },
                     onDelete: function (item, li) {
+                        // 保存快照用于撤销恢复
+                        var snapshot = Object.assign({}, item);
                         adapter.remove(item.id).then(function () {
                             win.BK.MarkList.removeItem(li);
                             MarkPanel._fireMarksChanged();
                             MarkPanel._updateBookmarkFooter();
+                            win.BK.MarkList.showUndoToast('书签已删除', function () {
+                                // 撤销：重新添加
+                                (adapter.addFromSnapshot || adapter.add)(snapshot).then(function () {
+                                    MarkPanel._fireMarksChanged();
+                                    MarkPanel._loadBookmarks();
+                                });
+                            });
                         });
                     },
                     onEdit: function (item) {
@@ -457,6 +469,17 @@
                         toggleP.then(function () {
                             MarkPanel._fireMarksChanged();
                             MarkPanel._loadBookmarks();
+                            win.BK.MarkList.showUndoToast('书签已删除', function () {
+                                // 撤销：重新添加当前页书签
+                                var titleInfo = { bookTitle: MarkPanel._bookTitle || '' };
+                                if (MarkPanel._readerType === 'epub') {
+                                    titleInfo.chapterTitle = (win.BKRenderer && win.BKRenderer._currentChapterTitle) || '';
+                                }
+                                adapter.add(titleInfo).then(function () {
+                                    MarkPanel._fireMarksChanged();
+                                    MarkPanel._loadBookmarks();
+                                });
+                            });
                         });
                     } else {
                         // 传入 titleInfo 以生成正确的书签标题
@@ -532,10 +555,17 @@
             deleteBtn.className = 'bk-mp-edit-btn bk-mp-edit-destructive';
             deleteBtn.textContent = '删除';
             deleteBtn.addEventListener('click', function () {
+                var snapshot = Object.assign({}, item);
                 MarkPanel._adapter.bookmark.remove(item.id).then(function () {
                     menu.remove();
                     MarkPanel._fireMarksChanged();
                     MarkPanel._loadBookmarks();
+                    win.BK.MarkList.showUndoToast('书签已删除', function () {
+                        (MarkPanel._adapter.bookmark.addFromSnapshot || MarkPanel._adapter.bookmark.add)(snapshot).then(function () {
+                            MarkPanel._fireMarksChanged();
+                            MarkPanel._loadBookmarks();
+                        });
+                    });
                 });
             });
 
@@ -636,12 +666,20 @@
                     MarkPanel._scheduleAutoClose();
                 },
                 onDelete: function (item, li) {
+                    var snapshot = Object.assign({}, item);
                     adapter.remove(item.id).then(function () {
                         win.BK.MarkList.removeItem(li);
                         // 从缓存中移除
                         MarkPanel._allMarks = (MarkPanel._allMarks || []).filter(function (m) { return m.id !== item.id; });
                         MarkPanel._fireMarksChanged();
                         MarkPanel._updateMarkFooter(MarkPanel._allMarks);
+                        win.BK.MarkList.showUndoToast('标记已删除', function () {
+                            // 撤销：重新添加
+                            (adapter.addFromSnapshot || adapter.add)(snapshot).then(function () {
+                                MarkPanel._fireMarksChanged();
+                                MarkPanel._renderMarks();
+                            });
+                        });
                     });
                 },
                 onEdit: function (item) {
@@ -708,12 +746,19 @@
             deleteBtn.className = 'bk-mp-edit-btn bk-mp-edit-destructive';
             deleteBtn.textContent = '删除';
             deleteBtn.addEventListener('click', function () {
+                var snapshot = Object.assign({}, item);
                 MarkPanel._adapter.mark.remove(item.id).then(function () {
                     menu.remove();
                     MarkPanel._allMarks = (MarkPanel._allMarks || []).filter(function (m) { return m.id !== item.id; });
                     MarkPanel._fireMarksChanged();
                     MarkPanel._renderMarks();
                     MarkPanel._updateMarkFooter(MarkPanel._allMarks);
+                    win.BK.MarkList.showUndoToast('标记已删除', function () {
+                        (MarkPanel._adapter.mark.addFromSnapshot || MarkPanel._adapter.mark.add)(snapshot).then(function () {
+                            MarkPanel._fireMarksChanged();
+                            MarkPanel._renderMarks();
+                        });
+                    });
                 });
             });
 

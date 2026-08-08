@@ -554,6 +554,7 @@
     }
     win.getSelection().removeAllRanges();
     _currentSelection = null;
+    try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
   }
 
   /**

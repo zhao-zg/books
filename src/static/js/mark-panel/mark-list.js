@@ -10,8 +10,10 @@
     win.BK = win.BK || {};
 
     var SWIPE_THRESHOLD = 30;  // 左滑超过此值显示删除（降低门槛提升灵敏度）
-    var SWIPE_FULL = 72;       // 删除按钮完全展开的偏移量
+    var SWIPE_FULL = 80;       // 删除按钮完全展开的偏移量
+    var SWIPE_AUTO_DELETE = 160; // 全滑到此值直接删除
     var LONG_PRESS_MS   = 500; // 长按阈值
+    var UNDO_TIMEOUT    = 5000; // 撤销窗口 5 秒
 
     var MarkList = {
         /**
@@ -104,10 +106,10 @@
 
             li.appendChild(content);
 
-            // 预渲染删除按钮（避免松手后动态创建造成的闪烁）
+            // 预渲染删除按钮（全宽红色背景 + 文字，对齐市面主流风格）
             var del = document.createElement('button');
             del.className = 'bk-mp-item-delete';
-            del.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+            del.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg><span>删除</span>';
             del.addEventListener('click', function (e) {
                 e.stopPropagation();
                 if (opts.onDelete) opts.onDelete(item, li);
@@ -218,7 +220,13 @@
                     return;
                 }
                 li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
-                if (currentDx < -SWIPE_THRESHOLD) {
+                if (currentDx < -SWIPE_AUTO_DELETE) {
+                    // 全滑直接删除（快捷操作）
+                    li._swiped = false;
+                    li.style.transition = 'transform 0.15s ease';
+                    li.style.transform = 'translateX(0)';
+                    if (opts.onDelete) opts.onDelete(item, li);
+                } else if (currentDx < -SWIPE_THRESHOLD) {
                     li.style.transform = 'translateX(' + (-SWIPE_FULL) + 'px)';
                     li._swiped = true;
                 } else {
@@ -261,6 +269,44 @@
             li.style.paddingBottom = '0';
             li.style.borderWidth = '0';
             setTimeout(function () { li.remove(); }, 260);
+        },
+
+        /**
+         * 显示撤销 Toast
+         * @param {string} msg   提示文案
+         * @param {Function} undoFn 撤销回调
+         */
+        showUndoToast: function (msg, undoFn) {
+            // 清除已有的 Toast
+            var existing = document.querySelector('.bk-mp-undo-toast');
+            if (existing) existing.remove();
+
+            var toast = document.createElement('div');
+            toast.className = 'bk-mp-undo-toast';
+            toast.innerHTML = '<span>' + (msg || '已删除') + '</span>' +
+                '<span class="bk-mp-undo-btn">撤销</span>';
+
+            var dismissed = false;
+            var timer = null;
+            var dismiss = function () {
+                if (dismissed) return;
+                dismissed = true;
+                if (timer) clearTimeout(timer);
+                toast.classList.add('bk-mp-toast-out');
+                setTimeout(function () { toast.remove(); }, 200);
+            };
+
+            toast.querySelector('.bk-mp-undo-btn').addEventListener('click', function () {
+                if (undoFn) undoFn();
+                dismiss();
+            });
+
+            document.body.appendChild(toast);
+            timer = setTimeout(dismiss, UNDO_TIMEOUT);
+            // 点击 Toast 其他区域也关闭
+            toast.addEventListener('click', function (e) {
+                if (!e.target.closest('.bk-mp-undo-btn')) dismiss();
+            });
         }
     };
 

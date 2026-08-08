@@ -165,6 +165,15 @@
                 return win.BKBookmark.addCurrent(titleInfo);
             },
 
+            addFromSnapshot: function (snapshot) {
+                // 从快照恢复书签（撤销删除用）
+                if (!win.BKBookmark || !win.BKBookmark.addFromSnapshot) {
+                    // 降级：重新添加当前页
+                    return win.BK.MarkPanelAdapters.EpubAdapter.bookmark.add(snapshot);
+                }
+                return win.BKBookmark.addFromSnapshot(snapshot);
+            },
+
             remove: function (id) {
                 if (!win.BKBookmark || !win.BKBookmark.remove) return Promise.resolve();
                 return win.BKBookmark.remove(id);
@@ -240,6 +249,15 @@
                     });
                     return items;
                 });
+            },
+
+            addFromSnapshot: function (snapshot) {
+                // 从快照恢复标记（撤销删除用）
+                if (!win.BKStorage || !win.BKStorage.addHighlightFromSnapshot) {
+                    // 降级：无操作，无法恢复
+                    return Promise.resolve();
+                }
+                return win.BKStorage.addHighlightFromSnapshot(snapshot);
             },
 
             remove: function (id) {
