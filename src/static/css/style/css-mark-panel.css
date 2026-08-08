@@ -183,7 +183,6 @@
     align-items: stretch;
     position: relative;
     overflow: hidden;
-    transition: transform 0.2s ease;
     border-bottom: 1px solid var(--border, #E5E2DD);
 }
 .bk-mp-item:active {
@@ -241,26 +240,38 @@
     word-break: break-all;
 }
 
-/* 删除按钮（左滑出现）*/
+/* 删除按钮（左滑出现，预渲染在右侧不可见区域）*/
 .bk-mp-item-delete {
     position: absolute;
     right: 0;
-    top: 0;
-    bottom: 0;
-    width: 80px;
+    top: 4px;
+    bottom: 4px;
+    width: 72px;
     background: var(--color-danger, #E54D42);
     color: #fff;
     border: none;
-    font-size: var(--text-base);
+    border-radius: 8px;
+    margin-right: 4px;
+    font-size: 11px;
     font-weight: 500;
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 2px;
     -webkit-tap-highlight-color: transparent;
+    opacity: 0.92;
+}
+.bk-mp-item-delete svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 .bk-mp-item-delete:active {
-    opacity: 0.85;
+    opacity: 1;
+    transform: scale(0.92);
+    transition: transform 0.1s ease;
 }
 
 /* 空状态 */

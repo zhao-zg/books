@@ -126,16 +126,22 @@
         var SaveFile = _getPlugins().SaveFile;
         if (!SaveFile) return Promise.reject(new Error('SaveFile 插件不可用'));
 
+        console.log('[BK.Export] SAF 策略：启动，文件名=' + filename + '，MIME=' + mime + '，base64 长度=' + base64Data.length);
         return SaveFile.save({
             filename: filename,
             data: base64Data,
             mimeType: _pureMime(mime)
         }).then(function (result) {
             if (result && result.saved) {
+                console.log('[BK.Export] SAF 策略：保存成功，uri=' + result.uri);
                 return { method: 'saf', saved: true, uri: result.uri };
             }
             // 用户取消
+            console.log('[BK.Export] SAF 策略：用户取消或未保存');
             return { method: 'saf', saved: false, cancelled: true };
+        }).catch(function (err) {
+            console.error('[BK.Export] SAF 策略：异常', err);
+            throw err;
         });
     }
 
@@ -152,6 +158,7 @@
         }
 
         var path = 'bk-export/' + filename;
+        console.log('[BK.Export] Cache+Share 策略：写缓存，文件名=' + filename + '，base64 长度=' + base64Data.length);
 
         return Filesystem.writeFile({
             path: path,
@@ -159,49 +166,73 @@
             directory: 'CACHE',
             recursive: true
         }).then(function () {
+            console.log('[BK.Export] Cache+Share 策略：缓存写入成功，path=' + path);
             return Filesystem.getUri({ path: path, directory: 'CACHE' });
         }).then(function (uriResult) {
             var fileUri = uriResult && uriResult.uri;
             if (!fileUri) throw new Error('无法获取文件 URI');
+            console.log('[BK.Export] Cache+Share 策略：文件 URI=' + fileUri);
 
             if (!Share) {
+                console.log('[BK.Export] Cache+Share 策略：Share 插件不可用，降级为 cache-only');
                 return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
             }
             return Share.canShare().then(function (can) {
                 if (!can || !can.value) {
+                    console.log('[BK.Export] Cache+Share 策略：Share.canShare() 返回不可分享，降级为 cache-only');
                     return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
                 }
+                console.log('[BK.Export] Cache+Share 策略：弹出系统分享面板...');
                 return Share.share({
                     title: filename,
                     dialogTitle: '选择保存位置',
                     files: [fileUri]
                 }).then(function () {
+                    console.log('[BK.Export] Cache+Share 策略：分享成功');
                     return { method: 'share', shared: true, fileUri: fileUri };
                 });
             });
+        }).catch(function (err) {
+            console.error('[BK.Export] Cache+Share 策略：失败', err);
+            throw err;
         });
     }
 
     // ====================================================================
     //  Android 统一入口：SAF → Share 降级
     // ====================================================================
-    function _exportNative(base64Data, filename, mime) {
+    function _exportNative(base64Data, filename, mime, opts) {
+        opts = opts || {};
+
+        // 大文件跳过 SAF：base64 超过 20MB 时 SAF 可能因内存不足无法弹出对话框
+        var SAF_SIZE_LIMIT = 20 * 1024 * 1024; // 20MB base64 ≈ 15MB 原始文件
+        if (opts.skipSAF || base64Data.length > SAF_SIZE_LIMIT) {
+            console.log('[BK.Export] _exportNative: 跳过 SAF（skipSAF=' + !!opts.skipSAF +
+                '，base64 长度=' + base64Data.length + '，限制=' + SAF_SIZE_LIMIT + '），走 Cache+Share');
+            return _exportNativeShare(base64Data, filename, mime);
+        }
+
         // 优先尝试 SAF（弹系统"另存为"对话框）
         if (_getPlugins().SaveFile) {
+            console.log('[BK.Export] _exportNative: 尝试 SAF 策略...');
             return _exportNativeSAF(base64Data, filename, mime).then(function (result) {
                 if (result.cancelled) {
                     // 用户取消 SAF 对话框，不降级，直接返回
+                    console.log('[BK.Export] _exportNative: SAF 用户取消');
                     return result;
                 }
                 if (result.saved) return result;
                 // SAF 其他失败，降级到 Cache+Share
+                console.log('[BK.Export] _exportNative: SAF 未保存，降级到 Cache+Share');
                 return _exportNativeShare(base64Data, filename, mime);
-            }).catch(function () {
+            }).catch(function (err) {
                 // SAF 异常（如插件内部错误），降级到 Cache+Share
+                console.error('[BK.Export] _exportNative: SAF 异常，降级到 Cache+Share', err);
                 return _exportNativeShare(base64Data, filename, mime);
             });
         }
         // 无 SAF 插件，直接走 Cache+Share
+        console.log('[BK.Export] _exportNative: 无 SAF 插件，走 Cache+Share');
         return _exportNativeShare(base64Data, filename, mime);
     }
 
@@ -212,6 +243,8 @@
         if (typeof win.showSaveFilePicker !== 'function') {
             return Promise.reject(new Error('showSaveFilePicker 不可用'));
         }
+
+        console.log('[BK.Export] Web Picker 策略：启动，文件名=' + filename + '，MIME=' + mime);
 
         var pickerOpts = {
             suggestedName: filename
@@ -241,6 +274,7 @@
                     });
                 }
             }).then(function () {
+                console.log('[BK.Export] Web Picker 策略：保存成功');
                 return { method: 'picker', saved: true };
             });
         });
@@ -264,11 +298,13 @@
     //  Web 策略2（降级）：Blob + <a download>
     // ====================================================================
     function _exportWebDownload(content, filename, mime, isBinary) {
+        console.log('[BK.Export] Web Download 策略：降级到 <a download>，文件名=' + filename);
         return new Promise(function (resolve, reject) {
             try {
                 var blob = isBinary
                     ? new Blob([content], { type: mime })
                     : new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+                console.log('[BK.Export] Web Download: Blob 大小=' + blob.size + ' 字节');
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement('a');
                 a.href = url;
@@ -279,9 +315,11 @@
                 setTimeout(function () {
                     if (a.parentNode) a.parentNode.removeChild(a);
                     URL.revokeObjectURL(url);
+                    console.log('[BK.Export] Web Download: 下载触发完成');
                     resolve({ method: 'download', saved: true, fallback: true });
                 }, 100);
             } catch (e) {
+                console.error('[BK.Export] Web Download: 失败', e);
                 reject(e);
             }
         });
@@ -295,9 +333,11 @@
         return _exportWebPicker(content, filename, mime, isBinary).catch(function (err) {
             // 用户取消选择器，AbortError
             if (err && err.name === 'AbortError') {
+                console.log('[BK.Export] Web: 用户取消 Picker');
                 return { method: 'picker', saved: false, cancelled: true };
             }
             // showSaveFilePicker 不可用或其他错误，降级到 <a download>
+            console.log('[BK.Export] Web: Picker 不可用，降级到 <a download>，err=' + (err && err.message));
             return _exportWebDownload(content, filename, mime, isBinary);
         });
     }
@@ -321,6 +361,8 @@
         mime = mime || 'text/plain;charset=utf-8';
         filename = _sanitizeFilename(filename);
 
+        console.log('[BK.Export] exportText: 文件名=' + filename + '，MIME=' + mime + '，内容长度=' + content.length + '，平台=' + (_isNative() ? 'native' : 'web'));
+
         // BOM 处理
         var finalContent = _shouldAddBom(mime, opts) ? '\uFEFF' + content : content;
 
@@ -329,11 +371,13 @@
 
         return Promise.resolve().then(function () {
             if (_isNative()) {
+                console.log('[BK.Export] exportText: native 路径，转 base64...');
                 var base64 = _utf8ToBase64(finalContent);
                 return _exportNative(base64, filename, mime);
             }
             return _exportWeb(finalContent, filename, mime, false);
         }).then(function (result) {
+            console.log('[BK.Export] exportText: 结果=', result);
             _handleResult(result, successMsg, errorMsg);
             return result;
         }).catch(function (err) {
@@ -352,8 +396,9 @@
      * @param {string}     filename 文件名
      * @param {string}     [mime]   MIME 类型，默认 application/octet-stream
      * @param {Object}     [opts]
-     *   - {string} successMsg 成功 toast 文案
-     *   - {string} errorMsg   失败 toast 文案
+     *   - {string}  successMsg 成功 toast 文案
+     *   - {string}  errorMsg   失败 toast 文案
+     *   - {boolean} skipSAF    跳过 SAF 对话框，直接走 Cache+Share（大文件/批量导出用）
      * @returns {Promise<{method:string,saved?:boolean,cancelled?:boolean}>}
      */
     function exportBinary(bytes, filename, mime, opts) {
@@ -361,16 +406,24 @@
         mime = mime || 'application/octet-stream';
         filename = _sanitizeFilename(filename);
 
+        console.log('[BK.Export] exportBinary: 文件名=' + filename + '，MIME=' + mime +
+            '，字节长度=' + bytes.length + '，skipSAF=' + !!opts.skipSAF +
+            '，平台=' + (_isNative() ? 'native' : 'web'));
+
         var successMsg = opts.successMsg || '已导出';
         var errorMsg = opts.errorMsg || '导出失败，请重试';
 
         return Promise.resolve().then(function () {
             if (_isNative()) {
+                console.log('[BK.Export] exportBinary: native 路径，转 base64...');
+                var t0 = Date.now();
                 var base64 = _bytesToBase64(bytes);
-                return _exportNative(base64, filename, mime);
+                console.log('[BK.Export] exportBinary: base64 转换完成，长度=' + base64.length + '，耗时=' + (Date.now() - t0) + 'ms');
+                return _exportNative(base64, filename, mime, { skipSAF: opts.skipSAF });
             }
             return _exportWeb(bytes, filename, mime, true);
         }).then(function (result) {
+            console.log('[BK.Export] exportBinary: 结果=', result);
             _handleResult(result, successMsg, errorMsg);
             return result;
         }).catch(function (err) {

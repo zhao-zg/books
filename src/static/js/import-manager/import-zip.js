@@ -75,6 +75,8 @@
             bookData.id = bookId;
         }
 
+        console.log('[BK.ImportZip] _saveBook: 保存书籍 id=' + bookId + '，title=' + (bookData.title || '?'));
+
         return _importStore.setItem(KEY_PREFIX + bookId, bookData).then(function () {
             return _importStore.getItem(KEY_IDS).then(function (ids) {
                 ids = ids || [];
@@ -149,6 +151,7 @@
         var bookJsonPath = 'books/' + bookDirName + '/book.json';
         var bookJsonEntry = zip.file(bookJsonPath);
         if (!bookJsonEntry) {
+            console.warn('[BK.ImportZip] _importOneBook: book.json 未找到，dir=' + bookDirName);
             return Promise.resolve({ success: false, id: bookDirName, error: 'book.json 未找到' });
         }
 
@@ -159,10 +162,12 @@
             try {
                 bookData = JSON.parse(bookJsonText);
             } catch (e) {
+                console.error('[BK.ImportZip] _importOneBook: book.json 解析失败，dir=' + bookDirName, e);
                 return { success: false, id: bookDirName, error: 'book.json 解析失败' };
             }
 
             if (!bookData || !bookData.id) {
+                console.error('[BK.ImportZip] _importOneBook: book.json 缺少 id，dir=' + bookDirName);
                 return { success: false, id: bookDirName, error: 'book.json 缺少 id' };
             }
 
@@ -170,7 +175,9 @@
 
             // 非 imported- 前缀的 ID（书城书导出后再导入），自动加前缀避免冲突
             if (bookData.id.indexOf('imported-') !== 0) {
-                bookData.id = _generateId();
+                var newId = _generateId();
+                console.log('[BK.ImportZip] _importOneBook: 书城书 ID=' + bookData.id + ' → 新 ID=' + newId);
+                bookData.id = newId;
             }
 
             var isPdf = _isPdfBookData(bookData);
@@ -227,6 +234,9 @@
         var JSZip = win.JSZip;
         if (!JSZip) return Promise.reject(new Error('JSZip 未加载，无法解析 ZIP'));
 
+        console.log('[BK.ImportZip] importFromZip: 开始导入，文件名=' + fileName + '，buffer 大小=' + (buffer.byteLength || buffer.length || 0) + ' 字节');
+        var t0 = Date.now();
+
         return JSZip.loadAsync(buffer).then(function (zip) {
             // 1. 验证 manifest.json
             var manifestFile = zip.file('manifest.json');
@@ -261,6 +271,9 @@
                     return Promise.reject(new Error('ZIP 中未找到任何书籍数据'));
                 }
 
+                console.log('[BK.ImportZip] importFromZip: 发现 ' + bookDirNames.length + ' 本书，版本=' + manifest.version +
+                    '，开始逐本导入...');
+
                 // 3. 逐本导入（顺序执行，避免大量写入并发）
                 var successCount = 0;
                 var failCount = 0;
@@ -283,6 +296,9 @@
                 }
 
                 return chain.then(function () {
+                    console.log('[BK.ImportZip] importFromZip: 导入完成，成功=' + successCount +
+                        '，失败=' + failCount + '，耗时=' + (Date.now() - t0) + 'ms');
+                    if (errors.length) console.warn('[BK.ImportZip] importFromZip: 失败详情=', errors);
                     return {
                         success: successCount,
                         failed: failCount,

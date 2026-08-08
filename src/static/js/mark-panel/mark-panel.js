@@ -777,6 +777,27 @@
             try {
                 document.dispatchEvent(new CustomEvent('marks-changed'));
             } catch (e) {}
+        },
+
+        /**
+         * 刷新内容页面上的视觉标记（高亮/下划线/批注图标等）
+         * 标记删除后内容页面残留旧标记，需重渲染覆盖层
+         */
+        _refreshContentHighlights: function () {
+            // PDF：重渲所有可见页的高亮覆盖层
+            if (win.BKPdf && win.BKPdf._internal && win.BKPdf._internal.highlight) {
+                var renderFn = win.BKPdf._internal.highlight.renderAllVisibleHighlights;
+                if (typeof renderFn === 'function') renderFn();
+            }
+            // EPUB：清除所有 DOM 标记再重渲
+            if (win.BKHighlight) {
+                if (typeof win.BKHighlight.clearAllMarks === 'function') {
+                    win.BKHighlight.clearAllMarks();
+                }
+                if (typeof win.BKHighlight.restoreHighlights === 'function') {
+                    win.BKHighlight.restoreHighlights();
+                }
+            }
         }
     };
 
@@ -784,6 +805,16 @@
         // 事件可由任何模块派发：document.dispatchEvent(new CustomEvent('marks-changed'))
         document.addEventListener('marks-changed', function () {
             MarkPanel.refresh();
+            MarkPanel._refreshContentHighlights();
+        });
+
+        // 监听页面变化（PDF 翻页 / EPUB 切章），刷新书签 footer 按钮状态
+        document.addEventListener('reader-page-change', function () {
+            // 翻页后当前页的书签状态可能变化，标记 bookmark 为脏
+            MarkPanel._dirtyTabs.bookmark = true;
+            if (MarkPanel._isOpen && MarkPanel._activeTab === 'bookmark') {
+                MarkPanel._updateBookmarkFooter();
+            }
         });
 
     win.BK.MarkPanel = MarkPanel;

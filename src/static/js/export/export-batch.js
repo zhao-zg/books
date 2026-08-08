@@ -189,6 +189,9 @@
             return Promise.reject(new Error('未选择任何书籍'));
         }
 
+        console.log('[BK.Export] exportBatch: 开始打包 ' + bookIds.length + ' 本书');
+        var t0 = Date.now();
+
         var zip = new JSZip();
         var booksFolder = zip.folder('books');
         var errors = [];
@@ -204,12 +207,14 @@
                     current = idx + 1;
                     return _getBookData(bookId).then(function (bookData) {
                         if (!bookData) {
+                            console.warn('[BK.Export] exportBatch: 书籍数据未找到，跳过 id=' + bookId);
                             errors.push({ id: bookId, error: '书籍数据未找到' });
                             if (opts.onProgress) opts.onProgress(current, total, bookId);
                             return;
                         }
 
                         var title = bookData.title || bookId;
+                        console.log('[BK.Export] exportBatch: [' + current + '/' + total + '] 打包《' + title + '》');
                         var folderName = _sanitizeFolderName(bookId);
                         var bookFolder = booksFolder.folder(folderName);
                         var isPdf = _isPdfBookData(bookData);
@@ -272,6 +277,9 @@
             };
             zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
+            console.log('[BK.Export] exportBatch: 打包完成，成功 ' + (bookIds.length - errors.length) +
+                ' 本，失败 ' + errors.length + ' 本，耗时 ' + (Date.now() - t0) + 'ms，开始生成 ZIP...');
+
             // 生成 ZIP 二进制
             return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
         }).then(function (bytes) {
@@ -281,13 +289,18 @@
                 ('0' + date.getDate()).slice(-2);
             var filename = 'bk-books-export-' + dateStr + '.zip';
 
+            console.log('[BK.Export] exportBatch: ZIP 生成完成，大小=' + (bytes.length / 1024 / 1024).toFixed(2) +
+                'MB，文件名=' + filename + '，总耗时 ' + (Date.now() - t0) + 'ms');
+
             if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                 var successMsg = '已导出 ' + (bookIds.length - errors.length) + ' 本书' +
                     (errors.length ? '（' + errors.length + ' 本跳过）' : '');
                 return win.BK.Export.exportBinary(bytes, filename, 'application/zip', {
-                    successMsg: successMsg
+                    successMsg: successMsg,
+                    skipSAF: true  // 批量导出 ZIP 通常较大，跳过 SAF 直接走 Cache+Share
                 });
             }
+            console.log('[BK.Export] exportBatch: exportBinary 不可用，走 fallback 下载');
             return _fallbackBinaryDownload(bytes, filename, 'application/zip');
         });
     }

@@ -835,6 +835,7 @@
    * @param {File} file  用户选择的 ZIP 文件
    */
   function _doCityImport(file) {
+    console.log('[导入] _doCityImport: 开始读取文件 ' + file.name + '，大小=' + (file.size / 1024 / 1024).toFixed(2) + 'MB');
     if (!win.BK || !win.BK.ImportZip || !win.BK.ImportZip.importFromZip) {
       _toast('导入模块未加载');
       return;

@@ -9,7 +9,8 @@
     'use strict';
     win.BK = win.BK || {};
 
-    var SWIPE_THRESHOLD = 40;  // 左滑超过此值显示删除
+    var SWIPE_THRESHOLD = 30;  // 左滑超过此值显示删除（降低门槛提升灵敏度）
+    var SWIPE_FULL = 72;       // 删除按钮完全展开的偏移量
     var LONG_PRESS_MS   = 500; // 长按阈值
 
     var MarkList = {
@@ -103,6 +104,16 @@
 
             li.appendChild(content);
 
+            // 预渲染删除按钮（避免松手后动态创建造成的闪烁）
+            var del = document.createElement('button');
+            del.className = 'bk-mp-item-delete';
+            del.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+            del.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (opts.onDelete) opts.onDelete(item, li);
+            });
+            li.appendChild(del);
+
             // 事件绑定
             MarkList._bindEvents(li, item, opts);
 
@@ -113,38 +124,36 @@
          * 绑定交互事件
          */
         _bindEvents: function (li, item, opts) {
+            var delBtn = li.querySelector('.bk-mp-item-delete');
+
             // 点击跳转
             li.addEventListener('click', function (e) {
+                // 删除按钮由自身 click handler 处理（stopPropagation）
+                if (e.target.closest('.bk-mp-item-delete')) return;
                 // 如果处于左滑状态，先收回滑动再处理
                 if (li._swiped) {
                     e.preventDefault();
                     e.stopPropagation();
-                    li.style.transition = 'transform 0.2s ease';
-                    li.style.transform = 'translateX(0)';
-                    li._swiped = false;
-                    var existingDel = li.querySelector('.bk-mp-item-delete');
-                    if (existingDel) existingDel.remove();
+                    MarkList._snapBack(li);
                     return;
                 }
-                if (e.target.closest('.bk-mp-item-delete')) return;
                 if (opts.onNavigate) opts.onNavigate(item);
             });
 
-            // 长按编辑 + 左滑删除（合并 touchstart/touchmove 避免冲突）
+            // 长按编辑 + 左滑删除
             var longPressTimer = null;
             var moved = false;
             var touchStartY = 0;
             var startX = 0, currentDx = 0, swiping = false;
-            var swipeReturnDx = 0;  // 右滑收回时的累计偏移量
+            var swipeReturnDx = 0;
+
             li.addEventListener('touchstart', function (e) {
-                // 已处于左滑状态时，不启动新的滑动检测
-                // 让 click 事件自然触发（删除按钮的 click 会 stopPropagation）
+                // 已处于左滑状态时，记录起点支持右滑收回
                 if (li._swiped) {
-                    // 记录起点以支持右滑收回
                     startX = e.touches[0].clientX;
                     touchStartY = e.touches[0].clientY;
                     swipeReturnDx = 0;
-                    moved = true;  // 阻止长按
+                    moved = true;
                     swiping = false;
                     return;
                 }
@@ -157,82 +166,82 @@
                     if (!moved && opts.onEdit) opts.onEdit(item);
                 }, LONG_PRESS_MS);
             }, { passive: true });
+
             li.addEventListener('touchmove', function (e) {
                 // 已处于左滑状态时，只处理右滑收回
                 if (li._swiped) {
-                    var dx = e.touches[0].clientX - startX;
-                    if (dx > 20) {
+                    var rdx = e.touches[0].clientX - startX;
+                    if (rdx > 10) {
                         swiping = true;
-                        swipeReturnDx = dx;
-                        li.style.transform = 'translateX(' + Math.min(0, -80 + dx) + 'px)';
+                        swipeReturnDx = rdx;
+                        // 从 -SWIPE_FULL 位置右滑，带阻尼
+                        var raw = -SWIPE_FULL + rdx;
+                        var tx = raw < 0 ? raw * 0.6 : 0;  // 超出右边界带阻尼
+                        li.style.transform = 'translateX(' + tx + 'px)';
                         li.style.transition = 'none';
                     }
                     return;
                 }
                 var dy = Math.abs(e.touches[0].clientY - touchStartY);
-                if (dy > 12) { moved = true; clearTimeout(longPressTimer); }
+                if (dy > 10) { moved = true; clearTimeout(longPressTimer); }
                 var dx = e.touches[0].clientX - startX;
-                if (dx < -20 && !swiping) {
-                    // 取消长按
+                if (dx < -15 && !swiping) {
                     moved = true;
                     clearTimeout(longPressTimer);
                     swiping = true;
                 }
                 if (swiping) {
-                    currentDx = Math.max(dx, -80);
+                    currentDx = Math.max(dx, -SWIPE_FULL - 20); // 允许略微越界
+                    // 超过 SWIPE_FULL 后带阻尼
+                    if (currentDx < -SWIPE_FULL) {
+                        var over = currentDx + SWIPE_FULL;
+                        currentDx = -SWIPE_FULL + over * 0.3;
+                    }
                     li.style.transform = 'translateX(' + currentDx + 'px)';
                     li.style.transition = 'none';
                 }
             }, { passive: true });
+
             li.addEventListener('touchend', function () {
                 clearTimeout(longPressTimer);
                 // 已处于左滑状态时，处理右滑收回
                 if (li._swiped) {
                     if (swiping) {
-                        li.style.transition = 'transform 0.2s ease';
-                        // 右滑超过阈值则收回，否则回弹到 -80px
-                        if (swipeReturnDx > 40) {
-                            li.style.transform = 'translateX(0)';
-                            li._swiped = false;
-                            var existingDel = li.querySelector('.bk-mp-item-delete');
-                            if (existingDel) existingDel.remove();
+                        if (swipeReturnDx > SWIPE_THRESHOLD) {
+                            MarkList._snapBack(li);
                         } else {
-                            li.style.transform = 'translateX(-80px)';
+                            li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+                            li.style.transform = 'translateX(' + (-SWIPE_FULL) + 'px)';
                         }
                     }
                     swiping = false;
                     return;
                 }
-                li.style.transition = 'transform 0.2s ease';
+                li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
                 if (currentDx < -SWIPE_THRESHOLD) {
-                    li.style.transform = 'translateX(-80px)';
+                    li.style.transform = 'translateX(' + (-SWIPE_FULL) + 'px)';
                     li._swiped = true;
-                    // 显示删除按钮
-                    if (!li.querySelector('.bk-mp-item-delete')) {
-                        var del = document.createElement('button');
-                        del.className = 'bk-mp-item-delete';
-                        del.textContent = '删除';
-                        del.addEventListener('click', function (e) {
-                            e.stopPropagation();
-                            if (opts.onDelete) opts.onDelete(item, li);
-                        });
-                        li.appendChild(del);
-                    }
                 } else {
-                    li.style.transform = 'translateX(0)';
-                    li._swiped = false;
-                    var existingDel = li.querySelector('.bk-mp-item-delete');
-                    if (existingDel) existingDel.remove();
+                    MarkList._snapBack(li);
                 }
                 swiping = false;
             });
+
             li.addEventListener('touchcancel', function () {
                 clearTimeout(longPressTimer);
                 if (li._swiped) return;
-                li.style.transition = 'transform 0.2s ease';
-                li.style.transform = 'translateX(0)';
+                MarkList._snapBack(li);
                 swiping = false;
             });
+        },
+
+        /**
+         * 收回左滑状态
+         */
+        _snapBack: function (li) {
+            li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+            li.style.transform = 'translateX(0)';
+            li._swiped = false;
         },
 
         /**
@@ -243,7 +252,7 @@
             if (!h) { li.remove(); return; }
             li.style.maxHeight = h + 'px';
             li.style.overflow = 'hidden';
-            li.style.transition = 'max-height 0.25s ease, opacity 0.25s ease, padding 0.25s ease';
+            li.style.transition = 'max-height 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease, padding 0.25s ease';
             // force reflow
             li.offsetHeight;
             li.style.maxHeight = '0';

@@ -459,6 +459,7 @@
     if (thumbs && thumbs.highlightPage) {
       thumbs.highlightPage(pageNum);
     }
+    try { document.dispatchEvent(new CustomEvent('reader-page-change', { detail: { page: pageNum } })); } catch (e) {}
   }
 
   /**
