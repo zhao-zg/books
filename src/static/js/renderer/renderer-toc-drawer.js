@@ -70,10 +70,14 @@
    */
   var _splitMedia = null;
   var _splitBookId = null;
+  var _splitTocCollapsed = false;  // 折叠状态
+  var _COLLAPSE_KEY = 'bk_split_toc_collapsed';  // localStorage 持久化 key
   function _maybeEnterSplitMode(bookId) {
     _splitBookId = bookId;
     if (!win.matchMedia) return;
     _splitMedia = win.matchMedia('(min-width: 768px)');
+    // 读取用户上次偏好
+    try { _splitTocCollapsed = localStorage.getItem(_COLLAPSE_KEY) === '1'; } catch(e) {}
     _applySplitMode(_splitMedia.matches);
     if (_splitMedia.addEventListener) {
       _splitMedia.addEventListener('change', _onSplitMediaChange);
@@ -87,13 +91,33 @@
   function _applySplitMode(shouldSplit) {
     if (shouldSplit) {
       document.body.classList.add('bk-split-mode');
+      document.body.classList.toggle('bk-toc-collapsed', _splitTocCollapsed);
       if (_splitBookId) _fillTocDrawer(_splitBookId);
     } else {
       document.body.classList.remove('bk-split-mode');
+      document.body.classList.remove('bk-toc-collapsed');
     }
+  }
+  /**
+   * 切换 split-mode 下 TOC 折叠/展开
+   */
+  function _toggleSplitToc() {
+    _splitTocCollapsed = !_splitTocCollapsed;
+    document.body.classList.toggle('bk-toc-collapsed', _splitTocCollapsed);
+    try { localStorage.setItem(_COLLAPSE_KEY, _splitTocCollapsed ? '1' : '0'); } catch(e) {}
+  }
+  /**
+   * 展开被折叠的 TOC（供外部调用，如底部导航栏按钮）
+   */
+  function _expandSplitToc() {
+    if (!_splitTocCollapsed) return;
+    _splitTocCollapsed = false;
+    document.body.classList.remove('bk-toc-collapsed');
+    try { localStorage.setItem(_COLLAPSE_KEY, '0'); } catch(e) {}
   }
   function _exitSplitMode() {
     document.body.classList.remove('bk-split-mode');
+    document.body.classList.remove('bk-toc-collapsed');
     if (_splitMedia) {
       if (_splitMedia.removeEventListener) {
         _splitMedia.removeEventListener('change', _onSplitMediaChange);
@@ -242,6 +266,9 @@
   function _initTocDrawerEvents() {
     if (win.BK && win.BK._tocDrawerInited) return;
     if (win.BK) win.BK._tocDrawerInited = true;
+
+    // 监听底栏目录按钮的 toggle 事件（split-mode 下切换折叠/展开）
+    document.addEventListener('bk:split-toc-toggle', function() { _toggleSplitToc(); });
 
     // 遮罩点击关闭
     var overlay = document.getElementById('bkTocOverlay');

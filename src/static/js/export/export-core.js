@@ -1,12 +1,17 @@
 /**
- * export-core.js — 统一导出出口（v2）
+ * export-core.js — 统一导出出口（v3，分块写入）
  *
  * 导出策略（按优先级）：
  *
  * Android 原生：
- *   1. SAF SaveFile 插件（ACTION_CREATE_DOCUMENT）→ 弹系统"另存为"对话框，用户选路径
- *   2. 降级：Filesystem.writeFile(CACHE) + Share.share → 写缓存后弹分享面板
+ *   1. SAF SaveFile 插件（ACTION_CREATE_DOCUMENT）→ 弹系统"另存为"对话框
+ *      - 小文件（base64 ≤ 5MB）：一次性写入
+ *      - 大文件（base64 > 5MB）：startWrite → writeChunk * N → finishWrite 分块写入
+ *   2. 降级：Cache+Share
+ *      - 小文件：Filesystem.writeFile(CACHE) + Share.share
+ *      - 大文件：startCacheWrite → writeCacheChunk * N → finishCacheWrite + Share
  *   3. 最终降级：仅写缓存，toast 提示路径
+ *   4. skipSAF 模式（批量导出）：跳过 SAF 直接走 Cache+Share
  *
  * Web / PWA：
  *   1. showSaveFilePicker()（File System Access API）→ 弹系统"另存为"对话框
@@ -15,11 +20,12 @@
  * 能力：
  *   1. 统一出口 BK.Export.exportText / BK.Export.exportBinary
  *   2. 平台自动分支 + 多级降级
- *   3. UTF-8 BOM：对 text/* 类型自动加 BOM
- *   4. 全程 try-catch + 明确保存位置提示
+ *   3. 分块写入：大文件按 2MB 原始数据拆块，避免 WebView 桥接 OOM
+ *   4. UTF-8 BOM：对 text/* 类型自动加 BOM
+ *   5. 全程 try-catch + 明确保存位置提示
  *
  * 依赖：
- *   - Android：Capacitor.Plugins.SaveFile（自定义 SAF 插件）
+ *   - Android：Capacitor.Plugins.SaveFile（自定义 SAF 插件，支持分块写入）
  *   - Android 降级：Capacitor.Plugins.Filesystem / Capacitor.Plugins.Share
  *   - Web：showSaveFilePicker / Blob / URL.createObjectURL / <a download>
  */
@@ -101,6 +107,149 @@
         return btoa(binary);
     }
 
+    // ── 分块大小：每块原始数据 2MB（base64 约 2.67MB），避免桥接 OOM ────
+    var CHUNK_RAW_SIZE = 2 * 1024 * 1024; // 2MB 原始数据
+    var CHUNK_B64_SIZE = Math.ceil(CHUNK_RAW_SIZE / 3) * 4; // 对应 base64 长度（4 的倍数）
+
+    /**
+     * 将 base64 字符串按 CHUNK_B64_SIZE 拆分成块
+     * 直接按 base64 长度切分，保证每块长度是 4 的倍数（base64 编码单元）
+     */
+    function _splitBase64Chunks(base64) {
+        var chunks = [];
+        for (var i = 0; i < base64.length; i += CHUNK_B64_SIZE) {
+            chunks.push(base64.substring(i, Math.min(i + CHUNK_B64_SIZE, base64.length)));
+        }
+        return chunks;
+    }
+
+    /**
+     * 分块写入 SAF 流（startWrite → writeChunk * N → finishWrite）
+     * @param {string} base64Data  完整 base64 数据
+     * @param {string} filename    文件名
+     * @param {string} mime        MIME 类型
+     * @returns {Promise<{method:string,saved:boolean,uri?:string,cancelled?:boolean}>}
+     */
+    function _exportNativeSAFChunked(base64Data, filename, mime) {
+        var SaveFile = _getPlugins().SaveFile;
+        if (!SaveFile) return Promise.reject(new Error('SaveFile 插件不可用'));
+
+        var totalRawSize = Math.floor(base64Data.length * 3 / 4);
+        console.log('[BK.Export] SAF 分块写入：启动，文件名=' + filename +
+            '，原始大小=' + totalRawSize + '，base64 长度=' + base64Data.length);
+
+        return SaveFile.startWrite({
+            filename: filename,
+            mimeType: _pureMime(mime),
+            totalSize: totalRawSize
+        }).then(function (startResult) {
+            if (!startResult || !startResult.started) {
+                // 用户取消 SAF 对话框
+                console.log('[BK.Export] SAF 分块写入：用户取消');
+                return { method: 'saf-chunked', saved: false, cancelled: true };
+            }
+            var sessionId = startResult.sessionId;
+            console.log('[BK.Export] SAF 分块写入：会话已建立，sessionId=' + sessionId);
+
+            var chunks = _splitBase64Chunks(base64Data);
+            console.log('[BK.Export] SAF 分块写入：拆分为 ' + chunks.length + ' 块');
+
+            // 逐块串行写入
+            return chunks.reduce(function (promise, chunk, idx) {
+                return promise.then(function () {
+                    console.log('[BK.Export] SAF writeChunk: ' + (idx + 1) + '/' + chunks.length +
+                        '，base64 长度=' + chunk.length);
+                    return SaveFile.writeChunk({ sessionId: sessionId, chunk: chunk });
+                });
+            }, Promise.resolve()).then(function () {
+                console.log('[BK.Export] SAF 分块写入：所有块写入完成，调用 finishWrite');
+                return SaveFile.finishWrite({ sessionId: sessionId });
+            }).then(function (finishResult) {
+                console.log('[BK.Export] SAF 分块写入：完成，uri=' + (finishResult && finishResult.uri));
+                return { method: 'saf-chunked', saved: true, uri: finishResult && finishResult.uri };
+            });
+        }).catch(function (err) {
+            console.error('[BK.Export] SAF 分块写入：异常', err);
+            throw err;
+        });
+    }
+
+    /**
+     * 分块写入缓存文件（startCacheWrite → writeCacheChunk * N → finishCacheWrite + Share）
+     * @param {string} base64Data  完整 base64 数据
+     * @param {string} filename    文件名
+     * @param {string} mime        MIME 类型
+     * @returns {Promise<{method:string,saved?:boolean,shared?:boolean,fileUri?:string}>}
+     */
+    function _exportNativeShareChunked(base64Data, filename, mime) {
+        var plugins = _getPlugins();
+        var SaveFile = plugins.SaveFile;
+        var Share = plugins.Share;
+
+        if (!SaveFile) return Promise.reject(new Error('SaveFile 插件不可用'));
+
+        var totalRawSize = Math.floor(base64Data.length * 3 / 4);
+        console.log('[BK.Export] Cache+Share 分块写入：启动，文件名=' + filename +
+            '，原始大小=' + totalRawSize + '，base64 长度=' + base64Data.length);
+
+        return SaveFile.startCacheWrite({
+            filename: filename,
+            mimeType: _pureMime(mime)
+        }).then(function (startResult) {
+            if (!startResult || !startResult.started) {
+                throw new Error('startCacheWrite 返回未启动');
+            }
+            var sessionId = startResult.sessionId;
+            console.log('[BK.Export] Cache+Share 分块写入：会话已建立，sessionId=' + sessionId);
+
+            var chunks = _splitBase64Chunks(base64Data);
+            console.log('[BK.Export] Cache+Share 分块写入：拆分为 ' + chunks.length + ' 块');
+
+            return chunks.reduce(function (promise, chunk, idx) {
+                return promise.then(function () {
+                    console.log('[BK.Export] Cache writeCacheChunk: ' + (idx + 1) + '/' + chunks.length +
+                        '，base64 长度=' + chunk.length);
+                    return SaveFile.writeCacheChunk({ sessionId: sessionId, chunk: chunk });
+                });
+            }, Promise.resolve()).then(function () {
+                console.log('[BK.Export] Cache+Share 分块写入：所有块写入完成，调用 finishCacheWrite');
+                return SaveFile.finishCacheWrite({ sessionId: sessionId });
+            }).then(function (finishResult) {
+                var fileUri = finishResult && finishResult.uri;
+                var filePath = finishResult && finishResult.path;
+                console.log('[BK.Export] Cache+Share 分块写入：缓存写入完成，uri=' + fileUri + '，path=' + filePath);
+
+                if (!fileUri && !filePath) {
+                    console.log('[BK.Export] Cache+Share 分块写入：无 URI，降级为 cache-only');
+                    return { method: 'cache-only', shared: false, fallback: true };
+                }
+
+                if (!Share) {
+                    console.log('[BK.Export] Cache+Share 分块写入：Share 插件不可用，降级为 cache-only');
+                    return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
+                }
+                return Share.canShare().then(function (can) {
+                    if (!can || !can.value) {
+                        console.log('[BK.Export] Cache+Share 分块写入：Share.canShare() 返回不可分享，降级为 cache-only');
+                        return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
+                    }
+                    console.log('[BK.Export] Cache+Share 分块写入：弹出系统分享面板...');
+                    return Share.share({
+                        title: filename,
+                        dialogTitle: '选择保存位置',
+                        files: [fileUri]
+                    }).then(function () {
+                        console.log('[BK.Export] Cache+Share 分块写入：分享成功');
+                        return { method: 'share', shared: true, fileUri: fileUri };
+                    });
+                });
+            });
+        }).catch(function (err) {
+            console.error('[BK.Export] Cache+Share 分块写入：失败', err);
+            throw err;
+        });
+    }
+
     // ── BOM 控制 ──────────────────────────────────────────────────────────
     function _shouldAddBom(mime, opts) {
         if (opts && typeof opts.bom === 'boolean') return opts.bom;
@@ -121,12 +270,23 @@
 
     // ====================================================================
     //  Android 策略1：SAF SaveFile 插件（ACTION_CREATE_DOCUMENT）
+    //  小文件（base64 ≤ CHUNKED_THRESHOLD）一次性写入，大文件走分块
     // ====================================================================
+    var CHUNKED_THRESHOLD = 5 * 1024 * 1024; // base64 ≤ 5MB 一次性，> 5MB 分块
+
     function _exportNativeSAF(base64Data, filename, mime) {
         var SaveFile = _getPlugins().SaveFile;
         if (!SaveFile) return Promise.reject(new Error('SaveFile 插件不可用'));
 
         console.log('[BK.Export] SAF 策略：启动，文件名=' + filename + '，MIME=' + mime + '，base64 长度=' + base64Data.length);
+
+        // 大文件走分块写入
+        if (base64Data.length > CHUNKED_THRESHOLD) {
+            console.log('[BK.Export] SAF 策略：base64 超过 ' + CHUNKED_THRESHOLD + '，走分块写入');
+            return _exportNativeSAFChunked(base64Data, filename, mime);
+        }
+
+        // 小文件一次性写入
         return SaveFile.save({
             filename: filename,
             data: base64Data,
@@ -147,11 +307,18 @@
 
     // ====================================================================
     //  Android 策略2（降级）：Filesystem.writeFile(CACHE) + Share.share
+    //  小文件走 Filesystem 一次性写入，大文件走 SaveFile 分块写缓存
     // ====================================================================
     function _exportNativeShare(base64Data, filename, mime) {
         var plugins = _getPlugins();
         var Filesystem = plugins.Filesystem;
         var Share = plugins.Share;
+
+        // 大文件走分块写入缓存
+        if (base64Data.length > CHUNKED_THRESHOLD && plugins.SaveFile) {
+            console.log('[BK.Export] Cache+Share 策略：base64 超过 ' + CHUNKED_THRESHOLD + '，走 SaveFile 分块写缓存');
+            return _exportNativeShareChunked(base64Data, filename, mime);
+        }
 
         if (!Filesystem) {
             return Promise.reject(new Error('Filesystem 插件未加载'));
@@ -204,15 +371,13 @@
     function _exportNative(base64Data, filename, mime, opts) {
         opts = opts || {};
 
-        // 大文件跳过 SAF：base64 超过 20MB 时 SAF 可能因内存不足无法弹出对话框
-        var SAF_SIZE_LIMIT = 20 * 1024 * 1024; // 20MB base64 ≈ 15MB 原始文件
-        if (opts.skipSAF || base64Data.length > SAF_SIZE_LIMIT) {
-            console.log('[BK.Export] _exportNative: 跳过 SAF（skipSAF=' + !!opts.skipSAF +
-                '，base64 长度=' + base64Data.length + '，限制=' + SAF_SIZE_LIMIT + '），走 Cache+Share');
+        // skipSAF：批量导出等场景跳过 SAF 对话框，直接走 Cache+Share
+        if (opts.skipSAF) {
+            console.log('[BK.Export] _exportNative: skipSAF=true，走 Cache+Share');
             return _exportNativeShare(base64Data, filename, mime);
         }
 
-        // 优先尝试 SAF（弹系统"另存为"对话框）
+        // 优先尝试 SAF（弹系统"另存为"对话框，大文件自动走分块写入）
         if (_getPlugins().SaveFile) {
             console.log('[BK.Export] _exportNative: 尝试 SAF 策略...');
             return _exportNativeSAF(base64Data, filename, mime).then(function (result) {
@@ -452,6 +617,7 @@
         if (result.saved || result.shared) {
             switch (result.method) {
                 case 'saf':
+                case 'saf-chunked':
                     // SAF 保存成功，系统已给反馈，轻提示即可
                     _toast(successMsg);
                     break;

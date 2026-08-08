@@ -20,7 +20,8 @@
 
   var _actionPanel = null;
   var _currentSelection = null; // { page, text, rects }
-  var _highlightOverlays = {};  // pageEl → [div elements]
+  var _highlightOverlays = {};  // pageNum → [div elements]（以页码为 key，避免 DOM 元素回收后引用失效）
+  var _pendingRenderPages = {};  // pageNum → true（textLayer 尚未就绪时暂存，待渲染完成后补渲）
   var _highlightColor = 'yellow'; // 当前选中颜色
   var _drawer = null;
   var _drawerBody = null;
@@ -563,17 +564,23 @@
   function _renderHighlightOnPage(pageNum) {
     var bookId = S.currentBookId();
     var highlights = S.highlightsByPage(bookId, pageNum);
-    if (!highlights.length) return;
 
     // 找到页面元素
     var pageEl = doc.querySelector('.bk-pdf-page[data-pdf-page="' + pageNum + '"]');
     if (!pageEl) return;
 
     var textLayer = pageEl.querySelector('.bk-pdf-text-layer');
-    if (!textLayer) return;
+    // textLayer 不存在：页面可能正在渲染中，加入待渲队列
+    if (!textLayer) {
+      _pendingRenderPages[pageNum] = true;
+      return;
+    }
 
     // 先清除旧的高亮覆盖层
-    _clearHighlightOverlays(pageEl);
+    _clearHighlightOverlays(pageNum);
+
+    // 没有标记数据时只做清除即可
+    if (!highlights.length) return;
 
     // 创建新覆盖层
     var overlays = [];
@@ -597,17 +604,19 @@
         overlays.push(div);
       }
     }
-    _highlightOverlays[pageEl] = overlays;
+    _highlightOverlays[pageNum] = overlays;
+    // 该页高亮已成功渲染，移除待渲标记
+    delete _pendingRenderPages[pageNum];
   }
 
-  function _clearHighlightOverlays(pageEl) {
-    var old = _highlightOverlays[pageEl];
+  function _clearHighlightOverlays(pageNum) {
+    var old = _highlightOverlays[pageNum];
     if (old) {
       for (var i = 0; i < old.length; i++) {
         if (old[i].parentNode) old[i].parentNode.removeChild(old[i]);
       }
     }
-    _highlightOverlays[pageEl] = [];
+    _highlightOverlays[pageNum] = [];
   }
 
   /**
@@ -630,6 +639,18 @@
   function refreshAfterUndo() {
     renderAllVisibleHighlights();
     if (_drawerVisible) _populateDrawer();
+  }
+
+  /**
+   * 补渲之前因 textLayer 不存在而暂存的高亮
+   * 由 pdf-core.js 在 renderPage 完成后调用
+   */
+  function flushPendingRenders() {
+    var pages = Object.keys(_pendingRenderPages);
+    for (var i = 0; i < pages.length; i++) {
+      var pn = parseInt(pages[i], 10);
+      if (pn > 0) _renderHighlightOnPage(pn);
+    }
   }
 
   // ==================== 高亮列表抽屉 ====================
@@ -902,6 +923,7 @@
       _clearHighlightOverlays(keys[i]);
     }
     _highlightOverlays = {};
+    _pendingRenderPages = {};
     _currentSelection = null;
     // 断开 MutationObserver（防止内存泄漏）
     if (_pageObserver) { _pageObserver.disconnect(); _pageObserver = null; }
@@ -918,6 +940,7 @@
     renderAllVisibleHighlights: renderAllVisibleHighlights,
     renderHighlightOnPage: _renderHighlightOnPage,
     refreshAfterUndo: refreshAfterUndo,
+    flushPendingRenders: flushPendingRenders,
     showNotePanel: _showNotePanel,
     _doHighlight: _doHighlight,
     _hideActionPanel: _hideActionPanel

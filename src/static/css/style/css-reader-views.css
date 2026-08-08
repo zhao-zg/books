@@ -238,6 +238,13 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
     z-index: auto;
     box-shadow: none;
     border-right: 1px solid var(--border, #E5E2DD);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* 折叠态：目录收窄，隐藏内容 */
+  body.bk-split-mode.bk-toc-collapsed #bkTocDrawer {
+    width: 0;
+    border-right: none;
+    overflow: hidden;
   }
   body.bk-split-mode #bkTocOverlay { display: none !important; }
   body.bk-split-mode .bk-toc-drawer-close { display: none; }

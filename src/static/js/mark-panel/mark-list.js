@@ -58,7 +58,7 @@
             li.className = 'bk-mp-item';
             li.setAttribute('data-id', item.id);
 
-            // 颜色条
+            // 颜色条（放在 li 中而非 main 内，左滑时不随 main 一起移动）
             var showBar = opts.showColorBar !== false;
             if (showBar) {
                 var bar = document.createElement('div');
@@ -69,6 +69,17 @@
                 bar.style.background = barColor;
                 li.appendChild(bar);
             }
+
+            // 主区域包装（内容区，左滑时整体移动，遮盖删除按钮）
+            var main = document.createElement('div');
+            main.className = 'bk-mp-item-main';
+            main.style.display = 'flex';
+            main.style.alignItems = 'stretch';
+            main.style.position = 'relative';
+            main.style.zIndex = '1';
+            main.style.background = 'var(--surface, #fff)';
+            main.style.width = '100%';
+            main.style.flex = '1';
 
             // 内容区
             var content = document.createElement('div');
@@ -104,7 +115,8 @@
                 content.appendChild(noteEl);
             }
 
-            li.appendChild(content);
+            main.appendChild(content);
+            li.appendChild(main);
 
             // 预渲染删除按钮（全宽红色背景 + 文字，对齐市面主流风格）
             var del = document.createElement('button');
@@ -127,6 +139,13 @@
          */
         _bindEvents: function (li, item, opts) {
             var delBtn = li.querySelector('.bk-mp-item-delete');
+            // 获取主区域 wrapper（内容区），左滑时只移动它，不移动 li
+            var swipeTarget = li.querySelector('.bk-mp-item-main');
+            // 设置滑动目标的 transform
+            function setSwipeTransform(tx, transition) {
+                if (transition !== undefined) swipeTarget.style.transition = transition;
+                swipeTarget.style.transform = 'translateX(' + tx + 'px)';
+            }
 
             // 点击跳转
             li.addEventListener('click', function (e) {
@@ -179,8 +198,7 @@
                         // 从 -SWIPE_FULL 位置右滑，带阻尼
                         var raw = -SWIPE_FULL + rdx;
                         var tx = raw < 0 ? raw * 0.6 : 0;  // 超出右边界带阻尼
-                        li.style.transform = 'translateX(' + tx + 'px)';
-                        li.style.transition = 'none';
+                        setSwipeTransform(tx, 'none');
                     }
                     return;
                 }
@@ -199,8 +217,7 @@
                         var over = currentDx + SWIPE_FULL;
                         currentDx = -SWIPE_FULL + over * 0.3;
                     }
-                    li.style.transform = 'translateX(' + currentDx + 'px)';
-                    li.style.transition = 'none';
+                    setSwipeTransform(currentDx, 'none');
                 }
             }, { passive: true });
 
@@ -212,22 +229,20 @@
                         if (swipeReturnDx > SWIPE_THRESHOLD) {
                             MarkList._snapBack(li);
                         } else {
-                            li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
-                            li.style.transform = 'translateX(' + (-SWIPE_FULL) + 'px)';
+                            setSwipeTransform(-SWIPE_FULL, 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)');
                         }
                     }
                     swiping = false;
                     return;
                 }
-                li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+                var transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
                 if (currentDx < -SWIPE_AUTO_DELETE) {
                     // 全滑直接删除（快捷操作）
                     li._swiped = false;
-                    li.style.transition = 'transform 0.15s ease';
-                    li.style.transform = 'translateX(0)';
+                    setSwipeTransform(0, 'transform 0.15s ease');
                     if (opts.onDelete) opts.onDelete(item, li);
                 } else if (currentDx < -SWIPE_THRESHOLD) {
-                    li.style.transform = 'translateX(' + (-SWIPE_FULL) + 'px)';
+                    setSwipeTransform(-SWIPE_FULL, transition);
                     li._swiped = true;
                 } else {
                     MarkList._snapBack(li);
@@ -247,8 +262,11 @@
          * 收回左滑状态
          */
         _snapBack: function (li) {
-            li.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
-            li.style.transform = 'translateX(0)';
+            var main = li.querySelector('.bk-mp-item-main');
+            if (main) {
+                main.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+                main.style.transform = 'translateX(0)';
+            }
             li._swiped = false;
         },
 
@@ -260,7 +278,7 @@
             if (!h) { li.remove(); return; }
             li.style.maxHeight = h + 'px';
             li.style.overflow = 'hidden';
-            li.style.transition = 'max-height 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease, padding 0.25s ease';
+            li.style.transition = 'max-height 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.2s ease, padding 0.25s ease, border-width 0.25s ease';
             // force reflow
             li.offsetHeight;
             li.style.maxHeight = '0';
@@ -268,7 +286,22 @@
             li.style.paddingTop = '0';
             li.style.paddingBottom = '0';
             li.style.borderWidth = '0';
-            setTimeout(function () { li.remove(); }, 260);
+            setTimeout(function () {
+                li.remove();
+                // 删空最后一项后显示空状态
+                var list = li.closest('.bk-mp-list');
+                if (list && !list.querySelector('.bk-mp-item')) {
+                    var emptyEl = list.querySelector('.bk-mp-empty');
+                    if (!emptyEl) {
+                        emptyEl = document.createElement('div');
+                        emptyEl.className = 'bk-mp-empty';
+                        list.appendChild(emptyEl);
+                    }
+                    var emptyText = list.getAttribute('data-empty-text') || '暂无内容';
+                    emptyEl.textContent = emptyText;
+                    emptyEl.style.display = '';
+                }
+            }, 260);
         },
 
         /**
@@ -277,9 +310,12 @@
          * @param {Function} undoFn 撤销回调
          */
         showUndoToast: function (msg, undoFn) {
-            // 清除已有的 Toast
+            // 清除已有的 Toast 及其定时器
             var existing = document.querySelector('.bk-mp-undo-toast');
-            if (existing) existing.remove();
+            if (existing) {
+                if (existing._dismissTimer) clearTimeout(existing._dismissTimer);
+                existing.remove();
+            }
 
             var toast = document.createElement('div');
             toast.className = 'bk-mp-undo-toast';
@@ -303,6 +339,7 @@
 
             document.body.appendChild(toast);
             timer = setTimeout(dismiss, UNDO_TIMEOUT);
+            toast._dismissTimer = timer;
             // 点击 Toast 其他区域也关闭
             toast.addEventListener('click', function (e) {
                 if (!e.target.closest('.bk-mp-undo-btn')) dismiss();

@@ -425,12 +425,17 @@
                         MarkPanel._scheduleAutoClose();
                     },
                     onDelete: function (item, li) {
+                        if (li._deleting) return;
+                        li._deleting = true;
                         // 保存快照用于撤销恢复
                         var snapshot = Object.assign({}, item);
                         adapter.remove(item.id).then(function () {
                             win.BK.MarkList.removeItem(li);
-                            MarkPanel._fireMarksChanged();
-                            MarkPanel._updateBookmarkFooter();
+                            // 延迟触发全局刷新，避免截断删除动画
+                            setTimeout(function () {
+                                MarkPanel._fireMarksChanged();
+                                MarkPanel._updateBookmarkFooter();
+                            }, 280);
                             win.BK.MarkList.showUndoToast('书签已删除', function () {
                                 // 撤销：重新添加
                                 (adapter.addFromSnapshot || adapter.add)(snapshot).then(function () {
@@ -464,20 +469,34 @@
                 btn.textContent = hasBookmark ? '移除当前页书签' : '添加当前页书签';
                 btn.addEventListener('click', function () {
                     if (hasBookmark) {
-                        // 删除当前页书签：toggle
-                        var toggleP = adapter.toggleCurrentPage ? adapter.toggleCurrentPage() : Promise.resolve();
-                        toggleP.then(function () {
-                            MarkPanel._fireMarksChanged();
-                            MarkPanel._loadBookmarks();
-                            win.BK.MarkList.showUndoToast('书签已删除', function () {
-                                // 撤销：重新添加当前页书签
-                                var titleInfo = { bookTitle: MarkPanel._bookTitle || '' };
-                                if (MarkPanel._readerType === 'epub') {
-                                    titleInfo.chapterTitle = (win.BKRenderer && win.BKRenderer._currentChapterTitle) || '';
-                                }
-                                adapter.add(titleInfo).then(function () {
-                                    MarkPanel._fireMarksChanged();
-                                    MarkPanel._loadBookmarks();
+                        // 删除当前页书签：先获取完整快照，再 toggle
+                        var snapshotPromise = adapter.getItems ? adapter.getItems().then(function (items) {
+                            var curr = items && items.filter(function (it) { return adapter.hasCurrentPage ? true : it.id; });
+                            return (curr && curr[0]) ? Object.assign({}, curr[0]) : null;
+                        }) : Promise.resolve(null);
+
+                        snapshotPromise.then(function (snapshot) {
+                            var toggleP = adapter.toggleCurrentPage ? adapter.toggleCurrentPage() : Promise.resolve();
+                            toggleP.then(function () {
+                                MarkPanel._fireMarksChanged();
+                                MarkPanel._loadBookmarks();
+                                win.BK.MarkList.showUndoToast('书签已删除', function () {
+                                    // 撤销：优先用快照恢复，否则用 titleInfo 重建
+                                    if (snapshot) {
+                                        (adapter.addFromSnapshot || adapter.add)(snapshot).then(function () {
+                                            MarkPanel._fireMarksChanged();
+                                            MarkPanel._loadBookmarks();
+                                        });
+                                    } else {
+                                        var titleInfo = { bookTitle: MarkPanel._bookTitle || '' };
+                                        if (MarkPanel._readerType === 'epub') {
+                                            titleInfo.chapterTitle = (win.BKRenderer && win.BKRenderer._currentChapterTitle) || '';
+                                        }
+                                        adapter.add(titleInfo).then(function () {
+                                            MarkPanel._fireMarksChanged();
+                                            MarkPanel._loadBookmarks();
+                                        });
+                                    }
                                 });
                             });
                         });
@@ -666,18 +685,23 @@
                     MarkPanel._scheduleAutoClose();
                 },
                 onDelete: function (item, li) {
+                    if (li._deleting) return;
+                    li._deleting = true;
                     var snapshot = Object.assign({}, item);
                     adapter.remove(item.id).then(function () {
                         win.BK.MarkList.removeItem(li);
                         // 从缓存中移除
                         MarkPanel._allMarks = (MarkPanel._allMarks || []).filter(function (m) { return m.id !== item.id; });
-                        MarkPanel._fireMarksChanged();
-                        MarkPanel._updateMarkFooter(MarkPanel._allMarks);
+                        // 延迟触发全局刷新，避免截断删除动画
+                        setTimeout(function () {
+                            MarkPanel._fireMarksChanged();
+                            MarkPanel._updateMarkFooter(MarkPanel._allMarks);
+                        }, 280);
                         win.BK.MarkList.showUndoToast('标记已删除', function () {
                             // 撤销：重新添加
                             (adapter.addFromSnapshot || adapter.add)(snapshot).then(function () {
                                 MarkPanel._fireMarksChanged();
-                                MarkPanel._renderMarks();
+                                MarkPanel._loadMarks();
                             });
                         });
                     });
@@ -756,7 +780,7 @@
                     win.BK.MarkList.showUndoToast('标记已删除', function () {
                         (MarkPanel._adapter.mark.addFromSnapshot || MarkPanel._adapter.mark.add)(snapshot).then(function () {
                             MarkPanel._fireMarksChanged();
-                            MarkPanel._renderMarks();
+                            MarkPanel._loadMarks();
                         });
                     });
                 });

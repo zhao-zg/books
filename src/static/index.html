@@ -134,6 +134,8 @@
     <script>(function(){
         var _splashDone=false;
         var _windowLoaded=false;
+        var _dataReady=false;
+        var _pageRendered=false;
         function _dismissSplash(){
             if(_splashDone)return;_splashDone=true;
             var el=document.getElementById('bkSplash');
@@ -141,17 +143,22 @@
             el.classList.add('bk-splash-out');
             setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);},480);
         }
-        // 等 window.load + 数据就绪后再消失
-        function _tryDismiss(){
-            if(!_windowLoaded)return;
-            if(window._bkDataReady){
-                window._bkDataReady.then(_dismissSplash).catch(_dismissSplash);
-            } else {
-                _dismissSplash();
-            }
+        function _checkDismiss(){
+            if(_splashDone)return;
+            // 数据就绪 + 首页渲染完成 → 才消失（避免加载页早于内容消失导致闪白）
+            if(_dataReady&&_pageRendered&&_windowLoaded) _dismissSplash();
         }
-        if(document.readyState==='complete'){_windowLoaded=true;_tryDismiss();}
-        else window.addEventListener('load',function(){_windowLoaded=true;_tryDismiss();});
+        // 等 window.load
+        if(document.readyState==='complete'){_windowLoaded=true;} 
+        else window.addEventListener('load',function(){_windowLoaded=true;_checkDismiss();});
+        // 等数据就绪
+        if(window._bkDataReady){
+            window._bkDataReady.then(function(){_dataReady=true;_checkDismiss();}).catch(function(){_dataReady=true;_checkDismiss();});
+        } else {_dataReady=true;}
+        // 等首屏页面渲染完成（renderer 派发 bk-page-rendered 事件）
+        document.addEventListener('bk-page-rendered',function(){
+            _pageRendered=true;_checkDismiss();
+        },{once:true});
         // 兜底：最多等 6 秒
         setTimeout(_dismissSplash,6000);
         // 供 renderer.js 数据就绪后调用

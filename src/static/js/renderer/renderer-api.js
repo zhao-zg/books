@@ -13,6 +13,15 @@
     try { _updateTopReadingProgress(); } catch(e) {}
   }
 
+  // 通知加载页：首屏页面渲染完成，可以消失闪屏了
+  // （Splash 等 _bkDataReady + bk-page-rendered 双条件满足后才消失，避免闪白）
+  var _firstRenderFired = false;
+  function _firePageRendered() {
+    if (_firstRenderFired) return;
+    _firstRenderFired = true;
+    try { document.dispatchEvent(new CustomEvent('bk-page-rendered')); } catch (e) {}
+  }
+
   var BKRenderer = {
 
     // zl-html 渲染器激活标志
@@ -40,11 +49,13 @@
           _renderCityHome(homeView);
           _bindCityEvents(homeView);
           _registerCityGlobalHandlers();
-        }).catch(function () {});
+          _firePageRendered();
+        }).catch(function () { _firePageRendered(); });
       } else {
         _renderCityHome(homeView);
         _bindCityEvents(homeView);
         _registerCityGlobalHandlers();
+        _firePageRendered();
       }
     },
 
@@ -79,13 +90,15 @@
       }
 
       if (!_zlDmReady) {
-        _ensureDmInit().then(function () { render(); }).catch(function () {
+        _ensureDmInit().then(function () { render(); _firePageRendered(); }).catch(function () {
           _renderCityHome(homeView);
           _bindCityEvents(homeView);
           _registerCityGlobalHandlers();
+          _firePageRendered();
         });
       } else {
         render();
+        _firePageRendered();
       }
     },
 
@@ -269,6 +282,7 @@
 
       // 异步填充统计卡
       _fillSettingsStats();
+      _firePageRendered();
     },
 
     // ── 书架页（新增模块） ────────────────────────────────────────
@@ -532,6 +546,7 @@
           _renderShelfList();
         }).catch(function () {});
       }
+      _firePageRendered();
     },
 
     renderChapterList: function (bookId) {
@@ -627,11 +642,13 @@
 
         // 初始化 TTS
         if (win.BKSpeech && win.BKSpeech.cancel) win.BKSpeech.cancel();
+        _firePageRendered();
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
           '<div class="bk-error-text">加载失败: ' + escText(err.message) + '</div>' +
           '</div>';
+        _firePageRendered();
       });
     },
 
@@ -798,11 +815,13 @@
         // （_carouselChapterNum/_carouselUniqueChapters 在 _installCarouselSwipe 内才赋值，
         //   早于此刻调用会因变量为 null 被清零；bmScrollY>0 的恢复滚动同步由 rAF 内调用处理）
         try { _updateTopReadingProgress(); } catch(e) {}
+        _firePageRendered();
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
           '<div class="bk-error-text">加载失败: ' + escText(err.message) + '</div>' +
           '</div>';
+        _firePageRendered();
       });
     },
 

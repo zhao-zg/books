@@ -225,15 +225,17 @@
       _trackActivePage(el);
 
       // 渲染已保存的高亮标注（仅当前页，精准渲染而非全量）
+      // 同步渲染：此时 textLayer 刚渲染完成一定存在，无需延迟
       var pageNum = parseInt(el.getAttribute('data-pdf-page'), 10) || 0;
       if (pageNum > 0 && win.BKPdf._internal.highlight) {
         var hlMod = win.BKPdf._internal.highlight;
         var fn = hlMod.renderHighlightOnPage || hlMod.renderAllVisibleHighlights;
         if (fn) {
-          setTimeout(function () {
-            try { fn.call(hlMod, pageNum); } catch (e) {}
-          }, 100);
+          try { fn.call(hlMod, pageNum); } catch (e) {}
         }
+        // 补渲之前因 textLayer 不存在而暂存的其他页面高亮
+        var flushFn = hlMod.flushPendingRenders;
+        if (flushFn) flushFn.call(hlMod);
       }
 
       // 方案 G 兜底：容器宽度抖动自动重渲染

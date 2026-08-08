@@ -189,6 +189,17 @@
     background: var(--nav-hover, #ECEAE5);
 }
 
+/* 主区域 wrapper（内容区），左滑时整体移动 */
+.bk-mp-item-main {
+    display: flex;
+    align-items: stretch;
+    position: relative;
+    z-index: 1;
+    background: var(--surface, #fff);
+    flex: 1;
+    min-width: 0;
+}
+
 /* 左侧颜色条 */
 .bk-mp-color-bar {
     width: 4px;
@@ -196,6 +207,8 @@
     border-radius: 2px;
     flex-shrink: 0;
     align-self: stretch;
+    position: relative;
+    z-index: 2;
 }
 
 /* 内容区 */
@@ -517,6 +530,9 @@ textarea.bk-mp-edit-input {
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     animation: bk-mp-toast-in 0.25s cubic-bezier(0.25, 1, 0.5, 1);
     white-space: nowrap;
+    max-width: 90vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .bk-mp-undo-toast.bk-mp-toast-out {
     animation: bk-mp-toast-out 0.2s ease forwards;

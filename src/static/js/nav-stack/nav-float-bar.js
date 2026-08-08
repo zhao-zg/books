@@ -177,11 +177,11 @@
         _bottomEl.addEventListener('click', function(e) {
             var t = e.target;
             while (t && t !== _bottomEl) {
-                // 目录按钮 → 打开统一标记面板（目录 Tab）；双栏模式下滚动 TOC 到当前章
+                // 目录按钮 → 打开统一标记面板（目录 Tab）；双栏模式下切换目录展开/折叠
                 if (t.classList && t.classList.contains('bk-float-bottom-btn') && t.hasAttribute('data-toc-drawer')) {
                     if (document.body.classList.contains('bk-split-mode')) {
-                        var cur = document.querySelector('#bkTocDrawerBody .bk-toc-current');
-                        if (cur) cur.scrollIntoView({ block: 'center', behavior: 'auto' });
+                        // 双栏模式：点击切换目录折叠/展开
+                        document.dispatchEvent(new CustomEvent('bk:split-toc-toggle'));
                         return;
                     }
                     // 桥接到 MarkPanel 目录 Tab
