@@ -338,7 +338,7 @@
 
                 li.addEventListener('click', function () {
                     MarkPanel._adapter.toc.navigate(item);
-                    MarkPanel._scheduleAutoClose();
+                    MarkPanel.close();
                 });
 
                 ul.appendChild(li);
@@ -379,7 +379,7 @@
 
                 row.addEventListener('click', function () {
                     MarkPanel._adapter.toc.navigate(item);
-                    MarkPanel._scheduleAutoClose();
+                    MarkPanel.close();
                     // 跳转后延迟刷新目录高亮
                     setTimeout(function () { MarkPanel.markDirty('toc'); MarkPanel._loadTabData('toc'); }, 300);
                 });
@@ -422,7 +422,7 @@
                     emptyText: '暂无书签',
                     onNavigate: function (item) {
                         adapter.navigate(item);
-                        MarkPanel._scheduleAutoClose();
+                        MarkPanel.close();
                     },
                     onDelete: function (item, li) {
                         if (li._deleting) return;
@@ -682,7 +682,7 @@
                 emptyText: '暂无标记',
                 onNavigate: function (item) {
                     adapter.navigate(item);
-                    MarkPanel._scheduleAutoClose();
+                    MarkPanel.close();
                 },
                 onDelete: function (item, li) {
                     if (li._deleting) return;
