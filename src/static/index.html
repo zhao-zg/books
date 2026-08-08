@@ -604,6 +604,12 @@
                     var lastPageIsMain=!lastHash||lastHash==='#'||lastHash==='#/';
                     console.log('[页面记忆] lastHash="' + lastHash + '" lastPageIsMain=' + lastPageIsMain + ' timeDiff=' + timeDiff);
                     if(!lastPageIsMain){
+                        // ★ 降级：最后记忆是"我的"页面时，恢复到书架而非"我的"
+                        var routePart = lastHash.replace(/^#\/?/, '').split('/')[0];
+                        if (routePart === 'my' || routePart === 'me') {
+                            console.log('[页面记忆] 最后页面是"我的"，降级恢复至书架');
+                            lastHash = '#/shelf';
+                        }
                         sessionStorage.setItem('bk_has_restored','true');
                         sessionStorage.setItem('bk_restore_scroll','true');
                         if(window.BK&&window.BK.backStack&&window.BK.backStack.skipNext)window.BK.backStack.skipNext();

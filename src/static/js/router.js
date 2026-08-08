@@ -109,6 +109,12 @@
       if (!initialPath) {
         var saved = _getLastRoute();
         if (saved) {
+          // ★ 降级：最后路由是"我的"时，恢复到书架而非"我的"
+          var savedRoute = saved.split('/')[0];
+          if (savedRoute === 'my' || savedRoute === 'me') {
+            console.log('[Router] 最后路由是"我的"，降级恢复至书架');
+            saved = 'shelf';
+          }
           console.log('[Router] 恢复上次路由: "' + saved + '"');
           // 用 replaceState 恢复 URL，不新增历史条目
           try { win.history.replaceState(null, '', win.location.pathname + '#/' + saved); } catch(e) {}
