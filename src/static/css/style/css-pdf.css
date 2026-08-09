@@ -2306,13 +2306,15 @@ body.bk-pdf-reading {
   bottom: -3px;
 }
 
-/* 批注徽章（行内） */
+/* 批注徽章（行内）—— 重置父级标记样式，徽章不属于内容 */
 .bk-pdf-reflow-note-badge {
   font-size: 14px;
   cursor: pointer;
   vertical-align: middle;
   margin-left: 2px;
   -webkit-tap-highlight-color: transparent;
+  background: none !important;
+  text-decoration: none !important;
 }
 
 /* 图片容器 */
