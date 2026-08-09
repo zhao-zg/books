@@ -45,6 +45,11 @@
 [data-theme="dark"] .bk-highlight[data-color="blue"]   { background: rgba(90, 139, 168, 0.5) !important; }
 [data-theme="dark"] .bk-highlight[data-color="pink"]   { background: rgba(196, 120, 122, 0.5) !important; }
 
+/* 下划线+批注共存：波浪线下移避开 text-decoration underline */
+.bk-highlight[data-underline="true"][data-note="true"]::after {
+  bottom: -3px;
+}
+
 /* ── 选区菜单（文本选中后弹出的颜色选择浮窗） ──────────────────── */
 .hl-menu { display: none; flex-direction: column; gap: 5px; padding: 8px; background: var(--card-bg, #FFFFFF); border-radius: 16px; box-shadow: none; border: 1px solid var(--border, #E5E2DD); z-index: 9999; min-width: min(220px, calc(100vw - 24px)); max-width: min(340px, calc(100vw - 24px)); -webkit-user-select: none; user-select: none; transition: opacity .15s ease; }
 .hl-menu-row { display: flex; gap: 6px; flex-wrap: nowrap; align-items: center; width: 100%; }
