@@ -88,7 +88,10 @@
 
   function onHashChange() {
     console.log('[Router] hashchange hash="' + win.location.hash + '" __bkExiting=' + !!win.__bkExiting);
-    if (win.__bkExiting) return;
+    // ★ __bkExiting 不再阻断路由分发：
+    //    退出流程的 history.back() 会回退历史栈中的正向导航条目，
+    //    如果拦截 hashchange，页面会卡死在中间状态。
+    //    退出防重入由 handleBackCommon 的 __bkHandlingBack + 50ms 防抖保障。
     if (_skipNextDispatch) {
       _skipNextDispatch = false;
       console.log('[Router] hashchange skipped (ghost entry)');

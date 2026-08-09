@@ -135,6 +135,11 @@
                         } else if (parts.length >= 1) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                         }
+                        // ★ PWA 退出流程：
+                        //    window.close() 在大多数 PWA 中无效，只能靠 history.back() 退出。
+                        //    但 history.back() 会回退历史栈中正向导航的条目，触发 hashchange。
+                        //    退出标志仅用于防止重入（handleBackCommon + 50ms 防抖），
+                        //    不应阻断路由分发，否则回退产生的 hashchange 被吞掉，页面卡死。
                         window.__bkExiting = true;
                         window.close();
                         setTimeout(function() {
