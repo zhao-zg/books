@@ -146,8 +146,16 @@
       } else {
         // 跨层级跳转
         if (win.BK && win.BK.backStack && win.BK.backStack.skipNext) win.BK.backStack.skipNext();
-        // ★ 标记正向导航时间戳，防止 PWA 场景下 popstate 误触发 backStack fallback
-        win.__bkLastNavigateTs = Date.now();
+        // ★ 标记正向导航进行中，防止 PWA 场景下 popstate 误触发 backStack fallback
+        //    back-stack.js 的 popstate 监听器会消费此标记并跳过 fallback
+        //    安全网：5秒后自动清除，防止标记永远残留
+        win.__bkForwardNavPending = true;
+        win.__bkForwardNavTs = Date.now();
+        setTimeout(function() {
+          if (win.__bkForwardNavPending && win.__bkForwardNavTs && (Date.now() - win.__bkForwardNavTs >= 5000)) {
+            win.__bkForwardNavPending = false;
+          }
+        }, 5000);
         win.location.hash = newHash;
       }
     },

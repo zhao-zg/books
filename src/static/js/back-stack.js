@@ -21,9 +21,9 @@
     var _fallback = null;
     var _skipCount = 0;
 
-    // 正向导航抑制窗口（ms）：router.js 的 navigate 设置 __bkLastNavigateTs，
-    // 若 popstate 在此窗口内到达，则视为正向导航的副作用，跳过 fallback
-    var _NAVIGATE_SUPPRESS_MS = 300;
+    // 正向导航抑制：router.js 的 navigate 设置 __bkForwardNavPending，
+    // 若 popstate 到达时该标记为 true，说明是正向导航的副作用，跳过 fallback 并消费标记
+    // （__bkForwardNavTs + 5s 安全网自动清除标记，见 router.js）
 
     // popstate 监听器：浏览器返回键/手势触发时，执行栈顶回调
     window.addEventListener('popstate', function () {
@@ -39,11 +39,11 @@
                 }
             }
         } else if (_fallback) {
-            // ★ 正向导航抑制：router.js navigate() 设置 __bkLastNavigateTs，
-            // 若 popstate 在窗口内到达，说明是 location.hash 赋值产生的副作用而非用户主动返回
-            var navTs = window.__bkLastNavigateTs || 0;
-            if (navTs && (Date.now() - navTs) < _NAVIGATE_SUPPRESS_MS) {
-                console.log('[BackStack] popstate suppressed (forward navigate ' + (Date.now() - navTs) + 'ms ago)');
+            // ★ 正向导航抑制：若 __bkForwardNavPending 为 true，
+            // 说明此 popstate 是 navigate() 的副作用而非用户主动返回
+            if (window.__bkForwardNavPending) {
+                window.__bkForwardNavPending = false;
+                console.log('[BackStack] popstate suppressed (forward navigate pending)');
                 return;
             }
             try { _fallback(); } catch (e) {
