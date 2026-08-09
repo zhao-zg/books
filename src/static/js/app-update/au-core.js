@@ -15,12 +15,19 @@
             if (!this.isCapacitor) return;
             console.log('[更新] 初始化更新模块');
             this.cleanupOldApks();
-            this._configReady = this.loadConfig();
-            try {
-                if (localStorage.getItem('bk_auto_check_update') === '1') {
-                    setTimeout(function() { AppUpdate.silentCheckUpdate(); }, 2000);
-                }
-            } catch(e) {}
+            // ★ 未开启自动检查更新时，跳过 loadConfig 网络请求
+            var _shouldNetwork = window.BK && window.BK.shouldAllowNetworkRequest && window.BK.shouldAllowNetworkRequest();
+            if (_shouldNetwork) {
+                this._configReady = this.loadConfig();
+                var self = this;
+                setTimeout(function() { AppUpdate.silentCheckUpdate(); }, 2000);
+            } else {
+                // 尝试从缓存读取版本号，不发网络请求
+                var cached = null;
+                try { cached = localStorage.getItem('bk_apk_version'); } catch(e) {}
+                if (cached) this.config.currentVersion = cached;
+                this._configReady = Promise.resolve();
+            }
         },
 
         cleanupOldApks: async function() {

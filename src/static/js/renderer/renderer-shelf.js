@@ -473,8 +473,12 @@
 
   // ── 导出书籍：格式选择弹框 ──────────────────────────────────────────
   function _showExportBookMenu(bookId, bookTitle) {
-    // 判断可用格式：PDF 书仅导出 PDF；其他书支持 TXT/MD/EPUB
+    // 获取书籍原始导入格式，用于默认选中
+    var bookObj = _findBookById(bookId);
+    var originalFormat = bookObj && bookObj.format ? bookObj.format : '';
+    // 判断是否为 PDF 书
     var isPdf = _isPdfBook(bookId);
+
     var html = '<div class="bk-dialog" style="width:min(320px,calc(100vw - 40px))">' +
       '<div class="bk-dialog-title">导出《' + escText(bookTitle) + '》</div>' +
       '<div class="bk-dialog-body" style="padding:12px 16px">';
@@ -482,14 +486,20 @@
     if (isPdf) {
       // 检查是否有标注数据
       var hasAnnotations = _pdfBookHasAnnotations(bookId);
-      html += '<button class="bk-ns-export-btn" data-format="pdf"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出原始 PDF</span></button>';
+      html += '<button class="bk-ns-export-btn' + (originalFormat === 'pdf' || !originalFormat ? ' bk-ns-export-selected' : '') + '" data-format="pdf"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出原始 PDF</span></button>';
       if (hasAnnotations) {
-        html += '<button class="bk-ns-export-btn" data-format="pdf_annotated"><span class="bk-row-icon">🖍</span><span class="bk-row-label">导出含标注 PDF</span><span class="bk-row-hint" style="font-size:11px;color:#888;margin-left:6px">高亮/批注/书签</span></button>';
+        html += '<button class="bk-ns-export-btn' + (originalFormat === 'pdf_annotated' ? ' bk-ns-export-selected' : '') + '" data-format="pdf_annotated"><span class="bk-row-icon">🖍</span><span class="bk-row-label">导出含标注 PDF</span><span class="bk-row-hint" style="font-size:11px;color:#888;margin-left:6px">高亮/批注/书签</span></button>';
       }
     } else {
-      html += '<button class="bk-ns-export-btn" data-format="txt"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出为 TXT</span></button>';
-      html += '<button class="bk-ns-export-btn" data-format="md"><span class="bk-row-icon">📑</span><span class="bk-row-label">导出为 Markdown</span></button>';
-      html += '<button class="bk-ns-export-btn" data-format="epub"><span class="bk-row-icon">📚</span><span class="bk-row-label">导出为 EPUB</span></button>';
+      var fmtHint = function(fmt) {
+        return originalFormat === fmt ? '<span class="bk-row-hint" style="font-size:11px;color:#888;margin-left:6px">原始格式</span>' : '';
+      };
+      var fmtCls = function(fmt) {
+        return originalFormat === fmt ? ' bk-ns-export-selected' : '';
+      };
+      html += '<button class="bk-ns-export-btn' + fmtCls('txt') + '" data-format="txt"><span class="bk-row-icon">📄</span><span class="bk-row-label">导出为 TXT</span>' + fmtHint('txt') + '</button>';
+      html += '<button class="bk-ns-export-btn' + fmtCls('md') + '" data-format="md"><span class="bk-row-icon">📑</span><span class="bk-row-label">导出为 Markdown</span>' + fmtHint('md') + '</button>';
+      html += '<button class="bk-ns-export-btn' + fmtCls('epub') + '" data-format="epub"><span class="bk-row-icon">📚</span><span class="bk-row-label">导出为 EPUB</span>' + fmtHint('epub') + '</button>';
     }
 
     html += '<div class="bk-ns-export-divider"></div>';

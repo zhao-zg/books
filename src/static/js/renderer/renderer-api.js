@@ -230,10 +230,25 @@
               if (apkSt) apkSt.style.display = '';
               if (win.BKDownloadApk) win.BKDownloadApk(apkSt);
             } else if (action === 'check-update') {
-              if (isCapacitor) {
-                if (win.AppUpdate && win.AppUpdate.showCloudflareUpdateDialog) win.AppUpdate.showCloudflareUpdateDialog();
-              } else if (win.AppUpdate && win.AppUpdate.showPwaUpdateDialog) {
-                win.AppUpdate.showPwaUpdateDialog();
+              // ★ 手动检查更新——临时允许网络请求
+              var _doCheck = function() {
+                if (isCapacitor) {
+                  if (win.AppUpdate && win.AppUpdate.showCloudflareUpdateDialog) win.AppUpdate.showCloudflareUpdateDialog();
+                } else if (win.AppUpdate && win.AppUpdate.showPwaUpdateDialog) {
+                  win.AppUpdate.showPwaUpdateDialog();
+                }
+              };
+              if (win.BK && win.BK.withNetworkAllowed) {
+                win.BK.withNetworkAllowed(function() {
+                  // 先静默检查，再弹框
+                  if (win.AppUpdate && win.AppUpdate.silentCheckUpdate) {
+                    return win.AppUpdate.silentCheckUpdate().then(_doCheck).catch(_doCheck);
+                  }
+                  _doCheck();
+                  return Promise.resolve();
+                });
+              } else {
+                _doCheck();
               }
             } else if (action === 'guide') {
               if (win.showGuideDialog) win.showGuideDialog();

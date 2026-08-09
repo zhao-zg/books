@@ -419,6 +419,21 @@
         };
     })();
 
+    // ── 网络请求门控：关闭自动检查更新时，启动不联网 ──
+    window.BK = window.BK || {};
+    window.BK._forceNetwork = false;
+    window.BK.shouldAllowNetworkRequest = function() {
+        if (window.BK._forceNetwork) return true;
+        try { return localStorage.getItem('bk_auto_check_update') === '1'; } catch(e) { return false; }
+    };
+    window.BK.withNetworkAllowed = async function(fn) {
+        // ⚠️ 并发注意：全局 _forceNetwork 在 finally 中重置，并发调用可能提前重置
+        // 当前使用场景为单次操作（手动检查更新），实际安全；如需并发请改用计数器
+        window.BK._forceNetwork = true;
+        try { return await fn(); }
+        finally { window.BK._forceNetwork = false; }
+    };
+
     // ── 应用前后台生命周期管理器：尽早启动 ──────────────────────────────────
     // 监听 Capacitor App.appStateChange / visibilitychange / pageshow，
     // 切回前台时主动 forced reflow + 刷新可见区域（PDF/Carousel 等），消除白屏
@@ -752,6 +767,8 @@
     function checkPwaStartupCache(){
         if(window.__bkUpdateInProgress)return;
         if(!BK_ENV.isStandalone||BK_ENV.isCapacitorApp||!('caches' in window))return;
+        // ★ 未开启自动检查更新时，跳过网络请求
+        if(!(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()))return;
         var storedVersion=null;try{storedVersion=localStorage.getItem('bk_pwa_version');}catch(e){}
         fetch('./version.json?t='+Date.now(),{cache:'no-store'})
             .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
@@ -787,6 +804,8 @@
         var _isNativeApp=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
         if(_isNativeApp){
             if('caches' in window){
+                // ★ 未开启自动检查更新时，跳过网络请求
+                if(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()){
                 var _capVer=null;try{_capVer=localStorage.getItem('bk_pwa_version');}catch(e){}
                 fetch('./version.json?t='+Date.now(),{cache:'no-store'})
                     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
@@ -800,10 +819,12 @@
                         }).catch(function(){});
                     })
                     .catch(function(){/* 离线时跳过 */});
+                }
             }
         } else {
         navigator.serviceWorker.register('./sw.js').then(function(reg){
-            reg.update().catch(function(){});
+            // ★ 仅在开启自动检查更新时主动检查 SW 更新
+            if(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()) reg.update().catch(function(){});
             reg.addEventListener('updatefound',function(){
                 var nw=reg.installing;
                 if(nw)nw.addEventListener('statechange',function(){

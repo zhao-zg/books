@@ -79,6 +79,8 @@
    */
   function _silentCheckUpdate() {
     if (win.__BK_LOCAL_DEV__) return;
+    // ★ 未开启自动检查更新时，跳过网络请求
+    if (!(win.BK && win.BK.shouldAllowNetworkRequest && win.BK.shouldAllowNetworkRequest())) return;
     var url = buildUrl('manifest.json?t=' + Date.now());
     fetch(url, { cache: 'no-cache' })
       .then(function (r) { return r.ok ? r.json() : null; })

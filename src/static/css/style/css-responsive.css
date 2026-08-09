@@ -491,6 +491,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 .bk-ns-export-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 8px; border: none; border-bottom: 1px solid var(--border, #E5E2DD); background: none; color: var(--text); font: inherit; font-size: var(--text-base); cursor: pointer; text-align: left; }
 .bk-ns-export-btn:last-child { border-bottom: none; }
 .bk-ns-export-btn:active { background: var(--nav-hover, rgba(0,0,0,.04)); }
+.bk-ns-export-selected { background: var(--nav-hover, rgba(0,0,0,.04)); border-left: 3px solid var(--accent, #8B7355); }
 
 /* 按书筛选Tab栏 */
 .bk-ns-tabs { display: flex; gap: 6px; padding: 4px 12px 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; align-items: center; }

@@ -133,6 +133,8 @@
         setTimeout(function probeSponsor() {
             var sponsorEnabled = !(window.BK_SERVERS && window.BK_SERVERS.sponsor_enabled === false);
             if (!sponsorEnabled) return;
+            // ★ 未开启自动检查更新时，跳过网络请求
+            if (!(window.BK && window.BK.shouldAllowNetworkRequest && window.BK.shouldAllowNetworkRequest())) return;
             try {
                 var firstUse = parseInt(localStorage.getItem('bk_first_use') || '0', 10);
                 var elapsed = firstUse ? (Date.now() - firstUse) : 0;
