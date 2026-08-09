@@ -1,21 +1,43 @@
 /* ── 高亮标记基础样式 ────────────────────────────────────────── */
-.bk-highlight { cursor: pointer; border-radius: 2px; transition: opacity .2s; color: inherit !important; text-underline-offset: 3px; }
+.bk-highlight { cursor: pointer; border-radius: 2px; transition: opacity .2s; color: inherit !important; text-underline-offset: 3px; position: relative; }
 .bk-highlight:hover { opacity: .8; }
+
+/* 下划线：用 text-decoration，颜色由 data-color 驱动 */
 .bk-highlight[data-underline="true"] {
-  text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px;
-  background: transparent !important;
-}
-.bk-highlight[data-note="true"] {
-  text-decoration: underline wavy var(--brand, #3D8A5A);
+  text-decoration: underline;
   text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
 }
-.bk-highlight[data-underline="true"][data-note="true"] {
-  text-decoration: underline wavy var(--danger-text, #c62828);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+
+/* 批注波浪线：用 ::after 伪元素画 SVG，不占用 text-decoration，可与其他标记共存 */
+.bk-highlight[data-note="true"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%233D8A5A' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 8px 3px;
+  pointer-events: none;
 }
-[data-theme="dark"] .bk-highlight { color: #2c2c2c !important; }
+[data-theme="dark"] .bk-highlight[data-note="true"]::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 下划线颜色（由 data-color 驱动） */
+.bk-highlight[data-underline="true"][data-color="yellow"]  { text-decoration-color: #a88530; }
+.bk-highlight[data-underline="true"][data-color="green"]   { text-decoration-color: #3f7a50; }
+.bk-highlight[data-underline="true"][data-color="blue"]    { text-decoration-color: #3a6d85; }
+.bk-highlight[data-underline="true"][data-color="pink"]    { text-decoration-color: #994a4c; }
+
+/* 暗色模式高亮背景 */
+[data-theme="dark"] .bk-highlight { color: inherit !important; }
+[data-theme="dark"] .bk-highlight[data-color="yellow"] { background: rgba(212, 168, 67, 0.5) !important; }
+[data-theme="dark"] .bk-highlight[data-color="green"]  { background: rgba(94, 158, 111, 0.5) !important; }
+[data-theme="dark"] .bk-highlight[data-color="blue"]   { background: rgba(90, 139, 168, 0.5) !important; }
+[data-theme="dark"] .bk-highlight[data-color="pink"]   { background: rgba(196, 120, 122, 0.5) !important; }
 
 /* ── 选区菜单（文本选中后弹出的颜色选择浮窗） ──────────────────── */
 .hl-menu { display: none; flex-direction: column; gap: 5px; padding: 8px; background: var(--card-bg, #FFFFFF); border-radius: 16px; box-shadow: none; border: 1px solid var(--border, #E5E2DD); z-index: 9999; min-width: min(220px, calc(100vw - 24px)); max-width: min(340px, calc(100vw - 24px)); -webkit-user-select: none; user-select: none; transition: opacity .15s ease; }

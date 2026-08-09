@@ -1297,11 +1297,11 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
 }
 
 /* 5 色圆点（颜色与高亮覆盖层一致） */
-.bk-pdf-hl-color-dot.bk-pdf-hl-color-yellow { background: #FFEB3B; }
-.bk-pdf-hl-color-dot.bk-pdf-hl-color-green  { background: #66BB6A; }
-.bk-pdf-hl-color-dot.bk-pdf-hl-color-blue   { background: #42A5F5; }
-.bk-pdf-hl-color-dot.bk-pdf-hl-color-pink   { background: #F48FB1; }
-.bk-pdf-hl-color-dot.bk-pdf-hl-color-orange { background: #FFA726; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-yellow { background: #D4A843; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-green  { background: #5E9E6F; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-blue   { background: #5A8BA8; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-pink   { background: #C4787A; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-orange { background: #C4854A; }
 
 /* 按钮行（原 .bk-pdf-hl-action-panel 的横向布局 responsibilities 迁移到这里） */
 .bk-pdf-hl-btn-row {
@@ -1335,36 +1335,49 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
   border-radius: 2px;
   pointer-events: none;
   mix-blend-mode: multiply;
-  opacity: 0.35;
+}
+.bk-pdf-hl-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: inherit;
+  opacity: 0.65;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-hl-overlay {
+  mix-blend-mode: screen;
+}
+[data-theme="dark"] .bk-pdf-hl-overlay::before {
+  opacity: 0.5;
 }
 
-.bk-pdf-hl-yellow { background: #FFEB3B; }
-.bk-pdf-hl-green  { background: #66BB6A; }
-.bk-pdf-hl-blue   { background: #42A5F5; }
-.bk-pdf-hl-pink   { background: #F48FB1; }
-.bk-pdf-hl-orange { background: #FFA726; }
+.bk-pdf-hl-yellow { background: #D4A843; }
+.bk-pdf-hl-green  { background: #5E9E6F; }
+.bk-pdf-hl-blue   { background: #5A8BA8; }
+.bk-pdf-hl-pink   { background: #C4787A; }
+.bk-pdf-hl-orange { background: #C4854A; }
 
-/* ── 17b. 下划线/删除线覆盖层 ─────────────────────────────── */
+/* ── 17b. 下划线覆盖层 ─────────────────────────────── */
 .bk-pdf-hl-underline {
   background: transparent !important;
   mix-blend-mode: normal;
-  opacity: 1;
   border-bottom: 2px solid currentColor;
 }
-.bk-pdf-hl-underline.bk-pdf-hl-yellow  { color: #FFEB3B; border-bottom-color: #FFEB3B; }
-.bk-pdf-hl-underline.bk-pdf-hl-green   { color: #66BB6A; border-bottom-color: #66BB6A; }
-.bk-pdf-hl-underline.bk-pdf-hl-blue    { color: #42A5F5; border-bottom-color: #42A5F5; }
-.bk-pdf-hl-underline.bk-pdf-hl-pink    { color: #F48FB1; border-bottom-color: #F48FB1; }
-.bk-pdf-hl-underline.bk-pdf-hl-orange  { color: #FFA726; border-bottom-color: #FFA726; }
+.bk-pdf-hl-underline::before { display: none; }
+.bk-pdf-hl-underline.bk-pdf-hl-yellow  { color: #D4A843; border-bottom-color: #D4A843; }
+.bk-pdf-hl-underline.bk-pdf-hl-green   { color: #5E9E6F; border-bottom-color: #5E9E6F; }
+.bk-pdf-hl-underline.bk-pdf-hl-blue    { color: #5A8BA8; border-bottom-color: #5A8BA8; }
+.bk-pdf-hl-underline.bk-pdf-hl-pink    { color: #C4787A; border-bottom-color: #C4787A; }
+.bk-pdf-hl-underline.bk-pdf-hl-orange  { color: #C4854A; border-bottom-color: #C4854A; }
 
+/* ── 17b2. 删除线覆盖层 ─────────────────────────────── */
 .bk-pdf-hl-strikethrough {
   background: transparent !important;
   mix-blend-mode: normal;
-  opacity: 1;
-  border-top: 0;
-  border-bottom: 0;
 }
-.bk-pdf-hl-strikethrough::after {
+/* 删除线中线用 ::before 画（高亮背景已被 transparent 清除，::before 不再需要画背景） */
+.bk-pdf-hl-strikethrough::before {
   content: '';
   position: absolute;
   left: 0;
@@ -1372,14 +1385,16 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
   top: 50%;
   height: 2px;
   background: currentColor;
+  pointer-events: none;
 }
-.bk-pdf-hl-strikethrough.bk-pdf-hl-yellow  { color: #FFEB3B; }
-.bk-pdf-hl-strikethrough.bk-pdf-hl-green   { color: #66BB6A; }
-.bk-pdf-hl-strikethrough.bk-pdf-hl-blue    { color: #42A5F5; }
-.bk-pdf-hl-strikethrough.bk-pdf-hl-pink    { color: #F48FB1; }
-.bk-pdf-hl-strikethrough.bk-pdf-hl-orange  { color: #FFA726; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-yellow  { color: #D4A843; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-green   { color: #5E9E6F; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-blue    { color: #5A8BA8; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-pink    { color: #C4787A; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-orange  { color: #C4854A; }
 
-/* ── 17b2. 批注波浪下划线覆盖层 ──────────────────────────────── */
+/* ── 17b3. 批注波浪下划线覆盖层 ──────────────────────────────── */
+/* 批注波浪线用 ::after（下划线用 border-bottom，删除线中线也用 ::after 但删除线不会与批注共存） */
 .bk-pdf-hl-note::after {
   content: '';
   position: absolute;
@@ -1394,6 +1409,11 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
 }
 [data-theme="dark"] .bk-pdf-hl-note::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 下划线+批注共存：调整波浪线位置到 border-bottom 下方 */
+.bk-pdf-hl-underline.bk-pdf-hl-note::after {
+  bottom: -3px;
 }
 
 /* ── 17c. 标注类型图标 ─────────────────────────────────────── */
@@ -1483,11 +1503,11 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
   flex-shrink: 0;
 }
 
-.bk-pdf-hl-list-dot-yellow { background: #FFEB3B; }
-.bk-pdf-hl-list-dot-green  { background: #66BB6A; }
-.bk-pdf-hl-list-dot-blue   { background: #42A5F5; }
-.bk-pdf-hl-list-dot-pink   { background: #F48FB1; }
-.bk-pdf-hl-list-dot-orange { background: #FFA726; }
+.bk-pdf-hl-list-dot-yellow { background: #D4A843; }
+.bk-pdf-hl-list-dot-green  { background: #5E9E6F; }
+.bk-pdf-hl-list-dot-blue   { background: #5A8BA8; }
+.bk-pdf-hl-list-dot-pink   { background: #C4787A; }
+.bk-pdf-hl-list-dot-orange { background: #C4854A; }
 
 .bk-pdf-hl-link {
   flex: 1;
@@ -2182,24 +2202,31 @@ body.bk-pdf-reading {
 }
 
 .bk-pdf-reflow-hl-yellow {
-  background: rgba(255, 235, 59, 0.35);
+  background: #E8D18C;
 }
 
 .bk-pdf-reflow-hl-green {
-  background: rgba(76, 175, 80, 0.28);
+  background: #A8D4B0;
 }
 
 .bk-pdf-reflow-hl-blue {
-  background: rgba(66, 133, 244, 0.28);
+  background: #9DC0D4;
 }
 
 .bk-pdf-reflow-hl-pink {
-  background: rgba(236, 64, 122, 0.28);
+  background: #D9A5A6;
 }
 
 .bk-pdf-reflow-hl-orange {
-  background: rgba(255, 152, 0, 0.32);
+  background: #DCBD8A;
 }
+
+/* 暗色模式下提高高亮透明度 */
+[data-theme="dark"] .bk-pdf-reflow-hl-yellow { background: rgba(212, 168, 67, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-green  { background: rgba(94, 158, 111, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-blue   { background: rgba(90, 139, 168, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-pink   { background: rgba(196, 120, 122, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-orange { background: rgba(196, 133, 74, 0.5); }
 
 /* 下划线 */
 .bk-pdf-reflow-underline {
@@ -2209,23 +2236,23 @@ body.bk-pdf-reading {
 }
 
 .bk-pdf-reflow-hl-yellow.bk-pdf-reflow-underline {
-  text-decoration-color: #c8b900;
+  text-decoration-color: #a88530;
 }
 
 .bk-pdf-reflow-hl-green.bk-pdf-reflow-underline {
-  text-decoration-color: #2e7d32;
+  text-decoration-color: #3f7a50;
 }
 
 .bk-pdf-reflow-hl-blue.bk-pdf-reflow-underline {
-  text-decoration-color: #1a73e8;
+  text-decoration-color: #3a6d85;
 }
 
 .bk-pdf-reflow-hl-pink.bk-pdf-reflow-underline {
-  text-decoration-color: #c2185b;
+  text-decoration-color: #994a4c;
 }
 
 .bk-pdf-reflow-hl-orange.bk-pdf-reflow-underline {
-  text-decoration-color: #e65100;
+  text-decoration-color: #9a6030;
 }
 
 /* 删除线 */
@@ -2235,30 +2262,48 @@ body.bk-pdf-reading {
 }
 
 .bk-pdf-reflow-hl-yellow.bk-pdf-reflow-strikethrough {
-  text-decoration-color: #c8b900;
+  text-decoration-color: #a88530;
 }
 
 .bk-pdf-reflow-hl-green.bk-pdf-reflow-strikethrough {
-  text-decoration-color: #2e7d32;
+  text-decoration-color: #3f7a50;
 }
 
 .bk-pdf-reflow-hl-blue.bk-pdf-reflow-strikethrough {
-  text-decoration-color: #1a73e8;
+  text-decoration-color: #3a6d85;
 }
 
 .bk-pdf-reflow-hl-pink.bk-pdf-reflow-strikethrough {
-  text-decoration-color: #c2185b;
+  text-decoration-color: #994a4c;
 }
 
 .bk-pdf-reflow-hl-orange.bk-pdf-reflow-strikethrough {
-  text-decoration-color: #e65100;
+  text-decoration-color: #9a6030;
 }
 
-/* 批注波浪下划线 */
+/* 批注波浪下划线：改用 ::after 伪元素画 SVG，释放 text-decoration 给下划线/删除线 */
 .bk-pdf-reflow-note {
-  text-decoration: underline wavy var(--brand, #3D8A5A) !important;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  position: relative;
+}
+.bk-pdf-reflow-note::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%233D8A5A' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 8px 3px;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-reflow-note::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 下划线+批注共存：波浪线位置下移 */
+.bk-pdf-reflow-underline.bk-pdf-reflow-note::after {
+  bottom: -3px;
 }
 
 /* 批注徽章（行内） */

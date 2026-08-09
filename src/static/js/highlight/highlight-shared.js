@@ -118,10 +118,17 @@ var BKHighlight = {
         config: {
             storageKey: 'bk_highlights',
             colors: {
-                yellow: '#F4E6C0',
-                green:  '#D8EBDD',
-                blue:   '#E3EFE8',
-                pink:   '#F3DDD3'
+                yellow: '#E8D18C',
+                green:  '#A8D4B0',
+                blue:   '#9DC0D4',
+                pink:   '#D9A5A6'
+            },
+            /** 颜色选择圆点的纯色显示（半透明在白底面板上不够醒目） */
+            dotColors: {
+                yellow: '#D4A843',
+                green:  '#6DA880',
+                blue:   '#6A9DB5',
+                pink:   '#C4787A'
             },
             defaultColor: 'yellow'
         },

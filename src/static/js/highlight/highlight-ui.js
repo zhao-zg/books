@@ -11,7 +11,7 @@ Object.assign(BKHighlight, {
             var self = this;
             var dots = Object.keys(self.config.colors).map(function (name) {
                 return '<button class="hl-color-dot" data-color="' + name +
-                       '" style="background:' + self.config.colors[name] +
+                       '" style="background:' + (self.config.dotColors ? self.config.dotColors[name] : self.config.colors[name]) +
                        '" title="' + name + '"></button>';
             }).join('');
             return '<div class="hl-color-panel">' +
@@ -29,7 +29,7 @@ Object.assign(BKHighlight, {
 
             var colorDotsHTML = Object.keys(self.config.colors).map(function (name) {
                 return '<button class="hl-color-dot hl-sel-dot" data-color="' + name +
-                       '" style="background:' + self.config.colors[name] +
+                       '" style="background:' + (self.config.dotColors ? self.config.dotColors[name] : self.config.colors[name]) +
                        '" title="' + name + '"></button>';
             }).join('');
 

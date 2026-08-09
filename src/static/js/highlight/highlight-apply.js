@@ -128,13 +128,13 @@ Object.assign(BKHighlight, {
 
                     if (highlight.color && highlight.color !== 'note' && self.config.colors[highlight.color]) {
                         mark.style.backgroundColor = self.config.colors[highlight.color];
+                        mark.dataset.color = highlight.color;
                     } else {
                         mark.style.backgroundColor = 'transparent';
                     }
 
                     if (highlight.underline) {
-                        mark.style.borderBottom    = '2px solid var(--danger-text)';
-                        mark.style.paddingBottom   = '1px';
+                        mark.dataset.underline = 'true';
                     }
                     if (highlight.note) {
                         mark.dataset.note = 'true';
