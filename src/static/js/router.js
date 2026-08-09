@@ -146,6 +146,8 @@
       } else {
         // 跨层级跳转
         if (win.BK && win.BK.backStack && win.BK.backStack.skipNext) win.BK.backStack.skipNext();
+        // ★ 标记正向导航时间戳，防止 PWA 场景下 popstate 误触发 backStack fallback
+        win.__bkLastNavigateTs = Date.now();
         win.location.hash = newHash;
       }
     },

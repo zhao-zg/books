@@ -399,16 +399,12 @@
         './vendor/fonts/KaTeX_Size2-Regular.woff',
         './icons/icon-192.png','./icons/icon-512.png'
     ];
-    // 远程 zl-data 校验项：从配置注入的 cloudflare 节点动态拼接，不在源码写死域名。
-    // 配置（config.yaml → output/js/remote-config.js → window.BK_SERVERS.cloudflare）缺失时则不追加，
-    // 彻底消除「绕开配置表的硬编码外部地址」。
-    (function () {
-        var cf0 = (window.BK_SERVERS && window.BK_SERVERS.cloudflare && window.BK_SERVERS.cloudflare[0] || '').replace(/\/+$/, '');
-        if (cf0) {
-            window.__bkCoreUrls.push(cf0 + '/zl-data/books-index.json');
-            window.__bkCoreUrls.push(cf0 + '/zl-data/manifest.json');
-        }
-    })();
+    // zl-data 核心索引校验项：
+    // 1) 始终追加本地相对路径（构建产物 output/zl-data/ 随部署下发，本地 fetch 零延迟、不依赖网络）
+    // 2) 远程 CDN 路径仅用于数据源切换时校验，不纳入 PWA 缓存完整性校验
+    //    （远程 fetch 可能因网络/超时失败，导致安装对话框误报"缺少核心资源"）
+    window.__bkCoreUrls.push('./zl-data/books-index.json');
+    window.__bkCoreUrls.push('./zl-data/manifest.json');
 
     // ── 环境检测 ──────────────────────────────────────────────────────────
     var BK_ENV = (function(){

@@ -3,6 +3,8 @@
 
     var _loadedAt = Date.now();
     var _GRACE_MS = 500;
+    // ★ 正向导航抑制窗口（ms）：与 back-stack.js 的 _NAVIGATE_SUPPRESS_MS 保持一致
+    var _NAVIGATE_SUPPRESS_MS = 300;
 
     function isCapacitor() {
         return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
@@ -42,6 +44,12 @@
                 window.BK.backStack.setFallback(function() {
                     if (window.__bkExiting) return;
                     if (Date.now() - _loadedAt < _GRACE_MS) return;
+                    // ★ 正向导航抑制：router.js navigate() 后极短时间内的 popstate 是副作用，非用户主动返回
+                    var navTs = window.__bkLastNavigateTs || 0;
+                    if (navTs && (Date.now() - navTs) < _NAVIGATE_SUPPRESS_MS) {
+                        console.log('[NavStack] PWA fallback suppressed (forward navigate ' + (Date.now() - navTs) + 'ms ago)');
+                        return;
+                    }
                     console.log('[NavStack] fallback hash="' + window.location.hash + '" backStackSize=' + window.BK.backStack.size());
                     handleBackCommon(handleBack);
                 });
@@ -94,6 +102,12 @@
                 window.BK.backStack.setFallback(function() {
                     if (window.__bkExiting) return;
                     if (Date.now() - _loadedAt < _GRACE_MS) return;
+                    // ★ 正向导航抑制：router.js navigate() 后极短时间内的 popstate 是副作用，非用户主动返回
+                    var navTs = window.__bkLastNavigateTs || 0;
+                    if (navTs && (Date.now() - navTs) < _NAVIGATE_SUPPRESS_MS) {
+                        console.log('[NavStack] PWA fallback suppressed (forward navigate ' + (Date.now() - navTs) + 'ms ago)');
+                        return;
+                    }
                     var path = (typeof window.__bkCurrentPath === 'string')
                         ? window.__bkCurrentPath
                         : (function() { var r = window.location.hash.replace(/^#\/?/, ''); try { return decodeURIComponent(r); } catch(e) { return r; } })();
