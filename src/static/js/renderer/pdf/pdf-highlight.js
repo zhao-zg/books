@@ -594,6 +594,7 @@
         var cls = 'bk-pdf-hl-overlay bk-pdf-hl-' + color;
         if (hlType === 'underline') cls += ' bk-pdf-hl-underline';
         else if (hlType === 'strikethrough') cls += ' bk-pdf-hl-strikethrough';
+        if (hl.note) cls += ' bk-pdf-hl-note';
         div.className = cls;
         div.setAttribute('data-pdf-hl-id', hl.id || '');
         div.style.left = (rect.left * 100) + '%';

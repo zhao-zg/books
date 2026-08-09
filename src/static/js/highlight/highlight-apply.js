@@ -137,8 +137,7 @@ Object.assign(BKHighlight, {
                         mark.style.paddingBottom   = '1px';
                     }
                     if (highlight.note) {
-                        mark.style.textDecoration      = 'underline wavy var(--gold) 1px';
-                        mark.style.textUnderlineOffset = '2px';
+                        mark.dataset.note = 'true';
                     }
 
                     mark.dataset.highlightId = highlight.id;

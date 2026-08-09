@@ -574,6 +574,7 @@
         var cls = 'bk-pdf-reflow-hl bk-pdf-reflow-hl-' + seg.color;
         if (seg.type === 'underline') cls += ' bk-pdf-reflow-underline';
         else if (seg.type === 'strikethrough') cls += ' bk-pdf-reflow-strikethrough';
+        if (seg.note && seg.note.trim()) cls += ' bk-pdf-reflow-note';
         var noteAttr = seg.note ? ' data-reflow-note="' + S.escAttr(seg.note) + '"' : '';
         var hlIdAttr = seg.hlId ? ' data-reflow-hl-id="' + S.escAttr(seg.hlId) + '"' : '';
         html += '<span class="' + cls + '"' + noteAttr + hlIdAttr + '>' + S.escText(seg.text);

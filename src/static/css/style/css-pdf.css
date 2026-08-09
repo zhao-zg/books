@@ -1379,6 +1379,23 @@ body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
 .bk-pdf-hl-strikethrough.bk-pdf-hl-pink    { color: #F48FB1; }
 .bk-pdf-hl-strikethrough.bk-pdf-hl-orange  { color: #FFA726; }
 
+/* ── 17b2. 批注波浪下划线覆盖层 ──────────────────────────────── */
+.bk-pdf-hl-note::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%233D8A5A' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 8px 3px;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-hl-note::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
 /* ── 17c. 标注类型图标 ─────────────────────────────────────── */
 .bk-pdf-hl-type-icon {
   font-size: 12px;
@@ -2235,6 +2252,13 @@ body.bk-pdf-reading {
 
 .bk-pdf-reflow-hl-orange.bk-pdf-reflow-strikethrough {
   text-decoration-color: #e65100;
+}
+
+/* 批注波浪下划线 */
+.bk-pdf-reflow-note {
+  text-decoration: underline wavy var(--brand, #3D8A5A) !important;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 /* 批注徽章（行内） */

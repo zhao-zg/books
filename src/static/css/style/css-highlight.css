@@ -5,6 +5,16 @@
   text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px;
   background: transparent !important;
 }
+.bk-highlight[data-note="true"] {
+  text-decoration: underline wavy var(--brand, #3D8A5A);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.bk-highlight[data-underline="true"][data-note="true"] {
+  text-decoration: underline wavy var(--danger-text, #c62828);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
 [data-theme="dark"] .bk-highlight { color: #2c2c2c !important; }
 
 /* ── 选区菜单（文本选中后弹出的颜色选择浮窗） ──────────────────── */
