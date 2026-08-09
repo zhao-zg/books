@@ -5,9 +5,21 @@
 /* 下划线：用 text-decoration，颜色由 data-color 驱动 */
 .bk-highlight[data-underline="true"] {
   text-decoration: underline;
+  text-decoration-color: var(--brand, #3D8A5A);
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
+
+/* 暗色模式下划线颜色 */
+[data-theme="dark"] .bk-highlight[data-underline="true"] {
+  text-decoration-color: var(--brand, #5EAE7E);
+}
+
+/* 有颜色高亮时，下划线跟随高亮色系 */
+.bk-highlight[data-underline="true"][data-color="yellow"]  { text-decoration-color: #a88530; }
+.bk-highlight[data-underline="true"][data-color="green"]   { text-decoration-color: #3f7a50; }
+.bk-highlight[data-underline="true"][data-color="blue"]    { text-decoration-color: #3a6d85; }
+.bk-highlight[data-underline="true"][data-color="pink"]    { text-decoration-color: #994a4c; }
 
 /* 批注波浪线：用 ::after 伪元素画 SVG，不占用 text-decoration，可与其他标记共存 */
 .bk-highlight[data-note="true"]::after {
@@ -25,12 +37,6 @@
 [data-theme="dark"] .bk-highlight[data-note="true"]::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
 }
-
-/* 下划线颜色（由 data-color 驱动） */
-.bk-highlight[data-underline="true"][data-color="yellow"]  { text-decoration-color: #a88530; }
-.bk-highlight[data-underline="true"][data-color="green"]   { text-decoration-color: #3f7a50; }
-.bk-highlight[data-underline="true"][data-color="blue"]    { text-decoration-color: #3a6d85; }
-.bk-highlight[data-underline="true"][data-color="pink"]    { text-decoration-color: #994a4c; }
 
 /* 暗色模式高亮背景 */
 [data-theme="dark"] .bk-highlight { color: inherit !important; }
@@ -74,8 +80,8 @@
 .hl-color-dot.selected { border-color: var(--text, #1A1918); transform: scale(1.15); box-shadow: 0 0 0 1px var(--text, #1A1918); }
 
 /* ── 下划线按钮 ────────────────────────────────────────────── */
-.hl-underline-btn { min-width: 36px; min-height: 30px; padding: 4px 8px 2px; background: var(--surface-alt, #EDEAE4); color: var(--text, #1A1918); border: 1px solid var(--border, #E5E2DD); border-bottom: 2px solid #e53935; border-radius: 6px; font-size: var(--text-sm); font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-.hl-underline-btn.active { background: var(--brand, #3D8A5A); color: #fff; border-color: var(--brand, #3D8A5A); border-bottom-color: #ffcdd2; }
+.hl-underline-btn { min-width: 36px; min-height: 30px; padding: 4px 8px 2px; background: var(--surface-alt, #EDEAE4); color: var(--text, #1A1918); border: 1px solid var(--border, #E5E2DD); border-bottom: 2px solid var(--brand, #3D8A5A); border-radius: 6px; font-size: var(--text-sm); font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.hl-underline-btn.active { background: var(--brand, #3D8A5A); color: #fff; border-color: var(--brand, #3D8A5A); border-bottom-color: rgba(255,255,255,.5); }
 
 /* ── 笔记模态框 ──────────────────────────────────────────────── */
 .hl-modal-mask { display: none; position: fixed; inset: 0; background: rgba(26,25,23,0.4); z-index: 10100; align-items: center; justify-content: center; padding: 16px; touch-action: none; overscroll-behavior: none; }

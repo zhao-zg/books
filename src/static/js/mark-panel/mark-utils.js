@@ -10,11 +10,11 @@
     win.BK = win.BK || {};
 
     var COLOR_MAP = {
-        yellow:  '#F4E6C0',
-        green:   '#D8EBDD',
-        blue:    '#E3EFE8',
-        pink:    '#F3DDD3',
-        orange:  '#F5D5B0',
+        yellow:  '#E8D18C',
+        green:   '#A8D4B0',
+        blue:    '#9DC0D4',
+        pink:    '#D9A5A6',
+        orange:  '#DCBD8A',
         bookmark:'#E8943A'
     };
 
