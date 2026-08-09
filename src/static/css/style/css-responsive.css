@@ -125,7 +125,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 }
 
 /* ── 「我的」设置整页（平板/宽屏，设计稿 31:2） ────────────────── */
-.bk-settings-page { max-width: 834px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 80px; }
+.bk-settings-page { max-width: 834px; margin: 0 auto; padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px calc(56px + env(safe-area-inset-bottom, 0px)); }
 .bk-settings-header h1 { font-family: var(--heading-font-family); font-size: var(--text-3xl); font-weight: 800; color: var(--brand); margin-bottom: 16px; letter-spacing: 0.04em; }
 .bk-settings-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 768px) {
@@ -455,7 +455,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 
 /* 书签整页 */
 .bk-bookmark-count { font-size: var(--text-sm); color: var(--text-muted); margin-left: 12px; }
-.bk-bookmark-grid { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 80px; }
+.bk-bookmark-grid { display: flex; flex-direction: column; gap: 10px; padding: 0 20px calc(56px + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 768px) { .bk-bookmark-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; } }
 
 /* ── 笔记汇总 ──────────────────────────────────────────────────── */
@@ -547,7 +547,7 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 /* 书城容器：底部留白避免被常驻底栏遮挡（≥ 底栏高度） */
 .bk-city-page {
   min-height: 100%;
-  padding-bottom: 88px;
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 .bk-city-header {

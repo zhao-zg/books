@@ -12,7 +12,7 @@
 .bk-float-play-btn .bk-pause-icon { display: none; }
 .bk-float-play-btn.bk-playing .bk-play-icon { display: none; }
 .bk-float-play-btn.bk-playing .bk-pause-icon { display: block; }
-.bk-float-bottom { position: fixed; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: 24px; right: 24px; z-index: 990; background: var(--card-bg, #fff); border: 1px solid var(--border, #E5E2DD); border-radius: var(--float-radius, 31px); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; transform: translateY(100%); transition: transform .3s var(--ease-out, cubic-bezier(.4,0,.2,1)); pointer-events: none; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+.bk-float-bottom { position: fixed; bottom: calc(env(safe-area-inset-bottom, 4px) + 4px); left: 24px; right: 24px; z-index: 990; background: var(--card-bg, #fff); border: 1px solid var(--border, #E5E2DD); border-radius: var(--float-radius, 31px); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; transform: translateY(100%); transition: transform .3s var(--ease-out, cubic-bezier(.4,0,.2,1)); pointer-events: none; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
 [data-theme="dark"] .bk-float-bottom { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }
 .bk-float-bottom.show { transform: translateY(0); pointer-events: auto; box-shadow: var(--shadow-card, 0 2px 8px rgba(60,40,10,.06)); }
 .bk-float-bottom-inner { display: flex; align-items: center; justify-content: center; gap: 32px; padding: 0; }
@@ -47,12 +47,12 @@ body.bk-pdf-reading .bk-float-bottom { display: none !important; }
 .bk-bottom-tab-bar {
   position: fixed;
   left: 50%;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(env(safe-area-inset-bottom, 4px) + 4px);
   z-index: 1200;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  padding: 4px 6px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
   background: var(--card-bg, #fff);
@@ -103,7 +103,7 @@ body.bk-pdf-reading .bk-float-bottom { display: none !important; }
 }
 /* 横幅可见时，常驻 Tab 浮岛上移避让 */
 body.bk-pwa-banner-visible .bk-bottom-tab-bar {
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px) + 76px);
+  bottom: calc(env(safe-area-inset-bottom, 4px) + 4px + 60px);
 }
 [data-theme="dark"] .bk-pwa-banner { background: var(--card-bg, #201F1D); }
 .bk-tab {
@@ -113,7 +113,7 @@ body.bk-pwa-banner-visible .bk-bottom-tab-bar {
   justify-content: center;
   gap: 2px;
   min-width: 54px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border: none;
   background: none;
   border-radius: 24px;

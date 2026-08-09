@@ -493,7 +493,8 @@
                         if (window.showMandatoryInstallDialog) {
                             // 单次 reload：清缓存 → 重建 → 激活新 SW → reload
                             window.showMandatoryInstallDialog('update', remoteVersion, function() {
-                                // 缓存重建完成，激活等待中的新 SW
+                                // 缓存重建完成，锁定 controllerchange 防额外 reload，再激活新 SW
+                                window.__bkSwRefreshing = true;
                                 if (window.__bkSwWaiting) {
                                     try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
                                     window.__bkSwWaiting = null;
@@ -505,14 +506,17 @@
                             });
                         } else {
                             // fallback：showMandatoryInstallDialog 不可用时走原流程
+                            // 先锁定 controllerchange，再激活新 SW，最后清理旧缓存（排除刚建的新版本缓存）
+                            window.__bkSwRefreshing = true;
                             if (window.__bkSwWaiting) {
                                 try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
                                 window.__bkSwWaiting = null;
                             }
+                            var newCacheName = 'bk-main-' + remoteVersion;
                             var steps = [];
                             if ('caches' in window) {
                                 steps.push(caches.keys().then(function(keys) {
-                                    return Promise.all(keys.filter(function(k) { return k.startsWith('bk-'); }).map(function(k) { return caches.delete(k); }));
+                                    return Promise.all(keys.filter(function(k) { return (k.startsWith('bk-') || k.startsWith('books-')) && k !== newCacheName; }).map(function(k) { return caches.delete(k); }));
                                 }).catch(function() {}));
                             }
                             try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}

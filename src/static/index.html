@@ -60,7 +60,7 @@
     <link rel="stylesheet" href="css/style/css-mark-panel.css">
     <link rel="stylesheet" href="css/style/css-responsive.css">
     <style>
-        body{padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));padding-top:env(safe-area-inset-top, 0px)}
+        body{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 4px);padding-top:env(safe-area-inset-top, 0px)}
         .container{padding:0}
         .header{color:var(--header-text);margin-bottom:8px}
         .content{padding:0}
@@ -819,6 +819,7 @@
         navigator.serviceWorker.addEventListener('controllerchange',function(){
             if(refreshing)return;
             if(window.__bkUpdateInProgress)return;
+            if(window.__bkSwRefreshing)return;
             var isNative=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
             if(isNative)return;
             refreshing=true;window.location.reload();
