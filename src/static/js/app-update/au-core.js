@@ -75,7 +75,13 @@
                     var config = JSON.parse(text);
                     self.config.currentVersion = config.version;
                 })
-                .catch(function(error) { console.warn('[更新] 加载配置失败（已忽略）:', error.message || error); });
+                .catch(function(error) {
+                    console.warn('[更新] 加载配置失败（已忽略）:', error.message || error);
+                    // ★ 请求失败：清理竞速缓存，下次请求重新竞速
+                    if (window.BK && window.BK.RaceFastest) {
+                        window.BK.RaceFastest.invalidateVersion();
+                    }
+                });
         },
 
         compareVersion: function(v1, v2) {

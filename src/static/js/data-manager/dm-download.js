@@ -2,101 +2,90 @@
 
   /**
    * 字节级流式 fetch：读取 Response body 时持续推送字节进度
-   * 复用 fetchWithRetry 的重试 + 多地址容灾语义，但走 ReadableStream 读取
+   * ★ 每个地址只试一次，失败立即切换下一个地址（不再对同一地址指数退避重试）
+   * ★ 所有地址均失败后清理竞速缓存，下次请求自动重新竞速
    * @param {string} url
    * @param {function} [onByteProgress] (received, total) => {}
    * @param {function} [shouldAbort] () => true 表示已取消
    * @returns {Promise<object>} 解析后的 JSON 对象
    */
   function fetchJsonStreamed(url, onByteProgress, shouldAbort) {
-    function attempt(retries) {
-      if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
-      return fetch(url, { cache: 'no-cache' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          var ct = r.headers.get('content-type') || '';
-          if (ct.indexOf('text/html') !== -1) {
-            var htmlErr = new Error('HTML_RESPONSE');
-            htmlErr._isHtmlResponse = true;
-            throw htmlErr;
-          }
-          var total = parseInt(r.headers.get('Content-Length') || '0', 10) || 0;
-          var received = 0;
-          var chunks = [];
-          // 不支持 ReadableStream 时 fallback 到 r.text()（仍触发一次进度）
-          if (!r.body || typeof r.body.getReader !== 'function') {
-            return r.text().then(function (text) {
-              if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
-              if (onByteProgress) onByteProgress(text.length, total || text.length);
-              return JSON.parse(text);
-            });
-          }
-          var reader = r.body.getReader();
-          function pump() {
-            return reader.read().then(function (result) {
-              if (shouldAbort && shouldAbort()) {
-                try { reader.cancel(); } catch (e) {}
-                throw _makeCancelledErr();
-              }
-              if (result.done) {
-                // 流读取结束：组装 Blob → text → JSON.parse
-                var blob = new Blob(chunks, { type: 'application/json' });
-                return blob.text().then(function (text) {
-                  if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
-                  try {
-                    return JSON.parse(text);
-                  } catch (e) {
-                    throw new Error('书籍数据解析失败：' + e.message);
-                  }
-                });
-              }
-              received += result.value.length;
-              if (onByteProgress) onByteProgress(received, total);
-              chunks.push(result.value);
-              return pump();
-            });
-          }
-          return pump();
-        })
-        .catch(function (err) {
-          // 用户取消：直接抛出，不重试
-          if (err && err.code === ERR_CANCELLED) throw err;
-          // HTML 响应：跳过重试，尝试切换备用地址
-          if (!err._isHtmlResponse && retries > 0) {
-            var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
-            console.warn('[DataManager] 流式下载失败，' + delay + 'ms 后重试: ' + url);
-            return new Promise(function (resolve) { setTimeout(resolve, delay); })
-              .then(function () {
-                if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
-                return attempt(retries - 1);
-              });
-          }
-          // 切换备用地址
-          // ★ 并发适配：加锁防止多个 fetch 同时切换导致 _currentUrlIndex 越界
-          if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1 && !_urlSwitching) {
-            _urlSwitching = true;
-            _currentUrlIndex++;
-            DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
-            _urlSwitching = false;
-            console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
-              (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
-            var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
-            var relativePath;
-            if (url.indexOf(oldBase + '/') === 0) {
-              relativePath = url.substring(oldBase.length + 1);
-            } else {
-              relativePath = url.substring(url.lastIndexOf('/') + 1);
-            }
-            var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
+    if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+    return fetch(url, { cache: 'no-cache' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('text/html') !== -1) {
+          var htmlErr = new Error('HTML_RESPONSE');
+          htmlErr._isHtmlResponse = true;
+          throw htmlErr;
+        }
+        var total = parseInt(r.headers.get('Content-Length') || '0', 10) || 0;
+        var received = 0;
+        var chunks = [];
+        // 不支持 ReadableStream 时 fallback 到 r.text()（仍触发一次进度）
+        if (!r.body || typeof r.body.getReader !== 'function') {
+          return r.text().then(function (text) {
             if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
-            return fetchJsonStreamed(newUrl, onByteProgress, shouldAbort);
+            if (onByteProgress) onByteProgress(text.length, total || text.length);
+            return JSON.parse(text);
+          });
+        }
+        var reader = r.body.getReader();
+        function pump() {
+          return reader.read().then(function (result) {
+            if (shouldAbort && shouldAbort()) {
+              try { reader.cancel(); } catch (e) {}
+              throw _makeCancelledErr();
+            }
+            if (result.done) {
+              // 流读取结束：组装 Blob → text → JSON.parse
+              var blob = new Blob(chunks, { type: 'application/json' });
+              return blob.text().then(function (text) {
+                if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+                try {
+                  return JSON.parse(text);
+                } catch (e) {
+                  throw new Error('书籍数据解析失败：' + e.message);
+                }
+              });
+            }
+            received += result.value.length;
+            if (onByteProgress) onByteProgress(received, total);
+            chunks.push(result.value);
+            return pump();
+          });
+        }
+        return pump();
+      })
+      .catch(function (err) {
+        // 用户取消：直接抛出，不切换地址
+        if (err && err.code === ERR_CANCELLED) throw err;
+        // ★ 当前地址失败一次，立即尝试切换到下一个地址
+        if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1 && !_urlSwitching) {
+          _urlSwitching = true;
+          _currentUrlIndex++;
+          DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
+          _urlSwitching = false;
+          console.warn('[DataManager] 流式下载失败，切换到备用地址: ' + DATA_BASE_URL +
+            (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : '（' + (err.message || err) + '）'));
+          var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
+          var relativePath;
+          if (url.indexOf(oldBase + '/') === 0) {
+            relativePath = url.substring(oldBase.length + 1);
+          } else {
+            relativePath = url.substring(url.lastIndexOf('/') + 1);
           }
-          throw err._isHtmlResponse
-            ? new Error('该书籍数据文件在所有服务器上均不存在')
-            : err;
-        });
-    }
-    return attempt(MAX_RETRIES);
+          var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
+          if (shouldAbort && shouldAbort()) throw _makeCancelledErr();
+          return fetchJsonStreamed(newUrl, onByteProgress, shouldAbort);
+        }
+        // ★ 所有地址均失败：清理竞速缓存，下次请求自动重新竞速
+        _invalidateRaceCache();
+        throw err._isHtmlResponse
+          ? new Error('该书籍数据文件在所有服务器上均不存在')
+          : err;
+      });
   }
 
   /**

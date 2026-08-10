@@ -250,6 +250,18 @@
         if (Math.abs(dy) > SWIPE_MAX_VERTICAL) { _swipeState.rejected = true; return; }
         if (Math.abs(dx) < 15) return;
         if (Math.abs(dx) <= Math.abs(dy)) { _swipeState.rejected = true; return; }
+        // ★ PWA 边缘手势让位：从屏幕边缘向内滑动时，让浏览器处理返回/前进导航，
+        //   不由 carousel 接管翻页，避免"翻页+返回"双响应冲突
+        var _EDGE = 20;
+        if (_swipeState.startX < _EDGE && dx > 0) {
+          _swipeState.rejected = true;
+          return;
+        }
+        var _screenW = win.innerWidth || screen.width || 0;
+        if (_screenW > 0 && _swipeState.startX > _screenW - _EDGE && dx < 0) {
+          _swipeState.rejected = true;
+          return;
+        }
         _swipeState.active = true;
         track.classList.add('bk-swipe-active');
         track.style.transition = 'none';

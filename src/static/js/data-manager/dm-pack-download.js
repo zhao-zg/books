@@ -123,7 +123,13 @@
   function _fetchFirstAvailable(urls) {
     if (!urls.length) return Promise.reject(new Error('无可用地址'));
     function tryUrl(idx) {
-      if (idx >= urls.length) return Promise.reject(new Error('所有地址均不可用'));
+      if (idx >= urls.length) {
+        // ★ 所有地址均失败：清理竞速缓存，下次请求重新竞速
+        if (win.BK && win.BK.RaceFastest) {
+          win.BK.RaceFastest.invalidateVersion();
+        }
+        return Promise.reject(new Error('所有地址均不可用'));
+      }
       return fetch(urls[idx], { cache: 'no-cache' })
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -182,6 +188,8 @@
 
   /**
    * 字节级流式 fetch ZIP（支持 CDN 容灾）
+   * ★ 每个地址只试一次，失败立即切换下一个地址
+   * ★ 所有地址均失败后清理竞速缓存，下次请求重新竞速
    * @param {string} relativePath 相对路径如 "packs/books-part1.zip"
    * @param {function} onProgress (received, total) => {}
    * @param {function} shouldAbort () => true
@@ -189,11 +197,10 @@
    * @returns {Promise<ArrayBuffer>}
    */
   function _fetchZipStreamed(relativePath, onProgress, shouldAbort, shouldPause) {
-    var MAX_RETRIES = 3;
     var urls = _buildAllPackUrls(relativePath);
     var urlIdx = 0;
 
-    function attemptWithUrl(retries) {
+    function attempt() {
       if (shouldAbort && shouldAbort()) {
         var e = new Error('下载已取消');
         e.code = 'CANCELLED';
@@ -273,30 +280,21 @@
         })
         .catch(function (err) {
           if (err && err.code === 'CANCELLED') throw err;
-          // 当前地址重试
-          if (retries > 0) {
-            var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
-            console.warn('[PackDL] ZIP 下载失败，' + delay + 'ms 后重试: ' + url);
-            return new Promise(function (resolve) { setTimeout(resolve, delay); })
-              .then(function () {
-                if (shouldAbort && shouldAbort()) {
-                  var e6 = new Error('下载已取消');
-                  e6.code = 'CANCELLED';
-                  throw e6;
-                }
-                return attemptWithUrl(retries - 1);
-              });
-          }
-          // 切换到下一个地址
+          // ★ 当前地址失败一次，立即切换到下一个地址
           if (urlIdx < urls.length - 1) {
             urlIdx++;
-            console.warn('[PackDL] 切换到备用地址: ' + urls[urlIdx]);
-            return attemptWithUrl(MAX_RETRIES);
+            console.warn('[PackDL] ZIP 下载失败，切换到备用地址: ' + urls[urlIdx] +
+              '（' + (err.message || err) + '）');
+            return attempt();
+          }
+          // ★ 所有地址均失败：清理竞速缓存，下次请求重新竞速
+          if (win.BK && win.BK.RaceFastest) {
+            win.BK.RaceFastest.invalidateVersion();
           }
           throw err;
         });
     }
-    return attemptWithUrl(MAX_RETRIES);
+    return attempt();
   }
 
   /**

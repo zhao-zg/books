@@ -72,7 +72,13 @@
     urls.push(getRoot() + 'resource-packs.json' + bust);
 
     function tryNext(idx) {
-      if (idx >= urls.length) return Promise.reject(new Error('无法获取资源包清单'));
+      if (idx >= urls.length) {
+        // ★ 所有服务器均失败：清理竞速缓存，下次请求重新竞速
+        if (win.BK && win.BK.RaceFastest) {
+          win.BK.RaceFastest.invalidateVersion();
+        }
+        return Promise.reject(new Error('无法获取资源包清单'));
+      }
       return fetch(urls[idx], { cache: 'no-cache' })
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -232,6 +238,10 @@
           if (onDone) onDone();
         })
         .catch(function (err) {
+          // ★ 所有下载源均失败：清理竞速缓存，下次请求重新竞速
+          if (win.BK && win.BK.RaceFastest) {
+            win.BK.RaceFastest.invalidateVersion();
+          }
           tryDownload(idx + 1);
         });
     }

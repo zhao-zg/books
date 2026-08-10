@@ -534,6 +534,10 @@
             .catch(function(e) {
                 statusEl.innerHTML = '❌ 检查失败: ' + e.message;
                 if (extStatusEl) { extStatusEl.textContent = '检查失败：' + e.message; extStatusEl.className = 'cache-status error'; }
+                // ★ PWA version.json 请求失败：清理竞速缓存，下次重新竞速
+                if (window.BK && window.BK.RaceFastest) {
+                    window.BK.RaceFastest.invalidateVersion();
+                }
             });
     };
 

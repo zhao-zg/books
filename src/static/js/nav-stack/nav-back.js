@@ -108,12 +108,16 @@
                         console.log('[NavStack] PWA fallback suppressed (forward navigate pending)');
                         return;
                     }
+                    // ★ 读取回退前的路径（popstate 时 __bkCurrentPath 仍是回退前的值，
+                    //    而 location.hash 已被 history.back() 更新为回退后的地址；
+                    //    fallback 需要知道用户"从哪来"才能决定去哪，故用 __bkCurrentPath）
                     var path = (typeof window.__bkCurrentPath === 'string')
                         ? window.__bkCurrentPath
                         : (function() { var r = window.location.hash.replace(/^#\/?/, ''); try { return decodeURIComponent(r); } catch(e) { return r; } })();
                     var parts = path.split('/').filter(Boolean);
                     console.log('[NavStack] PWA fallback from="' + path + '" parts=' + JSON.stringify(parts));
 
+                    window.__bkFallbackNav = true;
                     handleBackCommon(function() {
                         // 阅读/目录页按返回键（PWA）：立即隐藏浮动顶边栏（navigateReplace 不触发 hashchange，原 hide 不跑）
                         if (window.BKNavStack && window.BKNavStack.hideNow) window.BKNavStack.hideNow();
@@ -121,19 +125,19 @@
                         var _HOME_SEGS = ['shelf', 'city', 'my', 'me', 'bookmarks'];
                         var isHomeRoute = parts.length <= 1 && (parts.length === 0 || _HOME_SEGS.indexOf(parts[0]) !== -1);
                         if (isHomeRoute) {
-                            if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { return; }
+                            if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { window.__bkFallbackNav = false; return; }
                             // 已在最外层主页
                         } else if (parts.length >= 2) {
                             // 阅读视图 → 章节目录
                             // ★ 单章书/PDF 的目录页会被 renderChapterList 自动跳进阅读视图，
                             //   返回键回目录页=循环，故直接回书架
                             if (window.__bkIsSingleChapter || window.__bkSkipChapterList) {
-                                if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
+                                if (window.BKRouter) { window.BKRouter.navigateReplace(''); window.__bkFallbackNav = false; return; }
                             } else {
-                                if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
+                                if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); window.__bkFallbackNav = false; return; }
                             }
                         } else if (parts.length >= 1) {
-                            if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
+                            if (window.BKRouter) { window.BKRouter.navigateReplace(''); window.__bkFallbackNav = false; return; }
                         }
                         // ★ PWA 退出流程：
                         //    window.close() 在大多数 PWA 中无效，只能靠 history.back() 退出。
@@ -143,6 +147,7 @@
                         //    再 history.back() 仅回退一步即可退出 PWA；
                         //    若 PWA 未关闭（某些浏览器不支持），恢复到原路由。
                         window.__bkExiting = true;
+                        window.__bkFallbackNav = false;
                         var _exitPath = window.__bkCurrentPath || 'shelf';
                         // 替换当前历史条目为哨兵路由
                         try { window.history.replaceState(null, '', window.location.pathname + '#/__exit'); } catch(e) {}

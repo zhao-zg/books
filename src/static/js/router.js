@@ -87,12 +87,21 @@
   }
 
   function onHashChange() {
-    console.log('[Router] hashchange hash="' + win.location.hash + '" __bkExiting=' + !!win.__bkExiting);
+    console.log('[Router] hashchange hash="' + win.location.hash + '" __bkExiting=' + !!win.__bkExiting + ' __bkFallbackNav=' + !!win.__bkFallbackNav);
     // ★ __bkExiting 退出流程中，拦截所有 hashchange 路由分发：
     //    退出前 replaceState 到 #__exit 哨兵路由，history.back() 仅一步退出。
     //    若仍拦截到中间 hashchange（极端情况），直接跳过避免循环渲染。
     if (win.__bkExiting) {
       console.log('[Router] hashchange skipped (exiting)');
+      return;
+    }
+    // ★ PWA 返回键 fallback 期间，跳过 hashchange 路由分发：
+    //    浏览器按返回键时先触发 popstate（fallback 中 navigateReplace 已完成导航），
+    //    再触发 hashchange（此时 URL 是 history.back 后的旧地址，若 dispatch 会跳回）。
+    //    必须跳过这次 hashchange，让 fallback 的 navigateReplace 结果生效。
+    if (win.__bkFallbackNav) {
+      win.__bkFallbackNav = false;
+      console.log('[Router] hashchange skipped (fallback nav in progress)');
       return;
     }
     if (_skipNextDispatch) {

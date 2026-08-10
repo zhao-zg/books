@@ -34,7 +34,12 @@
                         ? AppUpdate.compareVersion(latest, currentPwa)
                         : (latest ? 1 : 0);
                     if (cmp > 0) showUpdateToast(latest, 'pwa');
-                }).catch(function() {});
+                }).catch(function() {
+                    // ★ 请求失败：清理竞速缓存，下次请求重新竞速
+                    if (window.BK && window.BK.RaceFastest) {
+                        window.BK.RaceFastest.invalidateVersion();
+                    }
+                });
         }
     };
 

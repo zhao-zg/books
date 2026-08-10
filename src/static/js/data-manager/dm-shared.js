@@ -92,7 +92,6 @@
   var _singleDlToken = 0;
   // 并发控制（3 路并发可显著提升批量下载速度，同时不会对 CDN 造成过大压力）
   var MAX_CONCURRENT = 3;
-  var MAX_RETRIES = 3;
 
   // ── 并发任务进度追踪 ──────────────────────────────────────────────────
   // 当 MAX_CONCURRENT > 1 时，多个 downloadBook 同时运行，各自写入独立的 task slot，
@@ -337,6 +336,24 @@
   // ── 工具函数 ──────────────────────────────────────────────────────────
 
   /**
+   * 清理竞速缓存并重置地址索引，下次请求自动重新竞速
+   * 任何网络请求失败时调用，确保缓存的“最快域名”失效后不会持续重试已不可达的服务器
+   */
+  function _invalidateRaceCache() {
+    if (win.BK && win.BK.RaceFastest) {
+      console.log('[DataManager] 请求失败，清理竞速缓存，下次将重新竞速');
+      win.BK.RaceFastest.invalidateVersion();
+    }
+    // 重置地址索引到首位，以便重新竞速后按新顺序尝试
+    if (DATA_BASE_URLS.length > 1) {
+      _currentUrlIndex = 0;
+      DATA_BASE_URL = DATA_BASE_URLS[0];
+    }
+    // 清除竞速 pending 标记，允许重新触发竞速
+    _racePending = null;
+  }
+
+  /**
    * 构建完整 URL
    */
   function buildUrl(path) {
@@ -346,19 +363,17 @@
   }
 
   /**
-   * 带重试 + 多地址容灾的 fetch
-   * 当前地址重试耗尽后自动切换到下一个地址
+   * 带多地址容灾的 fetch
+   * ★ 每个地址只试一次，失败立即切换下一个地址（不再对同一地址指数退避重试）
+   * ★ 所有地址均失败后清理竞速缓存，下次请求自动重新竞速
    * @param {string} url
-   * @param {number} [retries] 当前地址剩余重试次数
+   * @param {number} [retries] 未使用（保留签名兼容）
    * @param {Object} [options] 可选参数
-   *   @param {function} [options.shouldAbort] 每次重试前调用，返回 true 则放弃重试并抛 CANCELLED 错误。
-   *     ★ M1修复：让调用方能在 setTimeout 重试间隔内提前取消，避免用户取消下载后仍继续发起重试。
+   *   @param {function} [options.shouldAbort] 每次请求前调用，返回 true 则放弃并抛 CANCELLED 错误。
    * @returns {Promise<Response>}
    */
   function fetchWithRetry(url, retries, options) {
-    if (typeof retries === 'undefined') retries = MAX_RETRIES;
-    // ★ M1修复：重试入口校验取消——首次调用时也会校验（虽然 dm-download.js 在调用前后都有兜底校验，
-    //   这里集中校验让通用 fetchWithRetry 也支持取消语义，下游调用方无需各自处理）
+    // ★ 取消校验
     if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
       var abortErr = new Error('下载已取消');
       abortErr.code = ERR_CANCELLED;
@@ -370,7 +385,7 @@
         // 检测 CDN 返回 HTML 兜底页面（如 Cloudflare Pages 404 回退到 index.html）而非 JSON
         var ct = r.headers.get('content-type') || '';
         if (ct.indexOf('text/html') !== -1) {
-          // 文件在此 CDN 上不存在，无需重试，直接标记为 HTML 错误
+          // 文件在此 CDN 上不存在，直接标记为 HTML 错误
           var htmlErr = new Error('HTML_RESPONSE');
           htmlErr._isHtmlResponse = true;
           throw htmlErr;
@@ -378,33 +393,15 @@
         return r;
       })
       .catch(function (err) {
-        // HTML 响应说明文件在该 CDN 不存在，跳过重试直接切换备用地址
-        if (!err._isHtmlResponse && retries > 0) {
-          // 当前地址还有重试次数，指数退避后重试
-          var delay = Math.pow(2, MAX_RETRIES - retries) * 1000;
-          console.warn('[DataManager] 请求失败，' + delay + 'ms 后重试: ' + url);
-          return new Promise(function (resolve) {
-            setTimeout(resolve, delay);
-          }).then(function () {
-            // ★ M1修复：重试 setTimeout 间隔内可能已被取消，再次校验避免无效重试
-            if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
-              var e = new Error('下载已取消');
-              e.code = ERR_CANCELLED;
-              throw e;
-            }
-            return fetchWithRetry(url, retries - 1, options);
-          });
-        }
-        // 当前地址重试耗尽（或 HTML 响应），尝试切换到下一个地址
-        // ★ 并发适配：加锁防止多个 fetch 同时切换导致 _currentUrlIndex 越界
+        // ★ 当前地址失败一次，立即尝试切换到下一个地址（不再对同一地址重试）
         if (DATA_BASE_URLS.length > 1 && _currentUrlIndex < DATA_BASE_URLS.length - 1 && !_urlSwitching) {
           _urlSwitching = true;
           _currentUrlIndex++;
           DATA_BASE_URL = DATA_BASE_URLS[_currentUrlIndex];
           _urlSwitching = false;
-          console.warn('[DataManager] 切换到备用地址: ' + DATA_BASE_URL +
-            (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : ''));
-          // 用新地址重新构建 URL 并重试（保留完整相对路径，含子目录）
+          console.warn('[DataManager] 请求失败，切换到备用地址: ' + DATA_BASE_URL +
+            (err._isHtmlResponse ? '（前一个地址返回了 HTML）' : '（' + (err.message || err) + '）'));
+          // 用新地址重新构建 URL（保留完整相对路径，含子目录）
           var oldBase = DATA_BASE_URLS[_currentUrlIndex - 1].replace(/\/+$/, '');
           var relativePath;
           if (url.indexOf(oldBase + '/') === 0) {
@@ -413,14 +410,16 @@
             relativePath = url.substring(url.lastIndexOf('/') + 1);
           }
           var newUrl = DATA_BASE_URL.replace(/\/+$/, '') + '/' + relativePath;
-          // ★ M1修复：切换地址时也校验取消（用户在等待备用地址切换期间可能已取消）
+          // 取消校验
           if (options && typeof options.shouldAbort === 'function' && options.shouldAbort()) {
             var abortSwitchErr = new Error('下载已取消');
             abortSwitchErr.code = ERR_CANCELLED;
             throw abortSwitchErr;
           }
-          return fetchWithRetry(newUrl, MAX_RETRIES, options);
+          return fetchWithRetry(newUrl, 0, options);
         }
+        // ★ 所有地址均失败：清理竞速缓存，下次请求自动重新竞速
+        _invalidateRaceCache();
         throw err._isHtmlResponse
           ? new Error('该书籍数据文件在所有服务器上均不存在')
           : err;

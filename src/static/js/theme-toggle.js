@@ -202,6 +202,10 @@
                 })
                 .catch(function(e) {
                     if (statusEl) { statusEl.textContent = '获取失败: ' + e.message; statusEl.className = 'cache-status error'; }
+                    // ★ 请求失败：清理竞速缓存，下次请求重新竞速
+                    if (window.BK && window.BK.RaceFastest) {
+                        window.BK.RaceFastest.invalidateVersion();
+                    }
                 });
         }
         window.BKDownloadApk = downloadApk;

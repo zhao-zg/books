@@ -35,6 +35,10 @@
         function tryNext() {
             if (tried >= servers.length) {
                 container.innerHTML = '<div class="bk-remote-img-loading">' + errorText + '</div>';
+                // ★ 所有图片服务器都失败时，清理竞速缓存，下次请求重新竞速
+                if (window.BK && window.BK.RaceFastest) {
+                    window.BK.RaceFastest.invalidateVersion();
+                }
                 if (opts.onError) opts.onError();
                 return;
             }
