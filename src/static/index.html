@@ -14,7 +14,7 @@
     <script>
     (function(){
       // 应用配置（前端同步可读；构建时可由 config.yaml 注入覆盖 window.BK_CONFIG）
-      window.BK_CONFIG = window.BK_CONFIG || { disguiseEnabled: false };
+      window.BK_CONFIG = window.BK_CONFIG || { disguiseEnabled: true };
       // 是否启用伪装：默认关闭；URL 带 ?disguise=1 可临时开启自测
       var ENABLED = window.BK_CONFIG.disguiseEnabled === true
         || window.location.search.indexOf('disguise=1') !== -1;

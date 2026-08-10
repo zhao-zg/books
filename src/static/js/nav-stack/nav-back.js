@@ -137,14 +137,27 @@
                         }
                         // ★ PWA 退出流程：
                         //    window.close() 在大多数 PWA 中无效，只能靠 history.back() 退出。
-                        //    但 history.back() 会回退历史栈中正向导航的条目，触发 hashchange。
-                        //    退出标志仅用于防止重入（handleBackCommon + 50ms 防抖），
-                        //    不应阻断路由分发，否则回退产生的 hashchange 被吞掉，页面卡死。
+                        //    但 history.back() 会逐条回退历史栈中的正向导航条目，
+                        //    每一步都触发 popstate → fallback 循环。
+                        //    解决：退出前 replaceState 到专用哨兵路由 #/__exit，
+                        //    再 history.back() 仅回退一步即可退出 PWA；
+                        //    若 PWA 未关闭（某些浏览器不支持），恢复到原路由。
                         window.__bkExiting = true;
+                        var _exitPath = window.__bkCurrentPath || 'shelf';
+                        // 替换当前历史条目为哨兵路由
+                        try { window.history.replaceState(null, '', window.location.pathname + '#/__exit'); } catch(e) {}
                         window.close();
                         setTimeout(function() {
+                            // 此时只剩一个哨兵路由条目，history.back() 一步退出
                             window.history.back();
-                            setTimeout(function() { window.__bkExiting = false; }, 400);
+                            // 若 PWA 未关闭（5s 后仍在），恢复原路由
+                            setTimeout(function() {
+                                if (window.__bkExiting) {
+                                    window.__bkExiting = false;
+                                    try { window.history.replaceState(null, '', window.location.pathname + '#/' + _exitPath); } catch(e) {}
+                                    if (window.BKRouter) { window.BKRouter.navigateReplace(_exitPath); }
+                                }
+                            }, 500);
                         }, 150);
                     });
                 });

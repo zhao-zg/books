@@ -39,6 +39,11 @@
                 }
             }
         } else if (_fallback) {
+            // ★ 退出流程中，跳过 fallback（退出时 history.back() 触发的 popstate 不应再触发返回逻辑）
+            if (window.__bkExiting) {
+                console.log('[BackStack] popstate suppressed (exiting)');
+                return;
+            }
             // ★ 正向导航抑制：若 __bkForwardNavPending 为 true，
             // 说明此 popstate 是 navigate() 的副作用而非用户主动返回
             if (window.__bkForwardNavPending) {

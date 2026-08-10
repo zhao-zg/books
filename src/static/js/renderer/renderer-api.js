@@ -240,10 +240,6 @@
               };
               if (win.BK && win.BK.withNetworkAllowed) {
                 win.BK.withNetworkAllowed(function() {
-                  // 先静默检查，再弹框
-                  if (win.AppUpdate && win.AppUpdate.silentCheckUpdate) {
-                    return win.AppUpdate.silentCheckUpdate().then(_doCheck).catch(_doCheck);
-                  }
                   _doCheck();
                   return Promise.resolve();
                 });
