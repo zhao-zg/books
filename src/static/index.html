@@ -333,6 +333,8 @@
     <script src="js/import-manager/import-orchestrator.js" defer></script>
     <script src="js/webdav-manager.js" defer></script>
     <script src="js/webdav-upload.js" defer></script>
+    <!-- 外部文件打开处理（其他应用"打开方式"调用） -->
+    <script src="js/open-file-handler.js" defer></script>
     <!-- 应用前后台生命周期管理器（尽早加载，inline 脚本立即 init） -->
     <script src="js/app-lifecycle.js"></script>
 
@@ -386,6 +388,7 @@
         './js/import-manager/import-orchestrator.js',
         './js/webdav-manager.js',
         './js/webdav-upload.js',
+        './js/open-file-handler.js',
         './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/pdf-lib.min.js','./vendor/marked.min.js',
         './vendor/highlight.min.js','./vendor/mermaid.min.js','./vendor/katex.min.js','./vendor/katex.min.css',
         './vendor/highlight-github.css','./vendor/highlight-github-dark.css',
