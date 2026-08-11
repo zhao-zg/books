@@ -35,7 +35,10 @@
         var ch = chapters[i];
         var chNum = ch.number || (i + 1);
         var isCurrent = chNum === progress;
-        html += '<a class="bk-toc-chapter-item' + (isCurrent ? ' bk-toc-current' : '') + '" href="#/' + escAttr(bookId) + '/' + chNum + '" data-toc-nav="1">';
+        // ★ 不用 href="#/..." 原生导航——原生 <a> 绕过 BKRouter.navigate()，
+        //   导致 __bkForwardNavPending 标记未设置，PWA 中 popstate 误触 backStack
+        //   fallback 会闪回书架。改用 data-nav 存储路径，href 留空防跳转。
+        html += '<a class="bk-toc-chapter-item' + (isCurrent ? ' bk-toc-current' : '') + '" data-nav="' + escAttr(bookId) + '/' + chNum + '" data-toc-nav="1" href="javascript:void(0)">';
         html += '<span class="bk-toc-chapter-num">' + chNum + '</span>';
         html += '<span class="bk-toc-chapter-title">' + escText(ch.title || '第' + chNum + '章') + '</span>';
         if (isCurrent) html += '<span class="bk-toc-chapter-badge">在读</span>';
@@ -312,8 +315,12 @@
         // 同书章节切换走 replaceState，跨书走 hash 变化，均不会触发 history.back，
         // 因此点击章节能正确跳转到目标页。
         e.preventDefault();
-        var href = chapterLink.getAttribute('href') || '';
-        var navPath = href.replace(/^#\/?/, '');
+        // ★ 优先从 data-nav 取路径（新版），兜底从 href 提取（旧版 DOM 残留兼容）
+        var navPath = chapterLink.getAttribute('data-nav') || '';
+        if (!navPath) {
+          var _href = chapterLink.getAttribute('href') || '';
+          navPath = _href.replace(/^#\/?/, '');
+        }
         // 关闭 drawer 视觉并清掉其回退栈条目（不 history.back），再导航
         _toggleTocDrawer(false, { navigate: true });
         if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) {

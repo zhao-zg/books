@@ -64,6 +64,13 @@
                 var t = e.target;
                 while (t && t !== _el) {
                     if (t.classList && t.classList.contains('bk-float-nav-link')) {
+                        // ★ 通过 BKRouter.navigate() 导航（而非原生 href），
+                        //   确保 __bkForwardNavPending 标记被正确设置
+                        var navPath = t.getAttribute('data-nav');
+                        if (navPath != null && window.BKRouter) {
+                            e.preventDefault();
+                            window.BKRouter.navigate(navPath);
+                        }
                         hide(); return;
                     }
                     t = t.parentElement;
@@ -107,7 +114,8 @@
 
         if (pageType === 'reading') {
             // 返回书架
-            html += '<a class="bk-float-nav-link" href="#/" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
+            // ★ 不用 href="#/" 原生导航——绕过 BKRouter.navigate() 导致 PWA 闪回
+            html += '<a class="bk-float-nav-link" data-nav="" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
 
             // 书名 - 章节（从 BKRenderer 缓存读取章节标题）
             var chapterTitle = (window.BKRenderer && window.BKRenderer._currentChapterTitle) || '';
@@ -116,7 +124,7 @@
 
         } else {
             // 目录页：返回 + 书名
-            html += '<a class="bk-float-nav-link" href="#/" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
+            html += '<a class="bk-float-nav-link" data-nav="" title="书架"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>';
             html += '<div class="bk-float-title">' + (bookTitle || '') + '</div>';
         }
 

@@ -104,12 +104,19 @@
     // 无阅读历史 → 引导卡（整卡点击进入书城）
     if (all.length === 0) {
       anchor.innerHTML =
-        '<a class="bk-continue-card bk-continue-welcome" href="#/city">' +
+        '<a class="bk-continue-card bk-continue-welcome" data-nav="city" href="javascript:void(0)">' +
           '<div class="bk-continue-info">' +
             '<div class="bk-continue-title">去书城开始阅读</div>' +
             '<div class="bk-continue-chapter">' + _zlBooks.length + ' 本书籍等你探索</div>' +
           '</div>' +
         '</a>';
+      var welcomeCard = anchor.querySelector('.bk-continue-welcome[data-nav]');
+      if (welcomeCard) {
+        welcomeCard.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (win.BKRouter) win.BKRouter.navigate('city');
+        });
+      }
       var va = homeView.querySelector('#bk-continue-viewall');
       if (va) va.style.display = 'none';
       return;
@@ -127,7 +134,10 @@
     for (var i = 0; i < list.length; i++) {
       var it = list[i];
       var b = it.book;
-      html += '<a class="bk-continue-card" href="#/' + escAttr(b.id) + '/' + (it.progress || 1) + '">';
+      // ★ 不用 href="#/..." 原生导航——原生 <a> 绕过 BKRouter.navigate()，
+      //   导致 __bkForwardNavPending 标记未设置，PWA 中 popstate 误触 backStack
+      //   fallback 会闪回书架。改用 data-nav + click handler 走 navigate()。
+      html += '<a class="bk-continue-card" data-nav="' + escAttr(b.id) + '/' + (it.progress || 1) + '" href="javascript:void(0)">';
       html += '<div class="bk-continue-cover">' + _coverHTML(b, { size: 'sm' }) + '</div>';
       html += '<div class="bk-continue-info">';
       html += '<div class="bk-continue-title">' + escText(b.title) + '</div>';
@@ -137,6 +147,18 @@
       html += '</a>';
     }
     anchor.innerHTML = html;
+    // 绑定 click handler：通过 BKRouter.navigate() 导航，确保 __bkForwardNavPending
+    // 和 backStack.skipNext() 被正确设置，防止 PWA popstate 误触 fallback
+    var _continueCards = anchor.querySelectorAll('.bk-continue-card[data-nav]');
+    for (var j = 0; j < _continueCards.length; j++) {
+      _continueCards[j].addEventListener('click', function (e) {
+        e.preventDefault();
+        var navPath = this.getAttribute('data-nav');
+        if (navPath && win.BKRouter) {
+          win.BKRouter.navigate(navPath);
+        }
+      });
+    }
   }
   // 系列合并：书籍数 < MIN_SERIES_BOOKS 的系列归入拾遗
   var _MIN_SERIES_BOOKS = 3;

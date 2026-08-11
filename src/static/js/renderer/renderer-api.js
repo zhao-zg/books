@@ -635,7 +635,10 @@
           // 如果当前章节也已读满阈值，显示为已读
           if (isCurrent && isRead) isCurrent = false;
           var statusClass = isCurrent ? ' bk-chapter-current' : (isRead ? ' bk-chapter-read' : '');
-          html += '<a class="bk-chapter-item' + statusClass + '" href="#/' + escAttr(bookId) + '/' + chNum + '">';
+          // ★ 不用 href="#/..." 原生导航——原生 <a> 绕过 BKRouter.navigate()，
+          //   导致 __bkForwardNavPending 标记未设置，PWA 中 popstate 误触 backStack
+          //   fallback 会闪回书架。改用 data-nav + click handler 走 navigate()。
+          html += '<a class="bk-chapter-item' + statusClass + '" data-nav="' + escAttr(bookId) + '/' + chNum + '" href="javascript:void(0)">';
           html += '<span class="bk-chapter-num">' + chNum + '</span>';
           html += '<span class="bk-chapter-title">' + escText(ch.title || '第' + chNum + '章') + '</span>';
           if (isCurrent) html += '<span class="bk-chapter-badge">在读</span>';
@@ -646,6 +649,19 @@
         html += '</div>';
 
         app.innerHTML = html;
+
+        // 章节列表 click handler：通过 BKRouter.navigate() 导航，确保
+        // __bkForwardNavPending 和 backStack.skipNext() 被正确设置
+        var _chItems = app.querySelectorAll('.bk-chapter-item[data-nav]');
+        for (var ci = 0; ci < _chItems.length; ci++) {
+          _chItems[ci].addEventListener('click', function (e) {
+            e.preventDefault();
+            var navPath = this.getAttribute('data-nav');
+            if (navPath && win.BKRouter) {
+              win.BKRouter.navigate(navPath);
+            }
+          });
+        }
 
         var pageKey = bookId;
         startScrollTracking(pageKey);
