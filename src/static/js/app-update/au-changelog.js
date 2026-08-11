@@ -462,7 +462,7 @@
                         var steps = [];
                         if ('caches' in window) {
                             steps.push(caches.keys().then(function(keys) {
-                                return Promise.all(keys.filter(function(k) { return k.indexOf('bk-') === 0; }).map(function(k) { return caches.delete(k); }));
+                                return Promise.all(keys.filter(function(k) { return k.startsWith('bk-') || k.startsWith('books-'); }).map(function(k) { return caches.delete(k); }));
                             }));
                         }
                         try { localStorage.removeItem('bk_pwa_version'); } catch(ex) {}
