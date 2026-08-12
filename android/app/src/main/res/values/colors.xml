@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_bg">#FAFBFF</color>
-    <color name="splash_brand">#667EEA</color>
+    <color name="splash_bg">#F5F4F1</color>
+    <color name="splash_brand">#3D8A5A</color>
     <color name="splash_text">#1F2937</color>
-    <color name="status_bar">#FAFBFF</color>
+    <color name="status_bar">#F5F4F1</color>
 </resources>
