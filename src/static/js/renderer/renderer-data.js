@@ -259,14 +259,16 @@
   function getApp() { return document.getElementById('app') || document.body; }
 
   function showApp() {
-    if (win._bkShowApp) { win._bkShowApp(); } else {
-      var h = document.getElementById('homeView'), a = document.getElementById('app');
-      if (h) h.style.display = 'none';
-      if (a) a.style.display = '';
-    }
-    // 触发 fade-in 过渡
     var appEl = document.getElementById('app');
-    if (appEl) {
+    // 检测 #app 是否已可见（后续重渲染场景），避免冷启动时多次重渲染反复触发淡入动画导致屏幕抖动
+    var alreadyVisible = appEl && appEl.style.display !== 'none';
+    if (win._bkShowApp) { win._bkShowApp(); } else {
+      var h = document.getElementById('homeView');
+      if (h) h.style.display = 'none';
+      if (appEl) appEl.style.display = '';
+    }
+    // 仅在 #app 从隐藏变为可见时触发 fade-in 过渡（首次进入），后续重渲染跳过
+    if (appEl && !alreadyVisible) {
       var gen = ++_showAppGen;
       appEl.classList.remove('bk-view-enter', 'bk-view-enter-active');
       appEl.classList.add('bk-view-enter');

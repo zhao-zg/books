@@ -453,12 +453,14 @@
     window._bkShowHome = function() {
         var homeEl = document.getElementById('homeView');
         var appEl = document.getElementById('app');
+        // 检测 #homeView 是否已可见（后续重渲染场景），避免冷启动时多次重渲染反复触发淡入动画导致屏幕抖动
+        var alreadyVisible = homeEl && homeEl.style.display !== 'none';
         if (appEl) appEl.style.display = 'none';
         if (homeEl) homeEl.style.display = '';
         document.title = '书报';
         window.scrollTo(0, 0);
-        // 触发淡入过渡（与 #app 一致）
-        if (homeEl) {
+        // 仅在 #homeView 从隐藏变为可见时触发淡入过渡（首次进入），后续重渲染跳过
+        if (homeEl && !alreadyVisible) {
             var gen = ++_showHomeGen;
             homeEl.classList.remove('bk-view-enter', 'bk-view-enter-active');
             homeEl.classList.add('bk-view-enter');

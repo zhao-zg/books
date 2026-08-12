@@ -516,27 +516,39 @@
             var _fnLm = _fnRefs[0].match(/^([^\d:]+)(\d+):(\d+)/);
             if (!suppressCtx && _fnLm && !_lockBook) { book = _fnLm[1]; ch = parseInt(_fnLm[2], 10); }
           }
-          // 检查后续是否有逗号分隔的「N注M」续接注脚引用
-          // 如「太一3注1，21注1」中 fm.text = "太一3注1"，后续 "，21注1" 未被 _INLINE_F5_RE 匹配
+          // 循环检查后续逗号分隔的「N注M」续接注脚引用
+          // 如「太一3注1，21注1，21注1」→ 三个 fn-ref span
           var _fnAfter = seg.slice(fm.index + fm.text.length);
-          var _fnAfterM = /^[，,]\s*(\d+|[一二三四五六七八九十百]+)\s*注(\d+)/.exec(_fnAfter);
-          var _fnExtraRef = null;
-          if (_fnAfterM) {
+          var _fnExtraRefs = [];
+          var _fnExtraLen = 0;
+          var _fnAfterPos = 0;
+          while (true) {
+            var _fnAfterM = /^[，,]\s*(\d+|[一二三四五六七八九十百]+)\s*注(\d+)/.exec(_fnAfter.slice(_fnAfterPos));
+            if (!_fnAfterM) break;
             var _fn2Verse = _fnAfterM[1];
             var _fn2Num = _fnAfterM[2];
             var _fn2Refs = expandCnRefs(_fn2Verse, book, ch);
             if (_fn2Refs.length === 1) {
-              _fnExtraRef = { vkey: _fn2Refs[0], num: _fn2Num, text: _fnAfterM[0] };
+              _fnExtraRefs.push({ vkey: _fn2Refs[0], num: _fn2Num, text: _fnAfterM[0] });
+              _fnExtraLen += _fnAfterM[0].length;
+              _fnAfterPos += _fnAfterM[0].length;
+            } else {
+              break;
             }
           }
           if (_fnRefs.length === 1) {
             // 输出第一个 fn-ref
             result.push('<span class="scripture-ref fn-ref" data-vkey="' + escHtml(_fnRefs[0]) + '" data-fn="' + escHtml(fm.fnNum) + '">' + escHtml(fm.text) + '</span>');
-            // 输出续接 fn-ref
-            if (_fnExtraRef) {
-              result.push('<span class="scripture-ref fn-ref" data-vkey="' + escHtml(_fnExtraRef.vkey) + '" data-fn="' + escHtml(_fnExtraRef.num) + '">' + escHtml(_fnExtraRef.text) + '</span>');
-              // 扩展 fm.text 以包含续接部分，确保 last2 正确跳过
-              fm.text = fm.text + _fnExtraRef.text;
+            // 输出续接 fn-ref（可能 0 个或多个）
+            for (var ei = 0; ei < _fnExtraRefs.length; ei++) {
+              result.push('<span class="scripture-ref fn-ref" data-vkey="' + escHtml(_fnExtraRefs[ei].vkey) + '" data-fn="' + escHtml(_fnExtraRefs[ei].num) + '">' + escHtml(_fnExtraRefs[ei].text) + '</span>');
+            }
+            // 扩展 fm.text 以包含所有续接部分，确保 last2 正确跳过
+            if (_fnExtraRefs.length) {
+              fm.text = fm.text + seg.substring(fm.index + fm.text.length, fm.index + fm.text.length + _fnExtraLen);
+              // ★ 同步更新 last2，否则 last2 仍指向旧 fm.text 末尾，
+              // 导致 seg.slice(last2) 把续接部分当普通文本再输出一遍（重复）
+              last2 = fm.index + fm.text.length;
             }
           } else {
             result.push(escHtml(fm.text));
