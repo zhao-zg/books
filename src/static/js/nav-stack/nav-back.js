@@ -46,6 +46,7 @@
                     //    若 popstate 到达时该标记为 true，说明是正向导航的副作用，非用户主动返回
                     if (window.__bkForwardNavPending) {
                         window.__bkForwardNavPending = false;
+                        window.__bkForwardNavTarget = null;
                         console.log('[NavStack] PWA fallback suppressed (forward navigate pending)');
                         return;
                     }
@@ -105,6 +106,7 @@
                     //    若 popstate 到达时该标记为 true，说明是正向导航的副作用，非用户主动返回
                     if (window.__bkForwardNavPending) {
                         window.__bkForwardNavPending = false;
+                        window.__bkForwardNavTarget = null;
                         console.log('[NavStack] PWA fallback suppressed (forward navigate pending)');
                         return;
                     }

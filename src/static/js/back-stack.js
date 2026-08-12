@@ -22,7 +22,8 @@
     var _skipCount = 0;
 
     // 正向导航抑制：router.js 的 navigate 设置 __bkForwardNavPending，
-    // 若 popstate 到达时该标记为 true，说明是正向导航的副作用，跳过 fallback 并消费标记
+    // popstate 到达时 fallback 函数（nav-back.js）内部检查并消费此标记，
+    // 若为 true 说明是正向导航的副作用，跳过回退逻辑。
     // （__bkForwardNavTs + 5s 安全网自动清除标记，见 router.js）
 
     // popstate 监听器：浏览器返回键/手势触发时，执行栈顶回调
@@ -44,13 +45,10 @@
                 console.log('[BackStack] popstate suppressed (exiting)');
                 return;
             }
-            // ★ 正向导航抑制：若 __bkForwardNavPending 为 true，
-            // 说明此 popstate 是 navigate() 的副作用而非用户主动返回
-            if (window.__bkForwardNavPending) {
-                window.__bkForwardNavPending = false;
-                console.log('[BackStack] popstate suppressed (forward navigate pending)');
-                return;
-            }
+            // ★ 正向导航抑制统一由 fallback 函数内部处理（nav-back.js），
+            //    back-stack.js 不再消费 __bkForwardNavPending 标记。
+            //    这样 popstate 仅负责执行回退栈回调或调用 fallback，
+            //    而 __bkForwardNavPending 的检查与消费集中在 fallback 一处，避免双重消费。
             try { _fallback(); } catch (e) {
                 console.error('[BackStack] fallback error:', e);
             }

@@ -95,6 +95,22 @@
       console.log('[Router] hashchange skipped (exiting)');
       return;
     }
+    // ★ 正向导航期间，只放行目标 hash 的 hashchange，跳过旧 hash：
+    //    navigate() 设置 location.hash → 浏览器先触发 popstate（回退方向）再触发 hashchange。
+    //    popstate 被 fallback 中的 __bkForwardNavPending 拦截，但随后 hashchange 收到的
+    //    是旧 hash（回退方向），若 dispatch 会渲染旧路由导致页面闪回。
+    //    通过 __bkForwardNavTarget 判断：等于目标 hash → 正常 dispatch；不等 → 跳过。
+    if (win.__bkForwardNavPending && win.__bkForwardNavTarget) {
+      if (win.location.hash === win.__bkForwardNavTarget) {
+        // 正向导航目标 hash → 放行 dispatch
+        win.__bkForwardNavPending = false;
+        win.__bkForwardNavTarget = null;
+      } else {
+        // 旧 hash（回退方向）→ 跳过
+        console.log('[Router] hashchange skipped (stale hash during forward nav)');
+        return;
+      }
+    }
     // ★ PWA 返回键 fallback 期间，跳过 hashchange 路由分发：
     //    浏览器按返回键时先触发 popstate（fallback 中 navigateReplace 已完成导航），
     //    再触发 hashchange（此时 URL 是 history.back 后的旧地址，若 dispatch 会跳回）。
@@ -161,14 +177,19 @@
       } else {
         // 跨层级跳转
         if (win.BK && win.BK.backStack && win.BK.backStack.skipNext) win.BK.backStack.skipNext();
-        // ★ 标记正向导航进行中，防止 PWA 场景下 popstate 误触发 backStack fallback
-        //    back-stack.js 的 popstate 监听器会消费此标记并跳过 fallback
+        // ★ 标记正向导航进行中，防止 PWA 场景下 popstate 误触发 backStack fallback。
+        //    fallback 函数（nav-back.js）会检查此标记并跳过回退逻辑。
+        //    __bkForwardNavTarget 记录目标 hash，供 onHashChange 判断：
+        //    正向导航会先后触发 popstate + hashchange，其中 hashchange 可能收到
+        //    旧 hash（回退方向），若放行会 dispatch 旧路由导致页面闪回。
         //    安全网：5秒后自动清除，防止标记永远残留
         win.__bkForwardNavPending = true;
         win.__bkForwardNavTs = Date.now();
+        win.__bkForwardNavTarget = newHash;
         setTimeout(function() {
           if (win.__bkForwardNavPending && win.__bkForwardNavTs && (Date.now() - win.__bkForwardNavTs >= 5000)) {
             win.__bkForwardNavPending = false;
+            win.__bkForwardNavTarget = null;
           }
         }, 5000);
         win.location.hash = newHash;
