@@ -31,9 +31,6 @@
     return seriesId || '';
   }
 
-  /**
-   * 渲染 zl-html 首页完整内容
-   */
   // 系列合并：书籍数 < MIN_SERIES_BOOKS 的系列归入拾遗
   var _MIN_SERIES_BOOKS = 3;
   var _PICKUP_SERIES_ID = 'sy_auto';

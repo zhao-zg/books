@@ -341,7 +341,7 @@
           }
         });
       }
-// 筛选按钮：点击展开下拉菜单
+      // 筛选按钮：点击展开下拉菜单
       var filterBtn = document.getElementById('shelfFilterBtn');
       if (filterBtn) {
         filterBtn.addEventListener('click', function () {
@@ -537,7 +537,7 @@
       // 数据未就绪时确保 DataManager 初始化后再填充动态区
       if (!_zlDmReady) {
         _ensureDmInit().then(function () {
-        _renderShelfList();
+          _renderShelfList();
         }).catch(function () {});
       }
       _firePageRendered();
