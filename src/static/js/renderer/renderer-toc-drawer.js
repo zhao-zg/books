@@ -132,36 +132,8 @@
     _splitBookId = null;
   }
 
-  /** 写「我的」页标记统计（书签+划线+书架笔记，元素不存在时静默跳过） */
-  function _setMarkStat(bms, pages, shelfItems) {
-    var count = 0;
-    if (bms && Array.isArray(bms)) count += bms.length;
-    if (pages && Array.isArray(pages)) {
-      for (var p = 0; p < pages.length; p++) {
-        count += (pages[p].highlights || []).length;
-      }
-    }
-    if (shelfItems && Array.isArray(shelfItems)) {
-      for (var s = 0; s < shelfItems.length; s++) {
-        if (shelfItems[s].note) count++;
-      }
-    }
-    var el = document.getElementById('meStatMarks');
-    if (el) el.textContent = count;
-  }
-
-  /** 异步获取三个数据源并计算标记总数 */
-  function _fillMarkStat() {
-    var bmPromise = (win.BKBookmark && win.BKBookmark.getAll) ? win.BKBookmark.getAll() : Promise.resolve([]);
-    var hlPromise = (win.BKStorage && win.BKStorage.getAllPages) ? win.BKStorage.getAllPages() : Promise.resolve([]);
-    var shelfPromise = (win.BKShelf && win.BKShelf.all) ? Promise.resolve(win.BKShelf.all()) : Promise.resolve([]);
-    Promise.all([bmPromise, hlPromise, shelfPromise]).then(function (results) {
-      _setMarkStat(results[0], results[1], results[2]);
-    }).catch(function () {});
-  }
-
   /**
-   * 异步填充「我的」页统计卡（书籍数 / 章节数 / 标记数）
+   * 异步填充「我的」页统计卡（书籍数 / 章节数）
    */
   function _fillSettingsStats() {
     // 书籍数 + 章节数
@@ -176,16 +148,6 @@
       var elChapters = document.getElementById('meStatChapters');
       if (elBooks) elBooks.textContent = bookCount;
       if (elChapters) elChapters.textContent = chapterCount;
-    } catch (e) {}
-
-    // 标记数（书签 + 划线 + 书架笔记，统一计算）
-    try {
-      _fillMarkStat();
-      // 首次读取较慢（IndexedDB 超时）时，真实数据到达后自动刷新统计
-      if (!_bmLoadedListenerBound) {
-        _bmLoadedListenerBound = true;
-        win.addEventListener('bk:bookmarks-loaded', function () { _fillMarkStat(); });
-      }
     } catch (e) {}
   }
 

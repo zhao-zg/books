@@ -122,12 +122,12 @@
       return;
     }
 
-    var list = expanded ? all : all.slice(0, 6);
+    var list = expanded ? all : all.slice(0, 4);
 
     // 「查看全部」按钮：展开后或不足一屏时隐藏
     var vaBtn = homeView.querySelector('#bk-continue-viewall');
     if (vaBtn) {
-      vaBtn.style.display = (expanded || all.length <= 6) ? 'none' : '';
+      vaBtn.style.display = (expanded || all.length <= 4) ? 'none' : '';
     }
 
     var html = '';

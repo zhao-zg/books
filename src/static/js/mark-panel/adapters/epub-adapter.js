@@ -135,8 +135,12 @@
         bookmark: {
             getItems: function () {
                 if (!win.BKBookmark || !win.BKBookmark.getAll) return Promise.resolve([]);
+                var currentBookId = _getCurrentBookId();
                 return win.BKBookmark.getAll().then(function (bookmarks) {
-                    return (bookmarks || []).map(function (bm) {
+                    return (bookmarks || []).filter(function (bm) {
+                        // 仅返回当前书籍的书签（bookId 为空时兼容旧数据，保留显示）
+                        return !bm.bookId || !currentBookId || bm.bookId === currentBookId;
+                    }).map(function (bm) {
                         return {
                             id: bm.id,
                             title: bm.title || '未命名书签',
@@ -220,9 +224,13 @@
         mark: {
             getItems: function () {
                 if (!win.BKStorage || !win.BKStorage.getAllPages) return Promise.resolve([]);
+                var currentBookId = _getCurrentBookId();
                 return win.BKStorage.getAllPages().then(function (pages) {
                     var items = [];
                     (pages || []).forEach(function (page) {
+                        // 仅加载当前书籍的标记（pageKey 格式为 "/bookId/chapterNum"，带前导 /）
+                        if (currentBookId && page.key && page.key.indexOf('/' + currentBookId + '/') !== 0) return;
+
                         (page.highlights || []).forEach(function (hl) {
                             var type = 'highlight';
                             if (hl.underline) type = 'underline';

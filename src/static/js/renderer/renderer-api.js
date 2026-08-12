@@ -141,7 +141,6 @@
       html += '<div class="bk-stats-card">';
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatBooks">—</span><span class="bk-stat-label">书籍</span></div>';
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatChapters">—</span><span class="bk-stat-label">章节</span></div>';
-      html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatMarks">—</span><span class="bk-stat-label">标记</span></div>';
       html += '</div>';
 
       // 设置入口：打开阅读界面的设置弹窗（阅读模式 + 字体大小），避免「我的」页内联冗余
@@ -154,7 +153,6 @@
       // 内容与数据
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">内容与数据</div>';
-      html += '<button class="bk-settings-row" data-action="marks"><span class="bk-row-icon">🔖</span><span class="bk-row-label">我的标记</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="clear-data"><span class="bk-row-icon">🧹</span><span class="bk-row-label">清理数据</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
       html += '</div>'; // bk-settings-left end
@@ -211,9 +209,7 @@
         (function(row) {
           row.addEventListener('click', function() {
             var action = row.getAttribute('data-action');
-            if (action === 'marks') {
-              if (win.BKNoteSummary && win.BKNoteSummary.show) win.BKNoteSummary.show();
-            } else if (action === 'clear-data') {
+            if (action === 'clear-data') {
               if (win.BK && win.BK.clearData) win.BK.clearData();
             } else if (action === 'download-mgr') {
               if (win.BKRenderer && win.BKRenderer.openDownloadManager) win.BKRenderer.openDownloadManager();
@@ -349,7 +345,7 @@
           }
         });
       }
-      // 继续阅读「查看全部」：原地展开（首屏默认最多 6 张）
+      // 继续阅读「查看全部」：原地展开（首屏默认最多 4 张）
       var viewAllBtn = document.getElementById('bk-continue-viewall');
       if (viewAllBtn) {
         viewAllBtn.addEventListener('click', function () { _renderContinueList(app, { expanded: true }); });

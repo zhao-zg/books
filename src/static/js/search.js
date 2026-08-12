@@ -294,7 +294,6 @@
             self._isLoading = false;
             self._renderPage();
             self._updateCount(Date.now() - startTime);
-            self._addSearchHistory(query);
           });
         } else {
           // 内容索引已就绪，直接执行
@@ -307,7 +306,6 @@
         self._isLoading = false;
         self._renderPage();
         self._updateCount(elapsed);
-        self._addSearchHistory(query);
       }
     },
 
@@ -346,7 +344,6 @@
 
       var elapsed = Date.now() - startTime;
       self._updateCount(elapsed);
-      self._addSearchHistory(query);
     },
 
     /**
@@ -528,6 +525,11 @@
             var series = item.getAttribute('data-series');
             var DM = win.DataManager;
 
+            // ★ 搜索历史：点击搜索结果时才保存（非输入即保存）
+            if (self._currentQuery && self._currentQuery.trim()) {
+              self._addSearchHistory(self._currentQuery);
+            }
+
             function doNavigate() {
               if (win.BKRouter) {
                 // 检查阅读进度，有进度则直接跳转到上次阅读的章节
@@ -618,6 +620,11 @@
             var bookId = title.getAttribute('data-book-id');
             var series = title.getAttribute('data-series');
             var DM = win.DataManager;
+
+            // ★ 搜索历史：点击书名分组标题时才保存
+            if (self._currentQuery && self._currentQuery.trim()) {
+              self._addSearchHistory(self._currentQuery);
+            }
 
             function doNavigate() {
               if (bookId && win.BKRouter) {
@@ -888,9 +895,18 @@
         }, 300);
       });
 
-      // ESC 关闭
+      // ESC 关闭 / Enter 搜索
       this._input.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') self.close();
+        if (e.key === 'Escape') { self.close(); return; }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var q = self._input.value;
+          if (q.trim()) {
+            clearTimeout(self._debounceTimer);
+            self._addSearchHistory(q);
+            self._renderResults(q);
+          }
+        }
       });
 
       // 搜索范围切换
