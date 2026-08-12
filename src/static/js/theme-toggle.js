@@ -325,6 +325,7 @@
                     if (firstUse)   localStorage.setItem('bk_first_use', firstUse);
                 } catch(ex) {}
                 Promise.all(steps).then(function() {
+                    try{sessionStorage.setItem('bk_recache_after_clear','1');}catch(e){}
                     try{window.history.replaceState(null,'',window.location.pathname);}catch(e){}
                     window.location.reload();
                 });

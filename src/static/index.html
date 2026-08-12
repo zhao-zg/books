@@ -771,6 +771,22 @@
 
     function checkPwaStartupCache(){
         if(window.__bkUpdateInProgress)return;
+        // ★ 清理数据后重建缓存：无条件触发安装进度条（跟初次安装一样）
+        try{var _recache=sessionStorage.getItem('bk_recache_after_clear')==='1';}catch(e){var _recache=false;}
+        if(_recache){
+            try{sessionStorage.removeItem('bk_recache_after_clear');}catch(e){}
+            fetch('./version.json?t='+Date.now(),{cache:'no-store'})
+                .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+                .then(function(v){
+                    var ver=v.version||v.apk_version||'dev';
+                    showMandatoryInstallDialog('install',ver);
+                })
+                .catch(function(){
+                    // 离线时无法获取版本，用时间戳兜底
+                    showMandatoryInstallDialog('install',Date.now().toString());
+                });
+            return;
+        }
         if(!BK_ENV.isStandalone||BK_ENV.isCapacitorApp||!('caches' in window))return;
         // ★ 未开启自动检查更新时，跳过网络请求
         if(!(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()))return;
@@ -861,6 +877,7 @@
     function clearAllCachesAndMemory(opts){
         opts=opts||{};
         var goHome=function(){
+            try{sessionStorage.setItem('bk_recache_after_clear','1');}catch(e){}
             try{window.history.replaceState(null,'',window.location.pathname);}catch(e){}
             window.location.reload();
         };
