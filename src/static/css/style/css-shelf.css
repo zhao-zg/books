@@ -100,60 +100,98 @@
   margin: 0;
 }
 /* 书架分段切换：在读 / 已读 — 归属「我的书架」下，宽度收敛 */
-.bk-shelf-tabs {
-  display: inline-flex;
-  gap: 4px;
-  margin: 0 16px 12px;
-  padding: 3px;
-  background: var(--interactive-soft-bg, rgba(var(--brand-rgb, 61,138,90),.08));
-  border-radius: 12px;
+.bk-shelf-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
 }
-.bk-shelf-tab {
+.bk-shelf-filter-btn {
   appearance: none;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--border, #E5E2DD);
+  background: var(--card-bg, #fff);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-muted, #9A958C);
-  padding: 7px 16px;
-  border-radius: 9px;
+  color: var(--text, #1A1918);
+  padding: 7px 14px;
+  border-radius: 999px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 6px;
   -webkit-tap-highlight-color: transparent;
-  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+  transition: background .15s ease, border-color .15s ease;
 }
-.bk-shelf-tab.is-active {
-  background: var(--card-bg, #fff);
+.bk-shelf-filter-btn:active { background: var(--nav-hover); }
+.bk-shelf-filter-btn.has-filter {
+  border-color: var(--brand, #3D8A5A);
   color: var(--brand, #3D8A5A);
-  box-shadow: var(--shadow-card, 0 2px 8px rgba(60,40,10,.06));
 }
-.bk-shelf-tab:focus-visible {
+.bk-shelf-filter-btn:focus-visible {
   outline: 2px solid var(--brand, #3D8A5A);
   outline-offset: 2px;
 }
-.bk-shelf-tab-count {
-  min-width: 20px;
-  padding: 0 6px;
-  height: 20px;
-  display: inline-flex;
+.bk-shelf-filter-arrow {
+  width: 16px;
+  height: 16px;
+  transition: transform .2s ease;
+}
+.bk-shelf-filter-count {
+  font-size: 13px;
+  color: var(--text-muted, #9A958C);
+  font-weight: 500;
+}
+.bk-shelf-filter-label { font-size: 13px; font-weight: 600; color: inherit; }
+.bk-shelf-filter-mask { position: fixed; inset: 0; z-index: 999; background: transparent; }
+
+/* 筛选下拉菜单 */
+.bk-shelf-filter-dropdown {
+  position: fixed;
+  z-index: 1000;
+  min-width: 150px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #E5E2DD);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(60,40,10,.16);
+  padding: 4px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .15s ease, transform .15s ease;
+}
+.bk-shelf-filter-dropdown.is-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+.bk-shelf-filter-item {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  border-radius: 999px;
-  background: var(--interactive-soft-bg, rgba(var(--brand-rgb, 61,138,90),.12));
-  color: var(--brand, #3D8A5A);
-  font-family: var(--num-font-family);
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text, #1A1918);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
-.bk-shelf-tab.is-active .bk-shelf-tab-count {
-  background: var(--brand, #3D8A5A);
-  color: #fff;
-}
+.bk-shelf-filter-item:active { background: var(--nav-hover); }
+.bk-shelf-filter-item.is-active { color: var(--brand, #3D8A5A); font-weight: 600; }
+.bk-shelf-filter-item-check { width: 16px; height: 16px; flex-shrink: 0; }
+[data-theme="dark"] .bk-shelf-filter-dropdown { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }
+[data-theme="dark"] .bk-shelf-filter-btn { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }
+[data-theme="dark"] .bk-shelf-filter-btn.has-filter { border-color: var(--brand, #5EAE7E); color: var(--brand, #5EAE7E); }
+[data-theme="dark"] .bk-shelf-filter-item.is-active { color: var(--brand, #5EAE7E); }
+
+/* 旧 tab 样式保留兼容（不再使用，但防止旧 HTML 残留样式闪烁） */
+.bk-shelf-tabs { display: none; }
+
+/* 书架筛选空状态 */
 .bk-shelf-tab-empty {
   grid-column: 1 / -1;
   padding: 48px 16px;
@@ -161,9 +199,6 @@
   color: var(--text-muted, #9A958C);
   font-size: 14px;
 }
-[data-theme="dark"] .bk-shelf-tab.is-active { color: var(--brand, #5EAE7E); }
-[data-theme="dark"] .bk-shelf-tab-count { color: var(--brand, #5EAE7E); }
-[data-theme="dark"] .bk-shelf-tab.is-active .bk-shelf-tab-count { background: var(--brand, #5EAE7E); color: var(--text, #1A1918); }
 /* 书架：海报网格（与书城 L3 统一 auto-fill 布局，保证卡片大小一致）。
    水平 padding 由父级 .bk-shelf-page 提供，此处不再叠加，否则书架卡比书城窄 10px。 */
 .bk-shelf-list {
@@ -476,6 +511,18 @@
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
 }
 
+/* 书架卡片收藏角标（右上，与左上置顶角标对称） */
+.bk-shelf-fav-mark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 14px;
+  line-height: 1;
+  z-index: 6;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
+}
+
 /* 书籍详情弹窗 */
 .bk-book-detail { max-width: 440px; }
 .bk-detail-head { display: flex; align-items: center; gap: 16px; padding: 4px 2px 16px; }
@@ -512,7 +559,7 @@
 .bk-detail-empty { padding: 12px 2px; color: var(--text-muted, #9A958C); font-size: 14px; }
 [data-theme="dark"] .bk-book-detail .bk-detail-value { color: var(--text); }
 
-/* 书架顶部「编辑」按钮 */
+/* 书架顶部「编辑」按钮（位于筛选栏右端） */
 .bk-shelf-edit-btn {
   appearance: none;
   background: transparent;
@@ -525,6 +572,7 @@
   font-weight: 600;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  margin-left: auto;
 }
 .bk-shelf-edit-btn:disabled { opacity: .45; cursor: default; }
 .bk-shelf-edit-btn:active { background: var(--nav-hover); }

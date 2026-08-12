@@ -307,18 +307,14 @@
       html += '<h1 class="bk-city-title">书架</h1>';
       html += '<button type="button" id="shelfImportBtn" class="bk-city-search-btn" aria-label="导入">📂</button>';
       html += '</div>';
-      // 继续阅读模块（决策④：阅读进度归书架，首屏顶部续读）
-      html += '<div class="bk-section-header">';
-      html += '<span class="bk-section-title-lg">继续阅读</span>';
-      html += '<span class="bk-view-all" id="bk-continue-viewall" role="button" tabindex="0">查看全部</span>';
-      html += '</div>';
-      html += '<div id="bkContinueListAnchor"></div>';
-      // 我的书架
-      html += '<div class="bk-section-header"><span class="bk-section-title-lg">我的书架</span><button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button></div>';
-      // 书架分段切换（在读 / 已读）— 归属于「我的书架」下，宽度收敛
-      html += '<div class="bk-shelf-tabs" id="shelfTabs" role="tablist">';
-      html += '<button type="button" class="bk-shelf-tab is-active" data-tab="reading" role="tab" aria-selected="true">在读 <span class="bk-shelf-tab-count" id="shelfCountReading">0</span></button>';
-      html += '<button type="button" class="bk-shelf-tab" data-tab="read" role="tab" aria-selected="false">已读 <span class="bk-shelf-tab-count" id="shelfCountRead">0</span></button>';
+      // 筛选栏 + 编辑按钮
+      html += '<div class="bk-shelf-filter-bar">';
+      html += '<button type="button" class="bk-shelf-filter-btn" id="shelfFilterBtn" aria-haspopup="true" aria-expanded="false">';
+      html += '<span class="bk-shelf-filter-label" id="shelfFilterLabel">全部</span>';
+      html += '<svg class="bk-shelf-filter-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+      html += '</button>';
+      html += '<span class="bk-shelf-filter-count" id="shelfFilterCount">0 本</span>';
+      html += '<button type="button" id="shelfEditBtn" class="bk-shelf-edit-btn" aria-label="编辑书架">编辑</button>';
       html += '</div>';
       html += '<div class="bk-shelf-list bk-poster-grid" id="shelfList"></div>';
       // 编辑态底部批量操作条（默认隐藏，is-editing 时显示）
@@ -345,20 +341,11 @@
           }
         });
       }
-      // 继续阅读「查看全部」：原地展开（首屏默认最多 4 张）
-      var viewAllBtn = document.getElementById('bk-continue-viewall');
-      if (viewAllBtn) {
-        viewAllBtn.addEventListener('click', function () { _renderContinueList(app, { expanded: true }); });
-      }
-
-      // 分段切换（在读 / 已读）：点击仅改激活桶并重渲染列表（bk-shelf-changed 监听复用）
-      var tabsEl2 = document.getElementById('shelfTabs');
-      if (tabsEl2) {
-        tabsEl2.addEventListener('click', function (e) {
-          var tab = e.target.closest('.bk-shelf-tab');
-          if (!tab) return;
-          _shelfActiveTab = tab.getAttribute('data-tab') || 'reading';
-          _renderShelfList();
+// 筛选按钮：点击展开下拉菜单
+      var filterBtn = document.getElementById('shelfFilterBtn');
+      if (filterBtn) {
+        filterBtn.addEventListener('click', function () {
+          _toggleShelfFilterMenu();
         });
       }
 
@@ -381,7 +368,9 @@
           if (_shelfEditing) { _toggleShelfSelection(row); return; } // 编辑态：点卡=切换选中
           var id = row.getAttribute('data-book-id');
           if (id && win.BKRouter && typeof win.BKRouter.navigate === 'function') {
-            win.BKRouter.navigate(id);
+            // 与书城 _handleBookClick 一致：有阅读进度则直接跳到上次阅读位置，否则进目录页
+            var _p = getReadingProgress(id);
+            win.BKRouter.navigate(_p > 0 ? id + '/' + _p : id);
           }
         });
         // 键盘可达：行聚焦时 Enter / 空格 打开书籍（编辑态则切换选中）
@@ -394,7 +383,8 @@
           if (_shelfEditing) { _toggleShelfSelection(row); return; }
           var id = row.getAttribute('data-book-id');
           if (id && win.BKRouter && typeof win.BKRouter.navigate === 'function') {
-            win.BKRouter.navigate(id);
+            var _p2 = getReadingProgress(id);
+            win.BKRouter.navigate(_p2 > 0 ? id + '/' + _p2 : id);
           }
         });
 
@@ -460,7 +450,7 @@
           var ids = Object.keys(_shelfSelected);
           if (!ids.length) return;
           for (var i = 0; i < ids.length; i++) {
-            if (_shelfActiveTab === 'read') {
+            if (_shelfFilter === 'read') {
               if (win.BKShelf && win.BKShelf.unmarkRead) win.BKShelf.unmarkRead(ids[i]);
             } else {
               if (win.BKShelf && win.BKShelf.markRead) win.BKShelf.markRead(ids[i]);
@@ -527,10 +517,8 @@
       }
 
       // 进入时先用已有数据同步渲染（避免空白闪烁），再合并导入书籍后更新
-      _renderShelfContinue(app);
       _renderShelfList();
       _mergeImportedBooks().then(function () {
-        _renderShelfContinue(app);
         _renderShelfList();
       }).catch(function () {});
 
@@ -549,8 +537,7 @@
       // 数据未就绪时确保 DataManager 初始化后再填充动态区
       if (!_zlDmReady) {
         _ensureDmInit().then(function () {
-          _renderShelfContinue(app);
-          _renderShelfList();
+        _renderShelfList();
         }).catch(function () {});
       }
       _firePageRendered();

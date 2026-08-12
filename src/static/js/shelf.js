@@ -5,16 +5,19 @@
  *
  * 新数据模型（「在架/收藏」与「已读」解耦）：
  *  - 键命名：bk_shelf:<bookId>  →  JSON 记录
- *  - 记录形状：{ bookId, addedAt, finished?, completedAt?, note, rating, status }
+ *  - 记录形状：{ bookId, addedAt, finished?, completedAt?, note, rating, status, pinned?, pinnedTs?, favorite?, favoriteTs? }
  *      · finished（布尔，可选）：权威判定「已读」。true=读完；缺省/undefined=未读（在架或在读）。
  *      · completedAt：仅当 finished 时有效/显示（YYYY-MM-DD）；缺省/空表示未读完。
  *      · addedAt：入架日期（YYYY-MM-DD），用于排序兜底（旧记录无 addedAtTs 时）。
  *      · addedAtTs：入架时刻时间戳（ms），书架主排序键——最近加入的在最上面。
  *      · status：文档化字段，固定写 'collected'（旧记录 legacy 'read' 读取时忽略）。
+ *      · favorite（布尔，可选）：用户收藏标记，独立于 finished。true=已收藏。
+ *      · favoriteTs：收藏时间戳（ms），收藏排序用。
  *  - 入架（add）= 收藏，不写 finished/completedAt（与旧记录形状一致，天然未读）。
  *  - 标记已读（markRead / finish）= 置 finished:true + completedAt；幂等去重。
+ *  - 收藏（setFavorite）= 置 favorite:true + favoriteTs，不影响 finished 状态。
  *  - 迁移零成本：旧记录无 finished → isRead 返回 false → 天然转「在读/收藏」，不重写键。
- *  - 每次写操作后广播全局自定义事件 'bk-shelf-changed'，detail = { bookId, action:'add'|'finish'|'remove' }。
+ *  - 每次写操作后广播全局自定义事件 'bk-shelf-changed'，detail = { bookId, action:'add'|'finish'|'remove'|'favorite'|'unfavorite' }。
  *  - 不碰 DOM：纯数据层，供书城卡片与书架页两个视图消费。
  *
  * 暴露：window.BKShelf
@@ -404,6 +407,41 @@
   }
 
   /**
+   * 收藏 / 取消收藏书籍（独立于 finished 已读状态）。
+   * 收藏写 favorite:true + favoriteTs；取消收藏删除该字段。
+   * @param {string} bookId
+   * @param {boolean} favorite
+   */
+  function setFavorite(bookId, favorite) {
+    if (!bookId) return;
+    var rec = get(bookId);
+    if (!rec) {
+      // 书不在架的极端情况：先入架再收藏
+      rec = { bookId: bookId, addedAt: _today(), addedAtTs: Date.now(), note: null, rating: null, status: STATUS };
+    }
+    if (favorite) {
+      rec.favorite = true;
+      rec.favoriteTs = Date.now();
+    } else {
+      delete rec.favorite;
+      delete rec.favoriteTs;
+    }
+    if (!rec.status) rec.status = STATUS;
+    _safeSet(_key(bookId), JSON.stringify(rec));
+    emitChanged(bookId, favorite ? 'favorite' : 'unfavorite');
+  }
+
+  /**
+   * 判定书籍是否已收藏（favorite 标记，独立于 finished 已读）。
+   * @param {string} bookId
+   * @returns {boolean}
+   */
+  function isFavorite(bookId) {
+    var rec = get(bookId);
+    return !!(rec && rec.favorite === true);
+  }
+
+  /**
    * 阅读统计。
    * @returns {{total:number, finished:number, thisMonth:number}}
    *   total      = 在架（收藏）总数
@@ -431,7 +469,7 @@
   /**
    * 广播书架状态变更事件（全局自定义事件）。
    * @param {string} bookId
-   * @param {'add'|'finish'|'remove'|'unread'|'pin'|'unpin'|'note-update'|'rating-update'} action
+   * @param {'add'|'finish'|'remove'|'unread'|'pin'|'unpin'|'favorite'|'unfavorite'|'note-update'|'rating-update'} action
    */
   function emitChanged(bookId, action) {
     try {
@@ -456,6 +494,8 @@
     isCollected: isCollected,
     setPinned: setPinned,
     isPinned: isPinned,
+    setFavorite: setFavorite,
+    isFavorite: isFavorite,
     all: all,
     stats: stats,
     emitChanged: emitChanged

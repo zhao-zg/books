@@ -25,7 +25,7 @@
   var _zlIndexUpdateHandler = null; // 索引更新事件处理器（用于 removeEventListener）
   var _bkShelfChangedBound = false;   // 书城卡片全局 bk-shelf-changed 监听是否已注册（仅一次）
   var _shelfPageChangedBound = false; // 书架页全局 bk-shelf-changed 监听是否已注册（仅一次）
-  var _shelfActiveTab = 'reading';   // 书架分段激活态：'reading'（在读，默认）| 'read'（已读）
+  var _shelfFilter = 'all';   // 书架筛选态：'all'（默认）| 'favorite' | 'read' | 'imported' | 'city' | 'webdav'
   var _shelfEditing = false;         // 书架编辑（多选）态
   var _shelfSelected = {};           // 编辑态选中集合：{ bookId: true }
   var _suppressNextClick = false;    // 长按菜单打开后吞掉随后的 click，避免误跳转

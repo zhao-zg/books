@@ -473,7 +473,7 @@
         if ((r.type === 'content' || r.type === 'content-index') && r.context) {
           html += '<div class="bk-search-item-text">' + self._highlightText(r.context, query) + '</div>';
         } else if (r.type === 'title') {
-          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍' + (self._hasProgress(r.bookId) ? '（继续阅读）' : '') + '</div>';
+          html += '<div class="bk-search-item-text bk-search-hint-text">点击打开书籍</div>';
         }
 
         html += '</div>';

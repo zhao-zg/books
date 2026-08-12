@@ -167,11 +167,6 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 .bk-settings-entry-arrow { color: var(--brand); font-size: 18px; flex-shrink: 0; }
 
 /* ── 平板书架首页（设计稿 11:1） ────────────────────────────── */
-/* 继续阅读卡（旧定义保留兼容，实际样式见下方增强主页区域） */
-.bk-continue-info { flex: 1; min-width: 0; }
-.bk-continue-label { font-size: var(--text-xs); color: var(--brand); font-weight: 600; letter-spacing: 0.04em; margin-bottom: 4px; }
-.bk-continue-btn { flex-shrink: 0; padding: 8px 20px; background: var(--brand); color: #fff; border-radius: var(--radius-md); text-decoration: none; font-size: var(--text-sm); font-weight: 600; }
-.bk-continue-btn:active { opacity: 0.85; }
 /* 平板宽头放大 */
 @media (min-width: 768px) {
   .header { padding: 24px 32px 16px; }
@@ -191,83 +186,6 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 .bk-home-hero-title { font-family: var(--heading-font-family); font-size: var(--text-3xl); font-weight: 800; color: var(--brand); letter-spacing: 0.06em; margin: 0; line-height: 1.2; }
 .bk-home-hero-sub { font-size: var(--text-md); color: var(--text-muted); margin: 0 0 10px; letter-spacing: 0.01em; }
 .bk-home-hero-actions { display: flex; gap: 10px; margin-top: 6px; }
-
-/* 续读卡 — 两列横向条状卡片（封面放大版） */
-#bkContinueListAnchor {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  padding: 4px 16px 16px;
-}
-.bk-continue-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 12px);
-  padding: 10px 12px;
-  text-decoration: none;
-  color: inherit;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform .18s var(--ease-out, ease), background-color .15s;
-  overflow: hidden;
-}
-.bk-continue-card:active { transform: scale(.97); background: var(--nav-hover); }
-.bk-continue-cover {
-  width: 48px;
-  height: 64px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.bk-continue-cover .bk-cover {
-  width: 100%;
-  height: 100%;
-  aspect-ratio: auto;
-  border-radius: 6px;
-}
-.bk-continue-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.bk-continue-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.3;
-}
-.bk-continue-chapter {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bk-continue-card .reading-progress {
-  width: 100%;
-  height: 3px;
-  margin: 3px 0 0;
-  background: var(--progress-bg, rgba(var(--brand-rgb),.12));
-  border-radius: 2px;
-  overflow: hidden;
-}
-.bk-continue-card .reading-progress-fill {
-  height: 100%;
-  background: var(--brand, #3D8A5A);
-  border-radius: 2px;
-}
-/* 无历史时的引导卡（跨两列居中） */
-.bk-continue-welcome { grid-column: 1 / -1; cursor: pointer; }
-.bk-continue-welcome .bk-continue-title { font-weight: 500; color: var(--text-muted); }
-.bk-continue-welcome .bk-continue-info { padding: 8px; text-align: center; align-items: center; }
 
 /* 最近阅读水平滚动区 */
 .bk-recent-section { margin: 2px 0 8px; }
@@ -386,10 +304,6 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
   .bk-home-hero-icon { font-size: 34px; }
   .bk-home-hero-title { font-size: 36px; }
   .bk-home-hero-sub { font-size: var(--text-lg); }
-  #bkContinueListAnchor { gap: 12px; padding: 6px 32px 22px; }
-  .bk-continue-title { font-size: 13px; }
-  .bk-continue-cover { width: 42px; height: 56px; }
-  .bk-continue-btn { padding: 11px 28px; font-size: var(--text-md); }
   .bk-recent-scroll { padding: 6px 32px 20px; gap: 14px; }
   .bk-recent-item { min-width: 220px; max-width: 280px; padding: 12px 18px; }
   .bk-section-header { padding: 18px 32px 8px; }
@@ -399,10 +313,6 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 /* 小屏手机收紧 */
 @media (max-width: 380px) {
   .bk-home-hero { padding: 16px 14px 6px; }
-  #bkContinueListAnchor { gap: 6px; padding: 2px 14px 12px; }
-  .bk-continue-cover { width: 32px; height: 42px; }
-  .bk-continue-card { padding: 8px 10px; gap: 8px; }
-  .bk-continue-title { font-size: 11px; }
   .bk-recent-scroll { padding: 4px 14px 10px; }
   .bk-section-header { padding: 10px 14px 4px; }
 }

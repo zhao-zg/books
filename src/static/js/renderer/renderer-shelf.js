@@ -56,36 +56,152 @@
     // 书架显示 bookId 而非真实标题。
     _mergeImportedBooks().then(function () {
       _renderShelfList();
-      // ★ 同步刷新「继续阅读」模块：移出书架后该书的进度记录虽保留（便于续读），
-      //   但 isCollected 过滤会使之从续读列表消失，需重渲染才能反映这一变化。
-      _renderShelfContinue(document.getElementById('app') || document.body);
     }).catch(function () {
       _renderShelfList(); // 合并失败也兜底渲染，避免书架不刷新
     });
   }
 
   /**
-   * 书架页列表 + 统计渲染（私有）：读 BKShelf.all()/stats() 整体渲染，保证与事实源 100% 一致。
+   * 书架筛选选项定义。
+   * value 对应 _shelfFilter 状态值。
    */
-  /**
-   * 计算书架统计：已读 / 在读 / 收藏。
-   * 已读 = BKShelf 收藏总数；在读 = 有阅读进度且未读完的书数；收藏 = BKShelf 收藏总数。
-   * @returns {{read:number, reading:number, collected:number}}
-   */
+  var SHELF_FILTERS = [
+    { value: 'all',       label: '全部' },
+    { value: 'favorite',  label: '收藏' },
+    { value: 'read',      label: '已读' },
+    { value: 'imported',  label: '本地导入' },
+    { value: 'city',      label: '书城' },
+    { value: 'webdav',    label: 'WebDAV' }
+  ];
 
-
   /**
-   * 渲染书架页「继续阅读」模块（复用既有 _renderContinueList 卡片结构）。
-   * @param {HTMLElement} app 书架页容器（#app）
+   * 判断单本书是否符合当前筛选条件。
+   * @param {Object} rec 书架记录
+   * @param {Object|null} book 书籍元数据
+   * @returns {boolean}
    */
-  function _renderShelfContinue(app) {
-    if (!app) return;
-    _renderContinueList(app);
+  function _matchShelfFilter(rec, book) {
+    switch (_shelfFilter) {
+      case 'all':
+        return true;
+      case 'favorite':
+        return !!(rec && rec.favorite === true);
+      case 'read':
+        return !!(rec && rec.finished === true);
+      case 'imported':
+        return rec.bookId.indexOf('imported-') === 0;
+      case 'city':
+        return rec.bookId.indexOf('imported-') !== 0;
+      case 'webdav':
+        return !!(book && book.source && book.source.type === 'webdav');
+      default:
+        return true;
+    }
   }
+
+  /**
+   * 获取当前筛选的显示名称。
+   * @returns {string}
+   */
+  function _shelfFilterLabel() {
+    for (var i = 0; i < SHELF_FILTERS.length; i++) {
+      if (SHELF_FILTERS[i].value === _shelfFilter) return SHELF_FILTERS[i].label;
+    }
+    return '全部';
+  }
+
+  /**
+   * 打开/关闭书架筛选下拉菜单。
+   */
+  function _toggleShelfFilterMenu() {
+    var existing = document.querySelector('.bk-shelf-filter-dropdown');
+    if (existing) { _closeShelfFilterMenu(); return; }
+    _openShelfFilterMenu();
+  }
+
+  function _openShelfFilterMenu() {
+    var btn = document.getElementById('shelfFilterBtn');
+    if (!btn) return;
+    _closeShelfFilterMenu(); // 先清理残留
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'bk-shelf-filter-dropdown';
+    dropdown.setAttribute('role', 'menu');
+    dropdown.setAttribute('aria-label', '筛选书籍');
+
+    for (var i = 0; i < SHELF_FILTERS.length; i++) {
+      var f = SHELF_FILTERS[i];
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'bk-shelf-filter-item' + (f.value === _shelfFilter ? ' is-active' : '');
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', f.value === _shelfFilter ? 'true' : 'false');
+      item.setAttribute('data-filter', f.value);
+      item.innerHTML =
+        '<span class="bk-shelf-filter-item-label">' + escText(f.label) + '</span>' +
+        (f.value === _shelfFilter ? '<svg class="bk-shelf-filter-item-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : '');
+      (function (val) {
+        item.addEventListener('click', function () {
+          _shelfFilter = val;
+          _closeShelfFilterMenu();
+          _renderShelfList();
+        });
+      })(f.value);
+      dropdown.appendChild(item);
+    }
+
+    // 将 dropdown 放在 body 末尾避免被裁切
+    document.body.appendChild(dropdown);
+
+    // 定位到按钮下方
+    var btnRect = btn.getBoundingClientRect();
+    var dropdownRect = dropdown.getBoundingClientRect();
+    var left = btnRect.left;
+    // 如果右侧溢出，则右对齐按钮
+    if (left + dropdownRect.width > window.innerWidth - 8) {
+      left = btnRect.right - dropdownRect.width;
+    }
+    if (left < 8) left = 8;
+    dropdown.style.left = left + 'px';
+    dropdown.style.top = (btnRect.bottom + 4) + 'px';
+
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+
+    // 点击外部关闭
+    setTimeout(function () {
+      var mask = document.createElement('div');
+      mask.className = 'bk-shelf-filter-mask';
+      mask.style.position = 'fixed';
+      mask.style.inset = '0';
+      mask.style.zIndex = '999';
+      mask.addEventListener('click', function () {
+        _closeShelfFilterMenu();
+      });
+      document.body.appendChild(mask);
+      dropdown._mask = mask;
+    }, 0);
+
+    // 入场动画
+    if (win.requestAnimationFrame) {
+      win.requestAnimationFrame(function () { dropdown.classList.add('is-open'); });
+    } else {
+      dropdown.classList.add('is-open');
+    }
+  }
+
+  function _closeShelfFilterMenu() {
+    var dropdown = document.querySelector('.bk-shelf-filter-dropdown');
+    if (dropdown) {
+      if (dropdown._mask && dropdown._mask.parentNode) dropdown._mask.parentNode.removeChild(dropdown._mask);
+      if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
+    }
+    var btn = document.getElementById('shelfFilterBtn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
 
   function _renderShelfList() {
     var listEl = document.getElementById('shelfList');
-    var tabsEl = document.getElementById('shelfTabs');
     if (!listEl || !win.BKShelf) return;
 
     // 同步完成状态：修复「进度100%但未标记已读」的不一致
@@ -96,26 +212,22 @@
       return (win.BKShelf && win.BKShelf.isRead) ? win.BKShelf.isRead(id) : false;
     };
 
-    // 分桶：在读（未 finished） / 已读（finished）
-    var reading = [], read = [];
+    // 筛选当前条件下的书籍
+    var bucket = [];
     for (var i = 0; i < records.length; i++) {
-      (_isReadFn(records[i].bookId) ? read : reading).push(records[i]);
+      var rec = records[i];
+      var book = _findBookById(rec.bookId) || { id: rec.bookId };
+      if (_matchShelfFilter(rec, book)) bucket.push(rec);
     }
 
-    // 分段计数 + 激活态（保留 _shelfActiveTab，bk-shelf-changed 重渲染不跳变）
-    var crEl = document.getElementById('shelfCountReading');
-    var cdEl = document.getElementById('shelfCountRead');
-    if (crEl) crEl.textContent = reading.length;
-    if (cdEl) cdEl.textContent = read.length;
-    if (tabsEl) {
-      var tabBtns = tabsEl.querySelectorAll('.bk-shelf-tab');
-      for (var t = 0; t < tabBtns.length; t++) {
-        var tb = tabBtns[t];
-        var active = tb.getAttribute('data-tab') === _shelfActiveTab;
-        tb.classList.toggle('is-active', active);
-        tb.setAttribute('aria-selected', active ? 'true' : 'false');
-      }
-    }
+    // 更新筛选标签和计数
+    var labelEl = document.getElementById('shelfFilterLabel');
+    if (labelEl) labelEl.textContent = _shelfFilterLabel();
+    var countEl = document.getElementById('shelfFilterCount');
+    if (countEl) countEl.textContent = bucket.length + ' 本';
+    // 更新筛选按钮激活态
+    var filterBtn = document.getElementById('shelfFilterBtn');
+    if (filterBtn) filterBtn.classList.toggle('has-filter', _shelfFilter !== 'all');
 
     // 空状态引导
     if (!records.length) {
@@ -133,74 +245,69 @@
     }
 
     // 书架列表（每条记录 = 在架/收藏；是否「读完」由 BKShelf.isRead(finished) 判定）
-    // 仅渲染当前激活桶（默认：在读）
-    var bucket = (_shelfActiveTab === 'read') ? read : reading;
     if (!bucket.length) {
       listEl.innerHTML =
         '<div class="bk-shelf-tab-empty">' +
-          (_shelfActiveTab === 'read' ? '已读列表还是空的' : '在读列表还是空的') +
+          _shelfFilterLabel() + '列表还是空的' +
         '</div>';
       return;
     }
 
     var html = '';
-    for (var i = 0; i < bucket.length; i++) {
-      var rec = bucket[i];
-      var book = _findBookById(rec.bookId) || { id: rec.bookId, title: rec.bookId, series: '' };
-      var title = book.title || (rec.bookId || '未知书籍');
-      // 作者：优先真实作者→系列名；来源信息统一由 source 徽标承担，不再降级到 author 行
-      var author = book.author || _getSeriesTitle(book.series) || '';
-      // 海报封面：复用 .bk-cover，填满卡顶（由 .bk-shelf-row overflow:hidden 裁切 16px 圆角）
-      var cover = _coverHTML(book, { varyByBook: true, seriesTitle: _sourceLabel(book) || _getSeriesTitle(book.series) });
-      var isRead = _isReadFn(rec.bookId);
-      var pinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(rec.bookId) : false;
+    for (var i2 = 0; i2 < bucket.length; i2++) {
+      var rec2 = bucket[i2];
+      var book2 = _findBookById(rec2.bookId) || { id: rec2.bookId, title: rec2.bookId, series: '' };
+      var title = book2.title || (rec2.bookId || '未知书籍');
+      var author = book2.author || _getSeriesTitle(book2.series) || '';
+      var cover = _coverHTML(book2, { varyByBook: true, seriesTitle: _sourceLabel(book2) || _getSeriesTitle(book2.series) });
+      var isRead = _isReadFn(rec2.bookId);
+      var pinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(rec2.bookId) : false;
+      var isFav = (win.BKShelf && win.BKShelf.isFavorite) ? win.BKShelf.isFavorite(rec2.bookId) : false;
 
-      // 行副文案：读完显「已于 X 读完」；未读完（在读/收藏）显「已读 X%」百分比进度（与书城视觉一致）
+      // 行副文案：读完显「已于 X 读完」；未读完显「已读 X%」百分比进度
       var subText;
       if (isRead) {
-        subText = escText(rec.completedAt || '');
+        subText = escText(rec2.completedAt || '');
       } else {
-        // 基于滚动完成度计算已读百分比（而非仅章节号）
         var readChCount = 0;
-        var cc = book.chapter_count || 0;
+        var cc = book2.chapter_count || 0;
         for (var _rni = 1; _rni <= cc; _rni++) {
-          if (_isChapterReadByScroll(rec.bookId, _rni)) readChCount++;
+          if (_isChapterReadByScroll(rec2.bookId, _rni)) readChCount++;
         }
         var pct = (cc > 0 && readChCount > 0) ? Math.round(readChCount / cc * 100) : 0;
         subText = pct > 0 ? ('已读 ' + pct + '%') : '未读';
       }
-      // note/rating 数据：支持编辑与展示
       var metaExtra = '';
-      if (rec.rating) metaExtra += ' ★' + rec.rating;
-      if (rec.note) metaExtra += ' · 有笔记';
+      if (rec2.rating) metaExtra += ' ★' + rec2.rating;
+      if (rec2.note) metaExtra += ' · 有笔记';
 
-      // 海报卡：封面(卡顶) + 信息条(书名 + 单行元数据)，结构与书城 L3 一致
-      html += '<div class="bk-shelf-row bk-poster-card" data-book-id="' + escAttr(rec.bookId) + '" role="button" tabindex="0" aria-label="打开 ' + escAttr(title) + '">';
+      // 海报卡
+      html += '<div class="bk-shelf-row bk-poster-card' + (isRead ? ' is-read' : '') + '" data-book-id="' + escAttr(rec2.bookId) + '" role="button" tabindex="0" aria-label="打开 ' + escAttr(title) + '">';
       var pinMark = pinned ? '<span class="bk-shelf-pin-mark" aria-label="已置顶" role="img">📌</span>' : '';
-      var srcBadge = _sourceBadgeHTML(book);
+      var favMark = isFav ? '<span class="bk-shelf-fav-mark" aria-label="已收藏" role="img">❤</span>' : '';
+      var srcBadge = _sourceBadgeHTML(book2);
       html += '<div class="bk-shelf-row-cover">' + cover + (srcBadge ? '<div class="bk-shelf-row-badge">' + srcBadge + '</div>' : '') + '</div>';
       html += pinMark;
-      html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
-      // 书架：信息条 = 书名（封面同款，便于扫读） + 元信息行（仅进度/日期；作者/评分/笔记移至详情）
+      html += favMark;
+      html += '<button type="button" class="bk-shelf-select" data-book-id="' + escAttr(rec2.bookId) + '" aria-label="选择 ' + escAttr(title) + '" aria-pressed="false">✓</button>';
       html += '<div class="bk-shelf-row-info bk-poster-card__caption">';
       html += '<div class="bk-shelf-row-title bk-poster-card__title">' + escText(title) + '</div>';
       html += '<div class="bk-shelf-row-meta bk-poster-card__meta">';
       html += '<span class="bk-shelf-row-progress">' + escText(subText) + '</span>';
       html += '</div>';
       html += '</div>';
-      // 隐藏操作区：保留测试契约（.bk-shelf-markread/.bk-shelf-unread/.bk-shelf-remove-btn），
-      // 平时不可见；长按菜单 / 编辑态批量操作经 .click() 复用这些处理器。
+      // 隐藏操作区
       html += '<div class="bk-shelf-row-actions" aria-hidden="true">';
       html += isRead
-        ? '<button type="button" class="bk-shelf-unread" data-book-id="' + escAttr(rec.bookId) + '" aria-label="取消已读，移回在读"><span class="bk-shelf-btn-ico" aria-hidden="true">↩</span>移回在读</button>'
-        : '<button type="button" class="bk-shelf-markread" data-book-id="' + escAttr(rec.bookId) + '" aria-label="标记为已读"><span class="bk-shelf-btn-ico" aria-hidden="true">✓</span>标记已读</button>';
-      html += '<button type="button" class="bk-shelf-remove-btn" data-book-id="' + escAttr(rec.bookId) + '" aria-label="移除">移除</button>';
+        ? '<button type="button" class="bk-shelf-unread" data-book-id="' + escAttr(rec2.bookId) + '" aria-label="取消已读，移回在读"><span class="bk-shelf-btn-ico" aria-hidden="true">↩</span>移回在读</button>'
+        : '<button type="button" class="bk-shelf-markread" data-book-id="' + escAttr(rec2.bookId) + '" aria-label="标记为已读"><span class="bk-shelf-btn-ico" aria-hidden="true">✓</span>标记已读</button>';
+      html += '<button type="button" class="bk-shelf-remove-btn" data-book-id="' + escAttr(rec2.bookId) + '" aria-label="移除">移除</button>';
       html += '</div>';
       html += '</div>';
     }
     listEl.innerHTML = html;
 
-    // 绑定「标记已读」按钮（在读行）：点击 → 弹出笔记输入框 → BKShelf.markRead → 移入已读桶
+    // 绑定「标记已读」按钮
     var markBtns = listEl.querySelectorAll('.bk-shelf-markread');
     for (var m = 0; m < markBtns.length; m++) {
       (function (btn) {
@@ -211,7 +318,7 @@
         });
       })(markBtns[m]);
     }
-    // 绑定「取消已读」按钮（已读行）：点击 → BKShelf.unmarkRead → 移回在读桶
+    // 绑定「取消已读」按钮
     var unreadBtns = listEl.querySelectorAll('.bk-shelf-unread');
     for (var u = 0; u < unreadBtns.length; u++) {
       (function (btn) {
@@ -222,7 +329,7 @@
       })(unreadBtns[u]);
     }
 
-    // 绑定移除按钮（二次确认后 BKShelf.purgeBook：按书型差异化清理，由事件监听整体重渲染）
+    // 绑定移除按钮
     var rmBtns = listEl.querySelectorAll('.bk-shelf-remove-btn');
     for (var j = 0; j < rmBtns.length; j++) {
       (function (btn) {
@@ -231,9 +338,6 @@
           if (!id) return;
           var b = _findBookById(id);
           var name = b ? (b.title || id) : id;
-          // 按书型差异化文案：
-          //  - 导入书：彻底清本地数据，不可恢复
-          //  - 书城下载书：仅移出书架，保留本地缓存作离线兜底，可随时重新加入续读
           var isImported = id.indexOf('imported-') === 0;
           var msg;
           if (isImported) {
@@ -245,15 +349,13 @@
           if (win.BKShelf && win.BKShelf.purgeBook) {
             win.BKShelf.purgeBook(id);
           } else if (win.BKShelf && win.BKShelf.remove) {
-            // 降级：仅移出书架记录（老版本或 purgeBook 缺失时）
             win.BKShelf.remove(id);
           }
-          // 移除后由 bk-shelf-changed 监听整体重渲染（含统计与空状态）
         });
       })(rmBtns[j]);
     }
 
-    // 编辑态：重渲染后同步选中态与计数；当前桶空则自动退出编辑；并据桶是否为空禁用编辑钮
+    // 编辑态：重渲染后同步选中态与计数
     var _editBtn = document.getElementById('shelfEditBtn');
     if (_editBtn) _editBtn.disabled = (bucket.length === 0);
     if (_shelfEditing) {
@@ -337,7 +439,7 @@
     var el = document.getElementById('shelfEditCount');
     if (el) el.textContent = '已选 ' + cnt + ' 本';
     var mark = document.getElementById('shelfEditMark');
-    if (mark) mark.textContent = (_shelfActiveTab === 'read') ? '移回在读' : '标记已读';
+    if (mark) mark.textContent = (_shelfFilter === 'read') ? '移回在读' : '标记已读';
     var markBtn = document.getElementById('shelfEditMark');
     var rmBtn = document.getElementById('shelfEditRemove');
     var exportBtn = document.getElementById('shelfEditExport');
@@ -355,6 +457,8 @@
   var ICON_UNDO   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>';
   var ICON_PIN    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.5V4h6v6.5l2 3.5H7l2-3.5Z"/></svg>';
   var ICON_PIN_ON = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.5V4h6v6.5l2 3.5H7l2-3.5Z"/></svg>';
+  var ICON_FAV     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>';
+  var ICON_FAV_ON  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>';
   var ICON_INFO   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>';
 
   var ICON_TRASH  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>';
@@ -411,6 +515,7 @@
     // 书架记录字段（卡面只留进度/日期，评分/笔记/收藏/读完日期移至详情）
     var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(book.id) : null;
     if (shelfRec) {
+      if (shelfRec.favorite === true) addRow('收藏', '❤ 已收藏');
       if (shelfRec.completedAt) addRow('读完于', shelfRec.completedAt);
       if (shelfRec.addedAt) addRow('收藏于', shelfRec.addedAt);
       if (shelfRec.rating) addRow('评分', '★'.repeat(shelfRec.rating) + ' ' + shelfRec.rating + '/5');
@@ -600,6 +705,7 @@
     var book = _findBookById(bookId) || { id: bookId };
     var isRead = (win.BKShelf && win.BKShelf.isRead) ? win.BKShelf.isRead(bookId) : false;
     var isPinned = (win.BKShelf && win.BKShelf.isPinned) ? win.BKShelf.isPinned(bookId) : false;
+    var isFav = (win.BKShelf && win.BKShelf.isFavorite) ? win.BKShelf.isFavorite(bookId) : false;
     var title = book.title || bookId;
     var author = book.author || '';
     // 头像首字母：去掉前导编号（如"1210-神赐…"取"神"而非"1"）和书名号
@@ -630,6 +736,7 @@
       actions.push({ icon: ICON_UNDO, label: '移回在读', sel: '.bk-shelf-unread' });
     }
     actions.push({ icon: isPinned ? ICON_PIN_ON : ICON_PIN, label: isPinned ? '取消置顶' : '置顶本书', act: 'pin', on: isPinned });
+    actions.push({ icon: isFav ? ICON_FAV_ON : ICON_FAV, label: isFav ? '取消收藏' : '收藏本书', act: 'favorite', on: isFav });
     actions.push({ icon: ICON_INFO, label: '书籍详情', act: 'detail' });
     // 笔记操作：有笔记显示"编辑笔记"，无笔记显示"添加笔记"
     var shelfRec = (win.BKShelf && win.BKShelf.get) ? win.BKShelf.get(bookId) : null;
@@ -647,7 +754,7 @@
       b.innerHTML =
         '<span class="qi-ico" aria-hidden="true">' + (a.icon || '') + '</span>' +
         '<span class="qi-label">' + escText(a.label) + '</span>' +
-        (a.on ? '<span class="qi-trail">已置顶</span>' : '');
+        (a.on ? '<span class="qi-trail">' + (a.act === 'favorite' ? '已收藏' : '已置顶') + '</span>' : '');
       b.addEventListener('click', function () {
         if (a.sel) {
           var target = row.querySelector(a.sel);
@@ -656,6 +763,9 @@
         } else if (a.act === 'pin') {
           _closeShelfQuickMenu();
           if (win.BKShelf && win.BKShelf.setPinned) win.BKShelf.setPinned(bookId, !isPinned);
+        } else if (a.act === 'favorite') {
+          _closeShelfQuickMenu();
+          if (win.BKShelf && win.BKShelf.setFavorite) win.BKShelf.setFavorite(bookId, !isFav);
         } else if (a.act === 'detail') {
           _closeShelfQuickMenu();
           _openBookDetail(book);
