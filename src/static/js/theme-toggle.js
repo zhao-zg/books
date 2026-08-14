@@ -579,7 +579,7 @@
                 }
 
                 // 获取真实 IP 及归属地（多级降级，每次最多等 5s）
-                var _ip = window.BK_SERVERS && window.BK_SERVERS.ipApis;
+                var _ip = window.BK_SERVERS && (window.BK_SERVERS.ipApis || window.BK_SERVERS.ip_apis);
                 var IP_APIS = [
                     {
                         url: (_ip && _ip[0]) || '',
