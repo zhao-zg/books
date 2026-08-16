@@ -327,6 +327,10 @@
       _racePending = null;
     }).catch(function (err) {
       console.warn('[DataManager] 镜像竞速失败，保持原顺序: ' + (err.message || err));
+      // ★ 竞速失败：清理缓存，下次重新竞速
+      if (win.BK && win.BK.RaceFastest) {
+        win.BK.RaceFastest.invalidateVersion();
+      }
       _racePending = null;
     });
 

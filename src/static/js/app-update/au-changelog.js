@@ -363,6 +363,10 @@
                 });
             }).catch(function(error) {
                 statusEl.innerHTML = '❌ 所有服务器均无法访问';
+                // ★ 竞速失败：清理缓存，下次重新竞速
+                if (window.BK && window.BK.RaceFastest) {
+                    window.BK.RaceFastest.invalidateVersion();
+                }
             });
         }).catch(function(error) {
             statusEl.innerHTML = '❌ 检查失败: ' + error.message;
@@ -421,7 +425,12 @@
                         : fetchChangelogRace(CL_SERVERS);
                     clPromise.then(function(changelog) {
                         if (changelog) fillChangelogPanel('githubUpdateDialog', changelog, currentVersion, latestVersion, comparison);
-                    }).catch(function() {});
+                    }).catch(function() {
+                        // ★ changelog 竞速失败：清理缓存，下次重新竞速
+                        if (window.BK && window.BK.RaceFastest) {
+                            window.BK.RaceFastest.invalidateVersion();
+                        }
+                    });
                 });
         }).catch(function(error) {
             statusEl.innerHTML = '❌ 检查失败: ' + error.message;

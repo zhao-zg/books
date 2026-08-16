@@ -19,7 +19,12 @@
                     if (!latest) return;
                     var cmp = AppUpdate.compareVersion(latest.replace('v', ''), currentVersion.replace('v', ''));
                     if (cmp > 0) showUpdateToast(latest, 'capacitor');
-                }).catch(function() {});
+                }).catch(function() {
+                    // ★ 竞速失败：清理缓存，下次重新竞速
+                    if (window.BK && window.BK.RaceFastest) {
+                        window.BK.RaceFastest.invalidateVersion();
+                    }
+                });
             }).catch(function() {});
         } else if (isStandalone) {
             var root = window.BK_ROOT || './';
