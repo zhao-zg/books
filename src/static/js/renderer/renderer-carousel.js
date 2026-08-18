@@ -415,6 +415,8 @@
           try { _updateTopReadingProgress(); } catch(e) {}
 
           // 重新初始化依赖 DOM 的功能
+          // 切章时停止旧章节的朗读（cancel 会重置引擎状态和进度条 UI）
+          if (win.BKSpeech && win.BKSpeech.cancel) win.BKSpeech.cancel();
           if (win.BKHighlight && win.BKHighlight.rendoHighlights) win.BKHighlight.rendoHighlights();
           if (win.BKScripturePopup && win.BKScripturePopup.init) win.BKScripturePopup.init();
           _applyMdEnhancements(document.getElementById('chapterContent'));

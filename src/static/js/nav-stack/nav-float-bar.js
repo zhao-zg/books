@@ -247,10 +247,9 @@
 
         if (_ttsBarVisible) {
             // 确保 TTS 已初始化
-            var ctrlBar = document.getElementById('bottomControlBar');
-            if (ctrlBar && ctrlBar.style.display === 'none') {
-                ctrlBar.style.display = '';
-            }
+            // 注意：不再取消隐藏 #bottomControlBar —— 它是隐藏宿主(display:none)，
+            // 仅供 speech.js 绑定事件；可见 UI 由 syncTtsContent() 克隆到 .bk-float-tts-bar。
+            // 若设 display='' 会导致原始宿主栏在页面底部可见，与浮动克隆栏重叠。
             if (window.BKSpeech && window.BKSpeech.init) {
                 window.BKSpeech.init({
                     getElements: function() {
@@ -307,8 +306,11 @@
     // ── TTS 浮动条 ──────────────────────────────────────────
 
     function getTtsBar() {
-        var bar = document.getElementById('bottomControlBar');
-        return (bar && bar.style.display !== 'none') ? bar : null;
+        // 直接返回隐藏宿主栏，不检查 display 状态。
+        // #bottomControlBar 始终保持 display:none（隐藏宿主），
+        // 可见 UI 由 syncTtsContent() 克隆到 .bk-float-tts-bar 中。
+        // 旧逻辑检查 display!=='none' 会导致 cancel() 隐藏后返回 null、克隆失败。
+        return document.getElementById('bottomControlBar');
     }
 
     function ensureTtsEl() {

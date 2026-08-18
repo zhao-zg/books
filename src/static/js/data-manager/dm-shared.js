@@ -438,7 +438,15 @@
     if (!text || typeof text !== 'string') return [];
     return text.split('\n')
       .filter(function (line) { return line.trim(); })
-      .map(function (line) { return { type: 'paragraph', text: line.trim() }; });
+      .map(function (line) {
+        var trimmed = line.trim();
+        // 检测 heading 标记（## 开头）
+        var headingMatch = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+        if (headingMatch) {
+          return { type: 'heading', level: headingMatch[1].length, text: headingMatch[2].trim() };
+        }
+        return { type: 'paragraph', text: trimmed };
+      });
   }
 
   /**

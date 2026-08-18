@@ -158,9 +158,12 @@
   function init(options) {
     var getElements = options && typeof options.getElements === 'function' ? options.getElements : null;
     if (!getElements) return;
-    if (window.BKSpeech && typeof window.BKSpeech.cancel === 'function') {
-      try { window.BKSpeech.cancel(); } catch(e) {}
-    }
+
+    // 停止正在进行的朗读（仅停引擎，不操作 DOM 可见性）
+    // 注意：不能调用 cancel()，因为 cancel() 会隐藏 #bottomControlBar(display:none)，
+    // 导致 nav-float-bar.js 的 getTtsBar() 返回 null、syncTtsContent() 克隆失败。
+    try { window.speechSynthesis.cancel(); } catch(e) {}
+    try { var _nTTS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.NativeTTS; if (_nTTS && _nTTS.stop) _nTTS.stop(); } catch(e) {}
 
     // 防止重复初始化：同一 #playPauseBtn 只绑定一次事件。
     // renderer.js（每次渲染章节）与 nav-stack.js（每次打开朗读栏）都会调用 init，
@@ -271,7 +274,9 @@
         speechTime.style.textAlign = 'center';
       }
 
-    controlsDiv.style.display = 'flex';
+    // 不强制显示 #bottomControlBar —— 它是隐藏宿主，仅供绑定事件。
+    // 可见 UI 由 nav-float-bar.js 克隆到浮动栏 .bk-float-tts-bar 中。
+    // 若设 display:flex 会导致页面底部出现多余控制栏（与浮动栏重叠）。
 
     var initAttempts = 0;
 
