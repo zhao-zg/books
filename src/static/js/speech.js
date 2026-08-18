@@ -235,8 +235,11 @@
     var progressBar  = byId('progressBar');
 
     if (!playPauseBtn || !rateSelect || !speechTime || !progressBar || !controlsDiv) return;
-    // 标记已绑定，配合 init 顶部的 __bkSpeechBound 守卫，避免重复绑定
-    playPauseBtn.__bkSpeechBound = true;
+    // 注意：__bkSpeechBound 守卫不能在此处设置，因为 startInit() 可能因
+    // NativeTTS 插件未就绪而进入重试循环（setTimeout 最多 10 次 × 150ms）。
+    // 若在此处提前设置，重试期间或重试失败后，后续所有 init() 调用都会被守卫拦截，
+    // 导致 click 事件永远无法绑定 → 移动端点击播放无反应。
+    // 正确做法：在 startInit() 引擎检测通过后才设置守卫，失败时清除允许重试。
 
     // -- Engine detection ---------------------------------------------------
 
@@ -288,9 +291,15 @@
         return;
       }
       if (!engine.supported) {
+        // 引擎不可用：清除守卫，允许后续 init() 重新检测（插件可能延迟就绪）
+        var _pp = byId('playPauseBtn');
+        if (_pp) _pp.__bkSpeechBound = false;
         showUnsupported(engine.isNative ? '朗读插件未就绪' : '朗读暂不可用');
         return;
       }
+
+      // 引擎就绪，标记已绑定，配合 init 顶部的 __bkSpeechBound 守卫，避免重复绑定
+      playPauseBtn.__bkSpeechBound = true;
 
       var useNativeTTS = engine.useNativeTTS;
       var useWebSpeech = engine.useWebSpeech;

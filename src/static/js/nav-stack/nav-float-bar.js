@@ -333,6 +333,9 @@
         var el = ensureTtsEl();
 
         var cloned = orig.cloneNode(true);
+        // 清除克隆节点的 display:none —— 原始 #bottomControlBar 是隐藏宿主(display:none)，
+        // cloneNode 会复制内联 style，若不清除克隆体也会 display:none → 高度 0 → 朗读栏不可见。
+        if (cloned.style.display === 'none') cloned.style.display = '';
         var withId = cloned.querySelectorAll('[id]');
         for (var i = 0; i < withId.length; i++) withId[i].removeAttribute('id');
 
@@ -386,7 +389,8 @@
                     !!(document.querySelector('.bk-playing'));
                 _setFloatPlayState(isPlaying);
             }));
-            observers[ppIdx].observe(origPlayPause, { childList: true, subtree: true });
+            // 监听 childList（innerHTML 结构变更）+ attributes（style.display 切换播放/暂停图标）
+            observers[ppIdx].observe(origPlayPause, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
         }
         _ttsSyncCleanup = function() {
           for (var j = 0; j < observers.length; j++) observers[j].disconnect();
