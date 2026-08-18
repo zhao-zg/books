@@ -15,7 +15,7 @@ import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -790,6 +790,14 @@ def _extract_content_div(div, parts: list):
     """
     从 books 系列正文 div 提取文本内容。
     优先三层嵌套，回退到扁平模式。
+
+    带 id 的 <div id="1_xx"> 是小节标题（如"一 神的意义"、"宇宙有多大"）。
+    处理策略：
+    1. 纯标题型（直接文本短，无子 div）→ 输出 ## 标题
+    2. 标题在子 div 内（无直接文本，子 div 文本短）→ 输出 ## 标题
+    3. 纯正文型（无直接文本，子 div 文本长）→ 递归提取正文
+    4. 混合型（直接文本 + 子 div 正文）→ 先提取直接文本作为正文，
+       再递归子 div 提取后续内容（如 GM 的读经/背经 + 纲目结构）
     """
     inner_divs = div.find_all('div', recursive=False)
     has_nested = False
@@ -797,16 +805,60 @@ def _extract_content_div(div, parts: list):
 
     for inner in inner_divs:
         if inner.get('id'):
-            # 如果带 id 的 div 有子 div，递归提取内容而非仅当标题
+            # 带 id 的 div：根据结构分类处理
+            # 获取直接文本（不包括子元素文本）
+            direct_text = ''
+            for child in inner.children:
+                if isinstance(child, NavigableString):
+                    direct_text += str(child)
+            direct_text = direct_text.strip()
+            # 获取子 div
             sub_divs = inner.find_all('div', recursive=False)
-            if sub_divs:
+            sub_text = ''
+            for sd in sub_divs:
+                sub_text += sd.get_text(strip=True) + ' '
+            sub_text = sub_text.strip()
+
+            if direct_text and not sub_divs:
+                # 纯标题型：直接文本，无子 div → ## 标题
+                if len(direct_text) < 100:
+                    title_text = re.sub(r'\s+', ' ', direct_text)
+                    parts.append(f"\n## {title_text}\n")
+                else:
+                    # 文本过长，可能不是标题而是正文（罕见）
+                    text = re.sub(r'\s+', ' ', direct_text)
+                    parts.append(text)
+                continue
+
+            if direct_text and sub_divs:
+                # 混合型：直接文本 + 子 div 正文
+                # 先输出直接文本作为正文段落
+                text = re.sub(r'\s+', ' ', direct_text)
+                if text:
+                    parts.append(text)
+                # 再递归子 div 提取后续内容
                 has_nested = True
-                _extract_content_div(inner, parts)
-            else:
-                title_text = inner.get_text(strip=True)
-                if title_text and len(title_text) < 100:
-                    parts.append(f"\n{title_text}\n")
+                for sub in sub_divs:
+                    _extract_content_div(sub, parts)
+                continue
+
+            if not direct_text and sub_divs:
+                # 无直接文本，内容全在子 div 内
+                if len(sub_text) < 100:
+                    # 子 div 文本短 → 标题
+                    title_text = re.sub(r'\s+', ' ', sub_text)
+                    parts.append(f"\n## {title_text}\n")
+                else:
+                    # 子 div 文本长 → 递归正文
+                    has_nested = True
+                    for sub in sub_divs:
+                        _extract_content_div(sub, parts)
+                continue
+
+            # 无直接文本，无子 div → 空节点，跳过
             continue
+
+        # 不带 id 的 div：递归或扁平提取
         sub_divs = inner.find_all('div', recursive=False)
         if sub_divs:
             has_nested = True
@@ -897,10 +949,11 @@ def _extract_smdj8_ul(ul, parts: list):
             # 跳过 typ 类空段落
             if 'yp' in cls or 'text12_150' in cls:
                 continue
-            # 标题类段落: 作为小节标题插入
+            # 标题类段落: 作为 ## 小节标题插入（前端按 ## 识别为 heading）
             if any(c in cls for c in ('YY', 'ZZ', 'BB', 'CC', 'DD', 'EE',
                                        'text8', 'text7', 'text6')):
-                parts.append(f"\n{text}\n")
+                text = re.sub(r'\s+', ' ', text)
+                parts.append(f"\n## {text}\n")
             else:
                 # 正文段落 (AA 等)
                 text = re.sub(r'\s+', ' ', text)
@@ -952,17 +1005,19 @@ def _extract_nee_chapter(soup) -> Optional[dict]:
             if not text:
                 continue
             cls = p_tag.get('class', [])
-            # BB 类通常是签名/日期
+            # BB 类通常是签名/日期，作为 ## 小标题
             if 'BB' in cls:
-                content_parts.append(f"\n{text}\n")
+                text = re.sub(r'\s+', ' ', text)
+                content_parts.append(f"\n## {text}\n")
             else:
                 text = re.sub(r'\s+', ' ', text)
                 content_parts.append(text)
-        # 提取 <h4> 标签作为小节标题
+        # 提取 <h4> 标签作为 ## 小节标题
         for h4_tag in bq.find_all('h4'):
             text = h4_tag.get_text(strip=True)
             if text:
-                content_parts.append(f"\n{text}\n")
+                text = re.sub(r'\s+', ' ', text)
+                content_parts.append(f"\n## {text}\n")
 
     # 回退: 如果 blockquote 内没有内容，提取所有 <p> 标签
     if not content_parts:

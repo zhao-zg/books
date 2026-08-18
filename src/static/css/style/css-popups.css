@@ -311,8 +311,8 @@
 .bk-update-toast-action { background: rgba(255,255,255,.25); border: none; color: #fff; font-size: var(--text-xs); font-weight: 600; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
 .bk-update-toast-action:active { background: rgba(255,255,255,.4); }
 .bk-update-toast-close { background: none; border: none; color: rgba(255,255,255,.8); font-size: 1.125em; line-height: 1; cursor: pointer; padding: 2px 4px; -webkit-tap-highlight-color: transparent; }
-[data-theme="warm"] .bk-update-toast { background: var(--surface-alt, #F7F2E8); color: var(--text, #4A3525); }
-[data-theme="warm"] .bk-update-toast-action { background: var(--brand, #8B6B3A); color: #fff; }
+[data-theme="warm"] .bk-update-toast { background: var(--surface-alt, #F0E9DB); color: var(--text, #3A3128); }
+[data-theme="warm"] .bk-update-toast-action { background: var(--brand, #A67C52); color: #fff; }
 [data-theme="dark"] .bk-update-toast { background: var(--surface-alt, #232220); color: var(--text, #E8E6E2); border-bottom: 1px solid var(--border, #34322E); }
 [data-theme="dark"] .bk-update-toast-action { background: var(--brand, #5EAE7E); color: #fff; }
 

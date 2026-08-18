@@ -101,7 +101,14 @@
     //    是旧 hash（回退方向），若 dispatch 会渲染旧路由导致页面闪回。
     //    通过 __bkForwardNavTarget 判断：等于目标 hash → 正常 dispatch；不等 → 跳过。
     if (win.__bkForwardNavPending && win.__bkForwardNavTarget) {
-      if (win.location.hash === win.__bkForwardNavTarget) {
+      // ★ 比较 hash 前先 decode location.hash：navigate() 设置 __bkForwardNavTarget
+      //   时用的是未编码的中文路径（如 #/bundle-测试1__2026-3-MDC/1），而浏览器
+      //   触发 hashchange 时 location.hash 返回的是 URL 编码后的版本（如
+      //   #/bundle-%E6%B5%8B%E8%AF%951__2026-3-MDC/1），直接比较会导致中文
+      //   bookId 的路由被误判为"过时 hash"而跳过 dispatch，页面不渲染。
+      var _decodedHash = win.location.hash;
+      try { _decodedHash = decodeURIComponent(win.location.hash); } catch (e) {}
+      if (_decodedHash === win.__bkForwardNavTarget) {
         // 正向导航目标 hash → 放行 dispatch
         win.__bkForwardNavPending = false;
         win.__bkForwardNavTarget = null;
@@ -159,7 +166,11 @@
       win.__bkExiting = false;
       var newHash = '#/' + (hashPath || '');
       console.log('[Router] navigate("' + hashPath + '") curHash="' + win.location.hash + '" → newHash="' + newHash + '"');
-      if (win.location.hash === newHash) {
+      // ★ decode location.hash 再比较：中文 bookId 时 location.hash 是 URL 编码的，
+      //   而 newHash 是未编码的，直接比较永远不等，导致"同 hash 快捷 dispatch"失效。
+      var _curHashDecoded = win.location.hash;
+      try { _curHashDecoded = decodeURIComponent(win.location.hash); } catch (e) {}
+      if (_curHashDecoded === newHash) {
         dispatch(hashPath || '');
         return;
       }

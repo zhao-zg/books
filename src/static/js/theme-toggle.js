@@ -7,7 +7,7 @@
     let currentSizeIndex = defaultSizeIndex;
     const themeMetaColors = {
         cool: '#F5F4F1',
-        warm: '#FAF8F4',
+        warm: '#F7F2E8',
         dark: '#1A1917'
     };
 
@@ -713,7 +713,7 @@
                         '</div>' +
                         '<div class="theme-option" data-theme="cool" onclick="setTheme(\'cool\')">' +
                             '<div class="theme-preview cool"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>' +
-                            '<div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">冷色</div></div>' +
+                            '<div class="theme-option-content"><div class="theme-radio"></div><div class="theme-label">默认</div></div>' +
                         '</div>' +
                         '<div class="theme-option" data-theme="dark" onclick="setTheme(\'dark\')">' +
                             '<div class="theme-preview dark"><div class="tp-bar"></div><div class="tp-body"><div class="tp-line"></div><div class="tp-line short"></div><div class="tp-line"></div></div></div>' +

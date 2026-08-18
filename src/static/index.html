@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#F5F4F1">
     <meta name="app-version" content="">
     <!-- 防止主题跳色：在渲染前设置主题 -->
-    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#FAF8F4':(t==='dark'?'#1A1917':'#F5F4F1'));}})();</script>
+    <script>(function(){var d=document.documentElement,m=document.querySelector('meta[name="theme-color"]'),s=null,t='cool';try{s=localStorage.getItem('readingTheme')}catch(e){}if(s==='cool'||s==='warm'||s==='dark'){t=s}d.setAttribute('data-theme',t);if(m){m.setAttribute('content',t==='warm'?'#F7F2E8':(t==='dark'?'#1A1917':'#F5F4F1'));}})();</script>
     <!-- 防止阅读字号闪烁：在渲染前设置 --reading-font-size -->
     <script>(function(){try{var s=localStorage.getItem('globalFontSize');if(s){var v=parseFloat(s);if(v>=10&&v<=30)document.documentElement.style.setProperty('--reading-font-size',v+'px');}}catch(e){}})();</script>
     <!-- 伪装/访问控制：可配置，默认关闭（普通浏览器直接可用） -->
@@ -121,7 +121,7 @@
         .bk-resume-mask-fade{opacity:0;pointer-events:none}
         /* 暗色主题遮罩跟随 */
         html[data-theme="dark"] .bk-resume-mask{background:var(--surface,#1A1917)}
-        html[data-theme="warm"] .bk-resume-mask{background:var(--surface,#FAF8F4)}
+        html[data-theme="warm"] .bk-resume-mask{background:var(--surface,#F7F2E8)}
     </style>
 </head>
 <body>

@@ -84,7 +84,7 @@
       var t = doc.documentElement.getAttribute('data-theme');
       if (t === 'warm' || t === 'dark' || t === 'cool') theme = t;
     } catch (e) {}
-    if (theme === 'warm') return '#FAF8F4';
+    if (theme === 'warm') return '#F7F2E8';
     if (theme === 'dark') return '#1A1917';
     return '#F5F4F1';
   }

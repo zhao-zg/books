@@ -107,14 +107,14 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 .scripture-block-static.bk-tts-active { background: rgba(var(--brand-rgb, 61,138,90),0.3); }
 
 /* ── 主题覆盖 ──────────────────────────────────────────────── */
-[data-theme="warm"] .hl-modal-save { background: var(--interactive-soft-bg, rgba(180,145,85,.12)); color: var(--brand, #A67C52); border-color: var(--brand, #A67C52); }
-[data-theme="warm"] .hl-underline-btn.active { background: var(--interactive-soft-bg, rgba(180,145,85,.12)); color: var(--brand, #A67C52); border-color: var(--brand, #A67C52); border-bottom-color: #e53935; }
-[data-theme="warm"] .scripture-block-static { background: #F7F2EA; }
+[data-theme="warm"] .hl-modal-save { background: var(--interactive-soft-bg); color: var(--brand); border-color: var(--brand); }
+[data-theme="warm"] .hl-underline-btn.active { background: var(--interactive-soft-bg); color: var(--brand); border-color: var(--brand); border-bottom-color: #e53935; }
+[data-theme="warm"] .scripture-block-static { background: var(--surface-alt); }
 /* 暖色模式：进度条滑块使用品牌纯色（不用渐变） */
-[data-theme="warm"] .progress-bar::-webkit-slider-thumb { background: var(--brand, #A67C52); }
-[data-theme="warm"] .progress-bar::-moz-range-thumb { background: var(--brand, #A67C52); }
+[data-theme="warm"] .progress-bar::-webkit-slider-thumb { background: var(--brand); }
+[data-theme="warm"] .progress-bar::-moz-range-thumb { background: var(--brand); }
 /* 暖色模式：action-btn.primary 浅色底+品牌色文字（品牌色不做大面积填充） */
-[data-theme="warm"] .action-btn.primary { background: var(--interactive-soft-bg, rgba(180,145,85,.12)); color: var(--brand, #A67C52); border-color: var(--brand, #A67C52); }
+[data-theme="warm"] .action-btn.primary { background: var(--interactive-soft-bg); color: var(--brand); border-color: var(--brand); }
 
 /* ── 移动端触摸优化 ──────────────────────────────────────────── */
 @media (max-width: 768px) {

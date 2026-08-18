@@ -938,7 +938,7 @@
     try {
       var t = doc.documentElement.getAttribute('data-theme');
       if (t === 'dark') return '#1A1917';
-      if (t === 'warm') return '#FAF8F4';
+      if (t === 'warm') return '#F7F2E8';
     } catch (e) {}
     return '#525659'; // PDF 中灰背景色（与 #chapterContent 背景 #525659 一致）
   }
