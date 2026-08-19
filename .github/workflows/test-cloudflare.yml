@@ -1,7 +1,5 @@
 name: 测试 Cloudflare 配置
 
-retention-days: 1
-
 on:
   workflow_dispatch:  # 手动触发
 

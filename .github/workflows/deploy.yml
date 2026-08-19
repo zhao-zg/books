@@ -1,7 +1,5 @@
 name: 构建并部署到 Cloudflare Pages 和 GitHub Pages
 
-retention-days: 1
-
 on:
   push:
     branches:
