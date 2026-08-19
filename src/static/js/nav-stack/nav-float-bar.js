@@ -168,8 +168,8 @@
         // 书签
         html += '<button type="button" class="bk-float-bottom-btn" data-float-bookmark="1" title="书签"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg></button>';
 
-        // 朗读
-        html += '<button type="button" class="bk-float-bottom-btn bk-float-bottom-tts-btn" data-tts-toggle="1" title="朗读"><svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg><svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>';
+        // 朗读 — 使用喇叭图标，播放时显示声波
+        html += '<button type="button" class="bk-float-bottom-btn bk-float-bottom-tts-btn" data-tts-toggle="1" title="朗读"><svg class="bk-play-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none"><path d="M11 5L6 9H2v6h4l5 4V5z"/></svg><svg class="bk-pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="currentColor" stroke="none"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>';
 
         // 设置
         html += '<button type="button" class="bk-float-bottom-btn" data-float-settings="1" title="设置"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>';
@@ -432,8 +432,11 @@
         for (var b = 0; b < cloneBtns.length; b++) {
             (function(cloneBtn, idx) {
                 cloneBtn.addEventListener('click', function() {
-                    if (orig.querySelectorAll('.control-btn')[idx]) {
-                        orig.querySelectorAll('.control-btn')[idx].click();
+                    var origBtns = orig.querySelectorAll('.control-btn');
+                    if (origBtns[idx]) {
+                        // ★ 用 bubbles:false 派发 click，避免编程触发的 click 冒泡到 document，
+                        // 否则 document 的空白点击 handler 会误判为外部点击而收起底栏和朗读栏。
+                        origBtns[idx].dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true }));
                     }
                 });
             })(cloneBtns[b], b);
