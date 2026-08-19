@@ -544,6 +544,9 @@
     },
 
     renderChapterList: function (bookId) {
+      // ★ 独立目录页已移除：阅读页左滑抽屉即目录，无需章节列表页。
+      //   本函数作为「1 段路由（#/{bookId}）」的中转，统一把用户直接带入阅读视图。
+      //   返回键从阅读视图直接回书架（见 nav-back.js 与 renderReadingView 的标记）。
       _exitReadingView();
       showApp();
       var app = getApp();
@@ -552,107 +555,31 @@
       loadBook(bookId).then(function (book) {
         var chapters = _getUniqueChapters(book.chapters || []);
 
-        // 只有一章时直接进入阅读视图，跳过目录页
-        if (chapters.length <= 1) {
-          var chNum = chapters.length === 1 ? (chapters[0].number || 1) : 1;
-          // ★ 同步设置单章标记（renderReadingView 的 loadBook 回调会再次确认）
-          win.__bkIsSingleChapter = true;
-          win.__bkSkipChapterList = true;
-          // ★ 用 navigateReplace 更新 URL 为 2 段（#/{bookId}/{chNum}），
-          //   使 URL hash 与 renderReadingView 设置的 __bkCurrentPath 一致，
-          //   避免系统返回键"阅读视图→目录页→(自动跳回)阅读视图"的循环
-          if (win.BKRouter) {
-            win.BKRouter.navigateReplace(bookId + '/' + chNum);
-          } else {
-            BKRenderer.renderReadingView(bookId, chNum);
-          }
-          return;
-        }
-
-        // PDF 格式书跳过目录页，直接进入阅读视图
-        // 原因：PDF 阅读器自带大纲/目录抽屉，不需要软件的章节列表目录页；
-        //       多页 PDF 的"每页=一章"目录页对用户无意义
-        if (book.format === 'pdf') {
-          var progress = getReadingProgress(bookId);
-          var pdfChNum = progress > 0 ? progress : (chapters[0].number || 1);
-          win.__bkIsSingleChapter = false;
-          win.__bkSkipChapterList = true;
-          if (win.BKRouter) {
-            win.BKRouter.navigateReplace(bookId + '/' + pdfChNum);
-          } else {
-            BKRenderer.renderReadingView(bookId, pdfChNum);
-          }
-          return;
-        }
-
-        // 多章书：重置单章标记，避免上一本书的残留
-        win.__bkIsSingleChapter = false;
-        win.__bkSkipChapterList = false;
+        // 有阅读进度则恢复到上次章节，否则从第 1 章开始
         var progress = getReadingProgress(bookId);
+        var chNum = progress > 0 ? progress : (chapters.length === 1 ? (chapters[0].number || 1) : 1);
 
-        var html = '<div class="bk-chapter-list-view">';
-
-        // 顶部栏已移至浮动导航（nav-stack.js），不再渲染永久顶栏
-
-        // 书籍信息头部
-        html += '<div class="bk-book-header">';
-        if (book.cover) {
-          html += '<img class="bk-book-header-cover" src="' + escAttr(book.cover) + '" alt="' + escAttr(book.title) + '">';
+        // 校验章节号有效，避免非法进度导致找不到章
+        var valid = false;
+        for (var _vi = 0; _vi < chapters.length; _vi++) {
+          if (chapters[_vi].number === chNum) { valid = true; break; }
         }
-        html += '<h1 class="bk-book-header-title">' + escText(book.title) + '</h1>';
-        if (book.author) html += '<div class="bk-book-header-author">' + escText(book.author) + '</div>';
-        if (book.description) html += '<div class="bk-book-header-desc">' + escText(book.description) + '</div>';
-        html += '<div class="bk-book-header-stats">';
-        html += '<span class="bk-stat">' + chapters.length + ' 章</span>';
-        if (progress > 0) html += '<span class="bk-stat">· 读到第' + progress + '章</span>';
-        html += '</div>';
-        html += '</div>';
+        if (!valid) chNum = chapters.length ? (chapters[0].number || 1) : 1;
 
-        // 章节列表
-        html += '<div class="bk-chapter-list">';
-        for (var i = 0; i < chapters.length; i++) {
-          var ch = chapters[i];
-          var chNum = ch.number || (i + 1);
-          var isCurrent = chNum === progress;
-          var isRead = _isChapterReadByScroll(bookId, chNum);
-          // 如果当前章节也已读满阈值，显示为已读
-          if (isCurrent && isRead) isCurrent = false;
-          var statusClass = isCurrent ? ' bk-chapter-current' : (isRead ? ' bk-chapter-read' : '');
-          // ★ 不用 href="#/..." 原生导航——原生 <a> 绕过 BKRouter.navigate()，
-          //   导致 __bkForwardNavPending 标记未设置，PWA 中 popstate 误触 backStack
-          //   fallback 会闪回书架。改用 data-nav + click handler 走 navigate()。
-          html += '<a class="bk-chapter-item' + statusClass + '" data-nav="' + escAttr(bookId) + '/' + chNum + '" href="javascript:void(0)">';
-          html += '<span class="bk-chapter-num">' + chNum + '</span>';
-          html += '<span class="bk-chapter-title">' + escText(ch.title || '第' + chNum + '章') + '</span>';
-          if (isCurrent) html += '<span class="bk-chapter-badge">在读</span>';
-          else if (isRead) html += '<span class="bk-chapter-status">✓</span>';
-          html += '</a>';
+        // ★ 同步设置标记（renderReadingView 的 loadBook 回调会再次确认）：
+        //   __bkIsSingleChapter 仅用于区分单章书；__bkSkipChapterList 恒为 true，
+        //   保证返回键从阅读视图直接回书架（不再回到已移除的目录页）。
+        win.__bkIsSingleChapter = (chapters.length <= 1);
+        win.__bkSkipChapterList = true;
+
+        // ★ 用 navigateReplace 更新 URL 为 2 段（#/{bookId}/{chNum}），
+        //   使 URL hash 与 renderReadingView 设置的 __bkCurrentPath 一致，
+        //   避免系统返回键"阅读视图→目录页→(自动跳回)阅读视图"的循环。
+        if (win.BKRouter) {
+          win.BKRouter.navigateReplace(bookId + '/' + chNum);
+        } else {
+          BKRenderer.renderReadingView(bookId, chNum);
         }
-        html += '</div>';
-        html += '</div>';
-
-        app.innerHTML = html;
-
-        // 章节列表 click handler：通过 BKRouter.navigate() 导航，确保
-        // __bkForwardNavPending 和 backStack.skipNext() 被正确设置
-        var _chItems = app.querySelectorAll('.bk-chapter-item[data-nav]');
-        for (var ci = 0; ci < _chItems.length; ci++) {
-          _chItems[ci].addEventListener('click', function (e) {
-            e.preventDefault();
-            var navPath = this.getAttribute('data-nav');
-            if (navPath && win.BKRouter) {
-              win.BKRouter.navigate(navPath);
-            }
-          });
-        }
-
-        var pageKey = bookId;
-        startScrollTracking(pageKey);
-        restoreScrollPosition(pageKey);
-
-        // 初始化 TTS
-        if (win.BKSpeech && win.BKSpeech.cancel) win.BKSpeech.cancel();
-        _firePageRendered();
       }).catch(function (err) {
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
@@ -752,8 +679,9 @@
         // ★ 单章书标记：供系统返回键跳过目录页直达书架
         //   （单章书目录页会被 renderChapterList 自动跳进阅读视图，返回键回目录页=循环）
         win.__bkIsSingleChapter = (uniqueChapters.length <= 1);
-        // ★ PDF 跳过目录页标记：PDF 阅读器自带大纲抽屉，不需要章节列表
-        win.__bkSkipChapterList = (uniqueChapters.length <= 1 || book.format === 'pdf');
+        // ★ 独立目录页已移除：__bkSkipChapterList 恒为 true，
+        //   保证返回键从阅读视图直接回书架（不再回到已移除的目录页）。
+        win.__bkSkipChapterList = true;
         try {
           localStorage.setItem('bk_last_read', bookId);
           // 记录「最近阅读」时间戳（供书架按 max(入架,阅读) 排序置顶）

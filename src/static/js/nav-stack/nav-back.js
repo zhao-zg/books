@@ -82,16 +82,19 @@
                         return;
                     }
                     if (parts.length >= 2) {
-                        // 阅读视图 → 章节目录
-                        // ★ 单章书/PDF 的目录页会被 renderChapterList 自动跳进阅读视图，
-                        //   返回键回目录页=循环，故直接回书架
-                        if (window.__bkIsSingleChapter || window.__bkSkipChapterList) {
+                        // 阅读视图 → 书架
+                        // ★ 独立目录页已移除：renderChapterList 一律直接进阅读视图，
+                        //   且 __bkSkipChapterList 恒为 true，返回键从阅读视图直接回书架。
+                        //   （保留 __bkSkipChapterList 判断以兼容其它潜在入口。）
+                        if (window.__bkSkipChapterList) {
+                            if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
+                        } else if (window.__bkIsSingleChapter) {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                         } else {
                             if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); return; }
                         }
                     } else if (parts.length >= 1) {
-                        // 章节目录 → 主页
+                        // 单段路由（目录页等）→ 主页
                         if (window.BKRouter) { window.BKRouter.navigateReplace(''); return; }
                     }
                     window.Capacitor.Plugins.App.exitApp();
@@ -130,10 +133,12 @@
                             if (window.BKRenderer && window.BKRenderer.goBackInHome && window.BKRenderer.goBackInHome()) { window.__bkFallbackNav = false; return; }
                             // 已在最外层主页
                         } else if (parts.length >= 2) {
-                            // 阅读视图 → 章节目录
-                            // ★ 单章书/PDF 的目录页会被 renderChapterList 自动跳进阅读视图，
-                            //   返回键回目录页=循环，故直接回书架
-                            if (window.__bkIsSingleChapter || window.__bkSkipChapterList) {
+                            // 阅读视图 → 书架
+                            // ★ 独立目录页已移除：__bkSkipChapterList 恒为 true，
+                            //   返回键从阅读视图直接回书架。
+                            if (window.__bkSkipChapterList) {
+                                if (window.BKRouter) { window.BKRouter.navigateReplace(''); window.__bkFallbackNav = false; return; }
+                            } else if (window.__bkIsSingleChapter) {
                                 if (window.BKRouter) { window.BKRouter.navigateReplace(''); window.__bkFallbackNav = false; return; }
                             } else {
                                 if (window.BKRouter) { window.BKRouter.navigateReplace(parts[0]); window.__bkFallbackNav = false; return; }
