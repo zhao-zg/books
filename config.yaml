@@ -15,7 +15,7 @@ static_dir: "src/static"
 # 伪装/访问控制：是否开启「请下载APK」伪装页
 # false（默认）= 关闭，普通浏览器直接可用；true = 开启（非 App/PWA 访问显示伪装页）
 # 也可通过 URL 参数 ?disguise=1 临时开启自测，覆盖此配置
-disguise_enabled: false
+disguise_enabled: true
 
 # 默认书籍配置（可选，仅当无法从文件夹名自动识别时使用）
 # 程序会自动从文件夹名称提取书名和作者信息
