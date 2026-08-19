@@ -1,5 +1,7 @@
 name: 构建离线版APK
 
+retention-days: 1
+
 on:
   push:
     tags:
@@ -907,3 +909,4 @@ jobs:
           -d '{"ref":"main"}'
         
         echo "✓ 已触发网站重新部署"
+

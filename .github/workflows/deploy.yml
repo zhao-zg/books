@@ -1,5 +1,7 @@
 name: 构建并部署到 Cloudflare Pages 和 GitHub Pages
 
+retention-days: 1
+
 on:
   push:
     branches:
@@ -423,3 +425,4 @@ jobs:
           path: output/*.zip
           retention-days: 1
           if-no-files-found: warn
+

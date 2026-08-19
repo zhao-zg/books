@@ -1,5 +1,7 @@
 name: 测试 Cloudflare 配置
 
+retention-days: 1
+
 on:
   workflow_dispatch:  # 手动触发
 
@@ -160,3 +162,4 @@ jobs:
             echo "2. API Token 无效或已过期"
             echo "3. API Token 权限不足（需要 'Cloudflare Pages - Edit'）"
           fi
+

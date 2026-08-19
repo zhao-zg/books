@@ -1,5 +1,7 @@
 name: Auto Download Resources
 
+retention-days: 1
+
 on:
   schedule:
     # 每天北京时间早上 9 点运行 (UTC 1:00)
@@ -93,3 +95,4 @@ jobs:
           else
             echo "ℹ️ 没有新资源需要更新"
           fi
+
