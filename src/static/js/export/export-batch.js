@@ -222,23 +222,9 @@
                         // 写入 book.json（深拷贝，避免污染原始数据）
                         var exportData = JSON.parse(JSON.stringify(bookData));
 
-                        // 清理 PDF 页面大体积数据（已在 original.pdf 中单独保存）
-                        // PDF 书的章节 content 中 pdf_page 条目包含大体积数据，导出到 book.json 中无意义
-                        if (isPdf && exportData.chapters) {
-                            for (var ci = 0; ci < exportData.chapters.length; ci++) {
-                                var ch = exportData.chapters[ci];
-                                if (Array.isArray(ch.content)) {
-                                    for (var cj = ch.content.length - 1; cj >= 0; cj--) {
-                                        if (ch.content[cj] && ch.content[cj].type === 'pdf_page') {
-                                            ch.content.splice(cj, 1);
-                                        }
-                                    }
-                                    // 内容为空时设为空数组，避免导入时误判为无章书
-                                    if (!ch.content.length) ch.content = [];
-                                }
-                            }
-                        }
-
+                        // PDF 书的 pdf_page 条目保留原样（每页仅含 type/pageNumber/pdfBookId 轻量引用）。
+                        // 这些条目是 PDF 阅读器渲染页面的依据（renderer-pdf.js 通过 .bk-pdf-page 查找页面），
+                        // 删除会导致导出→导入后 PDF 书无页面可渲染。真正的 PDF 二进制单独存于 original.pdf。
                         bookFolder.file('book.json', JSON.stringify(exportData, null, 2));
 
                         // 收集并写入用户数据（阅读进度、书签、高亮等）

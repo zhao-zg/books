@@ -182,6 +182,25 @@
 
             var isPdf = _isPdfBookData(bookData);
 
+            // PDF 书：书城书 ID 变化后，需把 chapters 中 pdf_page.pdfBookId 重映射到新 ID，
+            // 否则渲染器按旧 ID 到 pdfStore 取 original.pdf 会失败（找不到数据）
+            if (isPdf && bookData.id !== originalId && bookData.chapters) {
+                var mappedCount = 0;
+                for (var chIdx = 0; chIdx < bookData.chapters.length; chIdx++) {
+                    var chContent = bookData.chapters[chIdx].content;
+                    if (!Array.isArray(chContent)) continue;
+                    for (var cIdx = 0; cIdx < chContent.length; cIdx++) {
+                        if (chContent[cIdx] && chContent[cIdx].type === 'pdf_page') {
+                            chContent[cIdx].pdfBookId = bookData.id;
+                            mappedCount++;
+                        }
+                    }
+                }
+                if (mappedCount) {
+                    console.log('[BK.ImportZip] _importOneBook: 重映射 ' + mappedCount + ' 个 pdf_page 的 pdfBookId → ' + bookData.id);
+                }
+            }
+
             return _saveBook(bookData).then(function () {
                 // PDF 书：额外保存原始 PDF 二进制
                 if (isPdf) {

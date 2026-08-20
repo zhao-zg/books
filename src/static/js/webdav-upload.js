@@ -112,6 +112,17 @@
     return bookId;
   }
 
+  /** 获取书籍原始导入格式（'txt' | 'md' | 'epub' | 'pdf'），未记录时返回空串 */
+  function _getBookFormat(bookId) {
+    var books = win.__bkBooks || [];
+    for (var i = 0; i < books.length; i++) {
+      if (books[i] && (books[i].id === bookId || books[i].bookId === bookId)) {
+        return books[i].format || '';
+      }
+    }
+    return '';
+  }
+
   function _isPdfBook(bookId) {
     var books = win.__bkBooks || [];
     for (var i = 0; i < books.length; i++) {
@@ -368,7 +379,8 @@
       bookInfos.push({
         id: id,
         title: _getBookTitle(id),
-        isPdf: _isPdfBook(id)
+        isPdf: _isPdfBook(id),
+        format: _getBookFormat(id)
       });
     }
 
@@ -397,9 +409,14 @@
       if (isPdf) {
         formatHtml += '<button class="bk-wdu-format-btn active" data-format="pdf">PDF 原始文件</button>';
       } else {
-        formatHtml += '<button class="bk-wdu-format-btn active" data-format="txt">TXT</button>';
-        formatHtml += '<button class="bk-wdu-format-btn" data-format="md">Markdown</button>';
-        formatHtml += '<button class="bk-wdu-format-btn" data-format="epub">EPUB</button>';
+        // 默认选中书籍原始导入格式（TXT/MD/EPUB），未记录时回退 TXT
+        var origFmt = bookInfos[0].format;
+        var defTxt = (!origFmt || origFmt === 'txt') ? ' active' : '';
+        var defMd  = (origFmt === 'md') ? ' active' : '';
+        var defEp  = (origFmt === 'epub') ? ' active' : '';
+        formatHtml += '<button class="bk-wdu-format-btn' + defTxt + '" data-format="txt">TXT</button>';
+        formatHtml += '<button class="bk-wdu-format-btn' + defMd + '" data-format="md">Markdown</button>';
+        formatHtml += '<button class="bk-wdu-format-btn' + defEp + '" data-format="epub">EPUB</button>';
       }
       formatHtml += '</div></div>';
     }
@@ -489,7 +506,9 @@
       bookInfos: bookInfos,
       selectedConfig: null,
       connectedConfig: null,
-      format: bookInfos.length === 1 && bookInfos[0].isPdf ? 'pdf' : 'txt',
+      format: bookInfos.length === 1
+        ? (bookInfos[0].isPdf ? 'pdf' : (bookInfos[0].format || 'txt'))
+        : 'txt',
       uploading: false,
       browseMode: false,
       browsePath: '',
