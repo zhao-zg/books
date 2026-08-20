@@ -67,20 +67,25 @@
   }
 
   /**
-   * 双栏阅读模式（平板/横屏）：TOC 常驻左栏。
-   * 触发：min-width:768px（平板/宽屏）。手机横屏(max-height:500px)不触发。
-   * 进入阅读视图时调用；退出阅读视图（renderHome/renderChapterList）调 _exitSplitMode。
-   */
+    * 双栏阅读模式（平板/横屏）：TOC 常驻左栏。
+    * 触发：min-width:768px 且非手机横屏。手机横屏(max-height:500px)不触发，保持单栏。
+    * 进入阅读视图时调用；退出阅读视图（renderHome/renderChapterList）调 _exitSplitMode。
+    */
   var _splitMedia = null;
   var _splitBookId = null;
-  var _splitTocCollapsed = false;  // 折叠状态
+  var _splitTocCollapsed = true;  // 折叠状态（默认收起，用户展开后 localStorage 持久化）
   var _COLLAPSE_KEY = 'bk_split_toc_collapsed';  // localStorage 持久化 key
   function _maybeEnterSplitMode(bookId) {
     _splitBookId = bookId;
     if (!win.matchMedia) return;
-    _splitMedia = win.matchMedia('(min-width: 768px)');
-    // 读取用户上次偏好
-    try { _splitTocCollapsed = localStorage.getItem(_COLLAPSE_KEY) === '1'; } catch(e) {}
+    // 排除手机横屏（max-height:500px）：min-height:501px 才进入双栏
+    _splitMedia = win.matchMedia('(min-width: 768px) and (min-height: 501px)');
+    // 读取用户上次偏好：无记录（首次使用/存储被清）= 默认收起 true；
+    // 有记录则按用户偏好（'1'=收起，'0'=展开），并重置内存变量避免旧会话残留。
+    try {
+      var _cached = localStorage.getItem(_COLLAPSE_KEY);
+      _splitTocCollapsed = (_cached === null) ? true : (_cached === '1');
+    } catch(e) { _splitTocCollapsed = true; }
     _applySplitMode(_splitMedia.matches);
     if (_splitMedia.addEventListener) {
       _splitMedia.addEventListener('change', _onSplitMediaChange);
