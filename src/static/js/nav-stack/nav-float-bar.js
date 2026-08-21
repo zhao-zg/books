@@ -582,6 +582,23 @@
     }
 
     document.addEventListener('click', function(e) {
+        // ★ 弹框/抽屉/遮罩打开时，点击其内部（含空白区）不得触发阅读浮动栏显示/收起。
+        //   否则在 MarkPanel 抽屉、经文弹框、图片查看器等弹框内触摸空白，会穿透到
+        //   document 全局点击，误弹出（或误收起）底部控制栏。此处统一拦截。
+        if (e.target && e.target.closest && e.target.closest(
+            '.bk-mp-drawer, .bk-mp-overlay, ' +                  // MarkPanel 抽屉/遮罩
+            '.bk-toc-drawer, .bk-toc-overlay, ' +                // 旧版 TOC 抽屉
+            '.bk-dialog-mask, .bk-dialog, ' +                 // 通用对话框
+            '.scripture-popup-overlay, .scripture-popup, ' +  // 经文弹框
+            '.bk-epub-fn-popup-mask, ' +                      // 脚注弹窗
+            '.bk-image-viewer-overlay, .bk-lightbox-overlay, ' +  // 图片查看/灯箱
+            '.bk-search-overlay, .bk-search-modal, ' +        // 搜索弹框
+            '.bk-pdf-page-jump-overlay, .bk-pdf-page-jump-dialog, ' +  // PDF 页码跳转
+            '.bk-mp-edit-overlay, .bk-mp-edit-dialog, ' +     // MarkPanel 编辑菜单
+            '.bk-pdf-bm-edit-overlay, ' +                    // PDF 书签编辑
+            '.hl-menu, .hl-modal-mask'                        // 划线/标记浮空菜单 + 批注编辑遮罩
+        )) return;
+
         // 任一控制栏（顶栏或底栏）可见时，点击空白处即收起（含朗读栏已激活时）；
         // 朗读栏内控件点击已被 stopPropagation 拦截，不会收起。
         var controlsVisible = (_el && _el.classList.contains('show')) ||
@@ -598,6 +615,18 @@
             return;
         }
         var pageType = getPageType();
+        // ★ 划线/标记浮空菜单（hl-selection-menu / hl-annotation-menu）是浮空无遮罩的，
+        //   点空白关闭它们时点击落在正文，会被下方 isEmptyAreaClick 判为空白而误 show()。
+        //   若菜单仍在显示，或刚刚被点空白关闭（body[data-hl-menu-closing] 标记未过期），
+        //   本次点击视为关闭弹框操作，不唤出顶底悬浮栏。
+        if (pageType) {
+            var _selMenu = document.getElementById('hl-selection-menu');
+            var _annMenu = document.getElementById('hl-annotation-menu');
+            var _hlMenuOpen = (_selMenu && _selMenu.style.display !== 'none') ||
+                              (_annMenu && _annMenu.style.display !== 'none');
+            var _hlMenuClosing = document.body.getAttribute('data-hl-menu-closing') === '1';
+            if (_hlMenuOpen || _hlMenuClosing) return;
+        }
         if (pageType && isEmptyAreaClick(e)) {
             show();
         }

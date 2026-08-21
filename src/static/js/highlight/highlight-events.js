@@ -68,7 +68,14 @@ Object.assign(BKHighlight, {
                 var annMenu = document.getElementById('hl-annotation-menu');
                 var outsideSel = selMenu && selMenu.style.display !== 'none' && !selMenu.contains(e.target);
                 var outsideAnn = annMenu && annMenu.style.display !== 'none' && !annMenu.contains(e.target);
-                if (outsideSel || outsideAnn) self.hideAllMenus();
+                if (outsideSel || outsideAnn) {
+                    self.hideAllMenus();
+                    // ★ 点空白关闭划线/标记弹框时，在菜单 DOM 上留一个短暂标记，
+                    //   供 nav-float-bar 全局 click 判定本次为"关闭弹框"而非"唤出悬浮栏"。
+                    //   （document 上同级监听器 stopPropagation 无法互相阻断，改用标记方案。）
+                    document.body.setAttribute('data-hl-menu-closing', '1');
+                    setTimeout(function () { document.body.removeAttribute('data-hl-menu-closing'); }, 300);
+                }
             });
 
             document.addEventListener('keydown', function (e) {
