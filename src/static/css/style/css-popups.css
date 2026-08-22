@@ -151,15 +151,38 @@
 }
 .scripture-popup-back:active { background: var(--surface-alt, #EDEAE4); border-radius: 50%; }
 .fn-ref {
-  font-size: .68em; vertical-align: super; line-height: 0; color: var(--brand, #3D8A5A);
-  font-weight: 700; cursor: pointer; padding: 0 1px;
+  /* 注解号（1 2 3…）：加大字号与热区，便于点击；用 em 随正文缩放 */
+  display: inline-block; font-size: 0.82em; line-height: 1;
+  vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
+  padding: 0.1em 0.24em; margin: 0 0.08em;
+  border-radius: 0.3em;
   -webkit-tap-highlight-color: transparent; user-select: none;
+  transition: background .15s, color .15s;
 }
+.fn-ref:hover { background: rgba(var(--brand-rgb, 61,138,90),.14); }
+.fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); color: #fff; }
 .xref-ref {
-  font-size: .65em; vertical-align: super; line-height: 0; color: var(--brand, #3D8A5A);
-  font-weight: 700; cursor: pointer; padding: 0 1px;
+  /* 串珠号（a b c…）：与注解号同规格，保持视觉一致 */
+  display: inline-block; font-size: 0.82em; line-height: 1;
+  vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
+  padding: 0.1em 0.24em; margin: 0 0.08em;
+  border-radius: 0.3em;
   -webkit-tap-highlight-color: transparent; user-select: none;
+  transition: background .15s, color .15s;
 }
+.xref-ref:hover { background: rgba(var(--brand-rgb, 61,138,90),.14); }
+.xref-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); color: #fff; }
+/* 弹框打开期间：覆盖残留 hover/active 状态，阻止点击动画透过遮罩 */
+.fn-ref.scripture-ref--opening,
+.fn-ref.scripture-ref--opening:hover,
+.fn-ref.scripture-ref--opening:active,
+.xref-ref.scripture-ref--opening,
+.xref-ref.scripture-ref--opening:hover,
+.xref-ref.scripture-ref--opening:active {
+  background: transparent; color: var(--brand, #3D8A5A);
+}
+[data-theme="dark"] .fn-ref:active,
+[data-theme="dark"] .xref-ref:active { background: rgba(var(--brand-rgb),.32); }
 
 /* ── 平板（>=600px）底部扩展框覆盖 ─────────────────────────── */
 @media (min-width: 600px) {

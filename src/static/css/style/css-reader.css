@@ -145,9 +145,13 @@
   flex-shrink: 0;
 }
 .bk-fn-ref {
-  font-size: 0.75em;
+  display: inline-block;
+  font-size: 0.82em;
+  line-height: 1;
   vertical-align: super;
-  line-height: 0;
+  margin: 0 0.1em;
+  padding: 0.1em 0.3em 0.05em;
+  border-radius: 0.35em;
 }
 .bk-fn-ref a {
   color: var(--brand, #3D8A5A);
@@ -157,6 +161,7 @@
 .bk-fn-ref a:hover {
   text-decoration: underline;
 }
+.bk-fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); }
 .bk-fn-text a {
   color: var(--brand, #3D8A5A);
 }

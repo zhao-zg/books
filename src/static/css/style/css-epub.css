@@ -2,15 +2,20 @@
    保留原始 EPUB 的 <img> 图标（如 MDC 的 verse.png）；
    无 img 时回退为 <span class="bk-epub-fn-ref-text">†</span> 文本符号 */
 .bk-epub-fn-ref {
-  display: inline;
+  display: inline-block;
   cursor: pointer;
-  vertical-align: baseline;
+  vertical-align: super;
   line-height: 1;
   text-decoration: none;
-  margin: 0 1px;
+  margin: 0 0.1em;
+  padding: 0.12em 0.3em 0.06em;
+  border-radius: 0.35em;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  transition: background .15s;
 }
+.bk-epub-fn-ref:hover { background: rgba(var(--brand-rgb, 61,138,90),.14); }
+.bk-epub-fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); }
 /* 回退文本符号 †（无 img 子节点时的占位）：上移 + 加粗，与图标视觉对齐 */
 .bk-epub-fn-ref-text {
   font-weight: bold;
@@ -20,14 +25,15 @@
 }
 /* 图片图标样式（还原原始 EPUB .footnote_img 规则） */
 .bk-epub-fn-ref img {
-  height: 0.8em;
+  height: 0.9em;
   vertical-align: middle;
   border: none;
 }
 .bk-epub-fn-ref:hover {
-  opacity: 0.7;
+  opacity: 0.85;
   text-decoration: none;
 }
+[data-theme="dark"] .bk-epub-fn-ref:active { background: rgba(var(--brand-rgb),.32); }
 [data-theme="dark"] .bk-epub-fn-ref img {
   /* 暗色模式下保持原始彩色图标外观（verse.png 黄底蓝字在暗色背景下具备良好对比度）。
      不调整 brightness，避免 brightness(0.9) 让蓝字进一步变暗导致清晰度下降。 */
