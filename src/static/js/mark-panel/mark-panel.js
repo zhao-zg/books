@@ -23,6 +23,7 @@
         _bookTitle: '',
         _dirtyTabs: { toc: true, bookmark: true, mark: true },
         _scrollCleanup: null,  // lockOverlayScroll 的 cleanup 函数
+        _lastBookId: '',  // 记录最近一次面板感知的书籍 ID，用于切换书籍时重置目录/标记缓存
 
         // ─── 公开 API ──────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@
 
             MarkPanel._detectReaderType();
             MarkPanel._getAdapter();
+            // 切换书籍时重置目录/标记脏标记（避免显示上一本书的残留数据）
+            MarkPanel._syncBookContext();
             MarkPanel._ensureDOM();
 
             // 书名：通过适配器获取（适配器内部区分 EPUB/PDF 数据源）
@@ -145,6 +148,33 @@
             MarkPanel._adapter = (MarkPanel._readerType === 'pdf')
                 ? adapters.PdfAdapter
                 : adapters.EpubAdapter;
+        },
+
+        /**
+         * 获取当前阅读的书籍 ID（EPUB：__bkCurrentPath 首段；PDF：由适配器状态决定）。
+         * 若无法确定返回空串。
+         */
+        _getCurrentBookId: function () {
+            var path = win.__bkCurrentPath || '';
+            var parts = path.split('/').filter(Boolean);
+            return parts[0] || '';
+        },
+
+        /**
+         * 检测书籍是否已切换（相对上一次面板感知的书籍）。
+         * 切换时重置目录(toc)与标记(mark)脏标记，确保下次加载的是新书数据，
+         * 避免连续切换书籍查看目录时显示上一本书的残留内容。
+         * 返回 true 表示书籍发生变化并已重置；false 表示无变化或无法判断。
+         */
+        _syncBookContext: function () {
+            var bookId = MarkPanel._getCurrentBookId();
+            if (!bookId) return false;
+            if (bookId === MarkPanel._lastBookId) return false;
+            MarkPanel._lastBookId = bookId;
+            // 书籍切换：目录与标记均为新书数据，强制重新加载
+            MarkPanel._dirtyTabs.toc = true;
+            MarkPanel._dirtyTabs.mark = true;
+            return true;
         },
 
         _ensureDOM: function () {
@@ -327,7 +357,7 @@
 
                 var num = document.createElement('span');
                 num.className = 'bk-mp-toc-num';
-                num.textContent = (idx + 1);
+                num.textContent = item.num || (idx + 1);
 
                 var title = document.createElement('span');
                 title.className = 'bk-mp-toc-title';
@@ -879,6 +909,8 @@
 
         // 监听页面变化（PDF 翻页 / EPUB 切章），刷新书签 footer 按钮状态
         document.addEventListener('reader-page-change', function () {
+            // 书籍切换时重置目录/标记脏标记（本次面板感知的书籍与上次不同）
+            MarkPanel._syncBookContext();
             // 翻页后当前页的书签状态可能变化，标记 bookmark 为脏
             MarkPanel._dirtyTabs.bookmark = true;
             if (MarkPanel._isOpen && MarkPanel._activeTab === 'bookmark') {

@@ -480,17 +480,18 @@ def _parse_books_level3(content: str, category: Optional[dict]):
 
 
 def _parse_books_level4(content: str, category: Optional[dict]):
-    """解析 books 系列 level 4（章节 URL 或书籍内子分组）"""
+    """解析 books 系列 level 4（章节 URL 或书籍内子分组/卷名）"""
     if not category or not category['books']:
         return
     current_book = category['books'][-1]
     if _is_url(content):
         url, title = _split_url_title(content)
-        current_book['chapters'].append({'url': url, 'title': title})
+        current_book['chapters'].append({'url': url, 'title': title,
+                                         'volume': current_book.get('current_volume')})
     else:
-        # 书籍内子分组（如 "基督与神"），不需要特殊处理，
-        # 后续 level 5 的 URL 直接加入当前书
-        pass
+        # 书籍内子分组（如 "卷一 灵魂体的总论"），记录卷名，
+        # 后续 level 5 的 URL 携带该卷名加入当前书
+        current_book['current_volume'] = content
 
 
 def _parse_books_level5(content: str, category: Optional[dict]):
@@ -500,7 +501,8 @@ def _parse_books_level5(content: str, category: Optional[dict]):
     current_book = category['books'][-1]
     if _is_url(content):
         url, title = _split_url_title(content)
-        current_book['chapters'].append({'url': url, 'title': title})
+        current_book['chapters'].append({'url': url, 'title': title,
+                                         'volume': current_book.get('current_volume')})
 
 
 def _parse_smdj8_level3(content: str, group: Optional[dict]):
@@ -1226,6 +1228,7 @@ def _assemble_books_series(data: dict, lookup: dict, verbose: bool) -> List[dict
                         'number': len(chapters) + 1,
                         'title': extracted.get('title') or ch.get('title', ''),
                         'content': extracted['content'],
+                        'volume': ch.get('volume') or '',
                     })
                 elif verbose:
                     log.debug(f"  未找到内容: {ch['url']}")

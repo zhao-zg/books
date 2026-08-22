@@ -38,7 +38,8 @@
                         var titleEl = el.querySelector('.bk-toc-chapter-title');
                         items.push({
                             id: el.getAttribute('data-toc-nav') || el.getAttribute('href') || ('toc-' + i),
-                            title: (numEl ? numEl.textContent.trim() + ' ' : '') + (titleEl ? titleEl.textContent.trim() : ''),
+                            title: titleEl ? titleEl.textContent.trim() : '',
+                            num: numEl ? parseInt(numEl.textContent.trim(), 10) : (i + 1),
                             depth: 0,
                             position: i,
                             isActive: el.classList.contains('bk-toc-current'),
@@ -74,7 +75,8 @@
                         var num = c.number || (k + 1);
                         items.push({
                             id: 'toc-' + num,
-                            title: num + ' ' + (c.title || '第' + num + '章'),
+                            title: c.title || ('\u7b2c' + num + '\u7ae0'),
+                            num: num,
                             depth: 0,
                             position: k,
                             isActive: (num === progress),
@@ -116,7 +118,8 @@
                             var titleEl = el.querySelector('.bk-toc-chapter-title');
                             items.push({
                                 id: 'toc-' + i,
-                                title: (numEl ? numEl.textContent.trim() + ' ' : '') + (titleEl ? titleEl.textContent.trim() : ''),
+                                title: titleEl ? titleEl.textContent.trim() : '',
+                                num: numEl ? parseInt(numEl.textContent.trim(), 10) : (i + 1),
                                 depth: 0,
                                 position: i,
                                 isActive: el.classList.contains('bk-toc-current'),

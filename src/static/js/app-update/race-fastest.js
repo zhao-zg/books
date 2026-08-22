@@ -3,9 +3,10 @@
  *
  * 两类竞速，互不干扰：
  *   1. version 竞速：轻量级（几百字节），延迟优先
- *      → 竞速 CF 服务器的 version.json，选最快响应的
- *      → 用于 version.json / changelog.json / 赞助图等所有轻量 CF 请求
- *      → 持久化缓存（localStorage），不过期；请求失败时调用 invalidateVersion 重新竞速
+ *      → 竞速 CF 服务器的 version.json，选最快响应的服务器域名
+ *      → 只缓存最快域名（内存 + localStorage），每次调用都用该域名真实请求
+ *        version.json 拿最新数据，确保检查更新总能拿到最新版本
+ *      → 仅首次（无缓存域名）做完整竞速；域名请求失败时自动退回完整竞速
  *
  *   2. download 竞速：下载 300KB 测速文件，带宽优先
  *      → 顺序下载每个服务器的 speedtest.bin，独占带宽，结果真实
@@ -80,33 +81,66 @@
     };
   }
 
-  // ── version 竞速（延迟优先）─────────────────────────────────────────
+  // ── version 竞速（延迟优先，仅缓存最快域名，每次真实请求）─────────────
   /**
-   * 竞速 CF 服务器的 version.json（几百字节），选最快响应的服务器
-   * 结果全局缓存 5 分钟，所有轻量 CF 请求复用
+   * 竞速 CF 服务器：选最快的服务器域名，并返回其最新 version.json 数据。
+   *
+   * 语义：竞速缓存的只是「最快域名」；每次调用都会用该域名真实请求一次
+   * version.json，确保拿到最新数据。仅在首次（无缓存）时才做完整竞速，
+   * 缓存域名后复用域名直接请求，不再重复竞速。
    *
    * @returns {Promise<{serverUrl: string, data: object}>}
    *   serverUrl: 最快 CF 服务器 URL（含尾部 /）
-   *   data: version.json 解析后的对象
+   *   data: 刚请求到的最新 version.json 解析对象
    */
-  function raceVersion() {
-    // 内存缓存命中（不过期，仅 invalidateVersion 清除）
-    if (_verCache) {
-      console.log('[RaceFastest] version 缓存命中: ' + _verCache.serverUrl);
-      return Promise.resolve({ serverUrl: _verCache.serverUrl, data: _verCache.data });
+  function _requestVersion(serverUrl) {
+    var ts = Date.now();
+    var fullUrl = serverUrl + 'version.json?t=' + ts;
+
+    // 检测 CapacitorHttp（APK 环境优先使用，绕过 WebView CORS 限制）
+    var CapacitorHttp = null;
+    if (window.Capacitor) {
+      CapacitorHttp = window.Capacitor.CapacitorHttp
+        || (window.Capacitor.Plugins && (window.Capacitor.Plugins.CapacitorHttp || window.Capacitor.Plugins.Http))
+        || null;
     }
 
-    // 尝试从 localStorage 恢复（页面刷新后仍可用）
-    var lsCache = _lsLoadVer();
-    if (lsCache) {
-      _verCache = lsCache;
-      console.log('[RaceFastest] version 缓存恢复(localStorage): ' + lsCache.serverUrl);
-      return Promise.resolve({ serverUrl: lsCache.serverUrl, data: lsCache.data });
+    if (CapacitorHttp) {
+      console.log('[RaceFastest] version 请求 CapacitorHttp: ' + fullUrl);
+      return CapacitorHttp.get({ url: fullUrl, connectTimeout: 5000, readTimeout: 8000 })
+        .then(function (resp) {
+          if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
+          var d = (typeof resp.data === 'string') ? JSON.parse(resp.data) : resp.data;
+          return { serverUrl: serverUrl, data: d };
+        });
     }
+    // Web/PWA 环境：使用 fetch
+    console.log('[RaceFastest] version 请求 fetch: ' + fullUrl);
+    return fetch(fullUrl, { cache: 'no-cache' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json().then(function (d) { return { serverUrl: serverUrl, data: d }; });
+      });
+  }
 
-    // 防重复：已有进行中的竞速，复用
-    if (_verPending) return _verPending;
+  // 缓存命中的最快域名：用该域名真实请求一次，失败则退回完整竞速
+  function _raceWithCachedServer(serverUrl) {
+    return _requestVersion(serverUrl).then(function (result) {
+      // 请求成功：更新缓存（域名不变、数据刷新）
+      _verCache = { serverUrl: serverUrl, data: result.data, ts: Date.now() };
+      _lsSaveVer(_verCache);
+      console.log('[RaceFastest] version 缓存域名复用并刷新: ' + serverUrl);
+      return result;
+    }).catch(function (err) {
+      console.warn('[RaceFastest] 缓存域名请求失败，退回完整竞速: ' + serverUrl + ' → ' + (err.message || err));
+      _verCache = null;
+      try { localStorage.removeItem(_LS_KEY_VER); } catch (e) {}
+      return _raceAll();
+    });
+  }
 
+  // 完整竞速：并行请求所有服务器，选最快域名
+  function _raceAll() {
     var servers = _getCfServers();
     if (!servers.length) {
       return Promise.reject(new Error('无可用 CF 服务器'));
@@ -114,77 +148,60 @@
 
     console.log('[RaceFastest] 开始 version 竞速（' + servers.length + ' 个服务器）');
 
-    _verPending = new Promise(function (resolve) {
-      var ts = Date.now();
-
-      // 检测 CapacitorHttp（APK 环境优先使用，绕过 WebView CORS 限制）
-      var CapacitorHttp = null;
-      if (window.Capacitor) {
-        CapacitorHttp = window.Capacitor.CapacitorHttp
-          || (window.Capacitor.Plugins && (window.Capacitor.Plugins.CapacitorHttp || window.Capacitor.Plugins.Http))
-          || null;
-      }
-      console.log('[RaceFastest] version 竞速请求方式: ' + (CapacitorHttp ? 'CapacitorHttp（原生HTTP，无CORS限制）' : 'fetch（浏览器标准请求）'));
-
-      var fetches = servers.map(function (url) {
-        var fullUrl = url + 'version.json?t=' + ts;
-        if (CapacitorHttp) {
-          // APK 环境：使用 CapacitorHttp 原生 HTTP 请求，无 CORS 限制
-          console.log('[RaceFastest] version 竞速 CapacitorHttp 请求: ' + fullUrl);
-          return CapacitorHttp.get({ url: fullUrl, connectTimeout: 5000, readTimeout: 8000 })
-            .then(function (resp) {
-              console.log('[RaceFastest] version 竞速 CapacitorHttp 响应: ' + url + ' → HTTP ' + resp.status);
-              if (resp.status !== 200) throw new Error('HTTP ' + resp.status);
-              var d = (typeof resp.data === 'string') ? JSON.parse(resp.data) : resp.data;
-              return { serverUrl: url, data: d };
-            })
-            .catch(function (e) {
-              console.warn('[RaceFastest] version 竞速 CapacitorHttp 失败: ' + url + ' → ' + (e.message || e));
-              throw e;
-            });
-        }
-        // Web/PWA 环境：使用 fetch
-        console.log('[RaceFastest] version 竞速 fetch 请求: ' + fullUrl);
-        return fetch(fullUrl, { cache: 'no-cache' })
-          .then(function (r) {
-            console.log('[RaceFastest] version 竞速 fetch 响应: ' + url + ' → HTTP ' + r.status);
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json().then(function (d) {
-              return { serverUrl: url, data: d };
-            });
-          })
-          .catch(function (e) {
-            console.warn('[RaceFastest] version 竞速 fetch 失败: ' + url + ' → ' + (e.message || e));
-            throw e;
-          });
-      });
-
-      // Promise.any 语义：取第一个成功的
-      var race = typeof Promise.any === 'function'
-        ? Promise.any(fetches)
-        : new Promise(function (res) {
-            var done = false;
-            fetches.forEach(function (p) {
-              p.then(function (d) { if (!done) { done = true; res(d); } }).catch(function () {});
-            });
-            setTimeout(function () { if (!done) res(null); }, 8000);
-          });
-
-      race.then(function (result) {
-        if (result) {
-          _verCache = { serverUrl: result.serverUrl, data: result.data, ts: Date.now() };
-          _lsSaveVer(_verCache); // 持久化，重启后仍可用
-          console.log('[RaceFastest] version 竞速完成: ' + result.serverUrl);
-        }
-        _verPending = null;
-        resolve(result || Promise.reject(new Error('所有服务器均无法访问')));
-      }).catch(function (err) {
-        console.error('[RaceFastest] version 竞速全部失败:', err.message || err);
-        _verPending = null;
-        resolve(Promise.reject(err));
-      });
+    var ts = Date.now();
+    var fetches = servers.map(function (url) {
+      return _requestVersion(url).then(function (r) { r._start = ts; return r; })
+        .catch(function (e) {
+          console.warn('[RaceFastest] version 竞速失败: ' + url + ' → ' + (e.message || e));
+          throw e;
+        });
     });
 
+    // Promise.any 语义：取第一个成功的
+    var race = typeof Promise.any === 'function'
+      ? Promise.any(fetches)
+      : new Promise(function (res) {
+          var done = false;
+          fetches.forEach(function (p) {
+            p.then(function (d) { if (!done) { done = true; res(d); } }).catch(function () {});
+          });
+          setTimeout(function () { if (!done) res(null); }, 8000);
+        });
+
+    return race.then(function (result) {
+      if (result) {
+        _verCache = { serverUrl: result.serverUrl, data: result.data, ts: Date.now() };
+        _lsSaveVer(_verCache); // 持久化，重启后仍可用
+        console.log('[RaceFastest] version 竞速完成: ' + result.serverUrl);
+      }
+      return result || Promise.reject(new Error('所有服务器均无法访问'));
+    }).catch(function (err) {
+      console.error('[RaceFastest] version 竞速全部失败:', err.message || err);
+      return Promise.reject(err);
+    });
+  }
+
+  function raceVersion() {
+    // 防重复：已有进行中的竞速，复用
+    if (_verPending) return _verPending;
+
+    // 缓存域名：内存优先，其次 localStorage
+    var serverUrl = null;
+    if (_verCache && _verCache.serverUrl) {
+      serverUrl = _verCache.serverUrl;
+      console.log('[RaceFastest] version 缓存域名命中(内存): ' + serverUrl);
+    } else {
+      var lsCache = _lsLoadVer();
+      if (lsCache && lsCache.serverUrl) {
+        serverUrl = lsCache.serverUrl;
+        console.log('[RaceFastest] version 缓存域名恢复(localStorage): ' + serverUrl);
+      }
+    }
+
+    _verPending = serverUrl
+      ? _raceWithCachedServer(serverUrl)
+      : _raceAll();
+    _verPending = _verPending.finally(function () { _verPending = null; });
     return _verPending;
   }
 
@@ -375,7 +392,7 @@
     return null;
   }
 
-  /** 清除 version 缓存（请求失败时调用，下次 version() 会重新竞速） */
+  /** 清除 version 缓存（请求失败时调用，下次 version() 会重新完整竞速） */
   function invalidateVersion() {
     console.log('[RaceFastest] version 缓存已失效，下次调用将重新竞速');
     _verCache = null;
