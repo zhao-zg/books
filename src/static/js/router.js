@@ -23,9 +23,17 @@
   /**
    * 保存最后路由到 localStorage
    * 应用重启时可用于恢复上次退出时的页面
+   * ★ 同时同步更新 bk_last_page / bk_last_page_time，确保导航后立即生效，
+   *   不依赖 visibilitychange / beforeunload 才保存（修复：返回书架后退出，
+   *   若退出时 visibilitychange 未触发，bk_last_page 仍为阅读页 URL，
+   *   重启时页面记忆优先恢复到阅读页而非书架）
    */
   function _saveLastRoute(path) {
-    try { localStorage.setItem('bk_last_route', path || ''); } catch(e) {}
+    try {
+      localStorage.setItem('bk_last_route', path || '');
+      localStorage.setItem('bk_last_page', win.location.href);
+      localStorage.setItem('bk_last_page_time', Date.now().toString());
+    } catch(e) {}
   }
 
   /**

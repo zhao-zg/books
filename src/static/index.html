@@ -620,6 +620,20 @@
                     var lastPageIsMain=!lastHash||lastHash==='#'||lastHash==='#/';
                     console.log('[页面记忆] lastHash="' + lastHash + '" lastPageIsMain=' + lastPageIsMain + ' timeDiff=' + timeDiff);
                     if(!lastPageIsMain){
+                        // ★ 一致性校验：bk_last_page 与 bk_last_route 不一致时，优先信任 bk_last_route
+                        //   bk_last_route 在每次 dispatch 时同步保存，比 bk_last_page（仅在
+                        //   visibilitychange/beforeunload 时保存）更可靠。
+                        //   场景：旧版本数据 bk_last_page 仍为阅读页 URL，但 bk_last_route
+                        //   已正确记录为 shelf → bk_last_page 过时，应恢复到书架。
+                        var savedRoute='';
+                        try{savedRoute=localStorage.getItem('bk_last_route')||'';}catch(e){}
+                        if(savedRoute){
+                            var savedFirstSeg=savedRoute.split('/')[0];
+                            if(savedFirstSeg==='shelf'||savedFirstSeg==='my'||savedFirstSeg==='me'){
+                                console.log('[页面记忆] bk_last_page 过时（"'+lastHash+'"），bk_last_route="'+savedRoute+'" 在主页，优先恢复书架');
+                                lastHash='#/shelf';
+                            }
+                        }
                         // ★ 降级：最后记忆是"我的"页面时，恢复到书架而非"我的"
                         var routePart = lastHash.replace(/^#\/?/, '').split('/')[0];
                         if (routePart === 'my' || routePart === 'me') {
