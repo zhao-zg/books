@@ -556,7 +556,7 @@
         }
 
         // 预先转 base64（'both' 路径需要复用，避免重复编码大文件）
-        var base64Data = _isBinary ? _bytesToBase64(content) : _utf8ToBase64(content);
+        var base64Data = isBinary ? _bytesToBase64(content) : _utf8ToBase64(content);
         function _getBase64() { return base64Data; }
 
         return _askDestination().then(function (choice) {
