@@ -1486,9 +1486,9 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
             # 每个 sub_group → 合并为一章（sub_group 名作为章节标题）
             for sub in sub_groups:
                 sub_name = sub.get('name', '')
-                sub_items = sub.get('items', [])
-                deeper_items = _collect_group_items(sub)
-                items_to_use = sub_items if sub_items else deeper_items
+                # 收集 sub 直接条目 + 全部递归深层子条目
+                # （修复：原先 sub_items 非空时丢弃深层正文，导致书籍内容被截断）
+                items_to_use = _collect_group_items(sub)
                 if not items_to_use:
                     continue
                 
@@ -1570,9 +1570,8 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
             # 每个 sub_group → 合并为一章
             for sub in sub_groups:
                 sub_name = sub.get('name', '')
-                sub_items = sub.get('items', [])
-                deeper_items = _collect_group_items(sub)
-                items_to_use = sub_items if sub_items else deeper_items
+                # 收集 sub 直接条目 + 全部递归深层子条目（修复丢弃深层正文）
+                items_to_use = _collect_group_items(sub)
                 if not items_to_use:
                     continue
                 
@@ -1652,9 +1651,8 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
         
         for sub in sub_groups:
             sub_name = sub.get('name', '')
-            sub_items = sub.get('items', [])
-            deeper_items = _collect_group_items(sub)
-            items_to_use = sub_items if sub_items else deeper_items
+            # 收集 sub 直接条目 + 全部递归深层子条目（修复尾部丢弃深层正文）
+            items_to_use = _collect_group_items(sub)
             if not items_to_use:
                 continue
             
