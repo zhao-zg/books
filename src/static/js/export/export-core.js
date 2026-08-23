@@ -354,8 +354,7 @@
             path: path,
             data: base64Data,
             directory: 'CACHE',
-            recursive: true,
-            encoding: 'base64'   // ← 关键：base64 数据必须指定 encoding，否则被当 UTF-8 文本写入
+            recursive: true
         }).then(function () {
             console.log('[BK.Export] Cache+Share 策略：缓存写入成功，path=' + path);
             return Filesystem.getUri({ path: path, directory: 'CACHE' });

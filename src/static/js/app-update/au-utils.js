@@ -184,7 +184,7 @@
             } catch (e) { }
         }
         
-        await Filesystem.writeFile({ path: filepath, data: base64Data, directory: directory, recursive: true, encoding: 'base64' });
+        await Filesystem.writeFile({ path: filepath, data: base64Data, directory: directory, recursive: true });
         var getUriResult = await Filesystem.getUri({ path: filepath, directory: directory });
         return getUriResult.uri;
     }
