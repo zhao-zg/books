@@ -291,10 +291,13 @@
         if (v1_10) emitRange(book, ch, v1_10, mod1_10, v2_10, mod2_10);
         continue;
       }
-      // F5: 章节式（含章范围、书卷+的+章）
-      // ★ 严格模式：书卷不可省略，且必须有具体节数（整章引用跳过）
+// F5: 章节式（含章范围、书卷+的+章）
+      // 书卷可省略（正则中 BOOK_PAT 为可选）：省略时回退到上下文 book
+      // （同一文本内前一个完整引用已确立的上下文，如「哥林多后书三章八节…五章二十一节」）
+      // 但必须有具体节数（整章引用跳过）；无上下文时仍跳过（保持严格模式防误识别）
       if ((m = F5.exec(p))) {
-        var b5 = m[1] ? normalizeBookNames(m[1]) : ''; if (!b5) continue;
+        var b5 = m[1] ? normalizeBookNames(m[1]) : (book || '');
+        if (!b5) continue;
         // 「篇」仅适用于诗篇
         if (m[4] === '篇' && b5 !== '诗') continue;
         var c5 = cnToInt(m[2]); if (!c5 || c5 > 150) continue;

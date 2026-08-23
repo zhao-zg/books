@@ -354,7 +354,8 @@
             path: path,
             data: base64Data,
             directory: 'CACHE',
-            recursive: true
+            recursive: true,
+            encoding: 'base64'   // ← 关键：base64 数据必须指定 encoding，否则被当 UTF-8 文本写入
         }).then(function () {
             console.log('[BK.Export] Cache+Share 策略：缓存写入成功，path=' + path);
             return Filesystem.getUri({ path: path, directory: 'CACHE' });
@@ -554,12 +555,9 @@
             return _exportWeb(content, filename, mime, false);
         }
 
-        var successMsg = opts.successMsg || '已导出';
-        var errorMsg = opts.errorMsg || '导出失败，请重试';
-
-        function _toBase64(data) {
-            return isBinary ? _bytesToBase64(data) : _utf8ToBase64(data);
-        }
+        // 预先转 base64（'both' 路径需要复用，避免重复编码大文件）
+        var base64Data = _isBinary ? _bytesToBase64(content) : _utf8ToBase64(content);
+        function _getBase64() { return base64Data; }
 
         return _askDestination().then(function (choice) {
             if (!choice) {
@@ -567,38 +565,27 @@
                 return { method: 'choose', saved: false, cancelled: true };
             }
             if (choice === 'save') {
-                return _exportNative(_toBase64(content), filename, mime, { skipSAF: false })
-                    .then(function (res) {
-                        _handleResult(res, successMsg, errorMsg);
-                        return res;
-                    });
+                return _exportNative(_getBase64(), filename, mime, { skipSAF: false });
             }
             if (choice === 'share') {
-                return _exportNative(_toBase64(content), filename, mime, { skipSAF: true })
-                    .then(function (res) {
-                        _handleResult(res, successMsg, errorMsg);
-                        return res;
-                    });
+                return _exportNative(_getBase64(), filename, mime, { skipSAF: true });
             }
             // 'both'：先 SAF 保存到本机，再分享同一内容
-            return _exportNative(_toBase64(content), filename, mime, { skipSAF: false })
+            return _exportNative(_getBase64(), filename, mime, { skipSAF: false })
                 .then(function (saveRes) {
-                    var savedOk = saveRes && (saveRes.saved || saveRes.shared);
                     if (saveRes && saveRes.cancelled) {
                         // 用户取消了 SAF 保存对话框，放弃
                         return saveRes;
                     }
+                    var savedOk = saveRes && (saveRes.saved || saveRes.shared);
                     // 无论保存是否成功，都继续尝试分享（save 成功优先）
-                    return _exportNative(_toBase64(content), filename, mime, { skipSAF: true })
+                    return _exportNative(_getBase64(), filename, mime, { skipSAF: true })
                         .then(function (shareRes) {
-                            var finalRes = { method: 'both', saved: !!savedOk, shared: !!(shareRes && (shareRes.shared || shareRes.saved)) };
-                            _handleResult(finalRes, successMsg, errorMsg);
-                            return finalRes;
+                            return { method: 'both', saved: !!savedOk, shared: !!(shareRes && (shareRes.shared || shareRes.saved)) };
                         });
                 });
         }).catch(function (err) {
             console.error('[BK.Export] 双动作导出失败：', err);
-            _toast(errorMsg);
             throw err;
         });
     }
