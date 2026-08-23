@@ -45,6 +45,8 @@
    * @property {number} currentZoom - 当前实时 zoom（touchmove 期间更新）
    * @property {boolean} active - 是否激活
    * @property {HTMLElement} targetPage - pinch 起始时的 .bk-pdf-page 元素
+   * @property {HTMLElement} focusPage - 双指中心所在的焦点页（有 canvas-wrap 时）
+   * @property {Object|null} focusPoint - 缩放焦点 {x, y(双指中心在 wrap 局部坐标), ratioX, ratioY(内容比例), vx, vy(双指中心视口坐标)}
    */
 
   function _onTouchStart(e) {
@@ -115,12 +117,38 @@
       targetPage = targetPage.closest('.bk-pdf-page');
     }
 
+    // ★ 焦点缩放锚点：记录双指中心在焦点页 canvas-wrap 内的局部坐标与内容比例，
+    //    pinch 期间以此为 transform-origin，使放大围绕手指所在的内容而非页面中心
+    var focusPage = null;
+    var focusPoint = null;
+    if (targetPage) {
+      var fw = targetPage.querySelector('.bk-pdf-canvas-wrap');
+      if (fw) {
+        var frect = fw.getBoundingClientRect();
+        if (frect.width > 0 && frect.height > 0) {
+          focusPage = targetPage;
+          focusPoint = {
+            x: midX - frect.left,          // 双指中心在 wrap 局部 X（transform-origin 用 px）
+            y: midY - frect.top,           // 双指中心在 wrap 局部 Y
+            ratioX: (midX - frect.left) / frect.width,   // 内容比例（滚动补偿用）
+            ratioY: (midY - frect.top) / frect.height,
+            vx: midX,                       // 双指中心视口坐标（滚动补偿目标）
+            vy: midY,
+            startW: frect.width,            // ★ pinch 开始时 wrap 尺寸（轮询就绪判定用，区分旧 canvas 与重渲染后新 canvas）
+            startH: frect.height
+          };
+        }
+      }
+    }
+
     _pinchState = {
       startDist: dist,
       startZoom: S.zoom(_gestureBookId),
       currentZoom: S.zoom(_gestureBookId),
       active: true,
-      targetPage: targetPage
+      targetPage: targetPage,
+      focusPage: focusPage,
+      focusPoint: focusPoint
     };
     // 缓存当前视口内已渲染页：pinch 期间复用此引用列表，
     // 避免 _applyPinchTransform 每帧 querySelectorAll + getBoundingClientRect 触发布局抖动
@@ -176,11 +204,16 @@
     // 复用 pinch 开始时缓存的可见页引用，避免每帧 querySelectorAll + getBoundingClientRect 触发布局抖动
     var scaleRatio = zoom / startZoom;
     var pages = _pinchVisiblePages || [];
+    var fp = _pinchState.focusPoint;
+    var fPage = _pinchState.focusPage;
     for (var i = 0; i < pages.length; i++) {
       var wrap = pages[i].querySelector('.bk-pdf-canvas-wrap');
       if (wrap) {
         wrap.style.transform = 'scale(' + scaleRatio + ')';
-        wrap.style.transformOrigin = 'center center';
+        // ★ 焦点页以双指中心为缩放锚点（对着目标焦点放大），其余页保持中心锚点
+        wrap.style.transformOrigin = (fPage && fp && pages[i] === fPage)
+          ? fp.x + 'px ' + fp.y + 'px'
+          : 'center center';
         wrap.style.transition = 'none';
       }
       // zoom > 1 时加 zoomed class 让容器可滚动
@@ -221,6 +254,9 @@
     _pinchState.active = false;
     var finalZoom = _pinchState.currentZoom;
     var bookId = _gestureBookId;
+    // 保存焦点信息供滚动补偿使用（_pinchState 随后置 null）
+    var fp = _pinchState.focusPoint;
+    var fPage = _pinchState.focusPage;
 
     // 先更新 zoom 状态（不触发重渲染）
     var zoomApi = win.BKPdf._internal.zoom;
@@ -245,7 +281,120 @@
       if (zoomApi && bookId) {
         zoomApi.applyZoomToVisible(bookId);
       }
+      // ★ 焦点保持：缩放结束后滚动补偿，让手指中心处的内容仍停留在手指位置
+      // （高清 canvas 重渲染是异步的，先等新 canvas 就位再微调滚动位置）
+      if (fPage && fp && finalZoom > 1.0) {
+        _scheduleFocusScrollCompensation(fPage, fp, finalZoom);
+      }
     });
+  }
+
+  /**
+   * ★ 焦点滚动补偿：pinch 结束后让手指中心处的内容仍停留在手指中心。
+   *
+   * 原理：pinch 期间以双指中心为 transform-origin 缩放，视觉上焦点被"钉"在手指下；
+   * 高清重渲染后 canvas 变为新尺寸（更大），页面滚动容器需重新定位，
+   * 使原焦点内容（渲染前记录的内容比例 ratioX/ratioY）恰好落在双指中心处。
+   *
+   * 计算：新 canvas 下焦点内容在页面内容坐标 = ratio * 新内容尺寸，
+   * 减去双指中心到页面左上角的视口偏移，即为所需的 scrollLeft/scrollTop。
+   *
+   * 滚动参考对象分两种模式：
+   * - 单页模式：.bk-pdf-page 自身是滚动容器（bk-pdf-zoomed），直接设置 page.scrollTop/Left；
+   * - 连续滚动模式：垂直滚动容器是 .bk-pdf-continuous-view（整本书纵向滚动），
+   *   水平方向页面自身滚动（zoom>1 时页宽超出容器），需分别补偿。
+   *
+   * @param {HTMLElement} page - 焦点页 .bk-pdf-page
+   * @param {Object} fp - pinch 开始时记录的 focusPoint
+   */
+  function _scheduleFocusScrollCompensation(page, fp, finalZoom) {
+    // 高清重渲染是异步的（pdf.js 渲染 canvas），需等新 canvas 就绪再补偿。
+    // ★ 就绪判定：canvas 尺寸已显著大于 pinch 开始时记录的尺寸（startW/startH）。
+    //   旧方案 cw > pageW 在 zoom=1 时就满足（canvas 500 > page 483），导致用旧尺寸算出
+    //   targetScrollX=-1 被 clamp 到 0，水平补偿完全失效。
+    //   新方案：新 canvas 宽度应接近 startW * finalZoom，用 0.8 容差防 pdf.js 边缘裁切误差。
+    var raf = win.requestAnimationFrame || function (cb) { setTimeout(cb, 16); };
+    var attempts = 0;
+    var MAX_ATTEMPTS = 90; // ~1.5s 上限（15ms/帧 → 90帧）
+    var targetW = (fp.startW || 0) * finalZoom;
+    var targetH = (fp.startH || 0) * finalZoom;
+    var thresholdW = targetW * 0.8;
+    var thresholdH = targetH * 0.8;
+    function tryCompensate() {
+      attempts++;
+      if (!page || !page.isConnected) return;
+      var wrap = page.querySelector('.bk-pdf-canvas-wrap');
+      // ★ wrap/canvas 可能在 pdf.js 重渲染期间被短暂移除再重建，
+      //   此时不应急退出，应继续轮询等待新 canvas 就位
+      if (!wrap) {
+        if (attempts < MAX_ATTEMPTS) { raf(tryCompensate); }
+        return;
+      }
+      var canvas = wrap.querySelector('canvas');
+      if (!canvas) {
+        if (attempts < MAX_ATTEMPTS) { raf(tryCompensate); }
+        return;
+      }
+      var cw = canvas.clientWidth || 0;
+      var ch = canvas.clientHeight || 0;
+      if (cw <= 0 || ch <= 0) {
+        if (attempts < MAX_ATTEMPTS) { raf(tryCompensate); }
+        return;
+      }
+      // 就绪判定：canvas 尺寸已接近放大后目标尺寸（说明高清重渲染完成）
+      if (cw < thresholdW || ch < thresholdH) {
+        // 尚未重渲染到目标尺寸，继续等
+        if (attempts < MAX_ATTEMPTS) { raf(tryCompensate); }
+        return;
+      }
+      _applyScrollCompensation(page, fp, cw, ch);
+    }
+    raf(tryCompensate);
+  }
+
+  /**
+   * 应用滚动补偿（尺寸已就绪后执行）
+   */
+  function _applyScrollCompensation(page, fp, contentW, contentH) {
+    // 焦点在内容中的比例（基于 pinch 时记录的 wrap 局部坐标）
+    var ratioX = fp.ratioX;
+    var ratioY = fp.ratioY;
+
+    // 连续滚动模式：垂直滚动容器是 .bk-pdf-continuous-view，页面自身只做水平滚动
+    // 容器是 position:fixed，offsetParent 恒为 null，不能用 offsetParent 判断存在性；
+    // 用 isConnected + getBoundingClientRect 宽度判断（仅当容器真实存在且参与布局时走连续分支）
+    var cont = doc.getElementById('bkPdfContinuousView');
+    var contRect = cont ? cont.getBoundingClientRect() : null;
+    if (cont && contRect && contRect.width > 0 && contRect.height > 0) {
+      // 垂直：让焦点内容（页内 ratioY 处）落在双指中心的视口 Y
+      // 页面在容器内容坐标中的 Y = 页面视口位置 + 容器 scrollTop - 容器视口位置
+      var pageRectC = page.getBoundingClientRect();
+      var pageContentTop = pageRectC.top + cont.scrollTop - contRect.top;
+      var targetScrollY = pageContentTop + (ratioY * contentH) - (fp.vy - contRect.top);
+      var maxScrollY = cont.scrollHeight - cont.clientHeight;
+      if (maxScrollY > 0) {
+        cont.scrollTop = Math.max(0, Math.min(maxScrollY, targetScrollY));
+      }
+      // 水平：页面自身滚动（zoom>1 时页宽超出容器，page 是水平滚动容器）
+      var targetScrollX = (ratioX * contentW) - (fp.vx - pageRectC.left);
+      var maxScrollX = page.scrollWidth - page.clientWidth;
+      if (maxScrollX > 0) {
+        page.scrollLeft = Math.max(0, Math.min(maxScrollX, targetScrollX));
+      }
+    } else {
+      // 单页模式：page 自身即滚动容器（bk-pdf-zoomed）
+      var pageRect = page.getBoundingClientRect();
+      var targetScrollX2 = (ratioX * contentW) - (fp.vx - pageRect.left);
+      var targetScrollY2 = (ratioY * contentH) - (fp.vy - pageRect.top);
+      var maxScrollX2 = page.scrollWidth - page.clientWidth;
+      var maxScrollY2 = page.scrollHeight - page.clientHeight;
+      if (maxScrollX2 > 0) {
+        page.scrollLeft = Math.max(0, Math.min(maxScrollX2, targetScrollX2));
+      }
+      if (maxScrollY2 > 0) {
+        page.scrollTop = Math.max(0, Math.min(maxScrollY2, targetScrollY2));
+      }
+    }
   }
 
   // ==================== 双击缩放过渡动画 ====================
