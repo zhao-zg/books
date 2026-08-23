@@ -25,7 +25,9 @@
   var _pinchState = null;      // pinch 状态
   var _dblTapState = null;     // 双击检测状态
   var _longPressTimer = null;  // 长按定时器
+  var _longPressStart = null;  // 长按起点坐标 {x, y}（用于 touchmove 位移超阈值取消）
   var _rafScheduled = false;   // rAF 节流标志
+  var LONG_PRESS_MOVE_TOLERANCE = 12; // 长按判定期间手指位移容差（px），超阈值视为滚动/滑动，取消长按
   var _pinchVisiblePages = null; // pinch 期间缓存的可见已渲染页（避免每帧 querySelectorAll + getBoundingClientRect）
   var _zoomAnimating = false;  // 双击缩放过渡动画进行中（防止重入 + 阻止 pinch 抢占）
   var _zoomAnimTimer = null;   // 过渡动画兜底定时器
@@ -47,12 +49,13 @@
 
   function _onTouchStart(e) {
     if (e.touches.length === 2) {
+      // 双指开始 → pinch；同时取消可能进行中的长按判定（双指必然不是长按选词）
+      _cancelLongPress();
       // 双击缩放过渡动画进行中：忽略新 pinch，避免动画与 pinch transform 冲突
       if (_zoomAnimating) return;
-      // 双指开始 → pinch
       _startPinch(e);
     } else if (e.touches.length === 1) {
-      // 单指开始 → 检测长按选词
+      // 单指开始 → 记录起点 + 检测长按选词
       _startLongPressCheck(e);
     }
   }
@@ -64,6 +67,16 @@
     } else if (_pinchState && _pinchState.active && e.touches.length !== 2) {
       // 从双指变单指，结束 pinch
       _endPinch();
+    }
+    // 单指移动超过容差 → 判定为滚动/滑动，取消长按选词
+    // （否则手指微微滑动后停在文字上，500ms 定时器仍会触发整段全选）
+    if (_longPressTimer && e.touches.length === 1) {
+      var t = e.touches[0];
+      if (_longPressStart &&
+          (Math.abs(t.clientX - _longPressStart.x) > LONG_PRESS_MOVE_TOLERANCE ||
+           Math.abs(t.clientY - _longPressStart.y) > LONG_PRESS_MOVE_TOLERANCE)) {
+        _cancelLongPress();
+      }
     }
   }
 
@@ -445,6 +458,8 @@
     var startY = touch.clientY;
 
     _cancelLongPress();
+    // 记录本次长按起点（供 touchmove 位移超阈值时取消）
+    _longPressStart = { x: startX, y: startY };
     _longPressTimer = setTimeout(function () {
       // 长按触发：找到 textLayer 并尝试选中附近文本
       var el = doc.elementFromPoint(startX, startY);
@@ -458,19 +473,77 @@
       textLayer.classList.add('bk-pdf-text-selecting');
       page.classList.add('bk-pdf-long-press');
 
-      // 尝试选中 touch 点附近的 span
+      // 精确选中长按点附近的文本：优先用 caretPositionFromPoint / caretRangeFromPoint
+      // 命中文本节点后选中单词，避免之前整段 span 全选的问题
       var targetEl = doc.elementFromPoint(startX, startY);
       if (targetEl && textLayer.contains && textLayer.contains(targetEl)) {
-        // 使用 Selection API 尝试选词
         try {
-          var range = doc.createRange();
-          range.selectNodeContents(targetEl);
           var sel = win.getSelection();
           sel.removeAllRanges();
-          sel.addRange(range);
+          var caretRange = _caretRangeFromPoint(startX, startY);
+          if (caretRange && caretRange.startContainer) {
+            var node = caretRange.startContainer;
+            var offset = caretRange.startOffset;
+            // 命中文本节点：在该节点内做单词级展开，精确选中手指下的单词
+            if (node.nodeType === 3) {
+              var text = node.nodeValue || '';
+              var start = _expandWordStart(text, offset);
+              var end = _expandWordEnd(text, offset);
+              if (start < end) {
+                var range = doc.createRange();
+                range.setStart(node, start);
+                range.setEnd(node, end);
+                sel.addRange(range);
+              }
+            }
+          }
         } catch (err) {}
       }
     }, 500);
+  }
+
+  /**
+   * 从 caret 偏移向前展开单词边界（含中文：连续非空白字符即视为一个词）
+   */
+  function _expandWordStart(text, offset) {
+    var i = offset;
+    while (i > 0) {
+      var ch = text.charAt(i - 1);
+      if (ch === ' ' || ch === '\n' || ch === '\t' || ch === '\r') break;
+      i--;
+    }
+    return i;
+  }
+
+  /**
+   * 从 caret 偏移向后展开单词边界
+   */
+  function _expandWordEnd(text, offset) {
+    var i = offset;
+    var len = text.length;
+    while (i < len) {
+      var ch = text.charAt(i);
+      if (ch === ' ' || ch === '\n' || ch === '\t' || ch === '\r') break;
+      i++;
+    }
+    return i;
+  }
+
+  /**
+   * 兼容多浏览器的 caret 定位：
+   * 优先 document.caretPositionFromPoint（Firefox），回退 caretRangeFromPoint（Chrome/Safari）
+   */
+  function _caretRangeFromPoint(x, y) {
+    if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y);
+    if (doc.caretPositionFromPoint) {
+      var pos = doc.caretPositionFromPoint(x, y);
+      if (pos) {
+        var r = doc.createRange();
+        r.setStart(pos.offsetNode, pos.offset);
+        return r;
+      }
+    }
+    return null;
   }
 
   function _cancelLongPress() {
@@ -478,6 +551,7 @@
       clearTimeout(_longPressTimer);
       _longPressTimer = null;
     }
+    _longPressStart = null;
     // 移除长按标记
     var selecting = doc.querySelectorAll('.bk-pdf-text-selecting, .bk-pdf-long-press');
     for (var i = 0; i < selecting.length; i++) {
@@ -514,6 +588,7 @@
     _pinchState = null;
     _pinchVisiblePages = null;
     _dblTapState = null;
+    _longPressStart = null;
     // 中断可能进行中的缩放动画：移除 transitionend 监听器 + 清除 transform 残留 + 复位标志
     if (_zoomAnimTimer) { clearTimeout(_zoomAnimTimer); _zoomAnimTimer = null; }
     if (_zoomOnEnd && _zoomOnEndWrap) {

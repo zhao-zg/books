@@ -296,6 +296,16 @@
   transform-origin: 0 0;
   z-index: 4;
   pointer-events: auto;
+  /* 默认禁用文本选择：避免移动端点击/轻扫触发原生长按全选 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 长按选词激活：仅在该状态下允许选择文本 */
+.bk-pdf-text-layer.bk-pdf-text-selecting {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .bk-pdf-text-layer span,
@@ -327,7 +337,7 @@
 }
 
 /* 长按选词时提高文本层可见性，避免透明字符被手指遮挡 */
-.bk-pdf-page[data-pdf-selecting] .bk-pdf-text-layer {
+.bk-pdf-page.bk-pdf-long-press .bk-pdf-text-layer {
   opacity: 0.4;
 }
 
