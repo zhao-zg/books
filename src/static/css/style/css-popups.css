@@ -141,7 +141,7 @@
 .scripture-popup-verse--missing .scripture-popup-text { color: var(--text-muted, #9A958C); font-style: italic; }
 .scripture-popup-empty { color: var(--text-muted, #9A958C); text-align: center; padding: 24px 0; font-size: var(--text-md); }
 .scripture-popup-loading { color: var(--text-muted, #9A958C); text-align: center; padding: 28px 0; font-size: var(--text-md); min-height: 80px; }
-.scripture-popup-fn-body { font-size: var(--text-lg); color: var(--text, #1A1918); line-height: 1.9; text-align: justify; }
+.scripture-popup-fn-body { font-size: var(--text-xl); color: var(--text, #1A1918); line-height: 1.9; text-align: justify; }
 .scripture-popup-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border, #E5E2DD); }
 .scripture-popup-back {
   width: 28px; height: 28px; border: none; background: none; cursor: pointer;
@@ -151,8 +151,8 @@
 }
 .scripture-popup-back:active { background: var(--surface-alt, #EDEAE4); border-radius: 50%; }
 .fn-ref {
-  /* 注解号（1 2 3…）：加大字号与热区，便于点击；用 em 随正文缩放 */
-  display: inline-block; font-size: 0.82em; line-height: 1;
+  /* 注解号（1 2 3…）：字号随正文缩放，热区保留便于点击 */
+  display: inline-block; font-size: 0.72em; line-height: 1;
   vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
   padding: 0.1em 0.24em; margin: 0 0.08em;
   border-radius: 0.3em;
@@ -163,7 +163,7 @@
 .fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); color: #fff; }
 .xref-ref {
   /* 串珠号（a b c…）：与注解号同规格，保持视觉一致 */
-  display: inline-block; font-size: 0.82em; line-height: 1;
+  display: inline-block; font-size: 0.72em; line-height: 1;
   vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
   padding: 0.1em 0.24em; margin: 0 0.08em;
   border-radius: 0.3em;

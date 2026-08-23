@@ -117,7 +117,8 @@
             if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                 return win.BK.Export.exportBinary(bytes, filename, 'application/pdf', {
                     successMsg: '已导出《' + bookTitle + '》PDF',
-                    bom: false
+                    bom: false,
+                    chooseDestination: true
                 });
             }
             // 兜底：直接 a.download
@@ -181,7 +182,8 @@
         if (win.BK && win.BK.Export && win.BK.Export.exportText) {
             return win.BK.Export.exportText(contentStr, filename, 'text/plain;charset=utf-8', {
                 successMsg: '已导出《' + title + '》TXT',
-                bom: true
+                bom: true,
+                chooseDestination: true
             });
         }
         return _fallbackBinaryDownload(new TextEncoder().encode(contentStr), filename, 'text/plain;charset=utf-8');
@@ -222,7 +224,8 @@
         if (win.BK && win.BK.Export && win.BK.Export.exportText) {
             return win.BK.Export.exportText(contentStr, filename, 'text/markdown;charset=utf-8', {
                 successMsg: '已导出《' + title + '》Markdown',
-                bom: true
+                bom: true,
+                chooseDestination: true
             });
         }
         return _fallbackBinaryDownload(new TextEncoder().encode(contentStr), filename, 'text/markdown;charset=utf-8');
@@ -345,7 +348,8 @@
             var filename = title + '.epub';
             if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                 return win.BK.Export.exportBinary(bytes, filename, 'application/epub+zip', {
-                    successMsg: '已导出《' + title + '》EPUB'
+                    successMsg: '已导出《' + title + '》EPUB',
+                    chooseDestination: true
                 });
             }
             return _fallbackBinaryDownload(bytes, filename, 'application/epub+zip');

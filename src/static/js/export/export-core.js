@@ -34,6 +34,27 @@
 
     // ── toast ──────────────────────────────────────────────────────────
     var _toastTimer = null;
+
+    /** 注入选择面板样式（幂等，供 _askDestination 和 _toast 共用） */
+    function _ensureDestStyle() {
+        if (!document.getElementById('bk-export-dest-style')) {
+            var dst = document.createElement('style');
+            dst.id = 'bk-export-dest-style';
+            dst.textContent =
+                '.bk-export-dest-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;font-family:inherit}' +
+                '.bk-export-dest-mask.show{opacity:1}' +
+                '.bk-export-dest-dialog{width:min(320px,calc(100vw - 40px));background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 10px 40px rgba(0,0,0,.2);transform:translateY(8px);transition:transform .2s}' +
+                '.bk-export-dest-mask.show .bk-export-dest-dialog{transform:translateY(0)}' +
+                '.bk-export-dest-title{font-size:16px;font-weight:600;text-align:center;margin-bottom:16px;color:#1a1918}' +
+                '.bk-export-dest-opts{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}' +
+                '.bk-export-dest-opt{display:flex;align-items:center;gap:10px;padding:13px 14px;border:1px solid #e8e4dd;border-radius:12px;background:#faf8f5;font-size:15px;color:#1a1918;text-align:left;cursor:pointer}' +
+                '.bk-export-dest-opt:active{background:#f0ede6}' +
+                '.bk-export-dest-icon{font-size:18px;width:24px;text-align:center}' +
+                '.bk-export-dest-cancel{display:block;width:100%;padding:11px;border:none;border-radius:12px;background:#f0ede6;font-size:14px;color:#666;cursor:pointer}';
+            document.head.appendChild(dst);
+        }
+    }
+
     function _toast(msg) {
         if (!msg) return;
         try {
@@ -48,6 +69,8 @@
                     '.bk-export-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}';
                 document.head.appendChild(st);
             }
+            // 双动作选择面板样式
+            _ensureDestStyle();
             var el = document.createElement('div');
             el.className = 'bk-export-toast';
             el.textContent = String(msg);
@@ -508,6 +531,123 @@
     }
 
     // ====================================================================
+    //  双动作导出：保存本机 / 分享 / 保存并分享
+    //  供单本导出与批量导出共用。native 弹选择面板；Web 端因无系统分享，
+    //  直接走默认流程（picker / download）。
+    // ====================================================================
+
+    /**
+     * 根据用户在面板中的选择，执行「保存到本机（SAF）」和/或「分享（Share）」。
+     * @param {boolean} isBinary  是否为二进制内容
+     * @param {*}       content   文本字符串 或 Uint8Array
+     * @param {string}  filename  文件名
+     * @param {string}  mime      MIME
+     * @param {Object}  opts      { chooseDestination, skipSAF, successMsg, errorMsg }
+     * @returns {Promise<{method:string,saved?:boolean,shared?:boolean,cancelled?:boolean}>}
+     */
+    function _exportWithDestination(isBinary, content, filename, mime, opts) {
+        opts = opts || {};
+
+        // Web 端没有系统分享面板，退化为默认行为
+        if (!_isNative()) {
+            if (isBinary) return _exportWeb(content, filename, mime, true);
+            return _exportWeb(content, filename, mime, false);
+        }
+
+        var successMsg = opts.successMsg || '已导出';
+        var errorMsg = opts.errorMsg || '导出失败，请重试';
+
+        function _toBase64(data) {
+            return isBinary ? _bytesToBase64(data) : _utf8ToBase64(data);
+        }
+
+        return _askDestination().then(function (choice) {
+            if (!choice) {
+                // 用户取消选择面板
+                return { method: 'choose', saved: false, cancelled: true };
+            }
+            if (choice === 'save') {
+                return _exportNative(_toBase64(content), filename, mime, { skipSAF: false })
+                    .then(function (res) {
+                        _handleResult(res, successMsg, errorMsg);
+                        return res;
+                    });
+            }
+            if (choice === 'share') {
+                return _exportNative(_toBase64(content), filename, mime, { skipSAF: true })
+                    .then(function (res) {
+                        _handleResult(res, successMsg, errorMsg);
+                        return res;
+                    });
+            }
+            // 'both'：先 SAF 保存到本机，再分享同一内容
+            return _exportNative(_toBase64(content), filename, mime, { skipSAF: false })
+                .then(function (saveRes) {
+                    var savedOk = saveRes && (saveRes.saved || saveRes.shared);
+                    if (saveRes && saveRes.cancelled) {
+                        // 用户取消了 SAF 保存对话框，放弃
+                        return saveRes;
+                    }
+                    // 无论保存是否成功，都继续尝试分享（save 成功优先）
+                    return _exportNative(_toBase64(content), filename, mime, { skipSAF: true })
+                        .then(function (shareRes) {
+                            var finalRes = { method: 'both', saved: !!savedOk, shared: !!(shareRes && (shareRes.shared || shareRes.saved)) };
+                            _handleResult(finalRes, successMsg, errorMsg);
+                            return finalRes;
+                        });
+                });
+        }).catch(function (err) {
+            console.error('[BK.Export] 双动作导出失败：', err);
+            _toast(errorMsg);
+            throw err;
+        });
+    }
+
+    /**
+     * 弹出「保存本机 / 分享 / 保存并分享」选择面板（native only）
+     * @returns {Promise<string|null>}  'save' | 'share' | 'both' | null（取消）
+     */
+    function _askDestination() {
+        _ensureDestStyle();
+        return new Promise(function (resolve) {
+            var mask = document.createElement('div');
+            mask.className = 'bk-export-dest-mask';
+            var label = '导出到';
+            mask.innerHTML =
+                '<div class="bk-export-dest-dialog">' +
+                  '<div class="bk-export-dest-title">' + label + '</div>' +
+                  '<div class="bk-export-dest-opts">' +
+                    '<button type="button" class="bk-export-dest-opt" data-v="save"><span class="bk-export-dest-icon">💾</span><span>保存到本机</span></button>' +
+                    '<button type="button" class="bk-export-dest-opt" data-v="share"><span class="bk-export-dest-icon">📤</span><span>分享</span></button>' +
+                    '<button type="button" class="bk-export-dest-opt" data-v="both"><span class="bk-export-dest-icon">💾📤</span><span>保存并分享</span></button>' +
+                  '</div>' +
+                  '<button type="button" class="bk-export-dest-cancel" data-v="cancel">取消</button>' +
+                '</div>';
+
+            document.body.appendChild(mask);
+            void mask.offsetWidth;
+            mask.classList.add('show');
+
+            var _done = false;
+            function _finish(v) {
+                if (_done) return;
+                _done = true;
+                mask.classList.remove('show');
+                setTimeout(function () {
+                    if (mask.parentNode) mask.parentNode.removeChild(mask);
+                }, 200);
+                resolve(v === 'cancel' ? null : v);
+            }
+
+            mask.addEventListener('click', function (e) {
+                if (e.target === mask) { _finish('cancel'); return; }
+                var btn = e.target.closest ? e.target.closest('[data-v]') : null;
+                if (btn) _finish(btn.getAttribute('data-v'));
+            });
+        });
+    }
+
+    // ====================================================================
     //  统一出口：exportText
     // ====================================================================
     /**
@@ -519,6 +659,7 @@
      *   - {boolean}  bom        是否加 UTF-8 BOM（默认对 text/* 自动启用）
      *   - {string}   successMsg 成功 toast 文案（默认"已导出"）
      *   - {string}   errorMsg   失败 toast 文案（默认"导出失败"）
+     *   - {boolean}  chooseDestination  是否弹「保存本机/分享」选择面板（默认 false，保持旧行为）
      * @returns {Promise<{method:string,saved?:boolean,cancelled?:boolean}>}
      */
     function exportText(content, filename, mime, opts) {
@@ -535,6 +676,10 @@
         var errorMsg = opts.errorMsg || '导出失败，请重试';
 
         return Promise.resolve().then(function () {
+            if (opts.chooseDestination) {
+                // 双动作：先弹「保存本机 / 分享 / 保存并分享」选择面板
+                return _exportWithDestination(false, finalContent, filename, mime, opts);
+            }
             if (_isNative()) {
                 console.log('[BK.Export] exportText: native 路径，转 base64...');
                 var base64 = _utf8ToBase64(finalContent);
@@ -564,6 +709,7 @@
      *   - {string}  successMsg 成功 toast 文案
      *   - {string}  errorMsg   失败 toast 文案
      *   - {boolean} skipSAF    跳过 SAF 对话框，直接走 Cache+Share（大文件/批量导出用）
+     *   - {boolean} chooseDestination  弹「保存本机/分享」选择面板（默认 false，保持旧行为）
      * @returns {Promise<{method:string,saved?:boolean,cancelled?:boolean}>}
      */
     function exportBinary(bytes, filename, mime, opts) {
@@ -579,6 +725,10 @@
         var errorMsg = opts.errorMsg || '导出失败，请重试';
 
         return Promise.resolve().then(function () {
+            if (opts.chooseDestination) {
+                // 双动作：先弹「保存本机 / 分享 / 保存并分享」选择面板
+                return _exportWithDestination(true, bytes, filename, mime, opts);
+            }
             if (_isNative()) {
                 console.log('[BK.Export] exportBinary: native 路径，转 base64...');
                 var t0 = Date.now();

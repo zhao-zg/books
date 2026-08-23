@@ -373,7 +373,8 @@
                 if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                     return win.BK.Export.exportBinary(pdfBytes, filename, 'application/pdf', {
                         successMsg: '无标注数据，已导出原始PDF',
-                        bom: false
+                        bom: false,
+                        chooseDestination: true
                     }).then(function () { return { noAnnotations: true }; });
                 }
                 return { noAnnotations: true };
@@ -418,7 +419,7 @@
                 if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                     return win.BK.Export.exportBinary(
                         new Uint8Array(modifiedBytes), filename, 'application/pdf',
-                        { successMsg: msg, bom: false }
+                        { successMsg: msg, bom: false, chooseDestination: true }
                     );
                 }
                 // 兜底

@@ -281,10 +281,14 @@
             if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                 var successMsg = '已导出 ' + (bookIds.length - errors.length) + ' 本书' +
                     (errors.length ? '（' + errors.length + ' 本跳过）' : '');
+                if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
+                var successMsg = '已导出 ' + (bookIds.length - errors.length) + ' 本书' +
+                    (errors.length ? '（' + errors.length + ' 本跳过）' : '');
                 return win.BK.Export.exportBinary(bytes, filename, 'application/zip', {
                     successMsg: successMsg,
-                    skipSAF: true  // 批量导出 ZIP 通常较大，跳过 SAF 直接走 Cache+Share
+                    chooseDestination: true  // 批量导出：弹「保存本机 / 分享 / 保存并分享」选择面板
                 });
+            }
             }
             console.log('[BK.Export] exportBatch: exportBinary 不可用，走 fallback 下载');
             return _fallbackBinaryDownload(bytes, filename, 'application/zip');
