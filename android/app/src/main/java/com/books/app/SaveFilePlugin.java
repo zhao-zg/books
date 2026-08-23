@@ -1,11 +1,12 @@
 package com.books.app;
 
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
 import android.util.Base64;
 import android.util.Log;
+
+import androidx.activity.result.ActivityResult;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -80,8 +81,9 @@ public class SaveFilePlugin extends Plugin {
     }
 
     @ActivityCallback
-    private void handleSaveResult(PluginCall call, Activity activity, Intent data) {
+    private void handleSaveResult(PluginCall call, ActivityResult result) {
         PluginCall savedCall = (call != null) ? call : pendingCall;
+        Intent data = result != null ? result.getData() : null;
 
         if (data == null || data.getData() == null) {
             if (savedCall != null) {
@@ -157,8 +159,9 @@ public class SaveFilePlugin extends Plugin {
     }
 
     @ActivityCallback
-    private void handleStartWriteResult(PluginCall call, Activity activity, Intent data) {
+    private void handleStartWriteResult(PluginCall call, ActivityResult result) {
         PluginCall savedCall = (call != null) ? call : pendingCall;
+        Intent data = result != null ? result.getData() : null;
 
         if (data == null || data.getData() == null) {
             // 用户取消
