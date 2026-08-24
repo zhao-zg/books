@@ -96,29 +96,16 @@
       if (_zlSeries[i].id === seriesId) { seriesObj = _zlSeries[i]; break; }
     }
     if (seriesObj && Array.isArray(seriesObj.groups) && seriesObj.groups.length) {
-      // 后端有 groups 数组，但仍需检查是否有平铺书（无 group 字段）
-      var namedCount = 0;
-      for (var gi = 0; gi < _zlBooks.length; gi++) {
-        var gb = _zlBooks[gi];
-        if (!_bookMatchesSeries(gb, seriesId)) continue;
-        if (gb.group) namedCount++;
-      }
-      var totalInSeries = _countSeriesBooks(seriesId);
-      var otherCount = totalInSeries - namedCount;
-      var groupsList = seriesObj.groups.slice();
-      if (otherCount > 0) {
-        groupsList.push({ name: '其他', count: otherCount });
-      }
-      return groupsList;
+      return seriesObj.groups.slice();
     }
-    // 无后端 groups：从书籍聚合（仅统计有 group 字段的书，无 group 的不归入「其他」）
+    // 无后端 groups：从书籍聚合（仅统计有 group 字段的书，无 group 的不归入任何分组）
     // 对于 books 等系列（所有书都没有 group 字段），返回空数组 → 走原三级分类逻辑
     var map = {};
     for (var j = 0; j < _zlBooks.length; j++) {
       var b = _zlBooks[j];
       if (!_bookMatchesSeries(b, seriesId)) continue;
       var g = b.group;
-      if (!g) continue; // 无 group 字段的书不归入任何分组
+      if (!g) continue;
       if (!map[g]) map[g] = { name: g, count: 0 };
       map[g].count++;
     }
@@ -127,6 +114,18 @@
       if (map.hasOwnProperty(k)) arr.push(map[k]);
     }
     return arr;
+  }
+
+  /** 取系列下无 group 的平铺书（直接展示在分组列表页下方） */
+  function _getFlatBooksInSeries(seriesId) {
+    var result = [];
+    for (var i = 0; i < _zlBooks.length; i++) {
+      var b = _zlBooks[i];
+      if (!_bookMatchesSeries(b, seriesId)) continue;
+      if (b.group) continue;
+      result.push(b);
+    }
+    return result;
   }
 
   /**
@@ -142,20 +141,6 @@
     var seriesObj = null;
     for (var i = 0; i < _zlSeries.length; i++) {
       if (_zlSeries[i].id === seriesId) { seriesObj = _zlSeries[i]; break; }
-    }
-    // 「其他」虚拟分组：统计无 group 无 category_prefix 的平铺书，作为单一隐式分类
-    if (group === '其他') {
-      var flatCount = 0;
-      for (var f = 0; f < _zlBooks.length; f++) {
-        var fb = _zlBooks[f];
-        if (!_bookMatchesSeries(fb, seriesId)) continue;
-        if (fb.group) continue; // 有 group 的不属于「其他」
-        flatCount++;
-      }
-      if (flatCount > 0) {
-        return [{ prefix: '', name: '其他', count: flatCount }];
-      }
-      return [];
     }
     // 从书籍聚合（按 group 过滤后重新聚合分类）
     var map = {};
@@ -173,18 +158,18 @@
       if (map.hasOwnProperty(k)) cats.push(map[k]);
     }
     cats.sort(function (a, b) { return parseInt(a.prefix || '0', 10) - parseInt(b.prefix || '0', 10); });
-    // 未指定 group 时，检查是否有平铺书（无 category_prefix），追加「其他」分类
-    if (!group) {
-      var uncatCount = 0;
-      for (var m = 0; m < _zlBooks.length; m++) {
-        var bk = _zlBooks[m];
-        if (!_bookMatchesSeries(bk, seriesId)) continue;
-        var pp = bk.category_prefix;
-        if (pp === undefined || pp === null || pp === '') uncatCount++;
-      }
-      if (cats.length > 0 && uncatCount > 0) {
-        cats.push({ prefix: '', name: '其他', count: uncatCount });
-      }
+    // 检查统计范围内（整个系列或某分组）是否有平铺书（无 category_prefix），追加「其他」分类。
+    // 无分类仅平铺书时返回「其他」单分类 → 上层 implicit 隐式进入书籍列表，避免空白页。
+    var uncatCount = 0;
+    for (var m = 0; m < _zlBooks.length; m++) {
+      var bk = _zlBooks[m];
+      if (!_bookMatchesSeries(bk, seriesId)) continue;
+      if (group && bk.group !== group) continue;
+      var pp = bk.category_prefix;
+      if (pp === undefined || pp === null || pp === '') uncatCount++;
+    }
+    if (uncatCount > 0) {
+      cats.push({ prefix: '', name: '其他', count: uncatCount });
     }
     return cats;
   }
@@ -207,14 +192,10 @@
   function _getBooksInSeriesCategory(seriesId, cat, prefix, group) {
     var result = [];
     var hasPrefix = (prefix !== undefined && prefix !== null && prefix !== '');
-    var isOtherGroup = (group === '其他');
     for (var i = 0; i < _zlBooks.length; i++) {
       var b = _zlBooks[i];
       if (!_bookMatchesSeries(b, seriesId)) continue;
-      // 「其他」虚拟分组：仅返回无 group 的平铺书
-      if (isOtherGroup) {
-        if (b.group) continue;
-      } else if (group && b.group !== group) {
+      if (group && b.group !== group) {
         continue;
       }
       if (!hasPrefix) {
@@ -356,7 +337,9 @@
     }
   }
 
-  /** 书城 L2：某系列下的分组网格 + 面包屑（仅有 groups 的系列） */
+  /** 书城 L2：某系列下的分组网格 + 平铺书 + 面包屑（仅有 groups 的系列）
+   *  无 group 的平铺书直接渲染在分组卡片下方，无需点「其他」再进一层。
+   */
   function _renderCityGroupList(homeView, seriesId) {
     _citySeries = seriesId;
     _cityCategory = null;
@@ -366,6 +349,7 @@
     _cityBookOffset = 0;
     if (_cityObserver) { _cityObserver.disconnect(); _cityObserver = null; }
     var groups = _getSeriesGroups(seriesId);
+    var flatBooks = _getFlatBooksInSeries(seriesId);
     var seriesTitle = _getSeriesTitle(seriesId);
     var seriesColor = _getSeriesColor(seriesId);
     var html = '<div class="bk-city-page">';
@@ -373,17 +357,30 @@
     html += _renderCityCrumb(2, seriesTitle, '', false, seriesId);
     html += '</div>';
     html += '<div class="bk-section-header"><span class="bk-section-title-lg">' + escText(seriesTitle) + '</span></div>';
-    html += '<div class="category-grid bk-poster-grid">';
-    for (var i = 0; i < groups.length; i++) {
-      var g = groups[i];
-      html += '<div class="category-card group-card bk-poster-card" data-group="' + escAttr(g.name) + '" role="button" tabindex="0" style="--series-color:' + seriesColor + '">';
-      html += _coverHTML({ series: seriesId, title: g.name }, { seriesTitle: seriesTitle });
-      html += '<div class="collection-caption bk-poster-card__caption">';
-      html += '<div class="category-card-title">' + escText(g.name) + '</div>';
-      html += '<div class="category-card-count">' + g.count + ' 本</div>';
-      html += '</div></div>';
+    // 分组卡片网格
+    if (groups.length > 0) {
+      html += '<div class="category-grid bk-poster-grid">';
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        html += '<div class="category-card group-card bk-poster-card" data-group="' + escAttr(g.name) + '" role="button" tabindex="0" style="--series-color:' + seriesColor + '">';
+        html += _coverHTML({ series: seriesId, title: g.name }, { seriesTitle: seriesTitle });
+        html += '<div class="collection-caption bk-poster-card__caption">';
+        html += '<div class="category-card-title">' + escText(g.name) + '</div>';
+        html += '<div class="category-card-count">' + g.count + ' 本</div>';
+        html += '</div></div>';
+      }
+      html += '</div>';
     }
-    html += '</div></div>';
+    // 平铺书区域（无 group 的书直接展示在分组下方）
+    if (flatBooks.length > 0) {
+      html += '<div class="bk-section-header"><span class="bk-section-title-sm">其他</span></div>';
+      html += '<div class="book-grid bk-city-book-grid bk-poster-grid" data-series="' + escAttr(seriesId) + '">';
+      for (var f = 0; f < flatBooks.length; f++) {
+        html += _buildBookCard(flatBooks[f], { showProgress: false, cityBook: true });
+      }
+      html += '</div>';
+    }
+    html += '</div>';
     homeView.innerHTML = html;
     startScrollTracking('city-group');
     restoreScrollPosition('city-group');
