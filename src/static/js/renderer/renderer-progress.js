@@ -203,11 +203,20 @@
 
   // ── 页面顶部阅读进度条（#bkReadingProgress） ──────────────────────────
   //
-  // 语义：综合「当前章节在整本书中的位置」与「章节内滚动比例」
-  //   progress = (chapterIndex + scrollRatio) / totalChapters * 100
+  // 语义：一条进度条混合显示「翻页（切章）位置」与「章内滚动进度」
+  //   - 翻页/切章：进度条跳到「当前章在整本书中的位置」段位（全书章节进度）
+  //   - 章内滚动：从该章段位起，以 0→100 的完整幅度推进到章末，
+  //     滚动到本章结尾时进度条=100%（读满本章即满格）
   //
-  // 切章时跳到 `chapterIndex / totalChapters` 的段位；页内滚动时在该章
-  // 对应的区间内（[chapterIndex/total, (chapterIndex+1)/total]）细粒度填充。
+  // 旧公式 progress = (chapterIndex + scrollRatio) / totalChapters * 100
+  // 的问题：单章只占 1/totalChapters 的宽度，章节数一多（50+ 章）滚动整章
+  // 进度条只动 2%，肉眼几乎看不出变化，被用户反馈为「不显示当页进度」。
+  //
+  // 现公式：pct = chapterPos + ratio * (100 - chapterPos)
+  //   - chapterPos = (idx / total) * 100：翻页时跳到该书章节位置（0~100）
+  //   - ratio：章内滚动比例 0~1，滚动时从 chapterPos 线性推进到 100%，
+  //     任意章节滚动全程都有大幅、直观的进度反馈
+  // 单章书整条进度条即本章，直接用章内滚动比例。
   // 离开阅读视图时清零，避免残留。
   //
   function _updateTopReadingProgress() {
@@ -232,7 +241,16 @@
     var ratio = _getChapterScrollRatio();
     if (ratio < 0) ratio = 0; else if (ratio > 1) ratio = 1;
 
-    var pct = (idx + ratio) / total * 100;
+    var pct;
+    if (total <= 1) {
+      // 单章书：整条进度条即本章，直接用章内滚动比例
+      pct = ratio * 100;
+    } else {
+      // 章节段位：翻页/切章后进度条定位到「本章在全书中的位置」
+      var chapterPos = (idx / total) * 100;
+      // 章内滚动：从段位起按 0→100 完整推进到章末（读完本章=100%）
+      pct = chapterPos + ratio * (100 - chapterPos);
+    }
     if (pct < 0) pct = 0; else if (pct > 100) pct = 100;
     prog.style.width = pct + '%';
   }

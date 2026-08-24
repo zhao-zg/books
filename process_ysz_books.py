@@ -39,6 +39,7 @@ SERIES_TITLE_MAP = {
     'nee': '倪柝声文集',
     'lee8': '李文集',
     'sy_auto': '信息拾遗',
+    'qmsht': '清明上河图',
     'zlt': '真理专題',
     'sjdy': '圣经导读',
     'zmxx': '姊妹们的学习课程',
@@ -81,6 +82,7 @@ SERIES_ORDER = [
     'smddsf', 'xysl', 'qcxl', 'jczz',
     'slz', 'sldd', 'hzjr', 'jjzd', 'xlxl', 'sjrx',
     'jzjj', 'qfsw', 'xlcl',
+    'qmsht',
     'sy_auto',
 ]
 
@@ -129,6 +131,28 @@ SY_AUTO_PROMOTE = {
     '给寻求信徒之1000处极重要的经节': 'jzjj',
     '区服事实务手册': 'qfsw',
     '新路成全系列': 'xlcl',
+    '清明上河图': 'qmsht',
+}
+
+# 需要拆分的 sy_auto 分组（每个 sub_group 独立成书，每个 item 独立成章）
+# key: Zo.txt 中的分组名称
+# value: dict with:
+#   filter_origin: 是否过滤 (出处) 篇（仅清明上河图需要）
+#   reserve_id: 是否在 sy_auto 中预留 id 位置（保持旧索引 id 不偏移）
+#     清明上河图 = False：旧代码 qmsht 特判时未递增 book_num
+#     其他 = True：旧代码中这些 group 走正常流程分配了 id
+SPLIT_GROUPS = {
+    '清明上河图': {'filter_origin': True, 'reserve_id': False},
+    '结晶读经合辑': {'filter_origin': False, 'reserve_id': True},
+    '属灵书报及导读': {'filter_origin': False, 'reserve_id': True},
+    '十二篮子': {'filter_origin': False, 'reserve_id': True},
+    '基础造就': {'filter_origin': False, 'reserve_id': True},
+    '区服事实务手册': {'filter_origin': False, 'reserve_id': True},
+    '给寻求信徒之1000处极重要的经节': {'filter_origin': False, 'reserve_id': True},
+    '父母成全信息': {'filter_origin': False, 'reserve_id': True},
+    '牧养成全': {'filter_origin': False, 'reserve_id': True},
+    '管家成全训练': {'filter_origin': False, 'reserve_id': True},
+    '新路成全系列': {'filter_origin': False, 'reserve_id': True},
 }
 
 # 系列名 → Zo.txt 中的名称
@@ -1435,9 +1459,25 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
             all_items.extend(_collect_group_items(sub))
         return all_items
 
+    def _is_origin_url(url: str) -> bool:
+        """判断 url 是否为 (出处) 篇：形如 'xxxa.md' 结尾"""
+        return bool(re.search(r'a\.md$', normalize_url(url).strip()))
+
+    def _collect_split_items(group: dict, filter_origin: bool = False) -> list:
+        """收集分组中所有 item（递归），可选过滤 (出处) 篇"""
+        items = []
+        for item in group.get('items', []):
+            if filter_origin and _is_origin_url(item.get('url', '')):
+                continue
+            items.append(item)
+        for sub in group.get('sub_groups', []):
+            items.extend(_collect_split_items(sub, filter_origin))
+        return items
+
     # ── promote=False: 所有分组保留在 sy_auto，以 category 区分 ──
     if not promote:
         sy_books = []
+        split_books = {}  # {series_id: [book1, book2, ...]}
         book_num = 0
         
         # 处理独立条目
@@ -1466,7 +1506,75 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
             group_name = group.get('name', '')
             sub_groups = group.get('sub_groups', [])
             direct_items = group.get('items', [])
-            
+
+            # ── 拆分特判：每个顶层 sub_group（板块）独立成书，
+            #    板块内递归收集所有 item 各自成章（清明上河图需过滤出处篇）
+            if group_name in SPLIT_GROUPS:
+                cfg = SPLIT_GROUPS[group_name]
+                filter_origin = cfg['filter_origin']
+                reserve_id = cfg['reserve_id']
+                series_id = SY_AUTO_PROMOTE.get(group_name, group_name)
+                if series_id not in split_books:
+                    split_books[series_id] = []
+
+                # group 直接条目 → 独立成书（如有）
+                if direct_items:
+                    chapters = []
+                    for item in direct_items:
+                        if filter_origin and _is_origin_url(item.get('url', '')):
+                            continue
+                        is_md = _is_markdown_url(item['url'])
+                        extracted = _lookup_and_extract(
+                            item['url'], lookup, is_markdown=is_md)
+                        if not extracted:
+                            if verbose:
+                                log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                            continue
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': extracted.get('title', '') or item.get('title', ''),
+                            'content': extracted['content'],
+                        })
+                    if chapters:
+                        split_books[series_id].append({
+                            'id': f"{series_id}-{len(split_books[series_id]) + 1:03d}",
+                            'title': sanitize_text(group_name),
+                            'format': 'html',
+                            'chapters': chapters,
+                        })
+
+                # 每个顶层 sub_group → 独立成书
+                for board in sub_groups:
+                    board_name = board.get('name', '')
+                    items = _collect_split_items(board, filter_origin)
+                    if not items:
+                        continue
+                    chapters = []
+                    for item in items:
+                        is_md = _is_markdown_url(item['url'])
+                        extracted = _lookup_and_extract(
+                            item['url'], lookup, is_markdown=is_md)
+                        if not extracted:
+                            if verbose:
+                                log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                            continue
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': extracted.get('title', '') or item.get('title', ''),
+                            'content': extracted['content'],
+                        })
+                    if chapters:
+                        split_books[series_id].append({
+                            'id': f"{series_id}-{len(split_books[series_id]) + 1:03d}",
+                            'title': sanitize_text(board_name),
+                            'format': 'html',
+                            'chapters': chapters,
+                        })
+                # 预留 sy_auto id 位置，确保后续 group 的 id 不偏移
+                if reserve_id:
+                    book_num += 1
+                continue
+
             chapters = []
             
             # group 直接条目 → 各自成为一章
@@ -1522,6 +1630,10 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
         
         result = {'sy_auto': sy_books}
         log.info(f"  sy_auto (不提升，含子分类): {len(sy_books)} 本书")
+        for sid, books in sorted(split_books.items()):
+            if books:
+                result[sid] = books
+                log.info(f"  {sid} (拆分): {len(books)} 本书")
         return result
     
     # ── promote=True: 原有提升逻辑 ──
@@ -1544,6 +1656,127 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
     # 每个 group 整体作为一本书：group 直接 items → 各自一章，
     # sub_group → 每个合并为一章（sub_group 名作为章节标题）
     for series_id, group_list in promoted.items():
+        # ── 拆分特判：SPLIT_GROUPS 中的分组，每个顶层 sub_group 独立成书，
+        #    板块内递归收集所有 item 各自成章（清明上河图需过滤出处篇）
+        split_group_names = {name for name, sid in SY_AUTO_PROMOTE.items()
+                           if sid == series_id and name in SPLIT_GROUPS}
+        if split_group_names:
+            split_result = []
+            merge_books = []  # 非 SPLIT group 的正常合并书
+            book_counter = 0
+            for group in group_list:
+                gname = group.get('name', '')
+                # 非 SPLIT group → 走正常合并逻辑（每个 sub_group 合并为一章）
+                if gname not in SPLIT_GROUPS:
+                    sub_groups = group.get('sub_groups', [])
+                    direct_items = group.get('items', [])
+                    chapters = []
+                    for item in direct_items:
+                        is_md = _is_markdown_url(item['url'])
+                        extracted = _lookup_and_extract(
+                            item['url'], lookup, is_markdown=is_md)
+                        if extracted:
+                            chapters.append({
+                                'number': len(chapters) + 1,
+                                'title': extracted.get('title', '') or item.get('title', ''),
+                                'content': extracted['content'],
+                            })
+                        elif verbose:
+                            log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                    for sub in sub_groups:
+                        sub_name = sub.get('name', '')
+                        items_to_use = _collect_group_items(sub)
+                        if not items_to_use:
+                            continue
+                        sub_contents = []
+                        for item in items_to_use:
+                            is_md = _is_markdown_url(item['url'])
+                            extracted = _lookup_and_extract(
+                                item['url'], lookup, is_markdown=is_md)
+                            if extracted:
+                                sub_contents.append(extracted['content'])
+                            elif verbose:
+                                log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                        if sub_contents:
+                            chapters.append({
+                                'number': len(chapters) + 1,
+                                'title': sub_name,
+                                'content': '\n\n'.join(sub_contents),
+                            })
+                    if chapters:
+                        book_counter += 1
+                        split_result.append({
+                            'id': f"{series_id}-{book_counter:03d}",
+                            'title': sanitize_text(gname),
+                            'format': 'html',
+                            'chapters': chapters,
+                        })
+                    continue
+
+                # SPLIT group → 拆分逻辑
+                cfg = SPLIT_GROUPS.get(gname, {})
+                filter_origin = cfg.get('filter_origin', False)
+
+                # group 直接条目 → 独立成书（如有）
+                direct_items = group.get('items', [])
+                if direct_items:
+                    chapters = []
+                    for item in direct_items:
+                        if filter_origin and _is_origin_url(item.get('url', '')):
+                            continue
+                        is_md = _is_markdown_url(item['url'])
+                        extracted = _lookup_and_extract(
+                            item['url'], lookup, is_markdown=is_md)
+                        if not extracted:
+                            if verbose:
+                                log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                            continue
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': extracted.get('title', '') or item.get('title', ''),
+                            'content': extracted['content'],
+                        })
+                    if chapters:
+                        book_counter += 1
+                        split_result.append({
+                            'id': f"{series_id}-{book_counter:03d}",
+                            'title': sanitize_text(gname),
+                            'format': 'html',
+                            'chapters': chapters,
+                        })
+
+                # 每个顶层 sub_group → 独立成书
+                for board in group.get('sub_groups', []):
+                    board_name = board.get('name', '')
+                    items = _collect_split_items(board, filter_origin)
+                    if not items:
+                        continue
+                    chapters = []
+                    for item in items:
+                        is_md = _is_markdown_url(item['url'])
+                        extracted = _lookup_and_extract(
+                            item['url'], lookup, is_markdown=is_md)
+                        if not extracted:
+                            if verbose:
+                                log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
+                            continue
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': extracted.get('title', '') or item.get('title', ''),
+                            'content': extracted['content'],
+                        })
+                    if chapters:
+                        book_counter += 1
+                        split_result.append({
+                            'id': f"{series_id}-{book_counter:03d}",
+                            'title': sanitize_text(board_name),
+                            'format': 'html',
+                            'chapters': chapters,
+                        })
+            result[series_id] = split_result
+            log.info(f"  {series_id} (从sy_auto提升, 拆分): {len(split_result)} 本书")
+            continue
+
         books = []
         book_num = 0
         for group in group_list:
