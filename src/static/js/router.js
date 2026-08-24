@@ -87,6 +87,9 @@
       // 决策：#/series/<id> 为系列书籍列表（书城三级下钻的独立深链）。
       // 必须早于通用 2 段路由（否则会被当成 书籍/<章节> 阅读视图 → loadBook 失败）。
       R.renderSeriesPage(parts[1]);
+    } else if (parts.length === 3 && parts[0] === 'series') {
+      // #/series/<id>/<prefix>：系列内某分类的书籍列表（搜索分类入口深链）
+      R.renderSeriesPage(parts[1], parts[2]);
     } else if (parts.length === 2) {
       R.renderReadingView(parts[0], parseInt(parts[1], 10));
     } else {

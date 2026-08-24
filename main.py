@@ -165,7 +165,21 @@ def prepare_zl_data(output_dir: str):
     dst_dir = os.path.join(output_dir, 'zl-data')
     if os.path.exists(dst_dir):
         shutil.rmtree(dst_dir)
-    os.rename(merged_dir, dst_dir)
+    # Windows 下 os.rename 目录可能因前序子进程（ysz_to_md.py）写入句柄
+    # 延迟释放而抛 PermissionError（WinError 5）。手动重命名往往成功，
+    # 说明是瞬时占用，重试即可。
+    import time as _time
+    _last_err = None
+    for _attempt in range(5):
+        try:
+            os.rename(merged_dir, dst_dir)
+            _last_err = None
+            break
+        except OSError as _e:
+            _last_err = _e
+            _time.sleep(0.3 * (_attempt + 1))
+    if _last_err is not None:
+        raise _last_err
 
     # 统计索引信息
     index_path = os.path.join(dst_dir, 'books-index.json')

@@ -404,9 +404,6 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
     index_series = []
     index_books = []
 
-    # books 系列的分类统计
-    books_categories = {}  # prefix -> {name, count}
-
     for series_id in SERIES_ORDER:
         books = all_books.get(series_id, [])
         if not books:
@@ -427,6 +424,7 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
         chapter_count = 0
         dup_check = {}  # 同系列下 book_id 去重
         series_index_entries = []
+        series_categories = {}  # prefix -> {name, count}
 
         for book_data in books:
             # ── 同标题去重 ──
@@ -454,18 +452,20 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
                 'chapter_count': ch_count,
                 'series': series_id,
             }
+            if 'group' in book_data:
+                index_entry['group'] = book_data['group']
             if 'category' in book_data:
                 index_entry['category'] = book_data['category']
             if 'category_prefix' in book_data:
                 index_entry['category_prefix'] = book_data['category_prefix']
                 # 统计分类
                 cp = book_data['category_prefix']
-                if cp not in books_categories:
-                    books_categories[cp] = {
+                if cp not in series_categories:
+                    series_categories[cp] = {
                         'name': book_data.get('category', ''),
                         'count': 0,
                     }
-                books_categories[cp]['count'] += 1
+                series_categories[cp]['count'] += 1
 
             series_index_entries.append(index_entry)
 
@@ -476,6 +476,8 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
                 'series': series_id,
                 'chapter_count': ch_count,
             }
+            if 'group' in book_data:
+                book_index_entry['group'] = book_data['group']
             if 'category' in book_data:
                 book_index_entry['category'] = book_data['category']
             if 'category_prefix' in book_data:
@@ -495,11 +497,25 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
             'title': series_title,
             'count': book_count,
         }
-        # books 系列额外生成 categories
-        if series_id == 'books' and books_categories:
+        # 任何有分类的系列都生成 categories
+        if series_categories:
             series_entry['categories'] = [
                 {'prefix': cp, 'name': info['name'], 'count': info['count']}
-                for cp, info in sorted(books_categories.items())
+                for cp, info in sorted(series_categories.items(),
+                                       key=lambda x: int(x[0]) if x[0].isdigit() else 0)
+            ]
+        # 统计 groups（分组信息，如信息拾遗下的「清明上河图」「属灵书报及导读」等）
+        series_groups = {}
+        for book_data in books:
+            gname = book_data.get('group', '')
+            if gname:
+                if gname not in series_groups:
+                    series_groups[gname] = {'name': gname, 'count': 0}
+                series_groups[gname]['count'] += 1
+        if series_groups:
+            series_entry['groups'] = [
+                {'name': g, 'count': info['count']}
+                for g, info in series_groups.items()
             ]
         index_series.append(series_entry)
 
@@ -560,14 +576,13 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
         )
         log.info('  _headers (CORS) 已生成')
 
-    # books/categories.json（仅 books 系列有）
-    if books_categories and not dry_run:
-        cats = [
-            {'prefix': cp, 'name': info['name'], 'count': info['count']}
-            for cp, info in sorted(books_categories.items())
-        ]
-        save_json(merged_dir / 'books' / 'categories.json', cats)
-        log.info(f'  books/categories.json: {len(cats)} 个分类')
+    # books/categories.json（从 books-index.json 中 books 系列的 categories 提取）
+    if not dry_run:
+        for s in index_series:
+            if s['id'] == 'books' and s.get('categories'):
+                save_json(merged_dir / 'books' / 'categories.json', s['categories'])
+                log.info(f'  books/categories.json: {len(s["categories"])} 个分类')
+                break
 
     # ── 输出统计 ──────────────────────────────────────────────────
     log.info(f'\n{"="*60}')

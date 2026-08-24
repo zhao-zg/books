@@ -60,11 +60,12 @@
     },
 
     /**
-     * 系列书籍列表页（独立深链 #/series/<id>）
+     * 系列书籍列表页（独立深链 #/series/<id> 或 #/series/<id>/<prefix>）
      * 主轴翻转后：books（跨分类系列）→ 进二级分类列表；其余单分类系列 → 直接进三级书籍列表（implicit）。
+     * 若指定 categoryPrefix，则直接进入该分类下的书籍列表（搜索分类入口深链）。
      * 复用书城三级下钻的渲染与无限滚动基建。
      */
-    renderSeriesPage: function (seriesId) {
+    renderSeriesPage: function (seriesId, categoryPrefix) {
       _exitReadingView();
       showHome();
       var homeView = document.getElementById('homeView');
@@ -72,14 +73,27 @@
       document.title = '书城';
 
       function render() {
-        if (seriesId === 'books') {
+        // ★ 若指定了 categoryPrefix，直接进三级书籍列表
+        if (categoryPrefix) {
+          var cats = _getSeriesCategories(seriesId);
+          var targetCat = null;
+          for (var ci = 0; ci < cats.length; ci++) {
+            if (cats[ci].prefix === categoryPrefix) { targetCat = cats[ci]; break; }
+          }
+          if (targetCat) {
+            _renderCityBookList(homeView, seriesId, targetCat.name, targetCat.prefix, false);
+          } else {
+            // prefix 未匹配到分类，降级到分类列表
+            _renderCityCategoryList(homeView, seriesId);
+          }
+        } else if (seriesId === 'books') {
           // 跨分类系列 → 进二级分类列表
           _renderCityCategoryList(homeView, seriesId);
         } else {
-          var cats = _getSeriesCategories(seriesId);
-          if (cats.length === 1) {
+          var cats2 = _getSeriesCategories(seriesId);
+          if (cats2.length === 1) {
             // 单分类系列 → 隐式跳过二级，直接进三级书籍列表
-            _renderCityBookList(homeView, seriesId, cats[0].name, cats[0].prefix, true);
+            _renderCityBookList(homeView, seriesId, cats2[0].name, cats2[0].prefix, true);
           } else {
             // 多分类（理论上非 books 系列均为单分类，此处为兜底）
             _renderCityCategoryList(homeView, seriesId);
@@ -885,6 +899,8 @@
 
   // 暴露版式封面生成器（供 search.js 搜索结果复用）
   win.BKRenderer._coverHTML = _coverHTML;
+  // 暴露系列取色器（供 search.js 入口卡片复用）
+  win.BKRenderer._getSeriesColor = _getSeriesColor;
 
   // 测试钩子（仅供单元测试直接调用，不影响运行时行为）：重同步事件分支与查书工具
   win.BKRenderer.__test = {

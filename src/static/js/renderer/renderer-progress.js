@@ -203,20 +203,11 @@
 
   // ── 页面顶部阅读进度条（#bkReadingProgress） ──────────────────────────
   //
-  // 语义：一条进度条混合显示「翻页（切章）位置」与「章内滚动进度」
-  //   - 翻页/切章：进度条跳到「当前章在整本书中的位置」段位（全书章节进度）
-  //   - 章内滚动：从该章段位起，以 0→100 的完整幅度推进到章末，
-  //     滚动到本章结尾时进度条=100%（读满本章即满格）
-  //
-  // 旧公式 progress = (chapterIndex + scrollRatio) / totalChapters * 100
-  // 的问题：单章只占 1/totalChapters 的宽度，章节数一多（50+ 章）滚动整章
-  // 进度条只动 2%，肉眼几乎看不出变化，被用户反馈为「不显示当页进度」。
-  //
-  // 现公式：pct = chapterPos + ratio * (100 - chapterPos)
-  //   - chapterPos = (idx / total) * 100：翻页时跳到该书章节位置（0~100）
-  //   - ratio：章内滚动比例 0~1，滚动时从 chapterPos 线性推进到 100%，
-  //     任意章节滚动全程都有大幅、直观的进度反馈
-  // 单章书整条进度条即本章，直接用章内滚动比例。
+  // 语义：按「页面是否在顶部」自动切换显示内容
+  //   - 页面在顶部（未滚动 / 刚切章）：显示「全书进度」——
+  //     当前章在整本书章节列表中的位置（idx/total，0~100%）
+  //   - 滚动离开顶部：显示「章内滚动进度」——当前章滚动完成度（0~100%），
+  //     滚到本章结尾即 100%（读满本章即满格）
   // 离开阅读视图时清零，避免残留。
   //
   function _updateTopReadingProgress() {
@@ -237,19 +228,18 @@
     for (var i = 0; i < _carouselUniqueChapters.length; i++) {
       if (_carouselUniqueChapters[i].number === _carouselChapterNum) { idx = i; break; }
     }
-    // 章节内滚动比例（0~1）
-    var ratio = _getChapterScrollRatio();
-    if (ratio < 0) ratio = 0; else if (ratio > 1) ratio = 1;
 
     var pct;
-    if (total <= 1) {
-      // 单章书：整条进度条即本章，直接用章内滚动比例
-      pct = ratio * 100;
+    var container = _getScrollContainer();
+    var scrollTop = (container && container.scrollTop) || 0;
+    if (scrollTop <= 1) {
+      // 页面在顶部：显示全书进度（当前章在全书中的位置）
+      pct = (idx / total) * 100;
     } else {
-      // 章节段位：翻页/切章后进度条定位到「本章在全书中的位置」
-      var chapterPos = (idx / total) * 100;
-      // 章内滚动：从段位起按 0→100 完整推进到章末（读完本章=100%）
-      pct = chapterPos + ratio * (100 - chapterPos);
+      // 滚动离开顶部：显示章内滚动进度（0~100%）
+      var ratio = _getChapterScrollRatio();
+      if (ratio < 0) ratio = 0; else if (ratio > 1) ratio = 1;
+      pct = ratio * 100;
     }
     if (pct < 0) pct = 0; else if (pct > 100) pct = 100;
     prog.style.width = pct + '%';

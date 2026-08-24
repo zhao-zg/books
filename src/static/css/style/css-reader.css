@@ -27,7 +27,6 @@
    所有 .bk-pdf-* 样式已迁移到 css-pdf.css（见本文件顶部 @import）。 */
 
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
-.bk-heading + .bk-paragraph { text-indent: 0; }
 .bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
 .bk-paragraph + .bk-heading { margin-top: 2em; }
 /* 阅读区超链接样式（MD 行内链接、引用式链接、自动链接等） */

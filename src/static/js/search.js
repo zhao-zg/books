@@ -71,6 +71,16 @@
     // ── 书名搜索（同步，基于 books-index.json）──────────────────────────
 
     /**
+     * 获取系列主题色（委托 BKRenderer._getSeriesColor）
+     */
+    _seriesColor: function (seriesId) {
+      if (win.BKRenderer && win.BKRenderer._getSeriesColor) {
+        return win.BKRenderer._getSeriesColor(seriesId);
+      }
+      return '#3D8C6A';
+    },
+
+    /**
      * 在书目索引中按 title / id 模糊匹配
      * @param {string} query 搜索关键词
      * @returns {Array} 匹配结果数组
@@ -88,44 +98,154 @@
       var books = index.books;
       var series = index.series || [];
       var terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-      var results = [];
 
-      // 构建 series id → title 映射
+      // 构建 series id → title 映射 & series id → series obj 映射
       var seriesMap = {};
+      var seriesObjMap = {};
       for (var s = 0; s < series.length; s++) {
         seriesMap[series[s].id] = series[s].title;
+        seriesObjMap[series[s].id] = series[s];
       }
+
+      // ★ 入口聚合：系列名/分类名匹配的书不逐本列出，而是聚合为入口卡片
+      //   - seriesEntry：系列入口（系列名匹配），点击跳 #/series/<id>
+      //   - categoryEntry：分类入口（分类名匹配），点击跳 #/series/<id>/<prefix>
+      //   书名/id 匹配的书仍逐本列出
+      var bookResults = [];       // 书名匹配结果（逐本）
+      var seriesEntries = {};     // seriesId → { title, count, score }
+      var categoryEntries = {};   // seriesId|prefix → { title, seriesTitle, series, prefix, count, score }
 
       for (var i = 0; i < books.length; i++) {
         var book = books[i];
-        var hay = ((book.title || '') + ' ' + (book.id || '')).toLowerCase();
+        var seriesTitle = seriesMap[book.series] || book.series || '';
+        var categoryName = book.category || '';
+        var categoryPrefix = book.category_prefix || '';
+
         var titleLower = (book.title || '').toLowerCase();
+        var idLower = (book.id || '').toLowerCase();
+        var seriesLower = seriesTitle.toLowerCase();
+        var categoryLower = categoryName.toLowerCase();
+
+        // 逐 term 检查匹配来源
         var ok = true;
         var totalScore = 0;
+        var titleMatched = false;  // 是否有任何 term 匹配到了书名/id
+        var seriesMatched = false; // 是否有任何 term 匹配到了系列名
+
         for (var j = 0; j < terms.length; j++) {
-          if (hay.indexOf(terms[j]) === -1) { ok = false; break; }
-          // 计算每个 term 的相关性分数
-          if (titleLower === terms[j]) {
-            totalScore += 3;  // 精确匹配
-          } else if (titleLower.indexOf(terms[j]) === 0) {
-            totalScore += 2;  // 开头匹配
-          } else {
-            totalScore += 1;  // 包含匹配
+          var term = terms[j];
+          var titleHit = (titleLower.indexOf(term) !== -1 || idLower.indexOf(term) !== -1);
+          var seriesHit = (seriesLower.indexOf(term) !== -1);
+          var categoryHit = (categoryLower.indexOf(term) !== -1);
+
+          if (!titleHit && !seriesHit && !categoryHit) { ok = false; break; }
+
+          if (titleHit) {
+            titleMatched = true;
+            if (titleLower === term) totalScore += 3;
+            else if (titleLower.indexOf(term) === 0) totalScore += 2;
+            else totalScore += 1;
+          } else if (seriesHit) {
+            seriesMatched = true;
+            totalScore += 2;
+          } else if (categoryHit) {
+            totalScore += 2;
           }
         }
-        if (ok) {
-          results.push({
-            type: 'title',            // 书名匹配
+
+        if (!ok) continue;
+
+        if (titleMatched) {
+          // 书名/id 匹配 → 逐本列出
+          bookResults.push({
+            type: 'title',
             bookId: book.id,
             bookTitle: book.title || book.id,
             series: book.series || '',
-            seriesTitle: seriesMap[book.series] || book.series || '',
+            seriesTitle: seriesTitle,
+            category: categoryName,
             chapterTitle: '',
             context: '',
             url: book.id,
             score: totalScore
           });
+        } else if (seriesMatched) {
+          // 系列名匹配 → 聚合为系列入口（bookCount 取系列总书数）
+          if (!seriesEntries[book.series]) {
+            var seriesObj = seriesObjMap[book.series];
+            var totalCount = seriesObj && typeof seriesObj.count === 'number' ? seriesObj.count : 0;
+            seriesEntries[book.series] = {
+              type: 'series-entry',
+              series: book.series || '',
+              seriesTitle: seriesTitle,
+              bookCount: totalCount,
+              score: 0
+            };
+          }
+          if (totalScore > seriesEntries[book.series].score) {
+            seriesEntries[book.series].score = totalScore;
+          }
+        } else {
+          // 仅分类名匹配 → 聚合为分类入口
+          if (categoryName) {
+            var catKey = book.series + '|' + categoryPrefix;
+            if (!categoryEntries[catKey]) {
+              categoryEntries[catKey] = {
+                type: 'category-entry',
+                series: book.series || '',
+                seriesTitle: seriesTitle,
+                category: categoryName,
+                categoryPrefix: categoryPrefix,
+                bookCount: 0,
+                score: 0
+              };
+            }
+            categoryEntries[catKey].bookCount++;
+            if (totalScore > categoryEntries[catKey].score) {
+              categoryEntries[catKey].score = totalScore;
+            }
+          }
         }
+      }
+
+      // ★ 合并结果：入口优先（系列入口 > 分类入口），然后书名匹配
+      //   入口 score 加 0.5 bias 确保排在书名匹配前面（同分时优先）
+      var results = [];
+
+      for (var sid in seriesEntries) {
+        if (seriesEntries.hasOwnProperty(sid)) {
+          var se = seriesEntries[sid];
+          // 系列入口的 score 使用系列名匹配分；用 count 补充权重
+          results.push({
+            type: 'series-entry',
+            series: se.series,
+            seriesTitle: se.seriesTitle,
+            bookCount: se.bookCount,
+            score: se.score + 0.5,
+            url: 'series/' + se.series
+          });
+        }
+      }
+
+      for (var ckey in categoryEntries) {
+        if (categoryEntries.hasOwnProperty(ckey)) {
+          var ce = categoryEntries[ckey];
+          results.push({
+            type: 'category-entry',
+            series: ce.series,
+            seriesTitle: ce.seriesTitle,
+            category: ce.category,
+            categoryPrefix: ce.categoryPrefix,
+            bookCount: ce.bookCount,
+            score: ce.score + 0.5,
+            url: 'series/' + ce.series + '/' + ce.categoryPrefix
+          });
+        }
+      }
+
+      // 追加书名匹配结果
+      for (var bi = 0; bi < bookResults.length; bi++) {
+        results.push(bookResults[bi]);
       }
 
       // 按分数降序排列
@@ -418,13 +538,68 @@
 
       if (startIdx >= results.length) return;
 
-      // 构建 HTML（按系列分组）
+      // 构建 HTML（按系列分组；入口类型独占一组，不进书籍分组）
       var html = '';
       var lastSeries = '';
       var lastBook = '';
+      // 入口区域是否已关闭（入口与书名混排时，入口区域需在首个书名结果前关闭）
+      var entryGroupOpen = false;
 
       for (var i = startIdx; i < endIdx; i++) {
         var r = results[i];
+
+        // ★ 系列入口 / 分类入口：海报卡片，不进系列/书籍分组
+        if (r.type === 'series-entry' || r.type === 'category-entry') {
+          // 关闭之前可能打开的书籍/系列分组
+          if (lastBook) { html += '</div>'; lastBook = ''; }
+          if (lastSeries) { html += '</div>'; lastSeries = ''; }
+
+          if (!entryGroupOpen) {
+            html += '<div class="bk-search-entry-grid bk-poster-grid">';
+            entryGroupOpen = true;
+          }
+
+          if (r.type === 'series-entry') {
+            html += '<div class="bk-search-entry-card series-catalog-card bk-poster-card"' +
+              ' data-entry-type="series" data-series="' + esc(r.series) + '"' +
+              ' data-url="' + esc(r.url) + '" role="button" tabindex="0"' +
+              ' style="--series-color:' + self._seriesColor(r.series) + '">';
+            if (win.BKRenderer && win.BKRenderer._coverHTML) {
+              html += win.BKRenderer._coverHTML(
+                { series: r.series, title: r.seriesTitle },
+                { seriesTitle: '系列' }
+              );
+            }
+            html += '<div class="collection-caption bk-poster-card__caption">';
+            html += '<div class="bk-search-entry-name">' + esc(r.seriesTitle) + '</div>';
+            html += '<div class="bk-search-entry-count">' + r.bookCount + ' 本</div>';
+            html += '</div></div>';
+          } else {
+            // category-entry
+            html += '<div class="bk-search-entry-card category-card bk-poster-card"' +
+              ' data-entry-type="category" data-series="' + esc(r.series) + '"' +
+              ' data-category-prefix="' + esc(r.categoryPrefix) + '"' +
+              ' data-url="' + esc(r.url) + '" role="button" tabindex="0"' +
+              ' style="--series-color:' + self._seriesColor(r.series) + '">';
+            if (win.BKRenderer && win.BKRenderer._coverHTML) {
+              html += win.BKRenderer._coverHTML(
+                { series: r.series, title: r.category },
+                { seriesTitle: r.seriesTitle }
+              );
+            }
+            html += '<div class="collection-caption bk-poster-card__caption">';
+            html += '<div class="bk-search-entry-name">' + esc(r.category) + '</div>';
+            html += '<div class="bk-search-entry-count">' + r.bookCount + ' 本</div>';
+            html += '</div></div>';
+          }
+          continue;
+        }
+
+        // 入口区域结束 → 关闭入口网格
+        if (entryGroupOpen) {
+          html += '</div>';
+          entryGroupOpen = false;
+        }
 
         // 系列分组标题
         if (r.series !== lastSeries) {
@@ -459,7 +634,10 @@
 
         html += '<a class="bk-search-item" href="#' + esc(r.url) + '" data-url="' + esc(r.url) + '" data-book-id="' + esc(r.bookId) + '" data-series="' + esc(r.series) + '">';
         if (win.BKRenderer && win.BKRenderer._coverHTML) {
-          html += win.BKRenderer._coverHTML(r, { size: 'sm', seriesTitle: r.seriesTitle });
+          // ★ 与书城/书架卡片视觉一致：md 封面 + 同系列明度抖动
+          //   _coverHTML 通过 b.id 做哈希抖动，搜索结果对象 r 无 id 字段，补上 bookId
+          var coverObj = { id: r.bookId, title: r.bookTitle, series: r.series, cover: r.cover || '' };
+          html += win.BKRenderer._coverHTML(coverObj, { size: 'md', varyByBook: true, seriesTitle: r.seriesTitle });
         }
         html += '<div class="bk-search-item-body">';
         html += '<div class="bk-search-item-meta">';
@@ -480,6 +658,7 @@
         html += '</a>';
       }
 
+      if (entryGroupOpen) html += '</div>';
       if (lastBook) html += '</div>';
       if (lastSeries) html += '</div>';
 
@@ -689,6 +868,30 @@
             }
           });
         })(groupTitles[g]);
+      }
+
+      // ★ 绑定系列/分类入口卡片点击事件（跳转到书城对应层级）
+      var entryCards = self._resultsEl.querySelectorAll('.bk-search-entry-card');
+      for (var ec = 0; ec < entryCards.length; ec++) {
+        (function (card) {
+          if (card._clickBound) return;
+          card._clickBound = true;
+          card.addEventListener('click', function (e) {
+            e.preventDefault();
+            var url = card.getAttribute('data-url');
+            if (!url) return;
+
+            // 搜索历史
+            if (self._currentQuery && self._currentQuery.trim()) {
+              self._addSearchHistory(self._currentQuery);
+            }
+
+            if (win.BKRouter) {
+              win.BKRouter.navigate(url);
+            }
+            self.close(true);
+          });
+        })(entryCards[ec]);
       }
 
       // 异步更新缓存状态图标
