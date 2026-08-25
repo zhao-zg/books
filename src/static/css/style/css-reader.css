@@ -53,11 +53,11 @@
 }
 /* 跨章节导航链接 */
 [data-chapter-link] { cursor: pointer; color: var(--brand, #007aff); text-decoration: underline; }
-.bk-h1 { font-size: 1.5em; }
+.bk-h1 { font-size: 1.25em; }
 /* 阅读内容顶部：当页章节标题 */
 .bk-page-title {
   font-family: var(--ui-font-family, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif);
-  font-size: 1.35em;
+  font-size: 1.2em;
   font-weight: 650;
   color: var(--heading);
   line-height: 1.35;
@@ -65,9 +65,9 @@
   padding-bottom: .5em;
   border-bottom: 1px solid var(--border);
 }
-.bk-h2 { font-size: 1.25em; }
-.bk-h3 { font-size: 1.15em; }
-.bk-h4 { font-size: 1.05em; }
+.bk-h2 { font-size: 1.15em; }
+.bk-h3 { font-size: 1.08em; }
+.bk-h4 { font-size: 1.02em; }
 .bk-h5, .bk-h6 { font-size: 1em; }
 .bk-quote {
   margin: 1.4em 0;

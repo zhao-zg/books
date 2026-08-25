@@ -19,6 +19,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * SaveFilePlugin — 通过 Android SAF (Storage Access Framework) 让用户选择保存位置
@@ -46,8 +48,9 @@ public class SaveFilePlugin extends Plugin {
 
     // ── 小文件模式（向后兼容）──────────────────────────────────────────
 
-    private PluginCall pendingCall = null;
-    private String pendingBase64 = null;
+    // 每请求独立的 base64 存储，避免共享字段被并发覆盖导致 0KB
+    private final Map<String, String> pendingDataMap = new HashMap<>();
+    private String pendingSaveId = null;
 
     /**
      * 小文件：弹出系统"另存为"对话框，用户选择后一次性写入
@@ -63,8 +66,9 @@ public class SaveFilePlugin extends Plugin {
             return;
         }
 
-        pendingCall = call;
-        pendingBase64 = base64Data;
+        String requestId = "save-" + System.currentTimeMillis();
+        pendingSaveId = requestId;
+        pendingDataMap.put(requestId, base64Data);
 
         try {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -74,40 +78,66 @@ public class SaveFilePlugin extends Plugin {
             startActivityForResult(call, intent, "handleSaveResult");
         } catch (Exception e) {
             Log.e(TAG, "SAF 启动失败", e);
-            pendingCall = null;
-            pendingBase64 = null;
+            pendingDataMap.remove(requestId);
+            pendingSaveId = null;
             call.reject("无法打开系统保存对话框: " + e.getMessage());
         }
     }
 
     @ActivityCallback
     private void handleSaveResult(PluginCall call, ActivityResult result) {
-        PluginCall savedCall = (call != null) ? call : pendingCall;
+        PluginCall savedCall = call;
         Intent data = result != null ? result.getData() : null;
 
-        if (data == null || data.getData() == null) {
+        // 检查 resultCode，用户取消时 resultCode != RESULT_OK
+        int resultCode = result != null ? result.getResultCode() : 0;
+
+        if (data == null || data.getData() == null || resultCode != android.app.Activity.RESULT_OK) {
             if (savedCall != null) {
                 JSObject ret = new JSObject();
                 ret.put("saved", false);
                 ret.put("reason", "cancelled");
                 savedCall.resolve(ret);
             }
-            pendingCall = null;
-            pendingBase64 = null;
+            // 清理当前请求数据
+            if (pendingSaveId != null) pendingDataMap.remove(pendingSaveId);
+            pendingSaveId = null;
             return;
         }
 
         Uri uri = data.getData();
-        String base64 = pendingBase64;
+
+        // 从 per-request Map 中取出 base64 数据
+        String requestId = pendingSaveId;
+        String base64 = (requestId != null) ? pendingDataMap.get(requestId) : null;
+
+        // 关键防御：base64 为 null 或空时，拒绝而非写入 0 字节
+        if (base64 == null || base64.isEmpty()) {
+            Log.e(TAG, "handleSaveResult: base64 数据为空（requestId=" + requestId + "），可能被并发操作覆盖");
+            if (savedCall != null) {
+                JSObject ret = new JSObject();
+                ret.put("saved", false);
+                ret.put("reason", "data_lost");
+                savedCall.resolve(ret);
+            }
+            if (requestId != null) pendingDataMap.remove(requestId);
+            pendingSaveId = null;
+            return;
+        }
 
         try {
             byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+            if (bytes.length == 0) {
+                Log.e(TAG, "handleSaveResult: Base64.decode 返回空数组，base64 长度=" + base64.length());
+                if (savedCall != null) savedCall.reject("解码后数据为空");
+                return;
+            }
             ContentResolver resolver = getContext().getContentResolver();
             OutputStream os = resolver.openOutputStream(uri);
             if (os == null) throw new Exception("无法打开输出流");
             try { os.write(bytes); os.flush(); } finally { os.close(); }
 
-            Log.i(TAG, "文件已保存: " + uri.toString());
+            Log.i(TAG, "文件已保存: " + uri.toString() + " 大小=" + bytes.length + " 字节");
             if (savedCall != null) {
                 JSObject ret = new JSObject();
                 ret.put("saved", true);
@@ -118,8 +148,8 @@ public class SaveFilePlugin extends Plugin {
             Log.e(TAG, "写入文件失败", e);
             if (savedCall != null) savedCall.reject("保存失败: " + e.getMessage());
         } finally {
-            pendingCall = null;
-            pendingBase64 = null;
+            if (requestId != null) pendingDataMap.remove(requestId);
+            pendingSaveId = null;
         }
     }
 
@@ -129,6 +159,7 @@ public class SaveFilePlugin extends Plugin {
     private String safSessionId = null;
     private Uri safSessionUri = null;
     private OutputStream safSessionStream = null;
+    private PluginCall safPendingCall = null;
 
     /**
      * 大文件第一步：弹出 SAF 对话框，获取写入 URI
@@ -142,7 +173,7 @@ public class SaveFilePlugin extends Plugin {
 
         Log.i(TAG, "startWrite: filename=" + filename + " mimeType=" + mimeType + " totalSize=" + totalSize);
 
-        pendingCall = call;
+        safPendingCall = call;
         safSessionId = "saf-" + System.currentTimeMillis();
 
         try {
@@ -154,25 +185,27 @@ public class SaveFilePlugin extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "SAF 启动失败", e);
             safSessionId = null;
+            safPendingCall = null;
             call.reject("无法打开系统保存对话框: " + e.getMessage());
         }
     }
 
     @ActivityCallback
     private void handleStartWriteResult(PluginCall call, ActivityResult result) {
-        PluginCall savedCall = (call != null) ? call : pendingCall;
+        PluginCall savedCall = (call != null) ? call : safPendingCall;
         Intent data = result != null ? result.getData() : null;
+        int resultCode = result != null ? result.getResultCode() : 0;
 
-        if (data == null || data.getData() == null) {
+        if (data == null || data.getData() == null || resultCode != android.app.Activity.RESULT_OK) {
             // 用户取消
             safSessionId = null;
+            safPendingCall = null;
             if (savedCall != null) {
                 JSObject ret = new JSObject();
                 ret.put("started", false);
                 ret.put("reason", "cancelled");
                 savedCall.resolve(ret);
             }
-            pendingCall = null;
             return;
         }
 
@@ -198,7 +231,7 @@ public class SaveFilePlugin extends Plugin {
             safSessionUri = null;
             if (savedCall != null) savedCall.reject("无法打开输出流: " + e.getMessage());
         } finally {
-            pendingCall = null;
+            safPendingCall = null;
         }
     }
 

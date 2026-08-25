@@ -1164,7 +1164,21 @@ def extract_markdown_chapter(md_text: str) -> Optional[dict]:
 
     # 如果没有识别到任何 section，使用全部文本
     if not content_parts:
-        full_text = '\n'.join(lines[1:]).strip()  # 跳过标题行
+        # 跳过标题行（第一行通常是书名/章节标题）
+        # 仅将 "读经" 开头的 # 一级标题降为 ####（4级），
+        # 其他 # 标题保持原样不动。
+        body_lines = []
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped.startswith('# ') and not stripped.startswith('## '):
+                heading_text = stripped[2:].strip()
+                if heading_text.startswith('读经'):
+                    body_lines.append('#### ' + heading_text)
+                else:
+                    body_lines.append(line)
+            else:
+                body_lines.append(line)
+        full_text = '\n'.join(body_lines).strip()
         if full_text:
             content_parts.append(full_text)
 

@@ -371,9 +371,8 @@
       }
       html += '</div>';
     }
-    // 平铺书区域（无 group 的书直接展示在分组下方）
+    // 平铺书区域（无 group 的书直接展示在分组下方，无需额外「其他」标题，与分组一起显示）
     if (flatBooks.length > 0) {
-      html += '<div class="bk-section-header"><span class="bk-section-title-sm">其他</span></div>';
       html += '<div class="book-grid bk-city-book-grid bk-poster-grid" data-series="' + escAttr(seriesId) + '">';
       for (var f = 0; f < flatBooks.length; f++) {
         html += _buildBookCard(flatBooks[f], { showProgress: false, cityBook: true });

@@ -301,6 +301,12 @@
         var SaveFile = _getPlugins().SaveFile;
         if (!SaveFile) return Promise.reject(new Error('SaveFile 插件不可用'));
 
+        // 防御：base64 数据为空时直接拒绝，避免原生端写入 0KB 文件
+        if (!base64Data || !base64Data.length) {
+            console.error('[BK.Export] SAF 策略：base64 数据为空，拒绝导出');
+            return Promise.reject(new Error('导出数据为空'));
+        }
+
         console.log('[BK.Export] SAF 策略：启动，文件名=' + filename + '，MIME=' + mime + '，base64 长度=' + base64Data.length);
 
         // 大文件走分块写入
@@ -319,8 +325,12 @@
                 console.log('[BK.Export] SAF 策略：保存成功，uri=' + result.uri);
                 return { method: 'saf', saved: true, uri: result.uri };
             }
-            // 用户取消
-            console.log('[BK.Export] SAF 策略：用户取消或未保存');
+            // 用户取消或数据丢失
+            var reason = (result && result.reason) || 'cancelled';
+            console.log('[BK.Export] SAF 策略：未保存，reason=' + reason);
+            if (reason === 'data_lost') {
+                return { method: 'saf', saved: false, cancelled: false, error: '数据丢失，请重试' };
+            }
             return { method: 'saf', saved: false, cancelled: true };
         }).catch(function (err) {
             console.error('[BK.Export] SAF 策略：异常', err);
