@@ -1089,6 +1089,89 @@ def _extract_nee_chapter(soup) -> Optional[dict]:
 # Markdown 内容提取
 # ---------------------------------------------------------------------------
 
+def _strip_chapter_prefix(title: str) -> str:
+    """去掉章节标题的序号前缀。
+
+    匹配以下模式（序号后跟中文顿号、点号、冒号或空格）：
+      "1、..." / "1. ..." / "1: ..." / "1 ..." / "一、..." / "十二、..."
+    """
+    t = title.strip()
+    # 中文数字序号：一、十二、等
+    t = re.sub(r'^[一二三四五六七八九十百千]+[、.．：:\s]+', '', t)
+    # 阿拉伯数字序号：1、12. 等
+    t = re.sub(r'^\d+[、.．：:\s]+', '', t)
+    return t.strip()
+
+
+def split_markdown_into_chapters(md_text: str) -> List[dict]:
+    """将包含多个 ## 小节的 Markdown 文档拆分为多个章节。
+
+    每个以 ``## `` 开头的行作为章节分隔点，其后的正文（直到下一个 ## ）
+    合并为该章节的 content。## 行之前的文本（如 # 序言、说明文字）
+    归入第一个章节的 content 前部。
+
+    返回 [{'title': str, 'content': str}, ...]；若无 ## 则返回单章回退。
+    """
+    if not md_text or not md_text.strip():
+        return []
+
+    lines = md_text.strip().split('\n')
+
+    # 收集所有 ## 行的位置
+    h2_indices = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith('## '):
+            h2_indices.append(i)
+
+    # 无 ## → 回退为单章
+    if not h2_indices:
+        return [{
+            'title': '',
+            'content': sanitize_text(md_text.strip()),
+        }]
+
+    chapters = []
+
+    # ## 之前的 preamble（# 标题、序言等）归入第一章前部
+    preamble_lines = lines[:h2_indices[0]]
+    preamble = '\n'.join(preamble_lines).strip()
+    # 去掉 # 标题行本身（书名），保留其余说明文字
+    if preamble:
+        preamble_body = []
+        for pl in preamble_lines:
+            ps = pl.strip()
+            if ps.startswith('# ') and not ps.startswith('## '):
+                continue  # 跳过书名 # 行
+            preamble_body.append(pl)
+        preamble = '\n'.join(preamble_body).strip()
+
+    for idx, h2_line_idx in enumerate(h2_indices):
+        raw_title = lines[h2_line_idx].strip()[3:].strip()  # 去掉 "## "
+        title = _strip_chapter_prefix(raw_title)
+
+        content_start = h2_line_idx + 1
+        content_end = h2_indices[idx + 1] if idx + 1 < len(h2_indices) else len(lines)
+        body_lines = lines[content_start:content_end]
+        body = '\n'.join(body_lines).strip()
+
+        # 第一章前面加上 preamble（序言等）
+        if idx == 0 and preamble:
+            body = f"{preamble}\n\n{body}".strip()
+
+        content = sanitize_text(body)
+        if not content:
+            content = sanitize_text(preamble) if idx == 0 else ''
+        if not title and not content:
+            continue
+
+        chapters.append({
+            'title': sanitize_text(title) if title else '',
+            'content': content,
+        })
+
+    return chapters
+
+
 def extract_markdown_chapter(md_text: str) -> Optional[dict]:
     """
     从 ysz Markdown 文档提取内容。
@@ -1472,15 +1555,28 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
                 book_num += 1
                 book_id = f"{series_id}-{book_num:03d}"
                 title = item.get('title') or extracted.get('title', '')
+                # 尝试按 ## 拆分多章节（如问答类、殉道史类）
+                raw = lookup.get(normalize_url(item['url']))
+                sub_chapters = split_markdown_into_chapters(raw) if (is_md and raw) else []
+                if len(sub_chapters) > 1:
+                    chapters = []
+                    for sc in sub_chapters:
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': sc['title'] or title,
+                            'content': sc['content'],
+                        })
+                else:
+                    chapters = [{
+                        'number': 1,
+                        'title': extracted.get('title', '') or title,
+                        'content': extracted['content'],
+                    }]
                 books.append({
                     'id': book_id,
                     'title': sanitize_text(title),
                     'format': 'html',
-                    'chapters': [{
-                        'number': 1,
-                        'title': extracted.get('title', '') or title,
-                        'content': extracted['content'],
-                    }],
+                    'chapters': chapters,
                 })
             elif verbose:
                 log.debug(f"  {series_id} 未找到: {item.get('url', '')}")
@@ -1522,15 +1618,28 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
                 book_num += 1
                 book_id = f"sy_auto-{book_num:03d}"
                 title = item.get('title') or extracted.get('title', '')
+                # 尝试按 ## 拆分多章节（如问答类、殉道史类）
+                raw = lookup.get(normalize_url(item['url']))
+                sub_chapters = split_markdown_into_chapters(raw) if (is_md and raw) else []
+                if len(sub_chapters) > 1:
+                    chapters = []
+                    for sc in sub_chapters:
+                        chapters.append({
+                            'number': len(chapters) + 1,
+                            'title': sc['title'] or title,
+                            'content': sc['content'],
+                        })
+                else:
+                    chapters = [{
+                        'number': 1,
+                        'title': extracted.get('title', '') or title,
+                        'content': extracted['content'],
+                    }]
                 sy_books.append({
                     'id': book_id,
                     'title': sanitize_text(title),
                     'format': 'html',
-                    'chapters': [{
-                        'number': 1,
-                        'title': extracted.get('title', '') or title,
-                        'content': extracted['content'],
-                    }],
+                    'chapters': chapters,
                 })
         
         # 处理所有分组：每个 group 整体作为一本书，带 category 字段
@@ -1977,15 +2086,28 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
             book_num += 1
             book_id = f"sy_auto-{book_num:03d}"
             title = item.get('title') or extracted.get('title', '')
+            # 尝试按 ## 拆分多章节（如问答类、殉道史类）
+            raw = lookup.get(normalize_url(item['url']))
+            sub_chapters = split_markdown_into_chapters(raw) if (is_md and raw) else []
+            if len(sub_chapters) > 1:
+                chapters = []
+                for sc in sub_chapters:
+                    chapters.append({
+                        'number': len(chapters) + 1,
+                        'title': sc['title'] or title,
+                        'content': sc['content'],
+                    })
+            else:
+                chapters = [{
+                    'number': 1,
+                    'title': extracted.get('title', '') or title,
+                    'content': extracted['content'],
+                }]
             sy_books.append({
                 'id': book_id,
                 'title': sanitize_text(title),
                 'format': 'html',
-                'chapters': [{
-                    'number': 1,
-                    'title': extracted.get('title', '') or title,
-                    'content': extracted['content'],
-                }],
+                'chapters': chapters,
             })
 
     # 处理剩余分组：每个分组整体作为一本书
