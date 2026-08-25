@@ -792,9 +792,13 @@ def _extract_books_chapter(soup) -> Optional[dict]:
             continue
         if child.find('header'):
             continue
-        # 仅检查直接子 <a> 标签，避免深层嵌套的空导航链接误跳过正文 div
+        # 跳过「纯空导航」div：仅当直接子 <a> 全为空文本，
+        # 且该 div 自身也不含任何实质文本时，才判定为导航占位跳过。
+        # （注意：不能仅凭存在空 <a> 就跳过——正文 div 内也可能有
+        #   空文本链接，如 <a class="btt up" href="#">，会误吞整章正文。）
         a_tags = child.find_all('a', recursive=False)
-        if a_tags and all(not a.get_text(strip=True) for a in a_tags):
+        if a_tags and all(not a.get_text(strip=True) for a in a_tags) \
+                and not child.get_text(strip=True):
             continue
         _extract_content_div(child, content_parts)
 

@@ -27,7 +27,9 @@
    所有 .bk-pdf-* 样式已迁移到 css-pdf.css（见本文件顶部 @import）。 */
 
 .bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
-.bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; }
+/* 标题用无衬线栈：正文衬线 + 标题黑体形成层次对比，Android 命中 PingFang/Noto Sans
+   而非不可用的 Songti/STSong，保证跨平台一致的标题质感 */
+.bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; font-family: var(--ui-font-family, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif); font-weight: 600; }
 .bk-paragraph + .bk-heading { margin-top: 2em; }
 /* 阅读区超链接样式（MD 行内链接、引用式链接、自动链接等） */
 .bk-paragraph a,
@@ -51,20 +53,21 @@
 }
 /* 跨章节导航链接 */
 [data-chapter-link] { cursor: pointer; color: var(--brand, #007aff); text-decoration: underline; }
-.bk-h1 { font-size: 1.6em; }
+.bk-h1 { font-size: 1.5em; }
 /* 阅读内容顶部：当页章节标题 */
 .bk-page-title {
-  font-size: 1.4em;
-  font-weight: 700;
+  font-family: var(--ui-font-family, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif);
+  font-size: 1.35em;
+  font-weight: 650;
   color: var(--heading);
   line-height: 1.35;
   margin: 0 0 1em;
   padding-bottom: .5em;
   border-bottom: 1px solid var(--border);
 }
-.bk-h2 { font-size: 1.4em; }
-.bk-h3 { font-size: 1.2em; }
-.bk-h4 { font-size: 1.1em; }
+.bk-h2 { font-size: 1.25em; }
+.bk-h3 { font-size: 1.15em; }
+.bk-h4 { font-size: 1.05em; }
 .bk-h5, .bk-h6 { font-size: 1em; }
 .bk-quote {
   margin: 1.4em 0;
