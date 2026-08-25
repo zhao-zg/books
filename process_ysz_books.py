@@ -6,6 +6,7 @@ YSZ 书籍批量处理脚本
 提取纯文本内容，输出结构化 JSON 到 resource/zl-ysz/。
 """
 
+import hashlib
 import os
 import re
 import json
@@ -1530,6 +1531,55 @@ def _assemble_lee8_series(data: dict, lookup: dict, verbose: bool,
     return books
 
 
+def _dedup_sy_auto_items(items: list, lookup: dict) -> list:
+    """对 sy_auto 独立条目去重：标题相同且内容高度一致才跳过。
+
+    Zo.txt 中同一标题可能出现在多处（如"主恢复圣徒信仰问答须知"在
+    信息拾遗和在职信息合辑末尾各出现一次），但 URL 不同（sy_auto-first-26.md
+    vs sy_auto-second-0.md）。标题相同且内容差异极小（仅个别字符差异，
+    如源站抓取时的异体字/标点差异）才视为重复，保留第一次出现的。
+    """
+    seen_titles = {}  # title_norm → (content_hash, item)
+    result = []
+    for item in items:
+        url = item.get('url', '')
+        title = item.get('title', '')
+        title_norm = title.strip()
+        # 获取源文件内容用于比对
+        key = normalize_url(url)
+        raw = lookup.get(key)
+        if raw is None:
+            # 查不到内容，保留（让后续逻辑处理）
+            result.append(item)
+            continue
+        content_hash = hashlib.md5(raw.encode('utf-8')).hexdigest()
+        if title_norm in seen_titles:
+            prev_hash, prev_item = seen_titles[title_norm]
+            if prev_hash == content_hash:
+                log.info(f"  sy_auto 去重: 跳过重复条目 '{title}' (内容完全一致, url={url})")
+                continue
+            else:
+                # 标题相同但内容有差异，检查差异是否极小（< 0.1% 字符差异）
+                prev_raw = lookup.get(normalize_url(prev_item.get('url', '')))
+                if prev_raw is not None:
+                    max_len = max(len(raw), len(prev_raw))
+                    diffs = sum(1 for a, b in zip(raw, prev_raw) if a != b)
+                    diff_ratio = diffs / max_len if max_len else 1
+                    if diff_ratio < 0.001:
+                        log.info(f"  sy_auto 去重: 跳过近似条目 '{title}' (差异 {diffs} 字符 / {diff_ratio:.4%}, url={url})")
+                        continue
+                    else:
+                        log.warning(f"  sy_auto 疑似重复但差异较大: '{title}' ({diffs} 字符 / {diff_ratio:.2%}, 保留两者)")
+                # 无法比较或差异大，保留
+                result.append(item)
+                continue
+        seen_titles[title_norm] = (content_hash, item)
+        result.append(item)
+    if len(result) < len(items):
+        log.info(f"  sy_auto 独立条目去重: {len(items)} → {len(result)} (去除 {len(items) - len(result)} 个重复)")
+    return result
+
+
 def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
                              promote: bool = True) -> Dict[str, List[dict]]:
     """
@@ -1539,6 +1589,10 @@ def _assemble_sy_auto_series(data: dict, lookup: dict, verbose: bool,
     当 promote=False 时，所有分组保留在 sy_auto 中，每个分组的 sub_group 独立成书，
     并添加 category 字段标记分组名称（用于子目录组织）。
     """
+
+    # 去重：标题+内容一致的独立条目只保留第一次出现
+    if 'items' in data:
+        data['items'] = _dedup_sy_auto_items(data['items'], lookup)
 
     def _is_markdown_url(url: str) -> bool:
         return normalize_url(url).endswith('.md')
