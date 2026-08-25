@@ -26,7 +26,7 @@ default_book:
 remote_servers:
   cloudflare:
     # ── 账户1 域名 ──
-    - https://books.bxg.dpdns.org/
+    - https://books.zhaozg.dpdns.org/
     - https://books.zhaozg.cloudns.org/
     - https://books.zzgxxx.eu.org/
     - https://books.1189.dpdns.org/
