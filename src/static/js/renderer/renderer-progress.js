@@ -232,14 +232,21 @@
     var pct;
     var container = _getScrollContainer();
     var scrollTop = (container && container.scrollTop) || 0;
+
+    // 阅读视图内的全书进度条（已读章节/总章节，3px 槽）与顶部 2px 进度条在
+    // top:0 处重叠：下滑阅读时若不同步收起，会叠出"粗一点"的残留线。
+    // 因此：页面在顶部时显示，滚动离开顶部时收起，避免与章内进度条叠加。
+    var innerProg = document.querySelector('.reading-view .bk-reading-progress');
     if (scrollTop <= 1) {
       // 页面在顶部：显示全书进度（当前章在全书中的位置）
       pct = (idx / total) * 100;
+      if (innerProg) innerProg.style.display = '';
     } else {
       // 滚动离开顶部：显示章内滚动进度（0~100%）
       var ratio = _getChapterScrollRatio();
       if (ratio < 0) ratio = 0; else if (ratio > 1) ratio = 1;
       pct = ratio * 100;
+      if (innerProg) innerProg.style.display = 'none';
     }
     if (pct < 0) pct = 0; else if (pct > 100) pct = 100;
     prog.style.width = pct + '%';

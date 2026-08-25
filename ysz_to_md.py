@@ -41,6 +41,7 @@ from process_ysz_books import (
     build_content_lookup,
     assemble_books,
     sanitize_text,
+    clean_chapter_title,
     SERIES_TITLE_MAP,
     SERIES_ORDER,
 )
@@ -130,7 +131,7 @@ def generate_book_ysz_json(book_data: dict) -> dict:
         'chapters': [
             {
                 'number': ch.get('number', 0),
-                'title': ch.get('title', ''),
+                'title': clean_chapter_title(ch.get('title', '')),
                 'content': ch.get('content', ''),
             }
             for ch in chapters
@@ -330,7 +331,10 @@ def process_bundled_books(books_src_dir: Path, merged_dir: Path,
         if not dry_run and series_index:
             save_json(merged_dir / sid / 'index.json', series_index)
 
-        # series 条目
+        # series 条目（仅当系列内有实际书籍时才注册，避免 0 本书的空系列污染索引）
+        if not series_index:
+            log.info(f'  => 内置系列 {sid}: 0 本，跳过注册（无有效书籍）')
+            continue
         index_series.append({
             'id': sid,
             'title': series['name'],

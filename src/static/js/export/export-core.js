@@ -295,7 +295,7 @@
     //  Android 策略1：SAF SaveFile 插件（ACTION_CREATE_DOCUMENT）
     //  小文件（base64 ≤ CHUNKED_THRESHOLD）一次性写入，大文件走分块
     // ====================================================================
-    var CHUNKED_THRESHOLD = 5 * 1024 * 1024; // base64 ≤ 5MB 一次性，> 5MB 分块
+    var CHUNKED_THRESHOLD = 512 * 1024; // base64 ≤ 512KB 一次性写入（save 路径），> 512KB 走分块（startWrite 路径，不传大数据给 PluginCall，避免 TransactionTooLargeException）
 
     function _exportNativeSAF(base64Data, filename, mime) {
         var SaveFile = _getPlugins().SaveFile;

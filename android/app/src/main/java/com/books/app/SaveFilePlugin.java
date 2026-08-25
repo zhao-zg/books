@@ -70,6 +70,13 @@ public class SaveFilePlugin extends Plugin {
         pendingSaveId = requestId;
         pendingDataMap.put(requestId, base64Data);
 
+        // 关键修复：从 PluginCall 中移除大 base64 数据，防止 Capacitor 将其存入
+        // Activity savedState Bundle，导致 SAF 对话框弹出时 onStop → Binder 事务超 1MB
+        // 抛出 TransactionTooLargeException（崩溃 + 0KB 残留文件）
+        if (call.getData() != null) {
+            call.getData().remove("data");
+        }
+
         try {
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -243,6 +250,12 @@ public class SaveFilePlugin extends Plugin {
         String sessionId = call.getString("sessionId");
         String chunk = call.getString("chunk");
 
+        // 从 PluginCall 中移除大 chunk 数据，防止 Activity onStop 时
+        // Capacitor savedState Bundle 超出 Binder 1MB 限制
+        if (call.getData() != null) {
+            call.getData().remove("chunk");
+        }
+
         if (safSessionId == null || !safSessionId.equals(sessionId) || safSessionStream == null) {
             call.reject("无效的写入会话");
             return;
@@ -345,6 +358,12 @@ public class SaveFilePlugin extends Plugin {
     public void writeCacheChunk(PluginCall call) {
         String sessionId = call.getString("sessionId");
         String chunk = call.getString("chunk");
+
+        // 从 PluginCall 中移除大 chunk 数据，防止 Activity onStop 时
+        // Capacitor savedState Bundle 超出 Binder 1MB 限制
+        if (call.getData() != null) {
+            call.getData().remove("chunk");
+        }
 
         if (cacheSessionId == null || !cacheSessionId.equals(sessionId) || cacheSessionFile == null) {
             call.reject("无效的缓存写入会话");

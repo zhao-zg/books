@@ -181,6 +181,24 @@ def sanitize_text(text: str) -> str:
     return text
 
 
+def clean_chapter_title(title: str) -> str:
+    """清洗章节标题（仅针对标题字段，不影响正文 content）：
+    1. 去掉 '读经' 前缀（保留经文内容，如 '读经：“她寻找羊绒和麻…”' → '“她寻找羊绒和麻…”'）
+    2. 去掉 '（注：…）' / '（来源：…）' / '（编者：…）' 等编者注括号片段
+    """
+    if not title:
+        return title
+    t = title.strip()
+    # 去掉 '读经' 前缀（兼容 '读经：' '读经:' '读经 ' 等）
+    t = re.sub(r'^读经\s*[:：]?\s*', '', t).strip()
+    # 若清洗后为空（如原标题就是 '读经'），保留原文，避免产生空标题
+    if not t:
+        t = title.strip()
+    # 去掉编者注括号（中文/英文括号包裹的 注/来源/编者 说明）
+    t = re.sub(r'[（(](?:注|来源|编者)[：:][^（）()]*[）)]', '', t).strip()
+    return t
+
+
 def natural_sort_key(s: str):
     """自然排序 key，使 '2' 排在 '10' 前面"""
     return [int(c) if c.isdigit() else c.lower()
@@ -1165,15 +1183,15 @@ def extract_markdown_chapter(md_text: str) -> Optional[dict]:
     # 如果没有识别到任何 section，使用全部文本
     if not content_parts:
         # 跳过标题行（第一行通常是书名/章节标题）
-        # 仅将 "读经" 开头的 # 一级标题降为 ####（4级），
-        # 其他 # 标题保持原样不动。
+        # "读经" 是经文引用，属于正文内容而非标题：
+        # 去掉 # 标记，按正文段落输出；其他 # 标题保持原样不动。
         body_lines = []
         for line in lines[1:]:
             stripped = line.strip()
             if stripped.startswith('# ') and not stripped.startswith('## '):
                 heading_text = stripped[2:].strip()
                 if heading_text.startswith('读经'):
-                    body_lines.append('#### ' + heading_text)
+                    body_lines.append(heading_text)
                 else:
                     body_lines.append(line)
             else:
