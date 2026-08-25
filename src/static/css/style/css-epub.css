@@ -407,19 +407,6 @@ figure.bk-figure img:hover {
   text-decoration: underline;
 }
 
-/* ── 阅读进度条（章节阅读进度） ─────────────────────────────── */
-.reading-view .bk-reading-progress {
-  height: 3px;
-  background: var(--border, #E5E2DD);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.bk-reading-progress-bar {
-  height: 100%;
-  background: var(--brand, #3D8A5A);
-  border-radius: 0 2px 2px 0;
-  transition: width 0.4s ease;
-}
 /* 页面顶部滚动进度条 */
 #bkReadingProgress {
   position: fixed;

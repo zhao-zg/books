@@ -653,17 +653,6 @@
         // 渲染页面结构（三页轮播 carousel）
         var html = '<div class="reading-view" id="readingView">';
 
-        // 阅读进度条（基于滚动完成标记的实际已读章节数）
-        var totalChapters = uniqueChapters.length;
-        var _initReadCnt = 0;
-        for (var _irp = 1; _irp <= totalChapters; _irp++) {
-          if (_isChapterReadByScroll(bookId, _irp)) _initReadCnt++;
-        }
-        var progressPct = totalChapters > 0 ? Math.round(_initReadCnt / totalChapters * 100) : 0;
-        html += '<div class="bk-reading-progress">' +
-          '<div class="bk-reading-progress-bar" style="width:' + progressPct + '%"></div>' +
-          '</div>';
-
         // 三页轮播 track：prev / curr / next
         html += '<div class="bk-carousel-track">';
         html += _renderCarouselPage(prevChapter, 'Prev');

@@ -389,18 +389,6 @@
           // 同步浮动顶栏标题（若正显示），避免滑动切章后顶栏残留旧章名
           if (win.BKNavStack && win.BKNavStack.refresh) win.BKNavStack.refresh();
 
-          // 更新进度条（基于滚动完成标记的实际已读章节数）
-          var progressBar = document.querySelector('.bk-reading-progress-bar');
-          if (progressBar) {
-            var totalChapters = _carouselUniqueChapters.length;
-            var _readCnt = 0;
-            for (var _pci = 1; _pci <= totalChapters; _pci++) {
-              if (_isChapterReadByScroll(_carouselBookId, _pci)) _readCnt++;
-            }
-            var progressPct = totalChapters > 0 ? Math.round(_readCnt / totalChapters * 100) : 0;
-            progressBar.style.width = progressPct + '%';
-          }
-
           // 保存"被滑走"的旧章节滚动位置（reorder 后旧当前页已变为 prev）
           if (_carouselPages && _carouselPages.prev) {
             try { localStorage.setItem('bk_scroll:' + _scrollPageKey, String(_carouselPages.prev.scrollTop || 0)); } catch(e) {}
