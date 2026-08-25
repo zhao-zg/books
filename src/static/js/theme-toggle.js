@@ -337,24 +337,51 @@
 
     // 使用说明对话框
     function showGuideDialog() {
+        var _S = 'font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)';
+        var _R = 'display:flex;gap:8px;padding:5px 0';
+        var _D = 'font-size:0.75em;color:var(--text-secondary)';
         var html = '<div class="bk-dialog" style="max-width:420px;padding:0;position:relative;max-height:80vh;display:flex;flex-direction:column">' +
             '<div class="bk-drawer-header">' +
                 '<div class="bk-drawer-title">使用说明</div>' +
                 '<button id="bkGuideClose" class="bk-drawer-close" title="关闭">×</button>' +
             '</div>' +
             '<div style="flex:1;overflow-y:auto;padding:12px 16px 16px;line-height:1.6;font-size:0.8125em;color:var(--text)">' +
-                '<div style="margin-bottom:14px"><div style="font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">🎨 阅读设置</div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>🌓</span><div><strong>主题切换</strong><div style="font-size:0.75em;color:var(--text-secondary)">暖色/冷色/夜间三种模式</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>🔤</span><div><strong>字体大小</strong><div style="font-size:0.75em;color:var(--text-secondary)">拖动滑块调节字号</div></div></div></div>' +
-                '<div style="margin-bottom:14px"><div style="font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">📚 阅读功能</div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>📋</span><div><strong>章节目录</strong><div style="font-size:0.75em;color:var(--text-secondary)">点击书籍进入目录，选择章节开始阅读</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>📖</span><div><strong>阅读视图</strong><div style="font-size:0.75em;color:var(--text-secondary)">支持段落、标题、引用、图片、代码块等</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>📑</span><div><strong>书签</strong><div style="font-size:0.75em;color:var(--text-secondary)">添加书签随时回到上次阅读的位置</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>✏️</span><div><strong>划线笔记</strong><div style="font-size:0.75em;color:var(--text-secondary)">选中文字后添加划线和笔记</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>🔍</span><div><strong>全文搜索</strong><div style="font-size:0.75em;color:var(--text-secondary)">搜索书籍内容，快速定位</div></div></div></div>' +
-                '<div style="margin-bottom:14px"><div style="font-size:0.875em;font-weight:600;color:var(--brand);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">🔊 朗读功能</div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>▶️</span><div><strong>听书</strong><div style="font-size:0.75em;color:var(--text-secondary)">底部控制栏播放/暂停，支持变速和循环</div></div></div>' +
-                '<div style="display:flex;gap:8px;padding:5px 0"><span>📱</span><div><strong>后台朗读</strong><div style="font-size:0.75em;color:var(--text-secondary)">支持锁屏和后台朗读</div></div></div></div>' +
+                // 1. 阅读与浏览
+                '<div style="margin-bottom:14px"><div style="' + _S + '">📖 阅读与浏览</div>' +
+                '<div style="' + _R + '"><span>📋</span><div><strong>章节目录</strong><div style="' + _D + '">点击书籍进入目录，选择章节开始阅读</div></div></div>' +
+                '<div style="' + _R + '"><span>📄</span><div><strong>阅读视图</strong><div style="' + _D + '">支持段落、标题、引用、图片、代码块等</div></div></div>' +
+                '<div style="' + _R + '"><span>↔️</span><div><strong>左右滑动翻页</strong><div style="' + _D + '">阅读时左右滑动切换上下章节</div></div></div>' +
+                '<div style="' + _R + '"><span>📊</span><div><strong>阅读进度</strong><div style="' + _D + '">顶部进度条自动切换全书/章内进度，滚动到 80% 标记已读</div></div></div></div>' +
+                // 2. 标注与笔记
+                '<div style="margin-bottom:14px"><div style="' + _S + '">✏️ 标注与笔记</div>' +
+                '<div style="' + _R + '"><span>📑</span><div><strong>书签</strong><div style="' + _D + '">阅读中添加书签，统一面板管理并快速跳转</div></div></div>' +
+                '<div style="' + _R + '"><span>🖍️</span><div><strong>划线标注</strong><div style="' + _D + '">选中文字后添加高亮或下划线，PDF 另支持删除线</div></div></div>' +
+                '<div style="' + _R + '"><span>📝</span><div><strong>批注笔记</strong><div style="' + _D + '">在划线标注旁添加个人笔记，统一面板汇总查看</div></div></div>' +
+                '<div style="' + _R + '"><span>🗂️</span><div><strong>标记面板</strong><div style="' + _D + '">目录/书签/标记三合一抽屉，支持筛选、搜索与导出</div></div></div></div>' +
+                // 3. PDF 阅读
+                '<div style="margin-bottom:14px"><div style="' + _S + '">📕 PDF 阅读</div>' +
+                '<div style="' + _R + '"><span>📑</span><div><strong>三种模式</strong><div style="' + _D + '">单页横向滑动 / 连续垂直滚动 / 文字重排</div></div></div>' +
+                '<div style="' + _R + '"><span>🔍</span><div><strong>缩放与选词</strong><div style="' + _D + '">双指缩放、双击放大、长按选词复制</div></div></div>' +
+                '<div style="' + _R + '"><span>🔎</span><div><strong>全文搜索</strong><div style="' + _D + '">搜索 PDF 全文内容，关键词高亮跳转</div></div></div>' +
+                '<div style="' + _R + '"><span>🖼️</span><div><strong>缩略图导航</strong><div style="' + _D + '">底部展开缩略图条，快速跳转到指定页</div></div></div></div>' +
+                // 4. 语音朗读
+                '<div style="margin-bottom:14px"><div style="' + _S + '">🔊 语音朗读</div>' +
+                '<div style="' + _R + '"><span>▶️</span><div><strong>听书</strong><div style="' + _D + '">底部控制栏播放/暂停，支持 0.5x–2x 变速</div></div></div>' +
+                '<div style="' + _R + '"><span>📱</span><div><strong>后台朗读</strong><div style="' + _D + '">支持锁屏和后台持续朗读</div></div></div></div>' +
+                // 5. 导入与导出
+                '<div style="margin-bottom:14px"><div style="' + _S + '">📥 导入与导出</div>' +
+                '<div style="' + _R + '"><span>📥</span><div><strong>导入书籍</strong><div style="' + _D + '">支持 TXT、Markdown、EPUB、PDF、ZIP 批量导入</div></div></div>' +
+                '<div style="' + _R + '"><span>📤</span><div><strong>导出书籍</strong><div style="' + _D + '">导出为 PDF（含标注）、TXT、Markdown 或 EPUB</div></div></div>' +
+                '<div style="' + _R + '"><span>📦</span><div><strong>批量导出</strong><div style="' + _D + '">书架编辑模式多选导出为 ZIP，支持保存到本机或分享</div></div></div>' +
+                '<div style="' + _R + '"><span>☁️</span><div><strong>WebDAV 同步</strong><div style="' + _D + '">连接 WebDAV 服务器，下载导入或上传备份书籍</div></div></div></div>' +
+                // 6. 个性化与更多
+                '<div style="margin-bottom:0"><div style="' + _S + '">🔧 个性化与更多</div>' +
+                '<div style="' + _R + '"><span>🌓</span><div><strong>主题切换</strong><div style="' + _D + '">暖色/冷色/夜间三种阅读模式</div></div></div>' +
+                '<div style="' + _R + '"><span>🔤</span><div><strong>字体大小</strong><div style="' + _D + '">拖动滑块调节阅读字号（14–26px）</div></div></div>' +
+                '<div style="' + _R + '"><span>🔍</span><div><strong>全文搜索</strong><div style="' + _D + '">搜索书名或书籍内容，快速定位</div></div></div>' +
+                '<div style="' + _R + '"><span>✝️</span><div><strong>经文引用</strong><div style="' + _D + '">点击经文引用弹出注解、串珠与原文</div></div></div>' +
+                '<div style="' + _R + '"><span>🔄</span><div><strong>检查更新</strong><div style="' + _D + '">设置页手动检查或自动检查新版本</div></div></div>' +
+                '<div style="' + _R + '"><span>💬</span><div><strong>问题反馈</strong><div style="' + _D + '">设置页提交功能建议或问题报告</div></div></div></div>' +
             '</div></div>';
 
         var dlg = window.BK.openDialog({
