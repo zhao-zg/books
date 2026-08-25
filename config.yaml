@@ -26,10 +26,10 @@ default_book:
 remote_servers:
   cloudflare:
     # ── 账户1 域名 ──
-    - https://books.zhaozg.dpdns.org/
+    - https://books.1189.dpdns.org/
     - https://books.zhaozg.cloudns.org/
     - https://books.zzgxxx.eu.org/
-    - https://books.1189.dpdns.org/
+    - https://books.bxg.dpdns.org/
     # ── 账户2 域名（待配置） ──
     # - https://books2.example.com/
   github_api: https://api.github.com/repos/zhao-zg/books/releases/latest
