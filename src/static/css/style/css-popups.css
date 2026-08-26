@@ -152,7 +152,7 @@
 .scripture-popup-back:active { background: var(--surface-alt, #EDEAE4); border-radius: 50%; }
 .fn-ref {
   /* 注解号（1 2 3…）：字号随正文缩放，热区保留便于点击 */
-  display: inline-block; font-size: 0.70em; line-height: 1;
+  display: inline-block; font-size: 0.68em; line-height: 1;
   vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
   padding: 0.1em 0.24em; margin: 0 0.08em;
   border-radius: 0.3em;
@@ -163,7 +163,7 @@
 .fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); color: #fff; }
 .xref-ref {
   /* 串珠号（a b c…）：与注解号同规格，保持视觉一致 */
-  display: inline-block; font-size: 0.70em; line-height: 1;
+  display: inline-block; font-size: 0.68em; line-height: 1;
   vertical-align: super; color: var(--brand, #3D8A5A); font-weight: 700; cursor: pointer;
   padding: 0.1em 0.24em; margin: 0 0.08em;
   border-radius: 0.3em;
