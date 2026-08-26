@@ -8,7 +8,7 @@
    字号/行高需统一命中，否则滑动时预览页与当前页字体不一致。 */
 /* 顶部留出浮动导航栏高度（约 48px）+ 刘海安全区，避免长章节首行被遮挡；
    左右边距相对收窄，使阅读区更居中、上下更平衡。 */
-#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 28px; line-height: 1.85; font-family: var(--reading-font-family, 'Songti SC', Georgia, serif); font-size: var(--reading-font-size, 16px); }
+#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 28px; line-height: 1.85; font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); }
 @media (min-width: 768px) { #chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 20px) 24px 32px; } }
 /* 横屏（短高）阅读可读性：约束正文宽度居中、顶部对齐，避免超宽行长；
    设计稿横屏阅读栏 576px，约束到 640px 居中接近可读量度。
