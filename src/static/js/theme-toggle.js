@@ -5,6 +5,15 @@
     const fontSizes = [14, 15, 16, 18, 20, 22, 24, 26]; // px 固定值
     const defaultSizeIndex = 3; // 18px
     let currentSizeIndex = defaultSizeIndex;
+    // 阅读字体预设：key → { label, stack }
+    const fontPresets = {
+        serif:  { label: '宋体', stack: "'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif" },
+        sans:   { label: '黑体', stack: "'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
+        kai:    { label: '楷体', stack: "'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif" },
+        system: { label: '系统', stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" }
+    };
+    const defaultFontKey = 'serif';
+    let currentFontKey = defaultFontKey;
     const themeMetaColors = {
         cool: '#F5F4F1',
         warm: '#F7F2E8',
@@ -99,6 +108,12 @@
         // 始终应用字号（确保默认值也生效）
         applyFontSize(fontSizes[currentSizeIndex]);
         updateFontSizeUI();
+
+        // 恢复阅读字体选择
+        var savedFont = null;
+        try { savedFont = localStorage.getItem('readingFontFamily'); } catch (e) {}
+        if (savedFont && fontPresets[savedFont]) currentFontKey = savedFont;
+        applyReadingFont(currentFontKey);
 
         // 应用级操作已移至「我的」页面，设置面板仅保留阅读模式 + 字体大小
         // 但保留全局函数注册（downloadApk / showGuideDialog / showFeedbackDialog）
@@ -749,6 +764,27 @@
                     '</div>' +
                 '</div>' +
                 '<div class="theme-section">' +
+                    '<div class="theme-section-title">阅读字体</div>' +
+                    '<div class="font-options">' +
+                        '<div class="font-option" data-font="serif" onclick="setReadingFont(\'serif\')">' +
+                            '<div class="font-option-preview" style="font-family: \'Songti SC\', SimSun, serif;">宋</div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">宋体</div></div>' +
+                        '</div>' +
+                        '<div class="font-option" data-font="sans" onclick="setReadingFont(\'sans\')">' +
+                            '<div class="font-option-preview" style="font-family: \'PingFang SC\', \'Microsoft YaHei\', sans-serif;">黑</div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">黑体</div></div>' +
+                        '</div>' +
+                        '<div class="font-option" data-font="kai" onclick="setReadingFont(\'kai\')">' +
+                            '<div class="font-option-preview" style="font-family: \'STKaiti\', KaiTi, serif;">楷</div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">楷体</div></div>' +
+                        '</div>' +
+                        '<div class="font-option" data-font="system" onclick="setReadingFont(\'system\')">' +
+                            '<div class="font-option-preview" style="font-family: -apple-system, \'Microsoft YaHei\', sans-serif;">系</div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">系统</div></div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="theme-section">' +
                     '<div class="theme-section-title">字体大小</div>' +
                     '<div class="font-size-slider-container">' +
                         '<span class="font-label-small">A</span>' +
@@ -773,6 +809,7 @@
         // 同步当前 UI 状态
         updateThemeUI(getPreferredTheme());
         updateFontSizeUI();
+        updateReadingFontUI();
     };
 
     window.closeThemePanel = function() {
@@ -863,6 +900,27 @@
         currentSizeIndex = defaultSizeIndex;
         applyFontSize(fontSizes[currentSizeIndex]);
         updateFontSizeUI();
+    };
+    
+    function applyReadingFont(key) {
+        var preset = fontPresets[key] || fontPresets[defaultFontKey];
+        document.documentElement.style.setProperty('--user-reading-font', preset.stack);
+        try { localStorage.setItem('readingFontFamily', key); } catch (e) {}
+        currentFontKey = preset === fontPresets[key] ? key : defaultFontKey;
+    }
+
+    function updateReadingFontUI() {
+        var options = document.querySelectorAll('#bk-theme-dialog .font-option');
+        for (var i = 0; i < options.length; i++) {
+            var el = options[i];
+            var isActive = el.getAttribute('data-font') === currentFontKey;
+            el.classList.toggle('active', isActive);
+        }
+    }
+
+    window.setReadingFont = function(key) {
+        applyReadingFont(key);
+        updateReadingFontUI();
     };
     
     window.BKFontControl = {
