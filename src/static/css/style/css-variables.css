@@ -50,6 +50,8 @@
   --heading-font-family: 'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
   --num-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --mono-font-family: 'SF Mono', 'Menlo', Consolas, 'Courier New', monospace;
+  /* 用户阅读字体（运行时由设置面板切换，空=用默认衬线栈） */
+  --user-reading-font: ;
   /* 赞助对话框 */
   --sponsor-wx-color: #07C160;
   --sponsor-zfb-color: #1677FF;
