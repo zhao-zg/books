@@ -79,6 +79,22 @@
     return importStore.getItem(KEY_PREFIX + bookId);
   }
 
+  /**
+   * 判断某 bookId 是否在导入库中（imported_ids 有记录）。
+   * 不限定 imported- 前缀：ZIP 导入的书城书（book.json 内为书城原始 ID、无前缀）
+   * 也会被写入 imported_ids，此处一并命中，供 BKShelf.purgeBook 正确路由清理分支。
+   * @param {string} bookId
+   * @returns {Promise<boolean>}
+   */
+  function isImportedBook(bookId) {
+    if (!bookId) return Promise.resolve(false);
+    return importStore.getItem(KEY_IDS).then(function (ids) {
+      return !!(ids && ids.indexOf(bookId) !== -1);
+    }).catch(function () {
+      return false;
+    });
+  }
+
   function getImportedBooks() {
     return importStore.getItem(KEY_IDS).then(function(ids) {
       if (!ids || !ids.length) return [];

@@ -775,8 +775,18 @@
         // 导入书走 imported-data（需 _mergeImportedBooks 合并到 _zlBooks）。
         var doRefresh = function () {
             // 先重渲染书城/书架视图（会重建 DOM），再刷新角标
-            if (win.BKRenderer && typeof win.BKRenderer.renderHome === 'function') {
-                win.BKRenderer.renderHome();
+            // ★ 修复：renderHome 无条件渲染书架页，导致从书城页导入后「页面是书架但 Tab 高亮书城」。
+            //   改为按当前 hash 分发到对应视图；hash 为空/未知时走 renderHome 兜底（书架）。
+            var _h = (win.location && win.location.hash) || '';
+            var _route = _h.replace(/^#\/?/, '').split('/')[0] || '';
+            if (win.BKRenderer) {
+                if (_route === 'city') {
+                    if (typeof win.BKRenderer.renderCityPage === 'function') win.BKRenderer.renderCityPage();
+                } else if (_route === 'shelf') {
+                    if (typeof win.BKRenderer.renderShelfPage === 'function') win.BKRenderer.renderShelfPage();
+                } else if (typeof win.BKRenderer.renderHome === 'function') {
+                    win.BKRenderer.renderHome();
+                }
             }
             _refreshAfterDownload();
         };
@@ -1408,15 +1418,22 @@
         }
         // 通过 cacheBook 持久化到 DataManager 的已下载列表（刷新后不丢失）
         // P2-6: 仅收集，不在循环中调用（延迟到空闲时批量执行）
-        if (win.DataManager && win.DataManager.cacheBook) {
-          _booksToCache.push(ib);
-        } else {
-          // DataManager 不可用时退回内存操作
-          var inDl = false;
-          for (var di = 0; di < _zlDownloadedIds.length; di++) {
-            if (_zlDownloadedIds[di] === ib.id) { inDl = true; break; }
+        // ★ 修复：仅对「导入书」（id 以 imported- 开头）执行 cacheBook。
+        //   ZIP 导入的书城书（book.json 内为书城原始 ID、无前缀）走 _importCityBook 已在
+        //   zl-data 中有缓存，此处若再次 cacheBook 会把它回填进 DataManager 已下载列表，
+        //   即使 _purgeBook 已清掉 imported_ids 记录，残留的 zl-data 缓存也会在书城点开时
+        //   自动入架（renderer-city.js BKShelf.add），造成「移出书架后又出现」。
+        if (ib.id && ib.id.indexOf('imported-') === 0) {
+          if (win.DataManager && win.DataManager.cacheBook) {
+            _booksToCache.push(ib);
+          } else {
+            // DataManager 不可用时退回内存操作
+            var inDl = false;
+            for (var di = 0; di < _zlDownloadedIds.length; di++) {
+              if (_zlDownloadedIds[di] === ib.id) { inDl = true; break; }
+            }
+            if (!inDl) _zlDownloadedIds.push(ib.id);
           }
-          if (!inDl) _zlDownloadedIds.push(ib.id);
         }
         if (!win.__bkBooks) win.__bkBooks = [];
         var exists = false;

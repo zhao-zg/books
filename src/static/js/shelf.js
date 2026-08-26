@@ -205,10 +205,24 @@
     // 1) 同步移出书架（触发立即重渲染，避免用户感知卡顿）
     try { remove(bookId); } catch (e) {}
 
+    // ★ 修复：移出书架 ≠ 仅凭前缀路由。ZIP 导入的书城书（book.json 内为书城原始 ID、
+    //   无 imported- 前缀）会先被 _importCityBook 缓存进 zl-data、不入架；用户稍后在书城
+    //   点开该书时 BKShelf.add() 自动入架。此类书无 imported- 前缀，但同样来自 ZIP 导入
+    //   （imported_ids 中有记录）。若按旧逻辑只清书架记录、保留 zl-data，_mergeImportedBooks()
+    //   会在每次刷新时用 DataManager.cacheBook() 把书写回 zl-data，且书城点击还会再次 add 入架，
+    //   导致「移出书架后又出现」。
+    //   因此：凡 imported_ids 中有记录的（含 ZIP 导入的书城书），一律走「彻底清理」分支，
+    //   清理 imported-data 记录 + zl-data 缓存；只有真正的书城在线书（从未导入过）才保留缓存。
     var isImported = bookId.indexOf('imported-') === 0;
+    var inImportedIds = false;
+    try {
+      if (win.ImportManager && win.ImportManager.isImportedBook) {
+        inImportedIds = !!win.ImportManager.isImportedBook(bookId);
+      }
+    } catch (e) {}
 
-    // 2) 书城下载书：仅移出书架，保留本地数据作为离线兜底（zl-data / 阅读进度 / 滚动位置）
-    if (!isImported) {
+    // 2) 书城在线书（无 imported- 前缀且不在导入库中）：仅移出书架，保留本地数据作为离线兜底
+    if (!isImported && !inImportedIds) {
       // 仍广播 purge-done 以保持事件契约一致（占用统计无需更新，因数据未清）
       return Promise.resolve().then(function () {
         try {
@@ -219,7 +233,7 @@
       });
     }
 
-    // 3) 导入书：彻底清理 localStorage 与 IndexedDB
+    // 3) 导入书 / 导入的书城书：彻底清理 localStorage 与 IndexedDB
     _purgeLocalStorageFor(bookId);
 
     var p;

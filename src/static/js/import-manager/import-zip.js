@@ -181,72 +181,24 @@
             var isCityBook = originalId.indexOf('imported-') !== 0;
 
             // ── 分流：书城书 vs 导入书 ──────────────────────────────
-            if (isCityBook) {
-                // 书城书：保持原 ID → zl-data 缓存，不入架，不覆盖
-                return _importCityBook(zip, bookDirName, bookData, originalId);
-            } else {
-                // 导入书：走现有 _saveBook 逻辑
-                return _importImportedBook(zip, bookDirName, bookData, originalId);
-            }
+            // ★ 修复：不再区分「书城书」与「导入书」——统一走导入书分支（_saveBook + 入架）。
+            //   理由：ZIP 导入的书城书若保持原 ID 只缓存 zl-data 不入架，
+            //   ① 导入完成后书架里看不到（用户以为导入失败）；
+            //   ② 用户稍后在书城点开它时 BKShelf.add() 自动入架，但 ID 无 imported- 前缀，
+            //      purgeBook 移除时按「书城在线书」分支只清书架记录、保留 zl-data 缓存，
+            //      _mergeImportedBooks() 每次刷新又把它回填，导致「移出书架后又出现」。
+            //   统一加 imported- 前缀后：入架可见、移除时走彻底清理分支（imported-data +
+            //   zl-data + PDF 数据一并清除），行为与用户直觉一致。
+            return _importImportedBook(zip, bookDirName, bookData, originalId);
         }).catch(function (err) {
             return { success: false, id: bookDirName, error: (err && err.message) || '读取失败' };
         });
     }
 
     /**
-     * 书城书导入：保持原 ID → DataManager.cacheBook() 存入 zl-data，
-     * 不入书架，已有缓存则跳过不覆盖。
-     */
-    function _importCityBook(zip, bookDirName, bookData, originalId) {
-        var isPdf = _isPdfBookData(bookData);
-
-        // 1. 检查是否已缓存，已有则跳过
-        if (win.DataManager && win.DataManager.isBookDownloaded) {
-            return win.DataManager.isBookDownloaded(originalId).then(function (alreadyCached) {
-                if (alreadyCached) {
-                    console.log('[BK.ImportZip] _importCityBook: 已缓存，跳过 id=' + originalId);
-                    return { success: true, skipped: true, id: originalId, title: bookData.title || originalId };
-                }
-                return _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf);
-            });
-        }
-        // DataManager 不可用时退化：直接缓存
-        return _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf);
-    }
-
-    /**
-     * 将书城书写入 zl-data 缓存（通过 DataManager.cacheBook）
-     */
-    function _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf) {
-        if (!win.DataManager || !win.DataManager.cacheBook) {
-            console.warn('[BK.ImportZip] _cacheCityBook: DataManager.cacheBook 不可用，跳过 id=' + originalId);
-            return Promise.resolve({ success: false, id: originalId, title: bookData.title, error: 'DataManager 不可用' });
-        }
-        console.log('[BK.ImportZip] _cacheCityBook: 缓存书城书 id=' + originalId + '，title=' + (bookData.title || '?'));
-        return win.DataManager.cacheBook(originalId, bookData).then(function () {
-            // PDF 书：额外保存原始 PDF 二进制
-            if (isPdf) {
-                var pdfPath = 'books/' + bookDirName + '/original.pdf';
-                var pdfEntry = zip.file(pdfPath);
-                if (pdfEntry) {
-                    return pdfEntry.async('uint8array').then(function (pdfBytes) {
-                        return _savePdfData(pdfBytes, originalId).then(function () {
-                            return { success: true, id: originalId, title: bookData.title || originalId };
-                        });
-                    });
-                }
-            }
-            return { success: true, id: originalId, title: bookData.title || originalId };
-        }).then(function (result) {
-            // 恢复用户数据（阅读进度、书签、高亮等），用原 ID
-            return _restoreUserDataFromZip(zip, bookDirName, originalId, result);
-        }).catch(function (err) {
-            return { success: false, id: originalId, title: bookData.title, error: (err && err.message) || '缓存失败' };
-        });
-    }
-
-    /**
      * 导入书导入：加新 imported- 前缀 ID → _saveBook() → 入架（原有逻辑）
+     * 注：ZIP 内的书城书（book.json 中 id 无 imported- 前缀）同样走本分支，
+     *     统一加前缀后入架，避免「移出书架后又出现」（见 _importOneBook 注释）。
      */
     function _importImportedBook(zip, bookDirName, bookData, originalId) {
         // 自动加前缀避免与书城书冲突

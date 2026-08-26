@@ -138,6 +138,7 @@
     isImportableFile: isImportableFile,
     getImportedBook: getImportedBook,
     getImportedBooks: getImportedBooks,
+    isImportedBook: isImportedBook,
     removeImportedBook: removeImportedBook,
     removePdfData: removePdfData,
     getPdfDataStore: getPdfDataStore,

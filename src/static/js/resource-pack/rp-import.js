@@ -293,8 +293,20 @@
           if (results[i].success) ok++; else fail++;
         }
         // 刷新书架
-        if (win.BKRenderer && win.BKRenderer.renderHome) {
-          try { win.BKRenderer.renderHome(); } catch (e) {}
+        // ★ 修复：renderHome 无条件渲染书架页，导致从书城页导入后「页面是书架但 Tab 高亮书城」。
+        //   按当前 hash 分发到对应视图；hash 为空/未知时走 renderHome 兜底（书架）。
+        if (win.BKRenderer) {
+          var _h2 = (win.location && win.location.hash) || '';
+          var _r2 = _h2.replace(/^#\/?/, '').split('/')[0] || '';
+          try {
+            if (_r2 === 'city') {
+              if (win.BKRenderer.renderCityPage) win.BKRenderer.renderCityPage();
+            } else if (_r2 === 'shelf') {
+              if (win.BKRenderer.renderShelfPage) win.BKRenderer.renderShelfPage();
+            } else if (win.BKRenderer.renderHome) {
+              win.BKRenderer.renderHome();
+            }
+          } catch (e) {}
         }
         if (fail === 0) {
           dlg.close();
