@@ -163,12 +163,13 @@
   flex-shrink: 0;
 }
 
-/* ── 书籍下载状态徽章（书城卡 .zl-book-card.is-city-book 内的 .cache-status） ────
+/* ── 书籍缓存/下载状态徽章（书城卡 .zl-book-card.is-city-book 内的 .cache-status） ────
  * 设计原则：
- *  - 常态空徽章不显示（:empty 选择器），避免冗余 ☁/✓ 角标干扰封面海报视觉
+ *  - 已缓存：低调绿色角标「✓ 已缓存」，半透明背景，不抢封面视觉
  *  - 下载中：橙色脉冲 + 禁用 .book-link 再次点击（pointer-events:none）
  *  - 失败：红色徽章不脉冲，状态保留供用户查看/重试
- * 文字内容（如「⏳ 下载中 50%」「✓ 已下载」「✗ 下载失败」）由 _handleBookClick 写入，
+ *  - 空徽章不显示（:empty 选择器）
+ * 文字内容由 _buildBookCard（常态）/ _handleBookClick（下载中）/ _refreshAfterDownload（刷新）写入，
  * CSS 仅负责定位、配色与动画。
  * ----------------------------------------------------------------------------- */
 .zl-book-card.is-city-book .cache-status {
@@ -200,9 +201,28 @@
   transform: translateY(0);
 }
 
+/* 已缓存常态角标：右下角小圆形 ✓，不挡封面内容 */
+.zl-book-card.is-city-book .cache-status.is-cached {
+  top: auto;
+  bottom: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(61, 138, 90, 0.88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  letter-spacing: 0;
+  opacity: 0.92;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 /* 兼容旧通用规则：css-base.css 中 .zl-book-card .cache-status 用了 margin-left/opacity 等
- * flex-item 样式，城市卡用绝对定位覆盖之。已下载未失败的常态下 _refreshAfterDownload 会清空
- * textContent，:empty 触发 opacity:0 -> 回到不可见。 */
+ * flex-item 样式，城市卡用绝对定位覆盖之。 */
 
 @keyframes bk-pulse {
   0%, 100% { opacity: 0.78; transform: translateY(0) scale(0.98); }

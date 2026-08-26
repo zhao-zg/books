@@ -105,10 +105,11 @@
       html += '</div>';
       html += '</div>';
     }
-    // 状态徽章：默认空不显示；下载中/成功/失败时由 _handleBookClick 写入文字并由 CSS 浮到卡片右上角。
-    // 此前 _handleBookClick / _refreshAfterDownload 用 querySelector('.cache-status') 取元素，
-    // 但 _buildBookCard 从未渲染该元素导致永远为 null —— 下载反馈实际从未生效（潜伏 bug）。
-    html += '<div class="cache-status" aria-hidden="true"></div>';
+    // 状态徽章：书城卡常态显示「已缓存」角标（已下载的书）；下载中/失败由 _handleBookClick 覆盖。
+    var isCached = cityBook && _isBookDownloaded(book.id);
+    html += '<div class="cache-status' + (isCached ? ' is-cached' : '') + '"' +
+      (isCached ? '' : ' aria-hidden="true"') + '>' +
+      (isCached ? '✓' : '') + '</div>';
     html += '</div>';
     html += '</div>';
     html += '</div>';
@@ -174,6 +175,7 @@
     }
     if (iconEl) {
       iconEl.textContent = '⏳ 下载中…';
+      iconEl.classList.remove('is-cached');
       iconEl.style.color = 'var(--warning-text, #B5793A)';
       iconEl.setAttribute('aria-hidden', 'false');
     }
@@ -206,8 +208,9 @@
           _zlDownloadedIds.push(bookId);
         }
         if (iconEl) {
-          iconEl.textContent = '✓ 已下载';
-          iconEl.style.color = 'var(--success-text, #3D8A5A)';
+          iconEl.textContent = '✓';
+          iconEl.classList.add('is-cached');
+          iconEl.style.color = '';  // 由 CSS .is-cached 控制配色
         }
         if (cardEl2) cardEl2.removeAttribute('data-downloading');
         // 延迟 400ms 再跳转，让用户看清「已下载」状态后再打开书。
@@ -231,6 +234,7 @@
         if (err && err.code === ERR_CANCELLED) {
           if (iconEl) {
             iconEl.textContent = '';
+            iconEl.classList.remove('is-cached');
             iconEl.style.color = '';
             iconEl.setAttribute('aria-hidden', 'true');
           }
@@ -241,6 +245,7 @@
         var errMsg = (err && (err.hint || err.message)) ? (err.hint || err.message) : '未知错误';
         if (iconEl) {
           iconEl.textContent = '✗ 下载失败';
+          iconEl.classList.remove('is-cached');
           iconEl.style.color = 'var(--danger-text, #C8553D)';
           iconEl.setAttribute('aria-hidden', 'false');
         }
@@ -759,25 +764,26 @@
         }
       }).then(function (result) {
         var msg = '导入完成：成功 ' + result.success + ' 本';
+        if (result.skipped > 0) msg += '，已跳过 ' + result.skipped + ' 本';
         if (result.failed > 0) msg += '，失败 ' + result.failed + ' 本';
         if (statusEl) statusEl.textContent = msg;
         if (barEl) barEl.style.width = '100%';
         _toast(msg);
 
-        // 3. 导入后刷新书城数据（合并导入书到列表）
-        // _mergeImportedBooks 与本函数同属一个闭包，可直接调用
-        if (typeof _mergeImportedBooks === 'function') {
-          _mergeImportedBooks().then(function () {
-            // 刷新当前书城视图（重新渲染书架/书城）
-            var homeView = document.getElementById('homeView');
-            if (homeView && win.BKRenderer && typeof win.BKRenderer.renderHome === 'function') {
-              win.BKRenderer.renderHome();
+        // 3. 导入后刷新书城数据
+        // 书城书走 zl-data 缓存（不入 _zlBooks，只需刷新角标）；
+        // 导入书走 imported-data（需 _mergeImportedBooks 合并到 _zlBooks）。
+        var doRefresh = function () {
+            // 先重渲染书城/书架视图（会重建 DOM），再刷新角标
+            if (win.BKRenderer && typeof win.BKRenderer.renderHome === 'function') {
+                win.BKRenderer.renderHome();
             }
             _refreshAfterDownload();
-          });
+        };
+        if (typeof _mergeImportedBooks === 'function') {
+            _mergeImportedBooks().then(doRefresh, doRefresh);
         } else {
-          // 退化：刷新已下载列表
-          _refreshAfterDownload();
+            doRefresh();
         }
       }).catch(function (err) {
         var msg = (err && err.message) ? err.message : '导入失败';
@@ -1316,14 +1322,15 @@
    * 状态协调规则（避免覆盖「下载中/失败」的实时反馈）：
    *   - data-downloading="true" → 跳过（用户正在下载，不要覆盖进度文字）
    *   - data-download-failed="true" → 跳过（用户失败状态需保留供查看/重试）
-   *   - 其他卡片 → 清空 .cache-status 内容（默认空，CSS 隐藏；不再画常态 ☁/✓ 角标，
-   *     因为书城卡已在封面/标题表达了书籍身份，常态徽章是冗余信息）
+   *   - 其他卡片 → 已缓存的显示「✓ 已缓存」角标，未缓存的清空
    */
   function _refreshAfterDownload() {
     if (!_zlDmReady || !win.DataManager) return;
     win.DataManager.getDownloadedBookIds().then(function (ids) {
       _zlDownloadedIds = ids;
-      // 刷新书籍网格中的下载图标
+      var idSet = {};
+      for (var ii = 0; ii < ids.length; ii++) idSet[ids[ii]] = true;
+      // 刷新书籍网格中的缓存状态
       var homeView = document.getElementById('homeView');
       if (homeView) {
         var cards = homeView.querySelectorAll('.zl-book-card');
@@ -1332,9 +1339,18 @@
           if (cards[i].getAttribute('data-downloading') === 'true') continue;
           if (cards[i].getAttribute('data-download-failed') === 'true') continue;
           var statusEl = cards[i].querySelector('.cache-status');
-          if (statusEl) {
-            // 默认状态清空 —— 常态徽章由 _handleBookClick 在点击时填充
+          if (!statusEl) continue;
+          var bid = cards[i].getAttribute('data-book-id');
+          if (bid && idSet[bid]) {
+            // 已缓存：显示常态角标（小圆形 ✓）
+            statusEl.textContent = '✓';
+            statusEl.classList.add('is-cached');
+            statusEl.style.color = '';
+            statusEl.setAttribute('aria-hidden', 'false');
+          } else {
+            // 未缓存：清空
             statusEl.textContent = '';
+            statusEl.classList.remove('is-cached');
             statusEl.style.color = '';
             statusEl.setAttribute('aria-hidden', 'true');
           }

@@ -143,9 +143,15 @@
 
     /**
      * 从 ZIP 中导入单本书
+     *
+     * 导入策略（v2+ 分流）：
+     *   - 书城书（id 不以 imported- 开头）：保持原 ID → DataManager.cacheBook() 存入 zl-data，
+     *     不入书架，已有缓存则跳过不覆盖。与下载书籍统一管理。
+     *   - 导入书（id 以 imported- 开头）：走 _saveBook() → imported-data store + 入架（原有逻辑）。
+     *
      * @param {JSZip} zip    JSZip 实例
      * @param {string} bookDirName  书籍目录名（books/ 下的子目录名）
-     * @returns {Promise<{success:boolean, id?:string, title?:string, error?:string}>}
+     * @returns {Promise<{success:boolean, skipped?:boolean, id?:string, title?:string, error?:string}>}
      */
     function _importOneBook(zip, bookDirName) {
         var bookJsonPath = 'books/' + bookDirName + '/book.json';
@@ -172,70 +178,145 @@
             }
 
             originalId = bookData.id;
+            var isCityBook = originalId.indexOf('imported-') !== 0;
 
-            // 非 imported- 前缀的 ID（书城书导出后再导入），自动加前缀避免冲突
-            if (bookData.id.indexOf('imported-') !== 0) {
-                var newId = _generateId();
-                console.log('[BK.ImportZip] _importOneBook: 书城书 ID=' + bookData.id + ' → 新 ID=' + newId);
-                bookData.id = newId;
+            // ── 分流：书城书 vs 导入书 ──────────────────────────────
+            if (isCityBook) {
+                // 书城书：保持原 ID → zl-data 缓存，不入架，不覆盖
+                return _importCityBook(zip, bookDirName, bookData, originalId);
+            } else {
+                // 导入书：走现有 _saveBook 逻辑
+                return _importImportedBook(zip, bookDirName, bookData, originalId);
             }
-
-            var isPdf = _isPdfBookData(bookData);
-
-            // PDF 书：书城书 ID 变化后，需把 chapters 中 pdf_page.pdfBookId 重映射到新 ID，
-            // 否则渲染器按旧 ID 到 pdfStore 取 original.pdf 会失败（找不到数据）
-            if (isPdf && bookData.id !== originalId && bookData.chapters) {
-                var mappedCount = 0;
-                for (var chIdx = 0; chIdx < bookData.chapters.length; chIdx++) {
-                    var chContent = bookData.chapters[chIdx].content;
-                    if (!Array.isArray(chContent)) continue;
-                    for (var cIdx = 0; cIdx < chContent.length; cIdx++) {
-                        if (chContent[cIdx] && chContent[cIdx].type === 'pdf_page') {
-                            chContent[cIdx].pdfBookId = bookData.id;
-                            mappedCount++;
-                        }
-                    }
-                }
-                if (mappedCount) {
-                    console.log('[BK.ImportZip] _importOneBook: 重映射 ' + mappedCount + ' 个 pdf_page 的 pdfBookId → ' + bookData.id);
-                }
-            }
-
-            return _saveBook(bookData).then(function () {
-                // PDF 书：额外保存原始 PDF 二进制
-                if (isPdf) {
-                    var pdfPath = 'books/' + bookDirName + '/original.pdf';
-                    var pdfEntry = zip.file(pdfPath);
-                    if (pdfEntry) {
-                        return pdfEntry.async('uint8array').then(function (pdfBytes) {
-                            return _savePdfData(pdfBytes, bookData.id).then(function () {
-                                return { success: true, id: bookData.id, title: bookData.title || bookData.id };
-                            });
-                        });
-                    }
-                }
-                return { success: true, id: bookData.id, title: bookData.title || bookData.id };
-            }).then(function (result) {
-                // 恢复用户数据（阅读进度、书签、高亮等）
-                var udPath = 'books/' + bookDirName + '/userdata.json';
-                var udEntry = zip.file(udPath);
-                if (udEntry) {
-                    return udEntry.async('string').then(function (udText) {
-                        try {
-                            var userData = JSON.parse(udText);
-                            // 书城书的 ID 已变更为 imported- 前缀，需用新 ID 写入
-                            _restoreUserData(userData, bookData.id);
-                        } catch (e) { /* 静默失败 */ }
-                        return result;
-                    }).catch(function () { return result; });
-                }
-                return result;
-            }).catch(function (err) {
-                return { success: false, id: bookData.id, title: bookData.title, error: (err && err.message) || '保存失败' };
-            });
         }).catch(function (err) {
             return { success: false, id: bookDirName, error: (err && err.message) || '读取失败' };
         });
+    }
+
+    /**
+     * 书城书导入：保持原 ID → DataManager.cacheBook() 存入 zl-data，
+     * 不入书架，已有缓存则跳过不覆盖。
+     */
+    function _importCityBook(zip, bookDirName, bookData, originalId) {
+        var isPdf = _isPdfBookData(bookData);
+
+        // 1. 检查是否已缓存，已有则跳过
+        if (win.DataManager && win.DataManager.isBookDownloaded) {
+            return win.DataManager.isBookDownloaded(originalId).then(function (alreadyCached) {
+                if (alreadyCached) {
+                    console.log('[BK.ImportZip] _importCityBook: 已缓存，跳过 id=' + originalId);
+                    return { success: true, skipped: true, id: originalId, title: bookData.title || originalId };
+                }
+                return _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf);
+            });
+        }
+        // DataManager 不可用时退化：直接缓存
+        return _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf);
+    }
+
+    /**
+     * 将书城书写入 zl-data 缓存（通过 DataManager.cacheBook）
+     */
+    function _cacheCityBook(zip, bookDirName, bookData, originalId, isPdf) {
+        if (!win.DataManager || !win.DataManager.cacheBook) {
+            console.warn('[BK.ImportZip] _cacheCityBook: DataManager.cacheBook 不可用，跳过 id=' + originalId);
+            return Promise.resolve({ success: false, id: originalId, title: bookData.title, error: 'DataManager 不可用' });
+        }
+        console.log('[BK.ImportZip] _cacheCityBook: 缓存书城书 id=' + originalId + '，title=' + (bookData.title || '?'));
+        return win.DataManager.cacheBook(originalId, bookData).then(function () {
+            // PDF 书：额外保存原始 PDF 二进制
+            if (isPdf) {
+                var pdfPath = 'books/' + bookDirName + '/original.pdf';
+                var pdfEntry = zip.file(pdfPath);
+                if (pdfEntry) {
+                    return pdfEntry.async('uint8array').then(function (pdfBytes) {
+                        return _savePdfData(pdfBytes, originalId).then(function () {
+                            return { success: true, id: originalId, title: bookData.title || originalId };
+                        });
+                    });
+                }
+            }
+            return { success: true, id: originalId, title: bookData.title || originalId };
+        }).then(function (result) {
+            // 恢复用户数据（阅读进度、书签、高亮等），用原 ID
+            return _restoreUserDataFromZip(zip, bookDirName, originalId, result);
+        }).catch(function (err) {
+            return { success: false, id: originalId, title: bookData.title, error: (err && err.message) || '缓存失败' };
+        });
+    }
+
+    /**
+     * 导入书导入：加新 imported- 前缀 ID → _saveBook() → 入架（原有逻辑）
+     */
+    function _importImportedBook(zip, bookDirName, bookData, originalId) {
+        // 自动加前缀避免与书城书冲突
+        var newId = _generateId();
+        console.log('[BK.ImportZip] _importImportedBook: 导入书 ID=' + originalId + ' → 新 ID=' + newId);
+        bookData.id = newId;
+
+        var isPdf = _isPdfBookData(bookData);
+
+        // PDF 书：ID 变化后需重映射 pdf_page.pdfBookId
+        if (isPdf && bookData.chapters) {
+            var mappedCount = 0;
+            for (var chIdx = 0; chIdx < bookData.chapters.length; chIdx++) {
+                var chContent = bookData.chapters[chIdx].content;
+                if (!Array.isArray(chContent)) continue;
+                for (var cIdx = 0; cIdx < chContent.length; cIdx++) {
+                    if (chContent[cIdx] && chContent[cIdx].type === 'pdf_page') {
+                        chContent[cIdx].pdfBookId = bookData.id;
+                        mappedCount++;
+                    }
+                }
+            }
+            if (mappedCount) {
+                console.log('[BK.ImportZip] _importImportedBook: 重映射 ' + mappedCount + ' 个 pdf_page 的 pdfBookId → ' + bookData.id);
+            }
+        }
+
+        return _saveBook(bookData).then(function () {
+            // PDF 书：额外保存原始 PDF 二进制
+            if (isPdf) {
+                var pdfPath = 'books/' + bookDirName + '/original.pdf';
+                var pdfEntry = zip.file(pdfPath);
+                if (pdfEntry) {
+                    return pdfEntry.async('uint8array').then(function (pdfBytes) {
+                        return _savePdfData(pdfBytes, bookData.id).then(function () {
+                            return { success: true, id: bookData.id, title: bookData.title || bookData.id };
+                        });
+                    });
+                }
+            }
+            return { success: true, id: bookData.id, title: bookData.title || bookData.id };
+        }).then(function (result) {
+            // 恢复用户数据（用新 ID）
+            return _restoreUserDataFromZip(zip, bookDirName, bookData.id, result);
+        }).catch(function (err) {
+            return { success: false, id: bookData.id, title: bookData.title, error: (err && err.message) || '保存失败' };
+        });
+    }
+
+    /**
+     * 从 ZIP 中恢复单本书的用户数据（阅读进度、书签、高亮等）
+     * @param {JSZip} zip
+     * @param {string} bookDirName
+     * @param {string} bookId  目标书籍 ID
+     * @param {Object} result   导入结果对象
+     * @returns {Promise<Object>}
+     */
+    function _restoreUserDataFromZip(zip, bookDirName, bookId, result) {
+        var udPath = 'books/' + bookDirName + '/userdata.json';
+        var udEntry = zip.file(udPath);
+        if (udEntry) {
+            return udEntry.async('string').then(function (udText) {
+                try {
+                    var userData = JSON.parse(udText);
+                    _restoreUserData(userData, bookId);
+                } catch (e) { /* 静默失败 */ }
+                return result;
+            }).catch(function () { return result; });
+        }
+        return result;
     }
 
     // ── 主入口 ──────────────────────────────────────────────────────────
@@ -246,7 +327,7 @@
      * @param {string} fileName  文件名（用于日志）
      * @param {Object} [opts]
      *   - {Function} onProgress(current, total, bookTitle)  进度回调
-     * @returns {Promise<{success:number, failed:number, errors:Array}>}
+     * @returns {Promise<{success:number, skipped:number, failed:number, errors:Array}>}
      */
     function importFromZip(buffer, fileName, opts) {
         opts = opts || {};
@@ -296,6 +377,7 @@
                 // 3. 逐本导入（顺序执行，避免大量写入并发）
                 var successCount = 0;
                 var failCount = 0;
+                var skippedCount = 0;
                 var errors = [];
                 var current = 0;
                 var total = bookDirNames.length;
@@ -306,8 +388,10 @@
                         chain = chain.then(function () {
                             current = idx + 1;
                             return _importOneBook(zip, dirName).then(function (result) {
-                                if (result.success) successCount++;
-                                else { failCount++; errors.push(result); }
+                                if (result.success) {
+                                    if (result.skipped) skippedCount++;
+                                    else successCount++;
+                                } else { failCount++; errors.push(result); }
                                 if (opts.onProgress) opts.onProgress(current, total, result.title || dirName);
                             });
                         });
@@ -316,10 +400,11 @@
 
                 return chain.then(function () {
                     console.log('[BK.ImportZip] importFromZip: 导入完成，成功=' + successCount +
-                        '，失败=' + failCount + '，耗时=' + (Date.now() - t0) + 'ms');
+                        '，跳过=' + skippedCount + '，失败=' + failCount + '，耗时=' + (Date.now() - t0) + 'ms');
                     if (errors.length) console.warn('[BK.ImportZip] importFromZip: 失败详情=', errors);
                     return {
                         success: successCount,
+                        skipped: skippedCount,
                         failed: failCount,
                         errors: errors
                     };
