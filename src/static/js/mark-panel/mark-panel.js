@@ -174,6 +174,10 @@
             // 书籍切换：目录与标记均为新书数据，强制重新加载
             MarkPanel._dirtyTabs.toc = true;
             MarkPanel._dirtyTabs.mark = true;
+            // 清空纲目缓存（适配器内部）
+            if (MarkPanel._adapter && MarkPanel._adapter.clearOutlineCache) {
+                MarkPanel._adapter.clearOutlineCache();
+            }
             return true;
         },
 
@@ -225,7 +229,7 @@
             search.id = 'bk-mp-search';
             var searchInput = document.createElement('input');
             searchInput.className = 'bk-mp-search-input';
-            searchInput.placeholder = '搜索章节…';
+            searchInput.placeholder = '搜索章节或正文…';
             searchInput.addEventListener('input', win.BK.MarkUtils.debounce(function () {
                 MarkPanel._onTocSearch(searchInput.value);
             }, 200));
@@ -352,8 +356,16 @@
 
             items.forEach(function (item, idx) {
                 var li = document.createElement('li');
-                li.className = 'bk-mp-toc-item';
-                if (item.isActive) li.classList.add('bk-mp-toc-current');
+                li.className = 'bk-mp-toc-item-wrapper';
+
+                // 章节行（含展开箭头）
+                var row = document.createElement('div');
+                row.className = 'bk-mp-toc-item';
+                if (item.isActive) row.classList.add('bk-mp-toc-current');
+
+                var toggle = document.createElement('button');
+                toggle.className = 'bk-mp-toc-toggle';
+                toggle.textContent = '\u25b8';
 
                 var num = document.createElement('span');
                 num.className = 'bk-mp-toc-num';
@@ -363,12 +375,30 @@
                 title.className = 'bk-mp-toc-title';
                 title.textContent = item.title;
 
-                li.appendChild(num);
-                li.appendChild(title);
+                row.appendChild(toggle);
+                row.appendChild(num);
+                row.appendChild(title);
+                li.appendChild(row);
 
-                li.addEventListener('click', function () {
+                // 搜索上下文片段（全文搜索结果才有）
+                if (item.context) {
+                    var ctx = document.createElement('div');
+                    ctx.className = 'bk-mp-toc-context';
+                    ctx.innerHTML = MarkPanel._highlightContext(item.context, MarkPanel._searchQuery);
+                    li.appendChild(ctx);
+                }
+
+                // 点击章节标题区域 → 跳转
+                row.addEventListener('click', function (e) {
+                    if (e.target === toggle || (e.target.closest && e.target.closest('.bk-mp-toc-toggle'))) return;
                     MarkPanel._adapter.toc.navigate(item);
                     MarkPanel.close();
+                });
+
+                // 点击展开箭头 → 加载/切换纲目子列表
+                toggle.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    MarkPanel._toggleOutline(li, item);
                 });
 
                 ul.appendChild(li);
@@ -425,15 +455,109 @@
             var pane = document.getElementById('bk-mp-pane-toc');
             if (!pane) return;
 
+            MarkPanel._searchQuery = keyword || '';
+
+            // 空关键词：恢复完整目录
+            if (!keyword || !keyword.trim()) {
+                MarkPanel._loadToc();
+                return;
+            }
+
             var items = MarkPanel._adapter.toc.search(keyword);
             pane.innerHTML = '';
 
             if (!items || items.length === 0) {
-                pane.innerHTML = '<div class="bk-mp-empty">无匹配章节</div>';
+                pane.innerHTML = '<div class="bk-mp-empty">\u65e0\u5339\u914d\u7ae0\u8282</div>';
                 return;
             }
 
             MarkPanel._renderEpubToc(pane, items);
+        },
+
+        // ─── 纲目展开 ──────────────────────────────────────────────────
+
+        _toggleOutline: function (li, chapterItem) {
+            var existing = li.querySelector('.bk-mp-toc-outline');
+            if (existing) {
+                // 已有子列表：切换显示
+                var isExpanded = existing.style.display !== 'none';
+                existing.style.display = isExpanded ? 'none' : 'block';
+                li.classList.toggle('bk-mp-toc-expanded', !isExpanded);
+                var toggle = li.querySelector('.bk-mp-toc-toggle');
+                if (toggle) toggle.textContent = isExpanded ? '\u25b8' : '\u25be';
+                return;
+            }
+
+            // 无子列表：异步加载
+            var toggle = li.querySelector('.bk-mp-toc-toggle');
+            if (toggle) { toggle.textContent = '\u2026'; toggle.disabled = true; }
+
+            var bookId = chapterItem.bookId || MarkPanel._getCurrentBookId();
+            var chapterNum = chapterItem.chapterNum || chapterItem.num;
+
+            MarkPanel._adapter.toc.getOutlines(bookId, chapterNum).then(function (outlines) {
+                if (!outlines || outlines.length === 0) {
+                    // 无纲目：隐藏箭头
+                    if (toggle) { toggle.textContent = ''; toggle.style.visibility = 'hidden'; }
+                    return;
+                }
+
+                var sub = document.createElement('ul');
+                sub.className = 'bk-mp-toc-outline';
+
+                outlines.forEach(function (outline) {
+                    var subLi = document.createElement('li');
+                    subLi.className = 'bk-mp-toc-outline-item';
+                    subLi.style.paddingLeft = (28 + (outline.level - 1) * 12) + 'px';
+
+                    var dot = document.createElement('span');
+                    dot.className = 'bk-mp-toc-outline-dot';
+                    dot.textContent = '\u00b7';
+
+                    var text = document.createElement('span');
+                    text.className = 'bk-mp-toc-outline-text';
+                    text.textContent = outline.text;
+
+                    subLi.appendChild(dot);
+                    subLi.appendChild(text);
+
+                    subLi.addEventListener('click', function () {
+                        MarkPanel._adapter.toc.navigateOutline(bookId, chapterNum, outline.index);
+                        MarkPanel.close();
+                    });
+
+                    sub.appendChild(subLi);
+                });
+
+                li.appendChild(sub);
+                li.classList.add('bk-mp-toc-expanded');
+                if (toggle) { toggle.textContent = '\u25be'; toggle.disabled = false; }
+            });
+        },
+
+        // ─── 搜索高亮辅助 ──────────────────────────────────────────────
+
+        _highlightContext: function (text, query) {
+            if (!query || !query.trim()) return MarkPanel._escText(text);
+            // 先转义文本，再转义每个关键词后匹配（避免关键词匹配到 HTML 实体内部）
+            var html = MarkPanel._escText(text);
+            var terms = query.trim().split(/\s+/).filter(Boolean);
+            for (var i = 0; i < terms.length; i++) {
+                var escapedTerm = MarkPanel._escText(terms[i]);
+                var re = new RegExp('(' + MarkPanel._escRe(escapedTerm) + ')', 'gi');
+                html = html.replace(re, '<span class="bk-mp-toc-hl">$1</span>');
+            }
+            return html;
+        },
+
+        /** HTML 转义（与 search.js 的 esc 一致） */
+        _escText: function (s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        },
+
+        /** 正则转义（与 search.js 的 escRe 一致） */
+        _escRe: function (s) {
+            return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         },
 
         // ─── 书签 Tab ──────────────────────────────────────────────────
