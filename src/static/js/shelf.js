@@ -74,6 +74,10 @@
    */
   function add(bookId, opts) {
     opts = opts || {};
+    // 幂等：已在架且未移除则不重写、不广播，避免导入操作把移出的书加回。
+    // markRead/setFavorite 等仍可正常更新同一条记录。
+    var existing = get(bookId);
+    if (existing && existing.status === STATUS) return;
     var rec = {
       bookId: bookId,
       addedAt: opts.addedAt || _today(),
