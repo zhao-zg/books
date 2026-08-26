@@ -24,6 +24,7 @@
         _dirtyTabs: { toc: true, bookmark: true, mark: true },
         _scrollCleanup: null,  // lockOverlayScroll 的 cleanup 函数
         _lastBookId: '',  // 记录最近一次面板感知的书籍 ID，用于切换书籍时重置目录/标记缓存
+        _lastChapterNum: 0,  // 记录最近一次感知的章节号，用于切章后刷新目录高亮
 
         // ─── 公开 API ──────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@
             if (!bookId) return false;
             if (bookId === MarkPanel._lastBookId) return false;
             MarkPanel._lastBookId = bookId;
+            MarkPanel._lastChapterNum = 0;  // 切书后章节感知重置
             // 书籍切换：目录与标记均为新书数据，强制重新加载
             MarkPanel._dirtyTabs.toc = true;
             MarkPanel._dirtyTabs.mark = true;
@@ -347,7 +349,42 @@
                 } else {
                     MarkPanel._renderEpubToc(pane, items);
                 }
+
+                // ★ 自动展开当前章节的纲目并定位，便于看到当前读到的具体纲目。
+                //   仅在目录初次加载/切章刷新时触发，用户手动展开的其他章节不受影响。
+                MarkPanel._autoExpandCurrentChapter(pane);
             });
+        },
+
+        /**
+         * 目录渲染后，自动展开当前章节的纲目子列表，并滚动到可见。
+         * 定位当前读到的章节内具体位置。
+         * @param {HTMLElement} pane 目录 pane
+         */
+        _autoExpandCurrentChapter: function (pane) {
+            if (!pane || MarkPanel._readerType !== 'epub') return;
+            var currentLi = pane.querySelector('.bk-mp-toc-current');
+            if (!currentLi) return;
+            var li = currentLi.closest ? currentLi.closest('.bk-mp-toc-item-wrapper') : null;
+            if (!li) return;
+            // 仅当尚未加载纲目时才自动展开；已展开则直接滚动定位
+            var existing = li.querySelector('.bk-mp-toc-outline');
+            if (!existing) {
+                var toggle = li.querySelector('.bk-mp-toc-toggle');
+                if (toggle) {
+                    var _item = null;
+                    // 从已渲染数据反查当前章节 item（toggle 上暂未存引用，直接构造）
+                    // 复用以渲染的 DOM 数据构造最小 item
+                    var numEl = li.querySelector('.bk-mp-toc-num');
+                    var titleEl = li.querySelector('.bk-mp-toc-title');
+                    var bookId = MarkPanel._getCurrentBookId();
+                    var num = numEl ? parseInt(numEl.textContent.trim(), 10) : 0;
+                    _item = { bookId: bookId, chapterNum: num, num: num, title: titleEl ? titleEl.textContent.trim() : '' };
+                    MarkPanel._toggleOutline(li, _item);
+                }
+            } else {
+                li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
         },
 
         _renderEpubToc: function (pane, items) {
@@ -532,6 +569,11 @@
                 li.appendChild(sub);
                 li.classList.add('bk-mp-toc-expanded');
                 if (toggle) { toggle.textContent = '\u25be'; toggle.disabled = false; }
+
+                // 若是当前章节（自动展开定位场景），展开后滚动到可见
+                if (li.querySelector('.bk-mp-toc-current')) {
+                    li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
             });
         },
 
@@ -1032,11 +1074,31 @@
         });
 
         // 监听页面变化（PDF 翻页 / EPUB 切章），刷新书签 footer 按钮状态
-        document.addEventListener('reader-page-change', function () {
+        document.addEventListener('reader-page-change', function (e) {
             // 书籍切换时重置目录/标记脏标记（本次面板感知的书籍与上次不同）
             MarkPanel._syncBookContext();
             // 翻页后当前页的书签状态可能变化，标记 bookmark 为脏
             MarkPanel._dirtyTabs.bookmark = true;
+            // ★ EPUB 切章：目录高亮需跟随当前章节（同书不同章）
+            //   reader-page-change 在切章/翻页时派发。检测到当前章节号变化时，
+            //   将目录(toc)标记为脏，确保下次打开或切到目录 Tab 时重新计算高亮，
+            //   避免目录一直停留在"抽屉打开那一刻"的章节。
+            if (MarkPanel._readerType === 'epub') {
+                var _path = (e && e.detail && e.detail.path) || win.__bkCurrentPath || '';
+                var _parts = String(_path).split('/').filter(Boolean);
+                var _chNum = _parts.length >= 2 ? parseInt(_parts[1], 10) : 0;
+                if (_chNum && _chNum !== MarkPanel._lastChapterNum) {
+                    MarkPanel._lastChapterNum = _chNum;
+                    MarkPanel._dirtyTabs.toc = true;
+                    // 面板开着且正停在目录 Tab 时，重渲染以更新高亮。
+                    // ★ 延迟到渲染器完成章节切换后再加载（reader-page-change 在
+                    //   dispatch 时同步派发，此刻 loadBook/carousel 数据可能尚未更新，
+                    //   立即调用会拿到旧数据渲染成"暂无目录"）。
+                    if (MarkPanel._isOpen && MarkPanel._activeTab === 'toc') {
+                        setTimeout(function () { MarkPanel._loadTabData('toc'); }, 150);
+                    }
+                }
+            }
             if (MarkPanel._isOpen && MarkPanel._activeTab === 'bookmark') {
                 MarkPanel._updateBookmarkFooter();
             }

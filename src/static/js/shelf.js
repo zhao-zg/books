@@ -200,7 +200,7 @@
    * @param {string} bookId
    * @returns {Promise<void>}
    */
-  function purgeBook(bookId) {
+   function purgeBook(bookId) {
     if (!bookId) return Promise.resolve();
     // 1) 同步移出书架（触发立即重渲染，避免用户感知卡顿）
     try { remove(bookId); } catch (e) {}
@@ -213,48 +213,58 @@
     //   导致「移出书架后又出现」。
     //   因此：凡 imported_ids 中有记录的（含 ZIP 导入的书城书），一律走「彻底清理」分支，
     //   清理 imported-data 记录 + zl-data 缓存；只有真正的书城在线书（从未导入过）才保留缓存。
+    //
+    //   ★★ 修复 isImportedBook 异步 Bug（2026-08-26）：
+    //   isImportedBook 返回 Promise<boolean>，旧代码用 !!Promise（恒为 true），
+    //   导致所有书都走「彻底清理」分支——书城在线书被误删 zl-data 缓存。
+    //   现改为正确 await Promise，仅对真正在 imported_ids 中的书彻底清理。
     var isImported = bookId.indexOf('imported-') === 0;
-    var inImportedIds = false;
+
+    // 异步检查 imported_ids（返回 Promise<boolean>）
+    var checkImported = Promise.resolve(false);
     try {
       if (win.ImportManager && win.ImportManager.isImportedBook) {
-        inImportedIds = !!win.ImportManager.isImportedBook(bookId);
+        checkImported = Promise.resolve(win.ImportManager.isImportedBook(bookId)).then(function (r) {
+          return !!r;
+        }).catch(function () { return false; });
       }
     } catch (e) {}
 
-    // 2) 书城在线书（无 imported- 前缀且不在导入库中）：仅移出书架，保留本地数据作为离线兜底
-    if (!isImported && !inImportedIds) {
-      // 仍广播 purge-done 以保持事件契约一致（占用统计无需更新，因数据未清）
-      return Promise.resolve().then(function () {
+    return checkImported.then(function (inImportedIds) {
+      // 2) 书城在线书（无 imported- 前缀且不在导入库中）：仅移出书架，保留本地数据作为离线兜底
+      if (!isImported && !inImportedIds) {
+        // 仍广播 purge-done 以保持事件契约一致（占用统计无需更新，因数据未清）
         try {
           win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
             detail: { bookId: bookId, action: 'purge-done' }
           }));
         } catch (e) {}
-      });
-    }
+        return;
+      }
 
-    // 3) 导入书 / 导入的书城书：彻底清理 localStorage 与 IndexedDB
-    _purgeLocalStorageFor(bookId);
+      // 3) 导入书 / 导入的书城书：彻底清理 localStorage 与 IndexedDB
+      _purgeLocalStorageFor(bookId);
 
-    var p;
-    try {
-      if (win.ImportManager && win.ImportManager.removeImportedBook) {
-        p = Promise.resolve(win.ImportManager.removeImportedBook(bookId));
-      } else {
+      var p;
+      try {
+        if (win.ImportManager && win.ImportManager.removeImportedBook) {
+          p = Promise.resolve(win.ImportManager.removeImportedBook(bookId));
+        } else {
+          p = Promise.resolve();
+        }
+      } catch (e) {
+        console.warn('[BKShelf] purgeBook 异步清理失败:', e);
         p = Promise.resolve();
       }
-    } catch (e) {
-      console.warn('[BKShelf] purgeBook 异步清理失败:', e);
-      p = Promise.resolve();
-    }
 
-    return p.then(function () {
-      try {
-        win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
-          detail: { bookId: bookId, action: 'purge-done' }
-        }));
-      } catch (e) {}
-    }).catch(function () {});
+      return p.then(function () {
+        try {
+          win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
+            detail: { bookId: bookId, action: 'purge-done' }
+          }));
+        } catch (e) {}
+      }).catch(function () {});
+    });
   }
 
   /**

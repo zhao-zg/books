@@ -16,7 +16,12 @@
  *   - PDF 书额外写入原始 PDF 二进制到 pdfStore
  *   - userdata.json 中的用户数据恢复到 localStorage
  *   - 对已有 ID 的书籍执行覆盖写（备份还原场景）
- *   - 非导入书 ID 自动加 'imported-' 前缀，避免与书城书冲突
+ *   - 分流处理（v2+）：
+ *       · 书城书（ID 存在于书城索引）：保持原 ID → DataManager.cacheBook() 写入 zl-data
+ *         （离线可读 + 书城显示「✓ 已下载」角标），不写入 imported store、不入书架。
+ *         书城书「入架」由用户在书城点击打开时决定（BKShelf.add 幂等）。
+ *       · 导入书（ID 以 'imported-' 开头，或不在书城索引）：加新 imported- 前缀 ID
+ *         → imported-data store + 入架（原有逻辑）。
  *
  * 依赖：
  *   - JSZip (vendor/jszip.min.js)
@@ -58,6 +63,33 @@
     /** 生成新 ID（与 import-shared.js 格式一致） */
     function _generateId() {
         return 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+    }
+
+    /** 内存缓存：书城索引 ID 集合（避免每本导入重复遍历） */
+    var _cityBookIdSet = null;
+
+    /**
+     * 判断书籍 ID 是否为「书城书」（存在于书城索引 books-index.json 中）。
+     * 依据 DataManager.getCachedIndex()（含 series/category_prefix/group 等书城元数据）。
+     * 注意：不能仅凭 ID 前缀判断——书城原始 ID 无 imported- 前缀，但导入书也可能
+     * 恰好不是 imported- 开头（旧版 ZIP 导出的书城书即保持原 ID）。唯一可靠判据是
+     * 该书 ID 是否出现在书城索引中。
+     * @param {string} bookId
+     * @returns {boolean}
+     */
+    function _isCityBookId(bookId) {
+        if (!bookId) return false;
+        // 导入书 ID 前缀，必不在书城索引
+        if (bookId.indexOf('imported-') === 0) return false;
+        if (_cityBookIdSet) return _cityBookIdSet.has(bookId);
+        var indexData = (win.DataManager && typeof win.DataManager.getCachedIndex === 'function')
+            ? win.DataManager.getCachedIndex() : null;
+        var books = (indexData && indexData.books) || [];
+        _cityBookIdSet = new Set();
+        for (var i = 0; i < books.length; i++) {
+            _cityBookIdSet.add(books[i].id);
+        }
+        return _cityBookIdSet.has(bookId);
     }
 
     // ── 存储操作 ──────────────────────────────────────────────────────────
@@ -115,7 +147,7 @@
     /**
      * 恢复单本书的用户数据到 localStorage
      * @param {Object} userData  从 userdata.json 解析的数据
-     * @param {string} bookId    目标书籍 ID（可能已变化，如书城书加了 imported- 前缀）
+     * @param {string} bookId    目标书籍 ID（书城书保持原 ID，导入书用新 imported- ID）
      */
     function _restoreUserData(userData, bookId) {
         try {
@@ -145,9 +177,10 @@
      * 从 ZIP 中导入单本书
      *
      * 导入策略（v2+ 分流）：
-     *   - 书城书（id 不以 imported- 开头）：保持原 ID → DataManager.cacheBook() 存入 zl-data，
-     *     不入书架，已有缓存则跳过不覆盖。与下载书籍统一管理。
-     *   - 导入书（id 以 imported- 开头）：走 _saveBook() → imported-data store + 入架（原有逻辑）。
+     *   - 书城书（ID 存在于书城索引 books-index.json）：保持原 ID → DataManager.cacheBook()
+     *     存入 zl-data，不入书架，已有缓存则跳过不覆盖。与下载书籍统一管理。
+     *   - 导入书（ID 以 imported- 开头，或不在书城索引）：走 _saveBook() → imported-data store
+     *     + 入架（原有逻辑）。
      *
      * @param {JSZip} zip    JSZip 实例
      * @param {string} bookDirName  书籍目录名（books/ 下的子目录名）
@@ -178,17 +211,17 @@
             }
 
             originalId = bookData.id;
-            var isCityBook = originalId.indexOf('imported-') !== 0;
 
             // ── 分流：书城书 vs 导入书 ──────────────────────────────
-            // ★ 修复：不再区分「书城书」与「导入书」——统一走导入书分支（_saveBook + 入架）。
-            //   理由：ZIP 导入的书城书若保持原 ID 只缓存 zl-data 不入架，
-            //   ① 导入完成后书架里看不到（用户以为导入失败）；
-            //   ② 用户稍后在书城点开它时 BKShelf.add() 自动入架，但 ID 无 imported- 前缀，
-            //      purgeBook 移除时按「书城在线书」分支只清书架记录、保留 zl-data 缓存，
-            //      _mergeImportedBooks() 每次刷新又把它回填，导致「移出书架后又出现」。
-            //   统一加 imported- 前缀后：入架可见、移除时走彻底清理分支（imported-data +
-            //   zl-data + PDF 数据一并清除），行为与用户直觉一致。
+            // ★ 书城书（ID 存在于书城索引）：保持原 ID 缓存到 zl-data、不入书架，
+            //   书城卡片显示「✓ 已下载」角标、离线可读。用户主动在书城点开时才入架。
+            //   规避历史 bug：不写 imported_ids → purgeBook 走「仅移书架」分支、
+            //   _mergeImportedBooks 不回填，移出书架后不会复活。
+            // ★ 导入书（imported- 前缀或不在书城索引）：加前缀入 imported-data + 入架，
+            //   移出书架即彻底清理（imported-data + zl-data + PDF 一并清除）。
+            if (_isCityBookId(originalId)) {
+                return _importCityBook(zip, bookDirName, bookData);
+            }
             return _importImportedBook(zip, bookDirName, bookData, originalId);
         }).catch(function (err) {
             return { success: false, id: bookDirName, error: (err && err.message) || '读取失败' };
@@ -196,9 +229,66 @@
     }
 
     /**
+     * 书城书导入：保持原 ID → DataManager.cacheBook() 存入 zl-data → 不入书架。
+     *
+     * 效果：
+     *   - 书城卡片显示「✓ 已下载」角标（_isBookDownloaded 命中已下载列表）
+     *   - 离线可读（zl-data 缓存 + 内容索引）
+     *   - 不入 imported store、不建 imported_ids 记录、不 BKShelf.add
+     *   - 用户稍后在书城点开该书时 BKShelf.add() 自动入架（幂等），
+     *     此时「入架」是用户主动行为，符合语义
+     *
+     * 历史 bug 规避（「移出书架后又出现」）：
+     *   - 不写 imported_ids → _mergeImportedBooks() 不会把它合并进 _zlBooks，
+     *     也不会 cacheBook 回填；purgeBook 对无前缀书走「仅移出书架、保留缓存」分支，
+     *     与普通书城下载书行为一致，移出后不会再被任何逻辑拉回。
+     *
+     * @param {JSZip} zip
+     * @param {string} bookDirName
+     * @param {Object} bookData  完整书籍数据（id 为书城原始 ID）
+     * @returns {Promise<Object>}  { success, skipped, id, title }
+     */
+    function _importCityBook(zip, bookDirName, bookData) {
+        var bookId = bookData.id;
+        var isPdf = _isPdfBookData(bookData);
+
+        // PDF 书：保持原 ID，pdf_page.pdfBookId 无需重映射（与 ID 一致）；
+        // 原始 PDF 二进制需一并写入 pdfStore（键 'pdf:' + bookId）
+        var pdfPromise = Promise.resolve();
+        if (isPdf) {
+            pdfPromise = (function () {
+                var pdfPath = 'books/' + bookDirName + '/original.pdf';
+                var pdfEntry = zip.file(pdfPath);
+                if (!pdfEntry) return Promise.resolve();
+                return pdfEntry.async('uint8array').then(function (pdfBytes) {
+                    return _savePdfData(pdfBytes, bookId);
+                });
+            })();
+        }
+
+        return pdfPromise.then(function () {
+            // 已下载/已缓存则不覆盖（保持用户当前本地数据，避免导入把更新内容回滚）
+            return win.DataManager.isBookDownloaded(bookId).then(function (downloaded) {
+                if (downloaded) {
+                    console.log('[BK.ImportZip] _importCityBook: 书城书已缓存，跳过写入 id=' + bookId +
+                        '，title=' + (bookData.title || '?'));
+                    return { success: true, skipped: true, id: bookId, title: bookData.title || bookId };
+                }
+                return win.DataManager.cacheBook(bookId, bookData).then(function () {
+                    console.log('[BK.ImportZip] _importCityBook: 书城书已缓存到 zl-data id=' + bookId +
+                        '，title=' + (bookData.title || '?') + '，不入书架');
+                    return { success: true, id: bookId, title: bookData.title || bookId };
+                });
+            });
+        }).then(function (result) {
+            // 恢复用户数据（用原 ID）
+            return _restoreUserDataFromZip(zip, bookDirName, bookId, result);
+        });
+    }
+
+    /**
      * 导入书导入：加新 imported- 前缀 ID → _saveBook() → 入架（原有逻辑）
-     * 注：ZIP 内的书城书（book.json 中 id 无 imported- 前缀）同样走本分支，
-     *     统一加前缀后入架，避免「移出书架后又出现」（见 _importOneBook 注释）。
+     * 适用于 ID 以 'imported-' 开头的导入书，或不在书城索引中的书籍。
      */
     function _importImportedBook(zip, bookDirName, bookData, originalId) {
         // 自动加前缀避免与书城书冲突
