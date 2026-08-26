@@ -70,7 +70,7 @@
             }
             caches.keys().then(function(keys) {
                 var hasCoreCache = keys.some(function(k) {
-                    return k === 'bk-main' || k.indexOf('bk-main-') === 0;
+                    return k.indexOf('bk-data-') === 0 || k === 'bk-main' || k.indexOf('bk-main-') === 0;
                 });
                 if (!hasCoreCache) {
                     window.location.replace(root + 'index.html');

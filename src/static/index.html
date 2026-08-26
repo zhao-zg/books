@@ -338,6 +338,9 @@
     <!-- 应用前后台生命周期管理器（尽早加载，inline 脚本立即 init） -->
     <script src="js/app-lifecycle.js"></script>
 
+    <!-- 构建注入 APP_VERSION（main.py 替换），供 pwaCache 无网络建桶 -->
+    <script>/* BK_APP_VERSION_INJECT */</script>
+
     <!-- APK 更新（仅在 APP / PWA 中加载） -->
     <script>(function(){
         var isCapacitor=window.Capacitor!==undefined;
@@ -352,8 +355,11 @@
     // ── 全局根路径 ────────────────────────────────────────────────────────
     window.BK_ROOT = './';
     window.BK = window.BK || {};
-    // 缓存名固定为 bk-main，不带版本号。版本管理由 version.json + cacheAllBooks 控制。
+    // 缓存名固定为 bk-main，不带版本号。版本管理由 pwaCache 切换桶方案控制。
     window.__BK_CACHE_NAME__ = 'bk-main';
+    // BK_APP_VERSION_INJECT 占位符被 main.py 替换为 window.BK_APP_VERSION = 'x.y.z';
+    // 未注入时默认空字符串，pwaCache 会降级到 fetchRemoteVersion
+    window.BK_APP_VERSION = window.BK_APP_VERSION || '';
 
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
@@ -695,33 +701,192 @@
     function verifyCacheIntegrity(targetVersion){
         if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingCoreUrls:[]});
         var coreUrls=window.__bkCoreUrls||[];
-        var cacheName=window.__BK_CACHE_NAME__||'bk-main';
-        return caches.has(cacheName).then(function(exists){
-            if(!exists)return{ok:false,coverage:0,missingCore:coreUrls.length,missingCoreUrls:[]};
-            var checkUrls=coreUrls.filter(function(u){return u!=='./';});
-            return caches.open(cacheName).then(function(cache){
-                return Promise.all(checkUrls.map(function(u){return cache.match(u).then(function(r){return r?null:u;});}));
-            }).then(function(results){
-                var missingUrls=results.filter(Boolean);
-                var hits=checkUrls.length-missingUrls.length;
-                var cov=checkUrls.length>0?hits/checkUrls.length:1;
-                return{ok:cov>=1,coverage:cov,missingCore:missingUrls.length,missingCoreUrls:missingUrls};
-            });
+        // SW 全局 caches.match() 跨桶搜索：bk-main（运行时缓存）+ bk-data-{version}（安装桶）
+        var checkUrls=coreUrls.filter(function(u){return u!=='./';});
+        return Promise.all(checkUrls.map(function(u){
+            return caches.match(u).then(function(r){return r?null:u;});
+        })).then(function(results){
+            var missingUrls=results.filter(Boolean);
+            var hits=checkUrls.length-missingUrls.length;
+            var cov=checkUrls.length>0?hits/checkUrls.length:1;
+            return{ok:cov>=1,coverage:cov,missingCore:missingUrls.length,missingCoreUrls:missingUrls};
         }).catch(function(){return{ok:false,coverage:0,missingCore:0,missingCoreUrls:[]};});
     }
 
+    // ── PWA 缓存管理（数据缓存版本化，切换桶更新）─────────────────────────
+    // 数据缓存桶名带版本号：bk-data-{version}，每次更新写新桶，成功后删旧桶。
+    // SW 全局 caches.match() 自动跨桶搜索，切换桶后离线请求自然命中新桶。
+    // SW 不参与数据桶管理——activate 零清理，只做 clients.claim()。
+    // 静态资源运行时缓存走 bk-main（固定名，cache.put 覆盖更新）。
+    window.BK.pwaCache = (function(){
+        var LS_VERSION = 'bk_pwa_version';
+        var LS_BUCKET = 'bk_pwa_bucket';   // 记录当前数据桶名
+        var root = './';
+
+        function dataCacheName(ver){ return 'bk-data-' + ver; }
+
+        // 全量缓存文件列表（books 的核心 URL 已包含数据索引 books-index.json / manifest.json）
+        function buildUrlList(){
+            return (window.__bkCoreUrls || []).slice();
+        }
+
+        // 缓存全部 URL 到指定桶，返回 Promise<{ok,total,failed}>
+        // 使用 Promise.allSettled 并行 fetch（books 特有：保持并行优化）
+        function cacheAllInto(cacheName, onProgress) {
+            if(!('caches' in window)) return Promise.resolve({ok:0,total:0,failed:0});
+            var urls = buildUrlList();
+            var total = urls.length, done = 0, failed = 0;
+            return caches.open(cacheName).then(function(cache){
+                return Promise.allSettled(urls.map(function(url){
+                    return fetch(url, {cache:'no-cache'}).then(function(r){
+                        if(r && r.status===200) return cache.put(url, r);
+                        failed++;
+                    }).catch(function(){
+                        failed++;
+                    }).then(function(){
+                        done++;
+                        if(onProgress) onProgress(done/total, done, total);
+                    });
+                }));
+            }).then(function(){
+                return {ok: done - failed, total: total, failed: failed};
+            });
+        }
+
+        // 删除所有旧版数据桶（保留 currentBucket）
+        function deleteOldBuckets(currentBucket){
+            if(!('caches' in window)) return Promise.resolve();
+            return caches.keys().then(function(keys){
+                return Promise.all(
+                    keys.filter(function(k){
+                        return k.indexOf('bk-data-') === 0 && k !== currentBucket;
+                    }).map(function(k){ return caches.delete(k); })
+                );
+            }).catch(function(){});
+        }
+
+        // 读/写本地版本
+        function getLocalVersion(){ try{return localStorage.getItem(LS_VERSION)||'';}catch(e){return '';} }
+        function setLocalVersion(v){ try{localStorage.setItem(LS_VERSION,v);}catch(e){} }
+
+        // 检查远端版本
+        function fetchRemoteVersion(){
+            return fetch(root + 'version.json?t=' + Date.now(), { cache: 'no-cache' })
+                .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function(d){ return (d.version||d.apk_version||''); })
+                .catch(function(){ return ''; });
+        }
+
+        // 对外：全量安装/更新（带进度回调）
+        // mode: 'install' | 'update'
+        // version: 可选，调用方可传入远端版本号
+        // onProgress(ratio, done, total)
+        // 返回 Promise<{ok,total,failed}>
+        // 版本号优先级：参数 version > 构建注入 BK_APP_VERSION > fetchRemoteVersion > 本地版本 > '0.0.0'
+        // 首次安装：直接写入 bk-data-{version}
+        // 更新：写新桶 bk-data-{newVersion}，全量成功后删旧桶——切换桶
+        //       中途断网/失败则旧桶完好不动，下次重试
+        function install(mode, onProgress, version) {
+            // 1. 确定版本号
+            var verP;
+            if (version) {
+                verP = Promise.resolve(version);
+            } else if (window.BK_APP_VERSION) {
+                verP = Promise.resolve(window.BK_APP_VERSION);
+            } else {
+                verP = fetchRemoteVersion().then(function(remoteVer){
+                    return remoteVer || getLocalVersion() || '0.0.0';
+                });
+            }
+            return verP.then(function(ver){
+                var newBucket = dataCacheName(ver);
+                var oldBucket = null;
+                try { oldBucket = localStorage.getItem(LS_BUCKET) || null; } catch(e) {}
+
+                return cacheAllInto(newBucket, onProgress).then(function(res){
+                    if(res.failed > 0) {
+                        // 有失败：删新桶，保留旧桶
+                        return caches.delete(newBucket).catch(function(){}).then(function(){ return res; });
+                    }
+                    // 全量成功：记录新桶名和版本号，删旧桶
+                    try { localStorage.setItem(LS_BUCKET, newBucket); } catch(e) {}
+                    setLocalVersion(ver);
+                    if(oldBucket && oldBucket !== newBucket) {
+                        return caches.delete(oldBucket).catch(function(){}).then(function(){ return res; });
+                    }
+                    return res;
+                });
+            });
+        }
+
+        // 对外：启动时检查（PWA standalone 环境）
+        // 首次安装自动弹进度框；有新版本时只弹 toast，由用户自主选择是否更新
+        // 受"自动检查更新"开关控制：关闭时不在启动时发起网络请求（首次安装除外）
+        function checkOnStartup(){
+            var isPwa = BK_ENV.isStandalone && !BK_ENV.isCapacitorApp && ('caches' in window);
+            if(!isPwa) return;
+            var local = getLocalVersion();
+            // 非首次安装且关闭自动检查更新时，跳过网络请求
+            if(local){
+                try { if (localStorage.getItem('bk_auto_check_update') !== '1') return; } catch(e) {}
+            }
+
+            fetchRemoteVersion().then(function(remote){
+                if(!remote) {
+                    // 网络失败时，首次安装用构建注入版本兜底
+                    if(window.BK_APP_VERSION && !getLocalVersion()) {
+                        showMandatoryInstallDialog('install', window.BK_APP_VERSION);
+                    }
+                    return;
+                }
+                var local = getLocalVersion();
+                var isFirst = !local;
+                var cmpResult = local ? _compareVer(remote, local) : 1;
+                if(cmpResult <= 0) return; // 已是最新，静默
+
+                if(isFirst){
+                    // 首次安装：自动弹进度框（首次使用必须缓存才能离线）
+                    showMandatoryInstallDialog('install', remote);
+                } else {
+                    // 版本更新：只弹 toast，由用户选择是否更新
+                    setTimeout(function(){
+                        if(window.AppUpdate && window.AppUpdate.silentCheckUpdate){
+                            try{ sessionStorage.removeItem('bk_update_toast_shown'); }catch(e){}
+                            window.AppUpdate.silentCheckUpdate();
+                        }
+                    }, 500);
+                }
+            }).catch(function(){});
+        }
+
+        function _compareVer(a, b){
+            var p1=a.replace('v','').split('.').map(Number);
+            var p2=b.replace('v','').split('.').map(Number);
+            for(var i=0;i<Math.max(p1.length,p2.length);i++){
+                var d=(p1[i]||0)-(p2[i]||0);
+                if(d!==0) return d>0?1:-1;
+            }
+            return 0;
+        }
+
+        return { install: install, checkOnStartup: checkOnStartup, getLocalVersion: getLocalVersion, setLocalVersion: setLocalVersion, fetchRemoteVersion: fetchRemoteVersion, deleteOldBuckets: deleteOldBuckets };
+    })();
+
+    // 兼容：cacheAllBooks 委托给 pwaCache.install（保持旧 API 不破坏调用方）
     function cacheAllBooks(statusEl,onProgress,targetVersion){
         if(!('caches' in window)){if(statusEl)statusEl.textContent='当前环境不支持缓存';return Promise.resolve();}
         var coreUrls=window.__bkCoreUrls||[];
         var totalResources=coreUrls.length;var cachedResources=0;var failedResources=0;
         function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
-        var cacheName=window.__BK_CACHE_NAME__||'bk-main';
-        var cacheShared=caches.open(cacheName).then(function(cache){
-            return Promise.allSettled(coreUrls.map(function(url){
-                return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());failedResources++;}).catch(function(){cachedResources++;failedResources++;rep();});
-            }));
-        }).catch(function(){});
-        return cacheShared.then(function(){if(statusEl){statusEl.textContent=failedResources>0?'✓ 缓存完成（'+failedResources+' 个资源失败）':'✓ 全部缓存完成';statusEl.className=failedResources>0?'cache-status':'cache-status success';}try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}});
+        // 委托 pwaCache 切换桶安装
+        return window.BK.pwaCache.install('install', function(ratio, done, total){
+            cachedResources = done; failedResources = 0; rep();
+        }, targetVersion).then(function(res){
+            failedResources = res.failed || 0; cachedResources = res.ok || 0;
+            if(statusEl){statusEl.textContent=failedResources>0?'✓ 缓存完成（'+failedResources+' 个资源失败）':'✓ 全部缓存完成';statusEl.className=failedResources>0?'cache-status':'cache-status success';}
+            try{localStorage.setItem('bk_all_cached',Date.now().toString());}catch(e){}
+            return res;
+        });
     }
 
     function showMandatoryInstallDialog(mode,targetVersion,onComplete){
@@ -742,27 +907,29 @@
             if(retryBtn)retryBtn.style.display='none';
             if(progressBar)progressBar.style.width='0%';
             if(statusEl)statusEl.textContent='开始缓存资源...';
-            // 先建后删：先缓存新资源，验证通过后再清理旧缓存，
-            // 避免中途退出导致无缓存状态。
-            cacheAllBooks(statusEl,function(percent){if(progressBar)progressBar.style.width=Math.min(percent,100)+'%';},targetVersion).then(function(){
+            // 切换桶方案：写新桶 bk-data-{version}，成功后删旧桶
+            window.BK.pwaCache.install(mode, function(ratio, done, total){
+                if(progressBar)progressBar.style.width=Math.min(Math.round(ratio*100),100)+'%';
+                if(statusEl)statusEl.textContent='核心资源：'+done+'/'+total+'…';
+            }, targetVersion).then(function(res){
                 if(progressBar)progressBar.style.width='100%';
                 if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
-                return verifyCacheIntegrity(targetVersion);
-            }).then(function(result){
+                return verifyCacheIntegrity(targetVersion).then(function(result){
+                    return {res: res, result: result};
+                });
+            }).then(function(data){
+                var result=data.result;
                 if(result.ok){
-                    // 缓存验证通过。固定缓存名 bk-main，新资源已覆盖写入，
-                    // 无需清理旧缓存（同名 cache 直接覆盖）。
                     if(onComplete){
                         if(statusEl)statusEl.textContent='✅ 缓存完成';
                         onComplete();
                     }else{
-                        try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
                         if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
                         if(progressBar)progressBar.style.width='100%';
                         setTimeout(function(){window.location.reload();},1200);
                     }
                 }else{
-                    // 缓存不完整时不删旧缓存，用户可重试
+                    // 缓存不完整时不删旧桶，用户可重试
                     var msg='\u26A0 部分资源未完整\uff08'+Math.round((result.coverage||0)*100)+'%\uff09';
                     if(result.missingCore&&result.missingCore>0){
                         msg+='\n缺少核心资源 '+result.missingCore+' 个';
@@ -792,8 +959,9 @@
                     showMandatoryInstallDialog('install',ver);
                 })
                 .catch(function(){
-                    // 离线时无法获取版本，用时间戳兜底
-                    showMandatoryInstallDialog('install',Date.now().toString());
+                    // 离线时无法获取版本，用构建注入 BK_APP_VERSION 兜底，再降级时间戳
+                    var ver=(window.BK_APP_VERSION)||Date.now().toString();
+                    showMandatoryInstallDialog('install',ver);
                 });
             return;
         }
@@ -817,7 +985,12 @@
                     .catch(function(){});
             })
             .catch(function(err){
-                if(!storedVersion){var b=document.getElementById('bkOfflineBanner');if(b){b.classList.add('show');var d=b.querySelector('.bk-banner-dismiss');if(d)d.addEventListener('click',function(){b.classList.remove('show');});}}
+                // 网络失败时，首次安装用构建注入版本兜底
+                if(!storedVersion && window.BK_APP_VERSION){
+                    showMandatoryInstallDialog('install', window.BK_APP_VERSION);
+                } else if(!storedVersion){
+                    var b=document.getElementById('bkOfflineBanner');if(b){b.classList.add('show');var d=b.querySelector('.bk-banner-dismiss');if(d)d.addEventListener('click',function(){b.classList.remove('show');});}
+                }
             });
     }
 
@@ -844,7 +1017,7 @@
                         var _ver=v.version||v.apk_version||'';
                         if(_capVer&&_capVer===_ver)return;
                         waitForBooks(15000).then(function(){
-                            return cacheAllBooks(null,null,_ver);
+                            return window.BK.pwaCache.install('install', null, _ver);
                         }).then(function(){
                             if(_ver)try{localStorage.setItem('bk_pwa_version',_ver);}catch(e){}
                         }).catch(function(){});

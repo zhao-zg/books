@@ -95,6 +95,9 @@ class BooksGenerator:
                 '/* __VENDOR_PRECACHE_URLS__ */', vendor_list_str
             )
 
+            # 注入 App 版本号到 SW 注释（驱动 SW 字节变化检测）
+            sw_content = sw_content.replace('{{APP_VERSION}}', app_version)
+
             with open(sw_dst, 'w', encoding='utf-8') as f:
                 f.write(sw_content)
             print(f"✓ sw.js 已生成 (vendor 预缓存: {len(vendor_urls)} 个文件)")

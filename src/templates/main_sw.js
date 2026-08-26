@@ -1,17 +1,20 @@
 /**
  * Service Worker for 书报 - 电子书阅读应用
+ * App 版本: {{APP_VERSION}}
  *
- * 缓存策略（v3，固定缓存名）：
- *  - CACHE_NAME 固定为 'bk-main'，不带版本号
- *  - SW 只管读写缓存，不负责版本管理/旧缓存清理
- *  - 缓存版本管理由应用层的 version.json + cacheAllBooks（先建后删）控制
- *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存
+ * 缓存策略（v4，数据桶版本化 + 静态桶固定名）：
+ *  - CACHE_NAME 固定为 'bk-main'，不带版本号（SW 运行时缓存：cache.put 覆盖更新）
+ *  - 数据缓存桶由页面 pwaCache 管理（bk-data-{version} 切换桶方案），SW 不参与其生命周期
+ *  - SW activate 零清理：不删除任何缓存（含旧版数据桶），只做 clients.claim() 接管页面
+ *  - SW 字节变化检测由注释中的 App 版本号驱动（升级时 sw.js 内容变化触发更新）
+ *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存到 bk-main
  *  - 书籍 JSON 数据由 data-manager.js 通过 localforage 管理，SW 不介入
  *  - data CDN 索引文件（books-index.json / manifest.json）使用 stale-while-revalidate
  *  - 版本检测文件（version.json）始终走网络
  */
 
 const CACHE_NAME = 'bk-main';
+const DATA_CACHE_PREFIX = 'bk-data-';
 
 const CONFIG = {
   TIMEOUT: 5000,
@@ -116,8 +119,9 @@ self.addEventListener('install', event => {
           // vendor 预缓存失败不阻塞安装
         }
       }
-      // 注意：不在此处调用 skipWaiting()，由页面端更新流程通过
-      // SKIP_WAITING 消息显式触发激活，避免缓存重建未完成时意外刷新。
+      // 快速激活：install 完成后立即 skipWaiting，让新版 SW 尽快接管页面
+      // 缓存版本管理由页面 pwaCache 切换桶方案控制，SW 不参与
+      self.skipWaiting();
     })()
   );
 });
@@ -357,7 +361,8 @@ self.addEventListener('message', event => {
     event.waitUntil(
       caches.keys().catch(() => []).then(allKeys => {
         port.postMessage({
-          ok: allKeys.includes(CACHE_NAME)
+          ok: allKeys.includes(CACHE_NAME),
+          dataOk: allKeys.some(k => k.indexOf(DATA_CACHE_PREFIX) === 0)
         });
       }).catch(err => {
         port.postMessage({ ok: false });

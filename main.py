@@ -329,6 +329,25 @@ def generate_webdav_presets(config: dict, output_dir: str = 'output'):
     print(f"✓ js/webdav-presets.js 已生成（{len(presets)} 个预置服务器）")
 
 
+def inject_app_version(app_version, output_dir: str = 'output'):
+    """将 APP_VERSION 注入到 output/index.html 的 BK_APP_VERSION_INJECT 占位符"""
+    index_path = os.path.join(output_dir, 'index.html')
+    if not os.path.exists(index_path):
+        print("⚠ 未找到 index.html，跳过 APP_VERSION 注入")
+        return
+    with open(index_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    placeholder = '/* BK_APP_VERSION_INJECT */'
+    if placeholder not in html:
+        print("⚠ index.html 中未找到 BK_APP_VERSION_INJECT 占位符，跳过注入")
+        return
+    inject_script = "window.BK_APP_VERSION = '%s';" % app_version
+    html = html.replace(placeholder, inject_script)
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+    print("✓ BK_APP_VERSION=%s 已注入 index.html" % app_version)
+
+
 def inject_disguise_config(config: dict, output_dir: str = 'output'):
     """根据 config.yaml 的 disguise_enabled 注入 window.BK_CONFIG.disguiseEnabled。
 
@@ -581,6 +600,9 @@ def main():
 
     # 注入伪装/访问控制配置（由 config.yaml 的 disguise_enabled 控制，默认关闭）
     inject_disguise_config(config, output_dir)
+
+    # 注入 APP_VERSION 到 index.html（供 pwaCache 无网络建桶）
+    inject_app_version(app_config.get('version', 'dev'), output_dir)
 
     # 复制 changelog.json 到 output/（供前端 fetchChangelog 使用）
     changelog_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'changelog.json')
