@@ -352,7 +352,8 @@
     // ── 全局根路径 ────────────────────────────────────────────────────────
     window.BK_ROOT = './';
     window.BK = window.BK || {};
-    window.__BK_CACHE_VERSION__ = '__APP_VERSION__';
+    // 缓存名固定为 bk-main，不带版本号。版本管理由 version.json + cacheAllBooks 控制。
+    window.__BK_CACHE_NAME__ = 'bk-main';
 
     // ── 核心资源 URL 列表（用于 PWA 缓存校验）────────────────────────────
     window.__bkCoreUrls = [
@@ -694,13 +695,11 @@
     function verifyCacheIntegrity(targetVersion){
         if(!('caches' in window))return Promise.resolve({ok:false,coverage:0,missingCore:0,missingCoreUrls:[]});
         var coreUrls=window.__bkCoreUrls||[];
-        return caches.keys().then(function(keys){
-            var mainKey;
-            if(targetVersion){var k='bk-main-'+targetVersion;if(keys.indexOf(k)!==-1)mainKey=k;}
-            if(!mainKey)mainKey=keys.find(function(k){return k==='bk-main'||k.indexOf('bk-main-')===0;});
-            if(!mainKey)return{ok:false,coverage:0,missingCore:coreUrls.length,missingCoreUrls:[]};
+        var cacheName=window.__BK_CACHE_NAME__||'bk-main';
+        return caches.has(cacheName).then(function(exists){
+            if(!exists)return{ok:false,coverage:0,missingCore:coreUrls.length,missingCoreUrls:[]};
             var checkUrls=coreUrls.filter(function(u){return u!=='./';});
-            return caches.open(mainKey).then(function(cache){
+            return caches.open(cacheName).then(function(cache){
                 return Promise.all(checkUrls.map(function(u){return cache.match(u).then(function(r){return r?null:u;});}));
             }).then(function(results){
                 var missingUrls=results.filter(Boolean);
@@ -716,8 +715,8 @@
         var coreUrls=window.__bkCoreUrls||[];
         var totalResources=coreUrls.length;var cachedResources=0;var failedResources=0;
         function rep(){var p=totalResources>0?Math.round(cachedResources/totalResources*100):0;if(onProgress)onProgress(p);return p;}
-        var ver=targetVersion||window.__BK_CACHE_VERSION__||'dev';
-        var cacheShared=caches.open('bk-main-'+ver).then(function(cache){
+        var cacheName=window.__BK_CACHE_NAME__||'bk-main';
+        var cacheShared=caches.open(cacheName).then(function(cache){
             return Promise.allSettled(coreUrls.map(function(url){
                 return fetch(url,{cache:'no-cache'}).then(function(r){cachedResources++;if(statusEl)statusEl.textContent='核心资源：'+cachedResources+'/'+coreUrls.length;if(r.ok)return cache.put(url,r.clone());failedResources++;}).catch(function(){cachedResources++;failedResources++;rep();});
             }));
@@ -751,20 +750,17 @@
                 return verifyCacheIntegrity(targetVersion);
             }).then(function(result){
                 if(result.ok){
-                    // 缓存验证通过，安全清理旧缓存（保留刚建的新缓存）
-                    var newCacheName='bk-main-'+targetVersion;
-                    var clearOld=('caches' in window)?caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k.indexOf('bk-')===0&&k!==newCacheName;}).map(function(k){return caches.delete(k);}));}).catch(function(){}):Promise.resolve();
-                    clearOld.then(function(){
-                        if(onComplete){
-                            if(statusEl)statusEl.textContent='✅ 缓存完成';
-                            onComplete();
-                        }else{
-                            try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
-                            if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
-                            if(progressBar)progressBar.style.width='100%';
-                            setTimeout(function(){window.location.reload();},1200);
-                        }
-                    });
+                    // 缓存验证通过。固定缓存名 bk-main，新资源已覆盖写入，
+                    // 无需清理旧缓存（同名 cache 直接覆盖）。
+                    if(onComplete){
+                        if(statusEl)statusEl.textContent='✅ 缓存完成';
+                        onComplete();
+                    }else{
+                        try{localStorage.setItem('bk_pwa_version',targetVersion);}catch(e){}
+                        if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
+                        if(progressBar)progressBar.style.width='100%';
+                        setTimeout(function(){window.location.reload();},1200);
+                    }
                 }else{
                     // 缓存不完整时不删旧缓存，用户可重试
                     var msg='\u26A0 部分资源未完整\uff08'+Math.round((result.coverage||0)*100)+'%\uff09';

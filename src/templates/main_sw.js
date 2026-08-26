@@ -1,14 +1,17 @@
 /**
  * Service Worker for 书报 - 电子书阅读应用
  *
- * 缓存策略（v2，适配在线数据架构）：
+ * 缓存策略（v3，固定缓存名）：
+ *  - CACHE_NAME 固定为 'bk-main'，不带版本号
+ *  - SW 只管读写缓存，不负责版本管理/旧缓存清理
+ *  - 缓存版本管理由应用层的 version.json + cacheAllBooks（先建后删）控制
  *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存
  *  - 书籍 JSON 数据由 data-manager.js 通过 localforage 管理，SW 不介入
  *  - data CDN 索引文件（books-index.json / manifest.json）使用 stale-while-revalidate
  *  - 版本检测文件（version.json）始终走网络
  */
 
-const CACHE_NAME = 'bk-main-__APP_VERSION__';
+const CACHE_NAME = 'bk-main';
 
 const CONFIG = {
   TIMEOUT: 5000,
@@ -40,7 +43,7 @@ const PRECACHE_URLS = [
   './js/renderer/renderer-utils.js',
   './js/renderer/renderer-data.js',
   './js/renderer/renderer-progress.js',
-  './js/renderer/renderer-pdf.js',
+  './js/renderer/pdf/renderer-pdf.js',
   './js/renderer/renderer-content.js',
   './js/renderer/renderer-carousel.js',
   './js/renderer/renderer-city-helpers.js',
@@ -120,19 +123,11 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
+  // SW 只管缓存读写，不负责版本管理。
+  // 旧缓存清理由应用层 cacheAllBooks 的"先建后删"流程控制，
+  // SW activate 不删任何缓存，避免升级中途退出导致离线失效。
   event.waitUntil(
     (async () => {
-      try {
-        // 清理所有旧版缓存，仅保留当前 CACHE_NAME
-        const keys = await caches.keys();
-        await Promise.all(
-          keys
-            .filter(k => (k.startsWith('books-') || k.startsWith('bk-')) && k !== CACHE_NAME)
-            .map(k => caches.delete(k))
-        );
-      } catch (e) {
-        // 清理失败不阻塞激活
-      }
       try {
         await self.clients.claim();
       } catch (e) {
@@ -361,9 +356,7 @@ self.addEventListener('message', event => {
     if (!port) return;
     event.waitUntil(
       caches.keys().catch(() => []).then(allKeys => {
-        const bookCacheCount = allKeys.filter(k => k.startsWith('books-') && k !== CACHE_NAME).length;
         port.postMessage({
-          bookCacheCount: bookCacheCount,
           ok: allKeys.includes(CACHE_NAME)
         });
       }).catch(err => {

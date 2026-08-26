@@ -71,13 +71,12 @@ class BooksGenerator:
             shutil.copy2(manifest_src, os.path.join(self.output_dir, 'manifest.json'))
             print("✓ manifest.json 已生成")
 
-        # sw.js - 注入应用版本号到 CACHE_NAME
+        # sw.js - 缓存名固定为 bk-main，不再注入版本号
         sw_src = os.path.join(template_dir, 'main_sw.js')
         if os.path.exists(sw_src):
             sw_dst = os.path.join(self.output_dir, 'sw.js')
             with open(sw_src, 'r', encoding='utf-8') as f:
                 sw_content = f.read()
-            sw_content = sw_content.replace('__APP_VERSION__', app_version)
 
             # 注入 vendor/cmaps + vendor/standard_fonts 文件列表到 SW 预缓存
             # 确保首次离线打开中文 PDF 时 CJK 字体映射和标准字体可用
@@ -98,16 +97,7 @@ class BooksGenerator:
 
             with open(sw_dst, 'w', encoding='utf-8') as f:
                 f.write(sw_content)
-            print(f"✓ sw.js 已生成 (版本: {app_version}, vendor 预缓存: {len(vendor_urls)} 个文件)")
-
-        # 将版本号注入已复制的 output/index.html
-        index_dst = os.path.join(self.output_dir, 'index.html')
-        if os.path.exists(index_dst):
-            with open(index_dst, 'r', encoding='utf-8') as f:
-                html_content = f.read()
-            html_content = html_content.replace('__APP_VERSION__', app_version)
-            with open(index_dst, 'w', encoding='utf-8') as f:
-                f.write(html_content)
+            print(f"✓ sw.js 已生成 (vendor 预缓存: {len(vendor_urls)} 个文件)")
 
         # 校验 PRECACHE_URLS 与 __bkCoreUrls 的一致性
         # PRECACHE_URLS 应为 __bkCoreUrls 的子集，确保 SW 预缓存的所有资源

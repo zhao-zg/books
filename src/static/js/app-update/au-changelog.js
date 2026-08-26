@@ -515,25 +515,17 @@
                             });
                         } else {
                             // fallback：showMandatoryInstallDialog 不可用时走原流程
-                            // 先锁定 controllerchange，再激活新 SW，最后清理旧缓存（排除刚建的新版本缓存）
+                            // 缓存名固定 bk-main，新资源覆盖写入，无需清理旧缓存
                             window.__bkSwRefreshing = true;
                             if (window.__bkSwWaiting) {
                                 try { window.__bkSwWaiting.postMessage({type:'SKIP_WAITING'}); } catch(ex){}
                                 window.__bkSwWaiting = null;
                             }
-                            var newCacheName = 'bk-main-' + remoteVersion;
-                            var steps = [];
-                            if ('caches' in window) {
-                                steps.push(caches.keys().then(function(keys) {
-                                    return Promise.all(keys.filter(function(k) { return (k.startsWith('bk-') || k.startsWith('books-')) && k !== newCacheName; }).map(function(k) { return caches.delete(k); }));
-                                }).catch(function() {}));
-                            }
                             try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
                             try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
                             window.__bkUpdateInProgress = false;
-                            Promise.all(steps).then(function() { window.location.replace(root + 'index.html'); });
-                        }
-                    };
+                            setTimeout(function() { window.location.replace(root + 'index.html'); }, 800);
+                        };
                 }
 
                 fetchChangelog(root).then(function(changelog) {
