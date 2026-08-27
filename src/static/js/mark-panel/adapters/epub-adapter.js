@@ -17,8 +17,8 @@
 
     // ── 纲目提取缓存 ──────────────────────────────────────────────
     var _outlineCache = {};
-    // ── 内容索引加载状态（全文搜索用）─────────────────────────────
-    var _indexLoading = false;
+    // 注：全文搜索所需的内容索引加载由 DataManager.loadContentIndexes() 幂等管理，
+    // 无需在本适配器维护独立的加载状态标志。
 
     // ── 纲目提取辅助函数 ──────────────────────────────────────────
 
@@ -90,6 +90,14 @@
             });
         }
         return outlines;
+    }
+
+    /** 全词 AND 匹配：所有关键词都出现在 hay 中才算匹配 */
+    function _allMatch(hay, terms) {
+        for (var i = 0; i < terms.length; i++) {
+            if (hay.indexOf(terms[i]) === -1) return false;
+        }
+        return true;
     }
 
     win.BK.MarkPanelAdapters.EpubAdapter = {
@@ -266,123 +274,151 @@
 
             search: function (keyword) {
                 var q = (keyword || '').trim().toLowerCase();
-                if (!q) return [];
+                if (!q) return Promise.resolve([]);
                 var bookId = _getCurrentBookId();
-                if (!bookId) return [];
+                if (!bookId) return Promise.resolve([]);
 
                 var terms = q.split(/\s+/).filter(Boolean);
-                var results = [];
+                var self = this;
 
-                // --- 阶段1：标题匹配（即时，无需索引）---
-                var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
-                if (chapterItems.length > 0) {
-                    for (var i = 0; i < chapterItems.length; i++) {
-                        var el = chapterItems[i];
-                        var numEl = el.querySelector('.bk-toc-chapter-num');
-                        var titleEl = el.querySelector('.bk-toc-chapter-title');
-                        var num = numEl ? parseInt(numEl.textContent.trim(), 10) : (i + 1);
-                        var title = titleEl ? titleEl.textContent.trim() : '';
-                        var hayTitle = title.toLowerCase();
-                        var titleMatch = true;
-                        for (var j = 0; j < terms.length; j++) {
-                            if (hayTitle.indexOf(terms[j]) === -1) { titleMatch = false; break; }
-                        }
-                        if (titleMatch) {
-                            results.push({
-                                id: 'toc-' + num,
-                                title: title,
-                                num: num,
-                                depth: 0,
-                                position: i,
-                                isActive: el.classList.contains('bk-toc-current'),
-                                element: el,
-                                context: '',
-                                score: 2
-                            });
-                        }
-                    }
-                }
+                // ── 阶段1：标题匹配（loadBook 数据源，不依赖旧抽屉 DOM）──
+                function matchTitles() {
+                    var results = [];
 
-                // --- 阶段2：全文匹配（复用内容索引）---
-                var DM = win.DataManager;
-                if (DM && DM.getContentIndexMap) {
-                    var indexMap = DM.getContentIndexMap();
-                    if (!indexMap && !_indexLoading) {
-                        // 索引未加载：异步加载后重新搜索
-                        _indexLoading = true;
-                        if (DM.loadContentIndexes) {
-                            DM.loadContentIndexes().then(function () {
-                                _indexLoading = false;
-                                // 重新触发搜索
-                                var pane = document.getElementById('bk-mp-pane-toc');
-                                if (pane && win.BK && win.BK.MarkPanel) {
-                                    win.BK.MarkPanel._onTocSearch(keyword);
-                                }
-                            }).catch(function () { _indexLoading = false; });
-                        }
-                        // 先返回标题匹配结果
-                        return results;
-                    }
-                    if (indexMap) {
-                        var bookIdx = indexMap[bookId];
-                        if (bookIdx && bookIdx.chapters) {
-                            var chapters = bookIdx.chapters;
-                            for (var c = 0; c < chapters.length; c++) {
-                                var ch = chapters[c];
-                                var hayTitle = (ch.t || '').toLowerCase();
-                                var hayContent = (ch.c || '').toLowerCase();
-                                var hayCombined = hayTitle + ' ' + hayContent;
-                                var allMatch = true;
-                                for (var j = 0; j < terms.length; j++) {
-                                    if (hayCombined.indexOf(terms[j]) === -1) { allMatch = false; break; }
-                                }
-                                if (!allMatch) continue;
-
-                                // 跳过已通过标题匹配添加的结果
-                                var chNum = ch.n;
-                                var dup = false;
-                                for (var r = 0; r < results.length; r++) {
-                                    if (results[r].num === chNum) { dup = true; break; }
-                                }
-                                if (dup) continue;
-
-                                // 提取上下文片段
-                                var context = '';
-                                if (hayContent) {
-                                    var firstPos = -1;
-                                    for (var t = 0; t < terms.length; t++) {
-                                        var p = hayContent.indexOf(terms[t]);
-                                        if (p !== -1 && (firstPos === -1 || p < firstPos)) firstPos = p;
-                                    }
-                                    if (firstPos !== -1) {
-                                        var ctxFrom = Math.max(0, firstPos - 30);
-                                        var ctxTo = Math.min(hayContent.length, firstPos + 30);
-                                        context = (ctxFrom > 0 ? '\u2026' : '') +
-                                            ch.c.substring(ctxFrom, ctxTo) +
-                                            (ctxTo < hayContent.length ? '\u2026' : '');
-                                    }
-                                }
-
+                    // 旧抽屉 DOM 已打开时优先（含 isActive 高亮，可即时响应）
+                    var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
+                    if (chapterItems.length > 0) {
+                        for (var i = 0; i < chapterItems.length; i++) {
+                            var el = chapterItems[i];
+                            var numEl = el.querySelector('.bk-toc-chapter-num');
+                            var titleEl = el.querySelector('.bk-toc-chapter-title');
+                            var num = numEl ? parseInt(numEl.textContent.trim(), 10) : (i + 1);
+                            var title = titleEl ? titleEl.textContent.trim() : '';
+                            if (_allMatch(title.toLowerCase(), terms)) {
                                 results.push({
-                                    id: 'toc-' + chNum,
-                                    title: ch.t || ('\u7b2c' + chNum + '\u7ae0'),
-                                    num: chNum,
+                                    id: 'toc-' + num,
+                                    title: title,
+                                    num: num,
                                     depth: 0,
-                                    position: results.length,
-                                    isActive: false,
-                                    context: context,
-                                    score: 1,
-                                    chapterNum: chNum,
+                                    position: i,
+                                    isActive: el.classList.contains('bk-toc-current'),
+                                    element: el,
+                                    context: '',
+                                    score: 2
+                                });
+                            }
+                        }
+                        return Promise.resolve(results);
+                    }
+
+                    // 无旧抽屉 DOM：通过 loadBook 获取章节列表做标题匹配
+                    if (typeof loadBook !== 'function') return Promise.resolve(results);
+                    return loadBook(bookId).then(function (book) {
+                        if (!book || !book.chapters) return results;
+                        var seen = {};
+                        var matched = [];
+                        var progress = (typeof getReadingProgress === 'function') ? getReadingProgress(bookId) : 0;
+                        var chapters = book.chapters;
+                        for (var j = 0; j < chapters.length; j++) {
+                            var ch = chapters[j];
+                            var num = ch.number || (j + 1);
+                            if (seen[num]) continue;
+                            seen[num] = true;
+                            var title = ch.title || ('\u7b2c' + num + '\u7ae0');
+                            if (_allMatch(title.toLowerCase(), terms)) {
+                                matched.push({
+                                    id: 'toc-' + num,
+                                    title: title,
+                                    num: num,
+                                    depth: 0,
+                                    position: j,
+                                    isActive: (num === progress),
+                                    context: '',
+                                    score: 2,
+                                    chapterNum: num,
                                     bookId: bookId
                                 });
                             }
                         }
-                    }
+                        return results.concat(matched);
+                    }).catch(function () { return results; });
                 }
 
-                // 按评分排序：标题匹配(score 2)优先
-                results.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
-                return results;
+                // ── 阶段2：全文匹配（复用 DataManager 内容索引）──
+                function matchChapters(titleResults) {
+                    var DM = win.DataManager;
+                    if (!DM || !DM.getContentIndexMap || !DM.loadContentIndexes) {
+                        return Promise.resolve(titleResults);
+                    }
+
+                    var indexMap = DM.getContentIndexMap();
+                    // 索引尚未加载：触发加载后重跑整个搜索（标题+全文）
+                    if (!indexMap) {
+                        return DM.loadContentIndexes().then(function () {
+                            return self.search(keyword);
+                        }).catch(function () {
+                            return titleResults;
+                        });
+                    }
+
+                    // 索引已加载但当前书无索引（未下载/未导入或索引缺失）：仅标题结果
+                    var bookIdx = indexMap[bookId];
+                    if (!bookIdx || !bookIdx.chapters) return Promise.resolve(titleResults);
+
+                    var results = titleResults.slice();
+                    var chapters = bookIdx.chapters;
+                    for (var c = 0; c < chapters.length; c++) {
+                        var ch = chapters[c];
+                        var hayTitle = (ch.t || '').toLowerCase();
+                        var hayContent = (ch.c || '').toLowerCase();
+                        var hayCombined = hayTitle + ' ' + hayContent;
+                        if (!_allMatch(hayCombined, terms)) continue;
+
+                        // 跳过已通过标题匹配添加的结果
+                        var chNum = ch.n;
+                        var dup = false;
+                        for (var r = 0; r < results.length; r++) {
+                            if (results[r].num === chNum) { dup = true; break; }
+                        }
+                        if (dup) continue;
+
+                        // 提取上下文片段
+                        var context = '';
+                        if (hayContent) {
+                            var firstPos = -1;
+                            for (var t = 0; t < terms.length; t++) {
+                                var p = hayContent.indexOf(terms[t]);
+                                if (p !== -1 && (firstPos === -1 || p < firstPos)) firstPos = p;
+                            }
+                            if (firstPos !== -1) {
+                                var ctxFrom = Math.max(0, firstPos - 30);
+                                var ctxTo = Math.min(hayContent.length, firstPos + 30);
+                                context = (ctxFrom > 0 ? '\u2026' : '') +
+                                    ch.c.substring(ctxFrom, ctxTo) +
+                                    (ctxTo < hayContent.length ? '\u2026' : '');
+                            }
+                        }
+
+                        results.push({
+                            id: 'toc-' + chNum,
+                            title: ch.t || ('\u7b2c' + chNum + '\u7ae0'),
+                            num: chNum,
+                            depth: 0,
+                            position: results.length,
+                            isActive: false,
+                            context: context,
+                            score: 1,
+                            chapterNum: chNum,
+                            bookId: bookId
+                        });
+                    }
+
+                    // 按评分排序：标题匹配(score 2)优先
+                    results.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+                    return Promise.resolve(results);
+                }
+
+                return matchTitles().then(matchChapters);
             }
         },
 

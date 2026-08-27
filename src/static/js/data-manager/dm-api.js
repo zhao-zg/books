@@ -216,21 +216,35 @@
    * @returns {Promise<object>} _contentIndexMap
    */
   function loadContentIndexes() {
-    if (_contentIndexMap) return Promise.resolve(_contentIndexMap);
+    // ★ 修复：_contentIndexMap 可能为 {}（如索引为空或已被加载完）。
+    //   若直接以 {} 作为"已加载"标记（if (_contentIndexMap) return），后续
+    //   加载会被空对象短路，导致 store 中已有索引的书籍永远搜不到正文。
+    //   因此仅在「非空」时才视为已加载；空对象也必须重新从 store 读取。
+    if (_contentIndexMap && Object.keys(_contentIndexMap).length > 0) {
+      return Promise.resolve(_contentIndexMap);
+    }
+    // 并发去重：同一时刻只允许一次加载，其余调用复用进行中的 Promise
+    if (_contentIndexLoading) return _contentIndexLoading;
     _contentIndexMap = {};
-    return storeGet(KEY_CONTENT_INDEX_IDS).then(function (ids) {
-      if (!ids || !ids.length) return _contentIndexMap;
-      var promises = ids.map(function (bookId) {
-        return storeGet(KEY_CONTENT_INDEX_PREFIX + bookId).then(function (entry) {
-          if (entry) _contentIndexMap[bookId] = entry;
+    _contentIndexLoading = Promise.resolve()
+      .then(function () { return storeGet(KEY_CONTENT_INDEX_IDS); })
+      .then(function (ids) {
+        if (!ids || !ids.length) return _contentIndexMap;
+        var promises = ids.map(function (bookId) {
+          return storeGet(KEY_CONTENT_INDEX_PREFIX + bookId).then(function (entry) {
+            if (entry) _contentIndexMap[bookId] = entry;
+          });
         });
+        return Promise.all(promises).then(function () {
+          var count = Object.keys(_contentIndexMap).length;
+          console.log('[DataManager] 内容索引已加载: ' + count + ' 本书');
+          return _contentIndexMap;
+        });
+      })
+      .finally(function () {
+        _contentIndexLoading = null;
       });
-      return Promise.all(promises).then(function () {
-        var count = Object.keys(_contentIndexMap).length;
-        console.log('[DataManager] 内容索引已加载: ' + count + ' 本书');
-        return _contentIndexMap;
-      });
-    });
+    return _contentIndexLoading;
   }
 
   /**

@@ -336,6 +336,12 @@
             var pane = document.getElementById('bk-mp-pane-toc');
             if (!pane || !adapter) return;
 
+            // 搜索框有值时恢复搜索结果（面板关闭再打开场景）
+            if (MarkPanel._searchInput && MarkPanel._searchInput.value.trim()) {
+                MarkPanel._onTocSearch(MarkPanel._searchInput.value);
+                return;
+            }
+
             adapter.getItems().then(function (items) {
                 pane.innerHTML = '';
 
@@ -500,7 +506,22 @@
                 return;
             }
 
-            var items = MarkPanel._adapter.toc.search(keyword);
+            // 搜索可能触发内容索引异步加载（首次搜索），search() 返回 Promise
+            var result = MarkPanel._adapter.toc.search(keyword);
+            if (result && typeof result.then === 'function') {
+                // 加载中提示
+                pane.innerHTML = '<div class="bk-mp-empty">\u641c\u7d22\u4e2d\u2026</div>';
+                result.then(function (items) {
+                    // 关键词可能已变化，仅处理仍匹配的搜索结果
+                    if (MarkPanel._searchQuery !== keyword) return;
+                    MarkPanel._renderTocSearchResult(pane, items);
+                });
+                return;
+            }
+            MarkPanel._renderTocSearchResult(pane, result);
+        },
+
+        _renderTocSearchResult: function (pane, items) {
             pane.innerHTML = '';
 
             if (!items || items.length === 0) {

@@ -63,6 +63,7 @@
   var _cachedIndex = null;
   var _cachedManifest = null;
   var _contentIndexMap = null; // { bookId: { id, title, series, chapters: [{ n, t, c }] } } | null（未初始化）
+  var _contentIndexLoading = null; // 内容索引加载 Promise（null = 未在加载）；供 loadContentIndexes 幂等去重
   var _downloadedIdCache = null; // Set<string> | null（null = 未初始化）
   var _bookBytesCache = null;   // number | null（null = 未计算/已失效）—— 书籍数据占用缓存，避免每次 getStorageStats 都 O(N) 遍历
 
