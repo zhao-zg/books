@@ -55,6 +55,8 @@ resource/books/职事书报/
 
 # Build artifacts (generated, not tracked)
 src/zl-data/
+# 测试服务器 junction：src/static/zl-data -> output/zl-data（构建产物，勿入库）
+src/static/zl-data/
 
 # Output
 output/
