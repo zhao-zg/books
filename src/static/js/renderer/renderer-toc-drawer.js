@@ -168,14 +168,10 @@
     var overlay = document.getElementById('bkTocOverlay');
     if (drawer) drawer.classList.toggle('open', open);
     if (overlay) overlay.classList.toggle('open', open);
-    // 关闭时清空搜索
+    // 关闭时清空搜索（_filterTocItems('') 内部已处理清除按钮和计数）
     if (!open) {
       var si = document.getElementById('bkTocSearchInput');
       if (si) { si.value = ''; _filterTocItems(''); }
-      var clearBtn = document.getElementById('bkTocSearchClear');
-      if (clearBtn) clearBtn.style.display = 'none';
-      var countEl = document.getElementById('bkTocSearchCount');
-      if (countEl) countEl.textContent = '';
     }
     if (open) {
       document.addEventListener('keydown', _tocEscHandler);
@@ -277,7 +273,24 @@
     // 搜索框输入事件（防抖 200ms）
     var searchInput = document.getElementById('bkTocSearchInput');
     if (searchInput) {
-      var _tocSearchTimer = null;\n      searchInput.addEventListener('input', function() {\n        var val = this.value;\n        clearTimeout(_tocSearchTimer);\n        _tocSearchTimer = setTimeout(function() {\n          _filterTocItems(val);\n        }, 200);\n      });\n    }\n\n    // 清除搜索按钮\n    var clearSearchBtn = document.getElementById('bkTocSearchClear');\n    if (clearSearchBtn) {\n      clearSearchBtn.addEventListener('click', function() {\n        var si = document.getElementById('bkTocSearchInput');\n        if (si) { si.value = ''; _filterTocItems(''); si.focus(); }\n      });\n    }
+      var _tocSearchTimer = null;
+      searchInput.addEventListener('input', function() {
+        var val = this.value;
+        clearTimeout(_tocSearchTimer);
+        _tocSearchTimer = setTimeout(function() {
+          _filterTocItems(val);
+        }, 200);
+      });
+    }
+
+    // 清除搜索按钮
+    var clearSearchBtn = document.getElementById('bkTocSearchClear');
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', function() {
+        var si = document.getElementById('bkTocSearchInput');
+        if (si) { si.value = ''; _filterTocItems(''); si.focus(); }
+      });
+    }
 
     // 全局事件代理：点击 nav-toc 按钮打开 drawer，点击 drawer 内章节链接关闭 drawer 并导航
     document.addEventListener('click', function(e) {
