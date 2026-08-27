@@ -523,9 +523,10 @@
                             }
                             try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
                             try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
-                            window.__bkUpdateInProgress = false;
+window.__bkUpdateInProgress = false;
                             setTimeout(function() { window.location.replace(root + 'index.html'); }, 800);
-                        };
+                        }
+                    };
                 }
 
                 fetchChangelog(root).then(function(changelog) {
