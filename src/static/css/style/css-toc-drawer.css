@@ -82,23 +82,84 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border, #E5E2DD);
 }
+.bk-toc-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.bk-toc-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted, #aaa);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.bk-toc-search-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 .bk-toc-search-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 8px 12px;
+  padding: 8px 12px 8px 34px;
   border: 1px solid var(--border, #E5E2DD);
   border-radius: 8px;
   font-size: var(--text-base);
   outline: none;
   background: var(--surface-alt, #EDEAE4);
   color: var(--text, #1A1918);
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, padding-right 0.15s;
 }
 .bk-toc-search-input:focus {
   border-color: var(--brand, #3D8A5A);
 }
 .bk-toc-search-input::placeholder {
   color: var(--text-muted, #aaa);
+}
+/* 有文字时给清除按钮留空间 */
+.bk-toc-search-input:not(:placeholder-shown) {
+  padding-right: 34px;
+}
+.bk-toc-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-muted, #ccc);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, opacity 0.15s;
+  opacity: 0.7;
+}
+.bk-toc-search-clear:active {
+  opacity: 1;
+  background: var(--text-muted, #999);
+}
+.bk-toc-search-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted, #888);
+  padding: 4px 4px 0;
+  min-height: 0;
+  transition: min-height 0.15s;
+}
+.bk-toc-search-count:not(:empty) {
+  min-height: 18px;
 }
 .bk-toc-chapter-item.bk-toc-hidden { display: none; }
 .bk-toc-no-results {
@@ -135,6 +196,17 @@
   background: var(--nav-hover, #ECEAE5);
   color: var(--brand, #3D8A5A);
   font-weight: 500;
+  position: relative;
+}
+.bk-toc-chapter-item.bk-toc-current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--brand, #3D8A5A);
+  border-radius: 0 2px 2px 0;
 }
 .bk-toc-chapter-num {
   font-size: var(--text-xs);

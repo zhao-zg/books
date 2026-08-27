@@ -172,6 +172,10 @@
     if (!open) {
       var si = document.getElementById('bkTocSearchInput');
       if (si) { si.value = ''; _filterTocItems(''); }
+      var clearBtn = document.getElementById('bkTocSearchClear');
+      if (clearBtn) clearBtn.style.display = 'none';
+      var countEl = document.getElementById('bkTocSearchCount');
+      if (countEl) countEl.textContent = '';
     }
     if (open) {
       document.addEventListener('keydown', _tocEscHandler);
@@ -206,8 +210,11 @@
     var body = document.getElementById('bkTocDrawerBody');
     if (!body) return;
     var items = body.querySelectorAll('.bk-toc-chapter-item');
+    var clearBtn = document.getElementById('bkTocSearchClear');
+    var countEl = document.getElementById('bkTocSearchCount');
     var q = (query || '').trim().toLowerCase();
     var visibleCount = 0;
+    var totalCount = items.length;
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var num = (item.querySelector('.bk-toc-chapter-num') || {}).textContent || '';
@@ -215,6 +222,21 @@
       var match = !q || num.toLowerCase().indexOf(q) >= 0 || title.toLowerCase().indexOf(q) >= 0;
       item.classList.toggle('bk-toc-hidden', !match);
       if (match) visibleCount++;
+    }
+    // 清除按钮显示/隐藏
+    if (clearBtn) {
+      clearBtn.style.display = q ? 'flex' : 'none';
+    }
+    // 搜索结果计数
+    if (countEl) {
+      if (q) {
+        countEl.textContent = visibleCount > 0
+          ? '共 ' + visibleCount + ' / ' + totalCount + ' 条结果'
+          : '未找到匹配章节';
+        countEl.style.color = visibleCount > 0 ? '' : 'var(--warning-text, #B5793A)';
+      } else {
+        countEl.textContent = '';
+      }
     }
     // 显示/隐藏“无结果”提示
     var noRes = body.querySelector('.bk-toc-no-results');
@@ -255,15 +277,7 @@
     // 搜索框输入事件（防抖 200ms）
     var searchInput = document.getElementById('bkTocSearchInput');
     if (searchInput) {
-      var _tocSearchTimer = null;
-      searchInput.addEventListener('input', function() {
-        var val = this.value;
-        clearTimeout(_tocSearchTimer);
-        _tocSearchTimer = setTimeout(function() {
-          _filterTocItems(val);
-        }, 200);
-      });
-    }
+      var _tocSearchTimer = null;\n      searchInput.addEventListener('input', function() {\n        var val = this.value;\n        clearTimeout(_tocSearchTimer);\n        _tocSearchTimer = setTimeout(function() {\n          _filterTocItems(val);\n        }, 200);\n      });\n    }\n\n    // 清除搜索按钮\n    var clearSearchBtn = document.getElementById('bkTocSearchClear');\n    if (clearSearchBtn) {\n      clearSearchBtn.addEventListener('click', function() {\n        var si = document.getElementById('bkTocSearchInput');\n        if (si) { si.value = ''; _filterTocItems(''); si.focus(); }\n      });\n    }
 
     // 全局事件代理：点击 nav-toc 按钮打开 drawer，点击 drawer 内章节链接关闭 drawer 并导航
     document.addEventListener('click', function(e) {

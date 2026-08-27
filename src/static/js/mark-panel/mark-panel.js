@@ -229,15 +229,42 @@
             var search = document.createElement('div');
             search.className = 'bk-mp-search';
             search.id = 'bk-mp-search';
+            var searchWrap = document.createElement('div');
+            searchWrap.className = 'bk-mp-search-wrap';
+            // 搜索图标
+            var searchIcon = document.createElement('span');
+            searchIcon.className = 'bk-mp-search-icon';
+            searchIcon.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5"></circle><path d="m11 11 3 3"></path></svg>';
+            searchWrap.appendChild(searchIcon);
             var searchInput = document.createElement('input');
             searchInput.className = 'bk-mp-search-input';
             searchInput.placeholder = '搜索章节或正文…';
             searchInput.addEventListener('input', win.BK.MarkUtils.debounce(function () {
                 MarkPanel._onTocSearch(searchInput.value);
             }, 200));
-            search.appendChild(searchInput);
+            searchWrap.appendChild(searchInput);
+            // 清除按钮
+            var searchClear = document.createElement('button');
+            searchClear.className = 'bk-mp-search-clear';
+            searchClear.type = 'button';
+            searchClear.setAttribute('aria-label', '清除搜索');
+            searchClear.innerHTML = '×';
+            searchClear.addEventListener('click', function () {
+                searchInput.value = '';
+                searchClear.classList.remove('bk-mp-visible');
+                MarkPanel._onTocSearch('');
+                searchInput.focus();
+            });
+            searchWrap.appendChild(searchClear);
+            search.appendChild(searchWrap);
+            // 搜索结果计数
+            var searchCount = document.createElement('div');
+            searchCount.className = 'bk-mp-search-count';
+            search.appendChild(searchCount);
             MarkPanel._searchEl = search;
             MarkPanel._searchInput = searchInput;
+            MarkPanel._searchClear = searchClear;
+            MarkPanel._searchCount = searchCount;
             MarkPanel._drawer.appendChild(search);
 
             // 筛选栏（标记 Tab）— 容器，内容由 _renderFilterBar 动态填充
@@ -500,6 +527,19 @@
 
             MarkPanel._searchQuery = keyword || '';
 
+            // 清除按钮显示/隐藏
+            if (MarkPanel._searchClear) {
+                if (keyword && keyword.trim()) {
+                    MarkPanel._searchClear.classList.add('bk-mp-visible');
+                } else {
+                    MarkPanel._searchClear.classList.remove('bk-mp-visible');
+                }
+            }
+            // 隐藏结果计数（搜索中暂不显示）
+            if (MarkPanel._searchCount) {
+                MarkPanel._searchCount.classList.remove('bk-mp-visible');
+            }
+
             // 空关键词：恢复完整目录
             if (!keyword || !keyword.trim()) {
                 MarkPanel._loadToc();
@@ -510,7 +550,7 @@
             var result = MarkPanel._adapter.toc.search(keyword);
             if (result && typeof result.then === 'function') {
                 // 加载中提示
-                pane.innerHTML = '<div class="bk-mp-empty">\u641c\u7d22\u4e2d\u2026</div>';
+                pane.innerHTML = '<div class="bk-mp-toc-loading-hint">\u641c\u7d22\u4e2d</div>';
                 result.then(function (items) {
                     // 关键词可能已变化，仅处理仍匹配的搜索结果
                     if (MarkPanel._searchQuery !== keyword) return;
@@ -523,6 +563,13 @@
 
         _renderTocSearchResult: function (pane, items) {
             pane.innerHTML = '';
+
+            // 显示搜索结果计数
+            if (MarkPanel._searchCount) {
+                var count = (items && items.length) || 0;
+                MarkPanel._searchCount.textContent = count > 0 ? ('共 ' + count + ' 条结果') : '无匹配结果';
+                MarkPanel._searchCount.classList.add('bk-mp-visible');
+            }
 
             if (!items || items.length === 0) {
                 pane.innerHTML = '<div class="bk-mp-empty">\u65e0\u5339\u914d\u7ae0\u8282</div>';
@@ -541,22 +588,30 @@
                 var isExpanded = existing.style.display !== 'none';
                 existing.style.display = isExpanded ? 'none' : 'block';
                 li.classList.toggle('bk-mp-toc-expanded', !isExpanded);
-                var toggle = li.querySelector('.bk-mp-toc-toggle');
-                if (toggle) toggle.textContent = isExpanded ? '\u25b8' : '\u25be';
+                // 箭头旋转由 CSS transform 处理，不再切换字符
                 return;
             }
 
             // 无子列表：异步加载
             var toggle = li.querySelector('.bk-mp-toc-toggle');
-            if (toggle) { toggle.textContent = '\u2026'; toggle.disabled = true; }
+            if (toggle) { toggle.disabled = true; }
+            // 显示加载提示（在 toggle 下方插入临时元素）
+            var loadingHint = document.createElement('div');
+            loadingHint.className = 'bk-mp-toc-loading-hint';
+            loadingHint.textContent = '\u52a0\u8f7d\u4e2d';
+            li.appendChild(loadingHint);
 
             var bookId = chapterItem.bookId || MarkPanel._getCurrentBookId();
             var chapterNum = chapterItem.chapterNum || chapterItem.num;
 
             MarkPanel._adapter.toc.getOutlines(bookId, chapterNum).then(function (outlines) {
+                // 移除加载提示
+                if (loadingHint && loadingHint.parentNode) {
+                    loadingHint.parentNode.removeChild(loadingHint);
+                }
                 if (!outlines || outlines.length === 0) {
                     // 无纲目：隐藏箭头
-                    if (toggle) { toggle.textContent = ''; toggle.style.visibility = 'hidden'; }
+                    if (toggle) { toggle.textContent = ''; toggle.style.visibility = 'hidden'; toggle.disabled = false; }
                     return;
                 }
 
@@ -589,7 +644,7 @@
 
                 li.appendChild(sub);
                 li.classList.add('bk-mp-toc-expanded');
-                if (toggle) { toggle.textContent = '\u25be'; toggle.disabled = false; }
+                if (toggle) { toggle.disabled = false; }
 
                 // 若是当前章节（自动展开定位场景），展开后滚动到可见
                 if (li.querySelector('.bk-mp-toc-current')) {

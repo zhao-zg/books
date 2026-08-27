@@ -263,6 +263,15 @@
                     var contentEl = document.getElementById('chapterContent') ||
                                     document.querySelector('.bk-carousel-page .content');
                     if (!contentEl) return;
+
+                    // 面板已关闭，但 bk-scroll-locked 可能残留（引用计数不平衡），
+                    // 导致 overflow:hidden 阻止 scrollIntoView 滚动 carousel-page
+                    var wasLocked = document.body.classList.contains('bk-scroll-locked');
+                    if (wasLocked) {
+                        document.body.classList.remove('bk-scroll-locked');
+                        document.documentElement.classList.remove('bk-scroll-locked');
+                    }
+
                     var headings = contentEl.querySelectorAll('.bk-heading');
                     if (outlineIndex >= 0 && outlineIndex < headings.length) {
                         headings[outlineIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });

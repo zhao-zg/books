@@ -767,20 +767,16 @@
                     '<div class="theme-section-title">阅读字体</div>' +
                     '<div class="font-options">' +
                         '<div class="font-option" data-font="serif" onclick="setReadingFont(\'serif\')">' +
-                            '<div class="font-option-preview" style="font-family: \'Songti SC\', SimSun, serif;">宋</div>' +
-                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">宋体</div></div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: \'Songti SC\', SimSun, serif;">宋体</div></div>' +
                         '</div>' +
                         '<div class="font-option" data-font="sans" onclick="setReadingFont(\'sans\')">' +
-                            '<div class="font-option-preview" style="font-family: \'PingFang SC\', \'Microsoft YaHei\', sans-serif;">黑</div>' +
-                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">黑体</div></div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: \'PingFang SC\', \'Microsoft YaHei\', sans-serif;">黑体</div></div>' +
                         '</div>' +
                         '<div class="font-option" data-font="kai" onclick="setReadingFont(\'kai\')">' +
-                            '<div class="font-option-preview" style="font-family: \'STKaiti\', KaiTi, serif;">楷</div>' +
-                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">楷体</div></div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: \'STKaiti\', KaiTi, serif;">楷体</div></div>' +
                         '</div>' +
                         '<div class="font-option" data-font="system" onclick="setReadingFont(\'system\')">' +
-                            '<div class="font-option-preview" style="font-family: -apple-system, \'Microsoft YaHei\', sans-serif;">系</div>' +
-                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label">系统</div></div>' +
+                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: -apple-system, \'Microsoft YaHei\', sans-serif;">系统</div></div>' +
                         '</div>' +
                     '</div>' +
                 '</div>' +
