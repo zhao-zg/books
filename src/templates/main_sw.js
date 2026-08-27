@@ -228,6 +228,12 @@ self.addEventListener('fetch', event => {
 
     const normalizedUrl = normalizeUrl(request.url);
 
+    // ── 安装/更新时 cacheAllBooks 使用 cache:'no-cache' 发起请求，───
+    // 由页面侧显式调用 cache.put 管理，SW 不再介入，避免双重写缓存竞争。
+    // 必须最先检查：否则 zl-data 索引请求会被 isDataCDN 分支拦截走
+    // staleWhileRevalidate，导致页面侧把旧缓存写进新数据桶。
+    if (request.cache === 'no-cache') return;
+
     // ── data CDN 请求处理 ─────────────────────────────────────────────
     // 书籍数据由 data-manager.js 通过 localforage 管理，SW 仅在索引层面提供缓存加速
     if (isDataCDN(request.url)) {
@@ -274,10 +280,6 @@ self.addEventListener('fetch', event => {
       })());
       return;
     }
-
-    // 安装/更新时 cacheAllBooks 使用 cache:'no-cache' 发起请求，
-    // 由页面侧显式调用 cache.put 管理，SW 不再介入，避免双重写缓存竞争。
-    if (request.cache === 'no-cache') return;
 
     // ── 默认策略：缓存优先，未命中则网络取并写缓存 ──────────────────
     event.respondWith((async () => {
