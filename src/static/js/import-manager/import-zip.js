@@ -67,6 +67,8 @@
 
     /** 内存缓存：书城索引 ID 集合（避免每本导入重复遍历） */
     var _cityBookIdSet = null;
+    /** 与 _cityBookIdSet 对应的索引数据引用（同一份索引只构建一次；索引刷新后自动重建） */
+    var _cityIndexRef = null;
 
     /**
      * 判断书籍 ID 是否为「书城书」（存在于书城索引 books-index.json 中）。
@@ -74,6 +76,18 @@
      * 注意：不能仅凭 ID 前缀判断——书城原始 ID 无 imported- 前缀，但导入书也可能
      * 恰好不是 imported- 开头（旧版 ZIP 导出的书城书即保持原 ID）。唯一可靠判据是
      * 该书 ID 是否出现在书城索引中。
+     *
+     * ★ 索引就绪保障（修复误判 bug）：
+     *   此前 _cityBookIdSet 在首次调用时被初始化，若当时索引尚未加载完成
+     *   （getCachedIndex() 返回 null/空），会缓存一个【空 Set】并永久短路，
+     *   导致后续所有书城书（如 books-2-2082）被误判为导入书。
+     *   现改为：
+     *   1) 索引未就绪时**不缓存**空 Set（_cityBookIdSet 保持 null），并异步
+     *      触发 DataManager.loadIndex()，加载完成后后续调用自动正确构建；
+     *   2) 每次构建前校验索引完整性（books 数量），避免把空索引固化成缓存；
+     *   3) 用 _cityIndexRef 记录已构建 Set 对应的索引数据引用：同一份索引
+     *      只构建一次，索引刷新后（_cachedIndex 换新对象）自动失效重建，
+     *      不会缓存过期空 Set。
      * @param {string} bookId
      * @returns {boolean}
      */
@@ -81,13 +95,29 @@
         if (!bookId) return false;
         // 导入书 ID 前缀，必不在书城索引
         if (bookId.indexOf('imported-') === 0) return false;
-        if (_cityBookIdSet) return _cityBookIdSet.has(bookId);
+
+        // 从当前索引数据（已就绪）直接构建/复用 Set
         var indexData = (win.DataManager && typeof win.DataManager.getCachedIndex === 'function')
             ? win.DataManager.getCachedIndex() : null;
-        var books = (indexData && indexData.books) || [];
-        _cityBookIdSet = new Set();
-        for (var i = 0; i < books.length; i++) {
-            _cityBookIdSet.add(books[i].id);
+        var books = (indexData && Array.isArray(indexData.books)) ? indexData.books : [];
+        // 索引未就绪（null/空）：不缓存，直接返回 false，并触发异步加载
+        // （加载完成后 _cityBookIdSet 会被正确构建，后续调用不再走这里）
+        if (!books.length) {
+            // 触发一次异步加载（幂等：DataManager.loadIndex 内部有 _cachedIndex 守卫）
+            try {
+                if (win.DataManager && typeof win.DataManager.loadIndex === 'function') {
+                    win.DataManager.loadIndex();
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        if (!_cityBookIdSet || _cityIndexRef !== indexData) {
+            _cityBookIdSet = new Set();
+            _cityIndexRef = indexData;
+            for (var i = 0; i < books.length; i++) {
+                _cityBookIdSet.add(books[i].id);
+            }
         }
         return _cityBookIdSet.has(bookId);
     }

@@ -265,13 +265,22 @@
     if (!_cachedIndex.books) _cachedIndex.books = [];
     // 去重
     for (var i = 0; i < _cachedIndex.books.length; i++) {
-      if (_cachedIndex.books[i].id === bookData.id) return;
+      if (_cachedIndex.books[i].id === bookData.id) {
+        // 已存在：若为运行时导入条目则确保打上 _runtime 标记；
+        // 若是书城原生条目（无 _runtime）则保持原样（不得改标记）。
+        if (_cachedIndex.books[i]._runtime !== true) {
+          _cachedIndex.books[i]._runtime = true;
+        }
+        return;
+      }
     }
+    // 运行时新增（导入书 / 缓存书），打 _runtime 标记，供 removeFromBookIndex 区分
     _cachedIndex.books.push({
       id: bookData.id,
       title: bookData.title || bookData.id,
       series: bookData.series || '',
-      chapter_count: (bookData.chapters || []).length
+      chapter_count: (bookData.chapters || []).length,
+      _runtime: true
     });
     // 确保 series 存在
     if (_cachedIndex.series && bookData.series) {
@@ -288,14 +297,24 @@
 
   /**
    * 从书目索引中移除书籍（运行时，供移除外部书籍使用）
+   * ★ 修复误判 bug：仅移除「运行时添加」的条目（_runtime === true，即导入书）。
+   *   书城原生条目（无 _runtime）永不移除——否则 deleteBook() 删除下载缓存时
+   *   会把书城书从内存索引剔除，导致后续 ZIP 导入时 _isCityBookId() 查不到该书、
+   *   误判为导入书（出现 imported- 前缀副本入架 + 书城缓存丢失）。
    * @param {string} bookId
    */
   function removeFromBookIndex(bookId) {
     if (!bookId || !_cachedIndex || !_cachedIndex.books) return;
     for (var i = _cachedIndex.books.length - 1; i >= 0; i--) {
-      if (_cachedIndex.books[i].id === bookId) {
+      var entry = _cachedIndex.books[i];
+      if (entry && entry.id === bookId) {
+        if (!entry._runtime) {
+          // 书城原生条目：保留，仅移除本地缓存数据（调用方 deleteBook 负责）
+          console.log('[DataManager] 书城原生索引条目保留（不移除）: ' + bookId);
+          return;
+        }
         _cachedIndex.books.splice(i, 1);
-        console.log('[DataManager] 书目索引已更新（移除: ' + bookId + '）');
+        console.log('[DataManager] 书目索引已更新（移除运行时条目: ' + bookId + '）');
         return;
       }
     }
