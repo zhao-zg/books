@@ -27,6 +27,7 @@
 
   var PREFIX = 'bk_shelf:';
   var STATUS = 'collected';            // 在架(收藏)的文档化标识；旧记录 legacy 'read' 读取时忽略
+  var PURGED_PREFIX = 'bk_purged:';    // 用户主动移出书架的标记，阻止书城点开自动入架
 
   // ── 工具：生成当天 YYYY-MM-DD（本地时区） ──────────────────────────────
   function _today() {
@@ -47,6 +48,19 @@
   }
   function _safeRemove(key) {
     try { win.localStorage.removeItem(key); } catch (e) {}
+  }
+
+  // ── purged 标记：阻止书城点开自动入架被移除的书 ─────────────────────
+  // purgeBook 移出书城书时写入此标记；BKShelf.add 检查此标记跳过入架；
+  // 用户重新主动下载（downloadBook / cacheBook）时清除标记，允许重新入架。
+  function _isPurged(bookId) {
+    return _safeGet(PURGED_PREFIX + bookId) === '1';
+  }
+  function _setPurged(bookId) {
+    _safeSet(PURGED_PREFIX + bookId, '1');
+  }
+  function _clearPurged(bookId) {
+    _safeRemove(PURGED_PREFIX + bookId);
   }
 
   // ── 公共 API ───────────────────────────────────────────────────────────
@@ -78,6 +92,10 @@
     // markRead/setFavorite 等仍可正常更新同一条记录。
     var existing = get(bookId);
     if (existing && existing.status === STATUS) return;
+    // ★ 修复：用户 purgeBook 主动移出的书城书，书城点开时不再自动入架。
+    // zl-data 缓存仍保留作离线兜底，但书不会再出现在书架列表中。
+    // 用户重新主动下载（downloadBook）时清除 purged 标记，方可重新入架。
+    if (_isPurged(bookId)) return;
     var rec = {
       bookId: bookId,
       addedAt: opts.addedAt || _today(),
@@ -231,8 +249,11 @@
     } catch (e) {}
 
     return checkImported.then(function (inImportedIds) {
-      // 2) 书城在线书（无 imported- 前缀且不在导入库中）：仅移出书架，保留本地数据作为离线兜底
+      // 2) 书城在线书（无 imported- 前缀且不在导入库中）：仅移出书架，保留本地数据作为离线兜底。
+      //   ★ 修复：写入 purged 标记，阻止书城点开 BKShelf.add 自动入架导致复活。
+      //   用户重新主动下载时清除标记，方可重新入架。
       if (!isImported && !inImportedIds) {
+        _setPurged(bookId);
         // 仍广播 purge-done 以保持事件契约一致（占用统计无需更新，因数据未清）
         try {
           win.dispatchEvent(new win.CustomEvent('bk-shelf-changed', {
@@ -244,6 +265,9 @@
 
       // 3) 导入书 / 导入的书城书：彻底清理 localStorage 与 IndexedDB
       _purgeLocalStorageFor(bookId);
+      // ★ 设置 purged 标记：即使 zl-data 被清，也阻止书城点开 BKShelf.add 自动入架。
+      //   用户重新主动下载（downloadBook/cacheBook）时清除标记，方可重新入架。
+      _setPurged(bookId);
 
       var p;
       try {
@@ -512,6 +536,7 @@
     add: add,
     remove: remove,
     purgeBook: purgeBook,     // 移出书架 + 彻底清理本地数据（IndexedDB / localStorage 残留）
+    clearPurgedFlag: _clearPurged, // 清除 purged 标记（downloadBook / cacheBook 调用）
     markRead: markRead,
     unmarkRead: unmarkRead,    // 撤销「读完」：finished→false，移回在读
     finish: markRead,        // 别名：语义等价（标记已读）

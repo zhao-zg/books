@@ -67,6 +67,9 @@
         addToBookIndex(bookData);
         // 失效占用缓存（书籍数据已变更）
         _invalidateBookSizeCache();
+        // ★ 修复：cacheBook（内置书/ZIP导入等）= 写入本地数据，清除 purged 标记
+        //   允许后续 BKShelf.add 正常入架
+        try { if (win.BKShelf && win.BKShelf.clearPurgedFlag) win.BKShelf.clearPurgedFlag(bookId); } catch (e) {}
         console.log('[DataManager] 书籍缓存完成: ' + bookId);
         return bookData;
       });

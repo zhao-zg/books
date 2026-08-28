@@ -56,6 +56,16 @@
         return saveDownloadedIdsList([]).then(function () {
           // 失效占用缓存（全部书籍数据已清空）
           _invalidateBookSizeCache();
+          // ★ 修复：清空数据时清除所有 purged 标记，避免残留导致后续导入/下载无法入架
+          try {
+            var ls = win.localStorage;
+            var purgeKeys = [];
+            for (var j = ls.length - 1; j >= 0; j--) {
+              var k = ls.key(j);
+              if (k && k.indexOf('bk_purged:') === 0) purgeKeys.push(k);
+            }
+            for (var m = 0; m < purgeKeys.length; m++) ls.removeItem(purgeKeys[m]);
+          } catch (e) {}
           console.log('[DataManager] 已清除全部书籍缓存: ' + bookKeys.length + ' 本, 内容索引: ' + ciKeys.length + ' 条');
           return { cleared: bookKeys.length };
         });

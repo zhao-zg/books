@@ -212,6 +212,8 @@
               _dlStage = '完成';
               if (onProgress) onProgress(100, '下载完成');
               console.log('[DataManager] 书籍下载完成: ' + bookId);
+              // ★ 修复：用户主动下载 = 同意重新入架，清除 purgeBook 写入的 purged 标记
+              try { if (win.BKShelf && win.BKShelf.clearPurgedFlag) win.BKShelf.clearPurgedFlag(bookId); } catch (e) {}
               converted._dlBookBytes = _bookBytesForBatch;
               return converted;
             });
