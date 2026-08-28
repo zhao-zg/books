@@ -61,15 +61,21 @@
           }
         } catch (e) {}
         // 同步清理 DataManager 缓存（zl-data + 索引 + 占用缓存）
+        // ★ 修复：必须 return deleteBook 的 Promise，否则 removeImportedBook 的 Promise 链
+        //   不等待 zl-data 删除完成就 resolve，导致 purgeBook 后续检查 isBookDownloaded
+        //   时缓存仍未被清除（竞态），书被误判为"已下载"而复活。
+        var dmPromise = Promise.resolve();
         try {
-          if (win.DataManager && win.DataManager.deleteBook) win.DataManager.deleteBook(bookId);
-        } catch (e) {}
-        // 清理 PDF 原始二进制数据（此前无任何删除入口，此调用补齐缺口）
-        try {
-          if (typeof removePdfData === 'function') removePdfData(bookId);
-        } catch (e) { console.warn('[ImportManager] 清理 PDF 数据失败:', e); }
-        console.log('[ImportManager] 已移除导入书: ' + bookId);
-        return book || bookId;
+          if (win.DataManager && win.DataManager.deleteBook) dmPromise = Promise.resolve(win.DataManager.deleteBook(bookId));
+        } catch (e) { console.warn('[ImportManager] deleteBook 调用失败:', e); }
+        return dmPromise.then(function () {
+          // 清理 PDF 原始二进制数据（此前无任何删除入口，此调用补齐缺口）
+          try {
+            if (typeof removePdfData === 'function') return Promise.resolve(removePdfData(bookId));
+          } catch (e) { console.warn('[ImportManager] 清理 PDF 数据失败:', e); }
+          console.log('[ImportManager] 已移除导入书: ' + bookId);
+          return book || bookId;
+        });
       });
     });
   }

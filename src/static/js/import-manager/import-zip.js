@@ -159,6 +159,24 @@
     // ── 存储操作 ──────────────────────────────────────────────────────────
 
     /**
+     * 将 bookId 记录到 imported_ids（imported-data store）。
+     * 用于 ZIP 导入的书城书（_importCityBook）：虽然不入架、保持原 ID，
+     * 但需记录到 imported_ids 让 purgeBook 能识别此书来自 ZIP 导入，
+     * 移除时走彻底清理分支（删 zl-data 缓存），而非仅移书架记录。
+     * @param {string} bookId
+     * @returns {Promise<void>}
+     */
+    function _addImportedId(bookId) {
+        return _importStore.getItem(KEY_IDS).then(function (ids) {
+            ids = ids || [];
+            if (ids.indexOf(bookId) < 0) ids.push(bookId);
+            return _importStore.setItem(KEY_IDS, ids);
+        }).catch(function (e) {
+            console.warn('[BK.ImportZip] _addImportedId: 写入 imported_ids 失败 id=' + bookId, e);
+        });
+    }
+
+    /**
      * 保存书籍数据到本地存储
      * 复刻 import-storage.js 的 saveBook 逻辑（入架 + 建索引）
      * @param {Object} bookData  完整书籍数据
@@ -351,12 +369,20 @@
                 if (downloaded) {
                     console.log('[BK.ImportZip] _importCityBook: 书城书已缓存，跳过写入 id=' + bookId +
                         '，title=' + (bookData.title || '?'));
-                    return { success: true, skipped: true, id: bookId, title: bookData.title || bookId };
+                    // ★ 即使跳过缓存写入，也要记录到 imported_ids，
+                    //   让 purgeBook 能识别此书来自 ZIP 导入、走彻底清理分支
+                    return _addImportedId(bookId).then(function () {
+                        return { success: true, skipped: true, id: bookId, title: bookData.title || bookId };
+                    });
                 }
                 return win.DataManager.cacheBook(bookId, bookData).then(function () {
                     console.log('[BK.ImportZip] _importCityBook: 书城书已缓存到 zl-data id=' + bookId +
                         '，title=' + (bookData.title || '?') + '，不入书架');
-                    return { success: true, id: bookId, title: bookData.title || bookId };
+                    // ★ 记录到 imported_ids，让 purgeBook 能识别此书来自 ZIP 导入、
+                    //   走彻底清理分支（删 zl-data 缓存），而非仅移书架记录保留缓存
+                    return _addImportedId(bookId).then(function () {
+                        return { success: true, id: bookId, title: bookData.title || bookId };
+                    });
                 });
             });
         }).then(function (result) {
