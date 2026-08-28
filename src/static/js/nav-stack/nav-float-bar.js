@@ -424,6 +424,12 @@
             });
         }
         if (cloneRate && origRate) {
+            // ★ 启动/打开朗读栏时，把隐藏宿主的倍速值强制同步到克隆体。
+            // 宿主 value 由 speech.js 启动时从 localStorage 异步赋值，
+            // 对 <select> 用 JS 赋值 .value 不会触发 value attribute 变更，
+            // 下面的 MutationObserver 捕获不到 → 克隆体停留在默认 1x，显示错误。
+            // 这里显式赋值一次保证重启后倍率显示正确。
+            cloneRate.value = origRate.value;
             cloneRate.addEventListener('change', function() {
                 origRate.value = cloneRate.value;
                 origRate.dispatchEvent(new Event('change', { bubbles: true }));
