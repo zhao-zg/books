@@ -160,9 +160,12 @@
 
     /**
      * 将 bookId 记录到 imported_ids（imported-data store）。
-     * 用于 ZIP 导入的书城书（_importCityBook）：虽然不入架、保持原 ID，
-     * 但需记录到 imported_ids 让 purgeBook 能识别此书来自 ZIP 导入，
-     * 移除时走彻底清理分支（删 zl-data 缓存），而非仅移书架记录。
+     *
+     * 注意：此函数当前无调用方。_importCityBook 已不再调用此函数——
+     * 书城书（ZIP 导入）只加到 zl-data 缓存，不写入 imported_ids，
+     * purgeBook 时走「书城书分支」（设 purged 标记、保留 zl-data 缓存）。
+     * 保留此函数以备将来可能的扩展用途。
+     *
      * @param {string} bookId
      * @returns {Promise<void>}
      */
@@ -295,10 +298,10 @@
             originalId = bookData.id;
 
             // ── 分流：书城书 vs 导入书 ──────────────────────────────
-            // ★ 书城书（ID 存在于书城索引）：保持原 ID 缓存到 zl-data、不入书架，
-            //   书城卡片显示「✓ 已下载」角标、离线可读。用户主动在书城点开时才入架。
-            //   规避历史 bug：不写 imported_ids → purgeBook 走「仅移书架」分支、
-            //   _mergeImportedBooks 不回填，移出书架后不会复活。
+            // ★ 书城书（ID 存在于书城索引）：保持原 ID 缓存到 zl-data、不入书架、
+            //   不写 imported_ids。书城卡片显示「✓ 已下载」角标、离线可读。
+            //   用户主动在书城点开时才入架。purgeBook 走「书城书分支」
+            //   （设 purged 标记、保留 zl-data 缓存），purged 标记阻止复活。
             // ★ 导入书（imported- 前缀或不在书城索引）：加前缀入 imported-data + 入架，
             //   移出书架即彻底清理（imported-data + zl-data + PDF 一并清除）。
             //
@@ -337,8 +340,10 @@
      *
      * 历史 bug 规避（「移出书架后又出现」）：
      *   - 不写 imported_ids → _mergeImportedBooks() 不会把它合并进 _zlBooks，
-     *     也不会 cacheBook 回填；purgeBook 对无前缀书走「仅移出书架、保留缓存」分支，
-     *     与普通书城下载书行为一致，移出后不会再被任何逻辑拉回。
+     *     也不会 cacheBook 回填；purgeBook 对无前缀且不在 imported_ids 的书走
+     *     「仅移出书架 + 设 purged 标记、保留 zl-data 缓存」分支，
+     *     purged 标记阻止书城点开时 BKShelf.add 自动入架导致复活。
+     *   - 用户重新主动下载（downloadBook/cacheBook）时清除 purged 标记，方可重新入架。
      *
      * @param {JSZip} zip
      * @param {string} bookDirName
@@ -369,20 +374,18 @@
                 if (downloaded) {
                     console.log('[BK.ImportZip] _importCityBook: 书城书已缓存，跳过写入 id=' + bookId +
                         '，title=' + (bookData.title || '?'));
-                    // ★ 即使跳过缓存写入，也要记录到 imported_ids，
-                    //   让 purgeBook 能识别此书来自 ZIP 导入、走彻底清理分支
-                    return _addImportedId(bookId).then(function () {
-                        return { success: true, skipped: true, id: bookId, title: bookData.title || bookId };
-                    });
+                    // 不写 imported_ids：书城书只加到 zl-data 缓存，不入导入库。
+                    // purgeBook 时走「书城书分支」（设 purged 标记、保留 zl-data 缓存），
+                    // purged 标记阻止书城点开 BKShelf.add 自动入架导致复活。
+                    return { success: true, skipped: true, id: bookId, title: bookData.title || bookId };
                 }
                 return win.DataManager.cacheBook(bookId, bookData).then(function () {
                     console.log('[BK.ImportZip] _importCityBook: 书城书已缓存到 zl-data id=' + bookId +
                         '，title=' + (bookData.title || '?') + '，不入书架');
-                    // ★ 记录到 imported_ids，让 purgeBook 能识别此书来自 ZIP 导入、
-                    //   走彻底清理分支（删 zl-data 缓存），而非仅移书架记录保留缓存
-                    return _addImportedId(bookId).then(function () {
-                        return { success: true, id: bookId, title: bookData.title || bookId };
-                    });
+                    // 不写 imported_ids：书城书只加到 zl-data 缓存，不入导入库。
+                    // purgeBook 时走「书城书分支」（设 purged 标记、保留 zl-data 缓存），
+                    // purged 标记阻止书城点开 BKShelf.add 自动入架导致复活。
+                    return { success: true, id: bookId, title: bookData.title || bookId };
                 });
             });
         }).then(function (result) {

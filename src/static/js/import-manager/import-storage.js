@@ -87,8 +87,8 @@
 
   /**
    * 判断某 bookId 是否在导入库中（imported_ids 有记录）。
-   * 不限定 imported- 前缀：ZIP 导入的书城书（book.json 内为书城原始 ID、无前缀）
-   * 也会被写入 imported_ids，此处一并命中，供 BKShelf.purgeBook 正确路由清理分支。
+   * 仅对 imported- 前缀的导入书返回 true；ZIP 导入的书城书（_importCityBook）
+   * 不写入 imported_ids，因此返回 false，purgeBook 时走「书城书分支」。
    * @param {string} bookId
    * @returns {Promise<boolean>}
    */

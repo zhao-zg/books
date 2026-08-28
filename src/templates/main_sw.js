@@ -21,19 +21,17 @@ const CONFIG = {
   CACHEABLE_TYPES: ['basic', 'cors']
 };
 
-// 安装时预缓存的核心资源列表
+// 安装时预加载的核心资源列表（仅首屏必需）
+// 数据桶（__bkCoreUrls 全量）由页面 pwaCache 安装/更新时全量缓存，SW 预缓存仅兜底
+// 首屏启动必需资源（无 defer 的阻塞脚本 + 首屏 CSS + 启动 Vendor + 图标），
+// 保证首次进入不白屏。defer 模块与 cmaps 之外的 vendor 依赖数据桶全量缓存。
 // ⚠ 此列表须与 index.html 中 __bkCoreUrls 保持同步（子集关系），
-// 新增核心资源时应同步更新两处。构建时 generator.py 会校验一致性。
+// 构建时 generator.py 会校验一致性。
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.json',
-  // JS（无 defer 的启动必须脚本 + 基础渲染链）
-  './js/app-update/au-utils.js',
-  './js/app-update/au-core.js',
-  './js/app-update/au-ui.js',
-  './js/app-update/au-changelog.js',
-  './js/app-update/au-init.js',
+  // JS（无 defer 的阻塞启动脚本：数据层 + 渲染链 + 导航）
   './js/back-stack.js',
   './js/data-manager/dm-shared.js',
   './js/data-manager/dm-storage.js',
@@ -46,7 +44,6 @@ const PRECACHE_URLS = [
   './js/renderer/renderer-utils.js',
   './js/renderer/renderer-data.js',
   './js/renderer/renderer-progress.js',
-  './js/renderer/pdf/renderer-pdf.js',
   './js/renderer/renderer-content.js',
   './js/renderer/renderer-carousel.js',
   './js/renderer/renderer-city-helpers.js',
@@ -62,9 +59,12 @@ const PRECACHE_URLS = [
   './js/theme-toggle.js',
   './js/speech.js',
   './js/nav-stack/nav-back.js',
+  './js/nav-stack/nav-float-bar.js',
+  './js/image-utils.js',
+  './js/app-lifecycle.js',
   // Vendor（启动必须，无 defer）
   './vendor/localforage.min.js',
-  // CSS
+  // CSS（首屏布局必需）
   './css/style/css-variables.css',
   './css/style/css-base.css',
   './css/style/css-toc-drawer.css',

@@ -223,19 +223,20 @@
     // 1) 同步移出书架（触发立即重渲染，避免用户感知卡顿）
     try { remove(bookId); } catch (e) {}
 
-    // ★ 修复：移出书架 ≠ 仅凭前缀路由。ZIP 导入的书城书（book.json 内为书城原始 ID、
-    //   无 imported- 前缀）会先被 _importCityBook 缓存进 zl-data、不入架；用户稍后在书城
-    //   点开该书时 BKShelf.add() 自动入架。此类书无 imported- 前缀，但同样来自 ZIP 导入
-    //   （imported_ids 中有记录）。若按旧逻辑只清书架记录、保留 zl-data，_mergeImportedBooks()
-    //   会在每次刷新时用 DataManager.cacheBook() 把书写回 zl-data，且书城点击还会再次 add 入架，
-    //   导致「移出书架后又出现」。
-    //   因此：凡 imported_ids 中有记录的（含 ZIP 导入的书城书），一律走「彻底清理」分支，
-    //   清理 imported-data 记录 + zl-data 缓存；只有真正的书城在线书（从未导入过）才保留缓存。
+    // ★ 分流说明：
+    //   - 书城在线书（无 imported- 前缀且不在 imported_ids 中，含 ZIP 导入的书城书）：
+    //     走「仅移出书架」分支，保留 zl-data 缓存作离线兜底，设 purged 标记阻止
+    //     书城点开 BKShelf.add 自动入架导致复活。用户重新下载时清除标记方可重新入架。
+    //   - 导入书（imported- 前缀或在 imported_ids 中）：走「彻底清理」分支，
+    //     清理 imported-data 记录 + zl-data 缓存 + PDF 二进制 + 索引，同时设 purged 标记。
     //
     //   ★★ 修复 isImportedBook 异步 Bug（2026-08-26）：
     //   isImportedBook 返回 Promise<boolean>，旧代码用 !!Promise（恒为 true），
     //   导致所有书都走「彻底清理」分支——书城在线书被误删 zl-data 缓存。
     //   现改为正确 await Promise，仅对真正在 imported_ids 中的书彻底清理。
+    //
+    //   注意：ZIP 导入的书城书（_importCityBook）不写 imported_ids，因此 purgeBook
+    //   时会走「书城书分支」（保留 zl-data + purged 标记），符合"只加到书城缓存"的设计原则。
     var isImported = bookId.indexOf('imported-') === 0;
 
     // 异步检查 imported_ids（返回 Promise<boolean>）
