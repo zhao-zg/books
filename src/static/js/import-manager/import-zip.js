@@ -122,6 +122,40 @@
         return _cityBookIdSet.has(bookId);
     }
 
+    /**
+     * 二次校验：异步确认 bookId 是否为书城书。
+     * 不依赖 _cityBookIdSet 内存缓存，直接从 DataManager 索引数据逐条比对。
+     * 用于 _isCityBookId 返回 false 后的兜底（防止索引未就绪导致的误判）。
+     * @param {string} bookId
+     * @returns {Promise<boolean>}
+     */
+    function _doubleCheckCityBook(bookId) {
+        if (!bookId || bookId.indexOf('imported-') === 0) return Promise.resolve(false);
+        try {
+            if (!win.DataManager || typeof win.DataManager.getCachedIndex !== 'function') return Promise.resolve(false);
+            var indexData = win.DataManager.getCachedIndex();
+            if (indexData && Array.isArray(indexData.books) && indexData.books.length > 0) {
+                // 索引已就绪：直接遍历比对（不走缓存，确保结果准确）
+                for (var i = 0; i < indexData.books.length; i++) {
+                    if (indexData.books[i].id === bookId) return Promise.resolve(true);
+                }
+                return Promise.resolve(false);
+            }
+            // 索引未就绪：触发 loadIndex 后再检查
+            console.log('[BK.ImportZip] _doubleCheckCityBook: 索引未就绪，触发 loadIndex 后重试');
+            return win.DataManager.loadIndex().then(function () {
+                var idx = win.DataManager.getCachedIndex();
+                if (!idx || !Array.isArray(idx.books)) return false;
+                for (var j = 0; j < idx.books.length; j++) {
+                    if (idx.books[j].id === bookId) return true;
+                }
+                return false;
+            }).catch(function () { return false; });
+        } catch (e) {
+            return Promise.resolve(false);
+        }
+    }
+
     // ── 存储操作 ──────────────────────────────────────────────────────────
 
     /**
@@ -249,8 +283,23 @@
             //   _mergeImportedBooks 不回填，移出书架后不会复活。
             // ★ 导入书（imported- 前缀或不在书城索引）：加前缀入 imported-data + 入架，
             //   移出书架即彻底清理（imported-data + zl-data + PDF 一并清除）。
+            //
+            // ★★ 二次校验（兜底）：_isCityBookId 依赖 getCachedIndex() 的内存缓存，
+            //   若索引未就绪（如清空数据后竞态）会返回 false 导致误判。此处对
+            //   非 imported- 前缀的书做异步二次校验：直接遍历 DataManager 索引数据
+            //   逐条比对 ID，不依赖 _cityBookIdSet 缓存。若命中则改走 _importCityBook。
             if (_isCityBookId(originalId)) {
                 return _importCityBook(zip, bookDirName, bookData);
+            }
+            // 二次校验：非 imported- 前缀且索引可能未就绪时，异步确认
+            if (originalId.indexOf('imported-') !== 0) {
+                return _doubleCheckCityBook(originalId).then(function (isCity) {
+                    if (isCity) {
+                        console.log('[BK.ImportZip] _importOneBook: 二次校验命中书城书 id=' + originalId);
+                        return _importCityBook(zip, bookDirName, bookData);
+                    }
+                    return _importImportedBook(zip, bookDirName, bookData, originalId);
+                });
             }
             return _importImportedBook(zip, bookDirName, bookData, originalId);
         }).catch(function (err) {
@@ -510,7 +559,8 @@
     // ── 导出 ──────────────────────────────────────────────────────────────
     win.BK = win.BK || {};
     win.BK.ImportZip = {
-        importFromZip: importFromZip
+        importFromZip: importFromZip,
+        _doubleCheckCityBook: _doubleCheckCityBook
     };
 
 })(window);
