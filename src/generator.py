@@ -39,7 +39,7 @@ class BooksGenerator:
         # 复制整个 static 目录下的子目录和文件
         # 注意：image/ 目录由 main.py 的 copy_static_images() 专门处理
         # （src/static/image/ → output/images/，带 sponsor_enabled 控制）
-        _SKIP_DIRS = {'image'}
+        _SKIP_DIRS = {'image', 'zl-data'}
         for item in os.listdir(static_dir):
             if item in _SKIP_DIRS:
                 continue
