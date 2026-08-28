@@ -446,6 +446,26 @@
                 console.log('[BK.ImportZip] importFromZip: 发现 ' + bookDirNames.length + ' 本书，版本=' + manifest.version +
                     '，开始逐本导入...');
 
+                // 2.5. ★ 确保书城索引已加载完毕
+                // 分流逻辑 _isCityBookId 依赖 getCachedIndex() 返回有效索引；
+                // 若索引未就绪（如清空数据后首次操作），_isCityBookId 同步返回 false，
+                // 导致书城书（含 bundled 书）被误判为导入书 → 加 imported- 前缀入架，
+                // 移出书架后无法彻底清理。必须在导入前确保索引就绪。
+                var indexReadyP;
+                if (win.DataManager && typeof win.DataManager.loadIndex === 'function' &&
+                    win.DataManager.getCachedIndex() &&
+                    (win.DataManager.getCachedIndex().books || []).length > 0) {
+                    // 索引已就绪，无需等待
+                    indexReadyP = Promise.resolve();
+                } else {
+                    console.log('[BK.ImportZip] importFromZip: 书城索引未就绪，等待加载...');
+                    indexReadyP = win.DataManager.loadIndex().catch(function (e) {
+                        console.warn('[BK.ImportZip] importFromZip: 索引加载失败，继续导入（非书城书不受影响）:', e);
+                    });
+                }
+
+                return indexReadyP.then(function () {
+
                 // 3. 逐本导入（顺序执行，避免大量写入并发）
                 var successCount = 0;
                 var failCount = 0;
@@ -481,6 +501,8 @@
                         errors: errors
                     };
                 });
+
+                }); // end indexReadyP.then
             });
         });
     }

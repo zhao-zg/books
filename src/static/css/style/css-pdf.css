@@ -135,7 +135,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: safe center;          /* 短页面安全居中，长页面从顶部开始可滚动 */
+  /* 短页面安全居中，长页面从顶部开始可滚动。
+     不用 justify-content: safe center：safe 关键字在部分 WebView/内核
+     （如华为/荣耀 EMUI 内置内核）不生效，退化成 center 后长页顶部会被顶出
+     可视区且 scrollTop 无法为负，导致 PDF 长页开头内容不可达。
+     改用 flex-start + canvas-wrap 的 margin:auto，全内核兼容。 */
+  justify-content: flex-start;
   margin: 0;
   min-height: 100%;
   background: transparent;     /* 单页模式页面卡片透明，由 #525659 容器提供底色 */
@@ -161,10 +166,16 @@
 }
 
 /* Single 模式下 .bk-pdf-canvas-wrap 去除描边，避免翻页时两页间出现细线 */
-#chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
-.bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap {
+#chapterContent.bk-pdf-single .bk-pdf-page:not(.bk-pdf-zoomed) .bk-pdf-canvas-wrap,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page:not(.bk-pdf-zoomed) .bk-pdf-canvas-wrap {
   border: none;
   border-radius: 0;
+  /* 垂直安全居中：短 PDF 页（未超一屏）canvas 垂直居中；
+     长 PDF 页（超出视口高度）margin auto 归零、从顶部排列可滚动，
+     避免顶部内容被挤出视口（替代父容器 safe center，全内核兼容）。
+     zoomed 状态保持 margin:0 顶对齐，由 .bk-pdf-page.bk-pdf-zoomed 规则处理 */
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 /* ── 3. PDF 页面卡片（连续模式 / 默认）────────────────────────── */

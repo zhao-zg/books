@@ -172,9 +172,13 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
    短内容仍在本页内垂直居中（完全落在一屏内，滑动时可见），长内容从顶部排列可纵向滚动。 */
 .bk-carousel-track { display: flex; width: 300%; will-change: transform; align-items: flex-start; }
 /* 每页固定一屏高度、自身 overflow-y:auto 内部纵向滚动：
-   - 短内容垂直居中（safe center，完全落在一屏内，滑动时可见，不再顶部空白）；
+   - 短内容垂直居中（margin auto，完全落在一屏内，滑动时可见，不再顶部空白）；
    - 长内容从顶部排列，在“本页内”纵向滚动，与文档/滚动锁无关，纵向必可滑；
-   - 用 100dvh 适配移动端动态地址栏，旧浏览器回退 100vh。 */
+   - 用 100dvh 适配移动端动态地址栏，旧浏览器回退 100vh。
+   注意：不用 justify-content: safe center——safe 关键字在部分 WebView/内核
+   （如华为/荣耀 EMUI 内置内核）不生效，退化成 center 后长内容顶部会被顶出
+   可视区且 scrollTop 无法为负，导致“每篇开头被截断、翻不上去”。改用
+   flex-start + .content 的 margin:auto 实现同样效果且全内核兼容。 */
 .bk-carousel-page {
   flex: 0 0 33.333%;
   height: 100vh;
@@ -188,12 +192,20 @@ a, button, [role="button"], input, select, textarea, .book-link, .series-tab, .n
      页边距足以吸收，不溢出时彻底无留白。移动端 overlay 滚动条本就不占空间。 */
   display: flex;
   flex-direction: column;
-  justify-content: safe center;
+  justify-content: flex-start;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   /* 隐藏滚动条：去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
   scrollbar-width: none;          /* Chrome 121+, Firefox */
 }
+/* 安全居中：flex 子项 margin:auto 在剩余空间分配上自动居中；
+   内容超高时 auto 归零、从顶部排列，不会把顶部挤出视口（替代 safe center，全内核兼容）。
+   flex-shrink:0 防止长内容被 flex 压缩（压缩会导致滚动范围变小、内容被裁） */
+.bk-carousel-page > .content { margin-top: auto; margin-bottom: auto; flex-shrink: 0; }
+/* PDF 模式例外：.content.bk-pdf-mode / .bk-pdf-single 由 PDF 内部布局自己处理
+   （连续模式从顶部排列、单页模式横向 scroll-snap），不受外层垂直居中影响 */
+.bk-carousel-page > .content.bk-pdf-mode,
+.bk-carousel-page > .content:has(.bk-pdf-page) { margin-top: 0; margin-bottom: 0; }
 .bk-carousel-page::-webkit-scrollbar { display: none; }  /* Chrome < 121, Edge, Safari */
 
 /* 深色模式：全局暗色滚动条（目录抽屉、搜索面板等可滚动区域） */
