@@ -264,12 +264,13 @@ self.addEventListener('fetch', event => {
           return await fetch(request, { cache: 'no-store' });
         } catch (e) {
           try {
-            const cached = await caches.match(request) || await caches.match(normalizedUrl);
+            // navigation 请求失败：先尝试根路径 + 原始/规范化 URL 缓存兜底
+            const cached = await caches.match('./') || await caches.match(request) || await caches.match(normalizedUrl);
             if (cached) return cached;
           } catch (cacheErr) {
             // 缓存查询也失败，继续往下
           }
-          // 网络失败 + 无缓存 → 返回离线页面
+          // 缓存也没有 → navigation 返回离线页面，其他请求 503
           if (request.mode === 'navigate') {
             return new Response(getOfflineHTML(), {
               headers: { 'Content-Type': 'text/html; charset=utf-8' }
@@ -318,8 +319,12 @@ self.addEventListener('fetch', event => {
           throw fetchErr;
         }
       } catch (err) {
-        // 网络和缓存都失败 → 导航请求返回离线页面，确保核心页面始终可离线访问
+        // 缓存和网络都失败 → navigation 先尝试根路径缓存兜底（cache key 可能是 './'）
         if (request.mode === 'navigate') {
+          try {
+            const fallback = await caches.match('./');
+            if (fallback) return fallback;
+          } catch (e) {}
           return new Response(getOfflineHTML(), {
             headers: { 'Content-Type': 'text/html; charset=utf-8' }
           });

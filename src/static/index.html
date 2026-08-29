@@ -900,7 +900,7 @@
         var titles={install:'首次安装缓存',update:'缓存更新中'};
         var subs={install:'首次使用会缓存应用资源，书籍数据按需加载...',update:'正在重新缓存最新资源，用户数据不受影响...'};
         var mask=document.createElement('div');mask.id='bkInstallMask';mask.className='bk-install-mask';
-        mask.innerHTML='<div class="bk-install-box"><div class="bk-install-icon">'+icons[mode]+'</div><div class="bk-install-title">'+titles[mode]+'</div><div class="bk-install-sub">'+subs[mode]+'</div><div class="bk-install-progress"><div class="bk-install-progress-bar" id="bkInstallProgressBar"></div></div><div class="bk-install-status" id="bkInstallStatus">正在准备...</div><button class="bk-install-retry" id="bkInstallRetry">重试</button></div>';
+        mask.innerHTML='<div class="bk-install-box"><div class="bk-install-icon">'+icons[mode]+'</div><div class="bk-install-title">'+titles[mode]+'</div><div class="bk-install-sub">'+subs[mode]+'</div><div class="bk-install-progress"><div class="bk-install-progress-bar" id="bkInstallProgressBar"></div></div><div class="bk-install-status" id="bkInstallStatus">正在准备...</div><button class="bk-install-retry" id="bkInstallRetry">重试</button>'+(mode==='update'?'<button class="bk-install-later" id="bkInstallLater" style="display:block;width:100%;margin-top:8px;padding:10px;border:1px solid var(--border,#ddd);border-radius:8px;background:transparent;color:var(--text-secondary,#666);font-size:14px;cursor:pointer">稍后再说</button>':'')+'</div>';
         mask.addEventListener('click',function(e){e.stopPropagation();});
         document.body.appendChild(mask);
         // 防触摸穿透：锁定遮罩滚动
@@ -947,7 +947,10 @@
             }).catch(function(err){if(statusEl)statusEl.textContent='\u26A0 出错\uff1a'+(err&&err.message||'未知')+'\uff0c请重试';if(retryBtn)retryBtn.style.display='block';});
         }
         if(retryBtn)retryBtn.addEventListener('click',doInstall);
-        doInstall();
+        var laterBtn=document.getElementById('bkInstallLater');
+        if(laterBtn)laterBtn.addEventListener('click',function(){if(mask.parentNode)mask.parentNode.removeChild(mask);});
+        // update 模式：不自动执行，等用户选择"更新"或"稍后"
+        if(mode!=='update') doInstall();
     }
     window.showMandatoryInstallDialog=showMandatoryInstallDialog;
 
