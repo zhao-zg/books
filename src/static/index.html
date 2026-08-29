@@ -736,23 +736,38 @@
         }
 
         // 缓存全部 URL 到指定桶，返回 Promise<{ok,total,failed}>
-        // 使用 Promise.allSettled 并行 fetch（books 特有：保持并行优化）
-        function cacheAllInto(cacheName, onProgress) {
+        // 采用分片并发（CONCURRENCY=6）逐片 fetch：相比一次性 Promise.allSettled，
+        // 进度条能按"已完成片数/总片数"平滑递增，而非瞬间冲到接近 100%。
+        // 每片完成后上报 onProgress(ratio, done, total)：
+        //   ratio = (当前片内完成数 + 已提交片数) / 总片数
+        //   done  = 已完成 URL 数（含本片内），total = 总片数
+        function cacheFullInto(cacheName, onProgress) {
             if(!('caches' in window)) return Promise.resolve({ok:0,total:0,failed:0});
             var urls = buildUrlList();
-            var total = urls.length, done = 0, failed = 0;
+            var total = urls.length;
+            if(total === 0){ if(onProgress) onProgress(1, 0, 0); return Promise.resolve({ok:0,total:0,failed:0}); }
+            var CONCURRENCY = 6;
+            var done = 0, failed = 0;
             return caches.open(cacheName).then(function(cache){
-                return Promise.allSettled(urls.map(function(url){
-                    return fetch(url, {cache:'no-cache'}).then(function(r){
-                        if(r && r.status===200) return cache.put(url, r);
-                        failed++;
-                    }).catch(function(){
-                        failed++;
-                    }).then(function(){
-                        done++;
-                        if(onProgress) onProgress(done/total, done, total);
-                    });
-                }));
+                // 逐片调度：一次最多 CONCURRENCY 个在途，全部完成后再取下一片
+                var index = 0;
+                function nextChunk(){
+                    if(index >= total) return Promise.resolve();
+                    var slice = urls.slice(index, index + CONCURRENCY);
+                    index += CONCURRENCY;
+                    return Promise.all(slice.map(function(url){
+                        return fetch(url, {cache:'no-cache'}).then(function(r){
+                            if(r && r.status===200) return cache.put(url, r);
+                            failed++;
+                        }).catch(function(){
+                            failed++;
+                        }).then(function(){
+                            done++;
+                            if(onProgress) onProgress(done/total, done, total);
+                        });
+                    })).then(nextChunk); // 递归取下一片
+                }
+                return nextChunk();
             }).then(function(){
                 return {ok: done - failed, total: total, failed: failed};
             });
@@ -808,7 +823,7 @@
                 var oldBucket = null;
                 try { oldBucket = localStorage.getItem(LS_BUCKET) || null; } catch(e) {}
 
-                return cacheAllInto(newBucket, onProgress).then(function(res){
+                return cacheFullInto(newBucket, onProgress).then(function(res){
                     if(res.failed > 0) {
                         // 有失败：删新桶，保留旧桶
                         return caches.delete(newBucket).catch(function(){}).then(function(){ return res; });
@@ -905,6 +920,11 @@
         document.body.appendChild(mask);
         // 防触摸穿透：锁定遮罩滚动
         var _installLockCleanup = (window.BK && window.BK.lockOverlayScroll) ? window.BK.lockOverlayScroll(mask, function(){ mask.remove(); if(_installLockCleanup){_installLockCleanup();_installLockCleanup=null;} }) : null;
+        // 统一关闭遮罩（移除 DOM + 释放滚动锁）
+        function closeInstall(){
+            if(mask.parentNode)mask.parentNode.removeChild(mask);
+            if(_installLockCleanup){_installLockCleanup();_installLockCleanup=null;}
+        }
         var statusEl=document.getElementById('bkInstallStatus');
         var progressBar=document.getElementById('bkInstallProgressBar');
         var retryBtn=document.getElementById('bkInstallRetry');
@@ -914,8 +934,9 @@
             if(statusEl)statusEl.textContent='开始缓存资源...';
             // 切换桶方案：写新桶 bk-data-{version}，成功后删旧桶
             window.BK.pwaCache.install(mode, function(ratio, done, total){
-                if(progressBar)progressBar.style.width=Math.min(Math.round(ratio*100),100)+'%';
-                if(statusEl)statusEl.textContent='核心资源：'+done+'/'+total+'…';
+                var pct = Math.min(Math.round(ratio*100),100);
+                if(progressBar)progressBar.style.width=pct+'%';
+                if(statusEl)statusEl.textContent='缓存资源：'+pct+'% ('+done+'/'+total+')…';
             }, targetVersion).then(function(res){
                 if(progressBar)progressBar.style.width='100%';
                 if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
@@ -926,8 +947,9 @@
                 var result=data.result;
                 if(result.ok){
                     if(onComplete){
-                        if(statusEl)statusEl.textContent='✅ 缓存完成';
-                        onComplete();
+                        // ★ 有 onComplete 回调（如 APK 场景）：完成即自动关闭遮罩，由调用方接管
+                        closeInstall();
+                        if(onComplete) onComplete();
                     }else{
                         if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
                         if(progressBar)progressBar.style.width='100%';
@@ -948,7 +970,7 @@
         }
         if(retryBtn)retryBtn.addEventListener('click',doInstall);
         var laterBtn=document.getElementById('bkInstallLater');
-        if(laterBtn)laterBtn.addEventListener('click',function(){if(mask.parentNode)mask.parentNode.removeChild(mask);});
+        if(laterBtn)laterBtn.addEventListener('click',function(){closeInstall();});
         // update 模式：不自动执行，等用户选择"更新"或"稍后"
         if(mode!=='update') doInstall();
     }
@@ -974,9 +996,10 @@
             return;
         }
         if(!BK_ENV.isStandalone||BK_ENV.isCapacitorApp||!('caches' in window))return;
-        // ★ 未开启自动检查更新时，跳过网络请求
-        if(!(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()))return;
         var storedVersion=null;try{storedVersion=localStorage.getItem('bk_pwa_version');}catch(e){}
+        // ★ 首次安装（无本地版本）必须联网建缓存才能离线使用，不受"自动检查更新"门控限制；
+        //   非首次（已有缓存）才受 shouldAllowNetworkRequest 控制——符合"关闭时启动不联网"设计。
+        if(storedVersion && !(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()))return;
         fetch('./version.json?t='+Date.now(),{cache:'no-store'})
             .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
             .then(function(v){
@@ -1016,16 +1039,24 @@
         var _isNativeApp=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
         if(_isNativeApp){
             if('caches' in window){
-                // ★ 未开启自动检查更新时，跳过网络请求
-                if(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest()){
                 var _capVer=null;try{_capVer=localStorage.getItem('bk_pwa_version');}catch(e){}
+                // ★ 首次安装（无本地版本）必须联网建缓存；非首次受"自动检查更新"开关控制。
+                //   顶层 if 内禁止使用 return（会导致整块语法错误），改用嵌套 if 包住逻辑
+                if(_capVer && !(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest())){
+                    // 关闭自动检查更新且已有缓存：跳过联网建缓存
+                } else {
                 fetch('./version.json?t='+Date.now(),{cache:'no-store'})
                     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
                     .then(function(v){
                         var _ver=v.version||v.apk_version||'';
                         if(_capVer&&_capVer===_ver)return;
                         waitForBooks(15000).then(function(){
-                            return window.BK.pwaCache.install('install', null, _ver);
+                            // ★ 原生 APK 也显示缓存进度遮罩，完成后仅更新版本号，不 reload（避免破坏 APK 会话）
+                            if(window.showMandatoryInstallDialog){
+                                window.showMandatoryInstallDialog('install', _ver, function(){});
+                            } else {
+                                return window.BK.pwaCache.install('install', null, _ver);
+                            }
                         }).then(function(){
                             if(_ver)try{localStorage.setItem('bk_pwa_version',_ver);}catch(e){}
                         }).catch(function(){});
