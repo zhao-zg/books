@@ -947,9 +947,15 @@
                 var result=data.result;
                 if(result.ok){
                     if(onComplete){
-                        // ★ 有 onComplete 回调（如 APK 场景）：完成即自动关闭遮罩，由调用方接管
-                        closeInstall();
-                        if(onComplete) onComplete();
+                        // ★ 有 onComplete 回调（如 APK 场景 / recache 场景）：
+                        //   先展示"完成"状态 800ms 再关闭，让用户看到进度走到 100%，
+                        //   避免遮罩瞬间消失（尤其 localhost 缓存极快时）。
+                        if(statusEl)statusEl.textContent='✅ 缓存完整，即将完成...';
+                        if(progressBar)progressBar.style.width='100%';
+                        setTimeout(function(){
+                            closeInstall();
+                            if(onComplete) onComplete();
+                        },800);
                     }else{
                         if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
                         if(progressBar)progressBar.style.width='100%';
@@ -982,16 +988,23 @@
         try{var _recache=sessionStorage.getItem('bk_recache_after_clear')==='1';}catch(e){var _recache=false;}
         if(_recache){
             try{sessionStorage.removeItem('bk_recache_after_clear');}catch(e){}
+            // ★ 清除数据后重建缓存：完成后不 reload（已是全新页面），
+            //   只关闭遮罩——避免 reload 导致遮罩瞬间消失、用户看不到进度。
+            //   首次安装场景仍需 reload（从旧版页面跳转过来），recache 场景不需要。
+            function _recacheOnComplete(){
+                // 遮罩已由 closeInstall() 关闭，此处仅做收尾（如刷新书架）
+                try{var ev=new Event('bk_cache_rebuilt');window.dispatchEvent(ev);}catch(e){}
+            }
             fetch('./version.json?t='+Date.now(),{cache:'no-store'})
                 .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
                 .then(function(v){
                     var ver=v.version||v.apk_version||'dev';
-                    showMandatoryInstallDialog('install',ver);
+                    showMandatoryInstallDialog('install',ver,_recacheOnComplete);
                 })
                 .catch(function(){
                     // 离线时无法获取版本，用构建注入 BK_APP_VERSION 兜底，再降级时间戳
                     var ver=(window.BK_APP_VERSION)||Date.now().toString();
-                    showMandatoryInstallDialog('install',ver);
+                    showMandatoryInstallDialog('install',ver,_recacheOnComplete);
                 });
             return;
         }
