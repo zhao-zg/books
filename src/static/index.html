@@ -1052,30 +1052,21 @@
     if('serviceWorker' in navigator){
         var _isNativeApp=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
         if(_isNativeApp){
+            // ★ APK 首次打开：内置全部资源数据，无需也不应弹缓存进度框或重建数据桶。
+            //   仅静默记录远端版本号（供 APK 更新判断），不做任何缓存。
+            //   仍受"自动检查更新"开关控制：关闭时不发起网络请求。
             if('caches' in window){
                 var _capVer=null;try{_capVer=localStorage.getItem('bk_pwa_version');}catch(e){}
-                // ★ 首次安装（无本地版本）必须联网建缓存；非首次受"自动检查更新"开关控制。
-                //   顶层 if 内禁止使用 return（会导致整块语法错误），改用嵌套 if 包住逻辑
                 if(_capVer && !(window.BK&&window.BK.shouldAllowNetworkRequest&&window.BK.shouldAllowNetworkRequest())){
-                    // 关闭自动检查更新且已有缓存：跳过联网建缓存
+                    // 关闭自动检查更新且已有版本：跳过联网
                 } else {
-                fetch('./version.json?t='+Date.now(),{cache:'no-store'})
-                    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-                    .then(function(v){
-                        var _ver=v.version||v.apk_version||'';
-                        if(_capVer&&_capVer===_ver)return;
-                        waitForBooks(15000).then(function(){
-                            // ★ 原生 APK 也显示缓存进度遮罩，完成后仅更新版本号，不 reload（避免破坏 APK 会话）
-                            if(window.showMandatoryInstallDialog){
-                                window.showMandatoryInstallDialog('install', _ver, function(){});
-                            } else {
-                                return window.BK.pwaCache.install('install', null, _ver);
-                            }
-                        }).then(function(){
+                    fetch('./version.json?t='+Date.now(),{cache:'no-store'})
+                        .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+                        .then(function(v){
+                            var _ver=v.version||v.apk_version||'';
                             if(_ver)try{localStorage.setItem('bk_pwa_version',_ver);}catch(e){}
-                        }).catch(function(){});
-                    })
-                    .catch(function(){/* 离线时跳过 */});
+                        })
+                        .catch(function(){/* 离线时跳过 */});
                 }
             }
         } else {
