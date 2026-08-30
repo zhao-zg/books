@@ -32,6 +32,24 @@
     return html;
   }
 
+  // 在 carousel page 的 .content 内接管超长章节懒渲染（如存在懒渲染根）
+  function _maybeInitCarouselLazy(pageEl, chapter) {
+    if (!pageEl || !chapter) return null;
+    var contentEl = pageEl.querySelector('.content');
+    if (!contentEl) return null;
+    var lazyRoot = contentEl.querySelector('.bk-lazy-root[data-bk-lazy-root="1"]');
+    if (!lazyRoot) return null;
+    if (!win.BKLazyRenderer || !win.BKLazyRenderer.initLazyRender) return null;
+    // 该页若已有旧懒渲染实例，先销毁（重填场景）
+    win.BKLazyRenderer.destroyLazyRender(contentEl);
+    return win.BKLazyRenderer.initLazyRender(chapter, lazyRoot, {
+      eager: true,
+      renderItem: function (item, idx) {
+        return renderContentItem(item, '', true);
+      }
+    });
+  }
+
   // 获取指定章节号对应的 chapter 对象
   function _getChapter(uniqueChapters, num) {
     if (!uniqueChapters || num == null) return null;
@@ -62,6 +80,10 @@
   function _fillCarouselPage(pageEl, chapter) {
     var contentEl = pageEl.querySelector('.content');
     if (!contentEl) return;
+    // ★ 该页若已有懒渲染实例（超长章节）先销毁，避免旧滚动监听残留
+    if (win.BKLazyRenderer && win.BKLazyRenderer.destroyLazyRender) {
+      win.BKLazyRenderer.destroyLazyRender(contentEl);
+    }
     if (chapter) {
       // 相邻预览页只需要 HTML 内容，不需要调用 initPdfPageLazyRender（即 BKPdf.init）；
       // BKPdf.init 会覆盖 S.currentPage / _navContainer / 页码指示器等全局状态，
@@ -69,6 +91,8 @@
       // initPdfPageLazyRender 正式初始化。
       contentEl.innerHTML = renderChapterContent(chapter, true);
       _applyMdEnhancements(contentEl);
+      // ★ 相邻页超长章节：接管懒渲染（renderChapterContent 已输出懒渲染根占位）
+      _maybeInitCarouselLazy(pageEl, chapter);
 
       // 同步 PDF 模式 class 到相邻页的 .content 容器
       // BKPdf.init 只给当前页加 .bk-pdf-mode / .bk-pdf-single，
@@ -206,6 +230,11 @@
     var pages = track.querySelectorAll('.bk-carousel-page');
     if (pages.length !== 3) return;
     _carouselPages = { prev: pages[0], curr: pages[1], next: pages[2] };
+
+    // ★ 接管 prev/next 相邻页的超长章节懒渲染
+    //   （当前页已在 renderer-api 中接管，不在此重复，避免销毁重建闪烁）
+    _maybeInitCarouselLazy(pages[0], _getChapter(uniqueChapters, _getAdjacentChapterNum(uniqueChapters, chapterNum, -1)));
+    _maybeInitCarouselLazy(pages[2], _getChapter(uniqueChapters, _getAdjacentChapterNum(uniqueChapters, chapterNum, 1)));
 
     // 用像素精确设定静止位置，与滑动手势的像素定位保持一致，避免亚像素跳动
     if (track.parentElement) {

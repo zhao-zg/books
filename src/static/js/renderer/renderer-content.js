@@ -204,6 +204,27 @@
     // ★ 严格模式：不传递经文上下文，每个引用必须自包含（书名+章名+节数）
     var ctx = '';
 
+    // ★ 超长章节懒渲染：仅当内容为数组且超过阈值时才启用（PDF 章节除外，
+    //   其含 pdf_page，走既有 BKPdf 懒渲染链路，不可叠加本模块）。
+    //   标题由本函数输出（常驻顶部），正文交给 lazy-renderer 按块填充。
+    var isArrayContent = Array.isArray(contentArr);
+    var _isPdf = false;
+    if (isArrayContent) {
+      for (var _pdi = 0; _pdi < contentArr.length; _pdi++) {
+        if (contentArr[_pdi] && contentArr[_pdi].type === 'pdf_page') { _isPdf = true; break; }
+      }
+    }
+    var _useLazy = false;
+    if (isArrayContent && !_isPdf && win.BKLazyRenderer && win.BKLazyRenderer.isLongChapterCandidate) {
+      _useLazy = win.BKLazyRenderer.isLongChapterCandidate(contentArr);
+    }
+    if (_useLazy) {
+      // 只输出章节标题 + 懒渲染容器标记；调用方（renderer-api/carousel）
+      // 在容器挂载后调用 BKLazyRenderer.initLazyRender 完成占位与首屏渲染。
+      return html +
+        '<div class="bk-lazy-root" data-bk-lazy-root="1"></div>';
+    }
+
     // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
     if (typeof contentArr === 'string') {
       var lines = contentArr.split('\n');
@@ -321,6 +342,20 @@
         });
       })(fnRefs[fnri]);
     }
+  }
+
+  // ── 超长章节懒渲染接入 ──────────────────────────────────────────────
+  // lazy-renderer.js 在 renderer-content.js 之后加载；此处仅在其可用时注入
+  // 块级增强回调（md 高亮 / 经文标注按块增量执行，避免全容器重复扫描）。
+  if (win.BKLazyRenderer && win.BKLazyRenderer.setEnhanceBlock) {
+    win.BKLazyRenderer.setEnhanceBlock(function (blockEl) {
+      _applyMdEnhancements(blockEl);
+      // 经文行内标注（懒渲染下按块执行，未渲染块无 .bk-paragraph 自动跳过；
+      // 回收重渲染块时 annotation 防重复——span 内文本不再标注）
+      if (win.BKScripturePopup && win.BKScripturePopup.annotateBlock) {
+        try { win.BKScripturePopup.annotateBlock(blockEl); } catch (e) {}
+      }
+    });
   }
 
   // EPUB 脚注弹窗
@@ -482,6 +517,18 @@
   // 实际实现见 renderer-pdf.js，这里仅做薄委托以保持调用方不变。
 
   function initPdfPageLazyRender(containerEl) {
+    // ★ 超长文本章节：容器内是懒渲染根时，不进入 PDF 链路（懒渲染由
+    //   renderer-api / renderer-carousel 在拿到 chapter 后接管初始化）。
+    //   此处仅确保销毁可能残留的文本懒渲染实例，避免双链路冲突。
+    var lazyRoot = containerEl && containerEl.querySelector
+      ? containerEl.querySelector('.bk-lazy-root[data-bk-lazy-root="1"]')
+      : null;
+    if (lazyRoot) {
+      if (win.BKLazyRenderer && win.BKLazyRenderer.destroyLazyRender) {
+        win.BKLazyRenderer.destroyLazyRender(null);
+      }
+      return;
+    }
     if (win.BKPdf && win.BKPdf.init) {
       win.BKPdf.init(containerEl);
     }

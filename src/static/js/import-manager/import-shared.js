@@ -89,10 +89,14 @@ var win = window;
   }
 
   // ── 章节分割正则（移植自 txt_parser.py）──
+  // 66卷圣经卷名简称（中文），复合名排在单字名前以避免前缀匹配
+  var BIBLE_BOOK_ABBR = '林前|林后|约壹|约贰|约叁|帖前|帖后|提前|提后|彼前|彼后|撒上|撒下|王上|王下|代上|代下|太|可|路|约|徒|罗|加|弗|腓|西|多|门|来|雅|犹|启|创|出|利|民|申|书|士|得|拉|尼|斯|伯|诗|箴|传|歌|赛|耶|哀|结|但|何|珥|摩|俄|拿|弥|鸿|哈|番|该|亚|玛';
   var chapterPatterns = [
     /^第[零一二三四五六七八九十百千\d]+[章节回部篇集卷]\s*(.*)$/,
     /^第\s*[零一二三四五六七八九十百千\d]+\s*[章节回部篇集卷]\s*(.*)$/,
-    /^(?:CHAPTER|Chapter|chapter)\s+\d+\s*(.*)$/
+    /^(?:CHAPTER|Chapter|chapter)\s+\d+\s*(.*)$/,
+    // 圣经卷名+章号格式（如「太1 «Prev Next»」），要求 «...» 导航标记避免误匹配计划表中的独立「启203」等行
+    new RegExp('^(' + BIBLE_BOOK_ABBR + ')(\\d+)\\s*«.*»\\s*$')
   ];
   var separatorRe = /^[=\-—–]{3,}\s*$/;
 
@@ -100,7 +104,10 @@ var win = window;
     var stripped = line.trim();
     if (!stripped) return null;
     for (var p = 0; p < chapterPatterns.length; p++) {
-      if (chapterPatterns[p].test(stripped)) return stripped;
+      if (chapterPatterns[p].test(stripped)) {
+        // 去除 «Prev Next» 等导航标记，只保留卷名+章号
+        return stripped.replace(/\s*«.*»\s*$/, '');
+      }
     }
     return null;
   }

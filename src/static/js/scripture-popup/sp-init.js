@@ -6,7 +6,9 @@
     renderScriptureBlocks();
     renderScriptureStaticBlocks();
   }
-  window.BKScripturePopup = { open: openModal, close: closeModal, init: init };
+  window.BKScripturePopup = { open: openModal, close: closeModal, init: init,
+    // ★ 懒渲染块级入口：只标注指定容器（已渲染块），供 lazy-renderer 每批调用
+    annotateBlock: annotateInlineRefs };
 
   /* ── 空闲预加载：页面加载后利用空闲时间提前解析三个大文件 ──
    * 文件已在 PWA/APK 缓存中，无网络开销；

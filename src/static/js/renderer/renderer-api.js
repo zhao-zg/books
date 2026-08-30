@@ -9,6 +9,10 @@
     _removeReadingShortcuts();
     _exitSplitMode();
     _cleanupPdfCache();
+    // ★ 销毁全部超长章节懒渲染实例（滚动监听 / rAF）
+    if (win.BKLazyRenderer && win.BKLazyRenderer.destroyLazyRender) {
+      win.BKLazyRenderer.destroyLazyRender(null);
+    }
     document.body.classList.remove('bk-reading-page');
     try { _updateTopReadingProgress(); } catch(e) {}
   }
@@ -673,6 +677,16 @@
         // 修复：只初始化当前章节的 PDF，避免 observer 观察 carousel 相邻页面的 PDF 元素
         // （传 #app 会导致 IntersectionObserver 误检测相邻 carousel-page 内的 .bk-pdf-page）
         var chapterContent = app.querySelector('#chapterContent');
+        // ★ 超长文本章节懒渲染接管：当前页若是懒渲染根，则用 chapter 初始化
+        var lazyRootEl = chapterContent ? chapterContent.querySelector('.bk-lazy-root[data-bk-lazy-root="1"]') : null;
+        if (lazyRootEl && win.BKLazyRenderer && win.BKLazyRenderer.initLazyRender) {
+          win.BKLazyRenderer.initLazyRender(chapter, lazyRootEl, {
+            eager: true,
+            renderItem: function (item, idx) {
+              return renderContentItem(item, '', true);
+            }
+          });
+        }
         initPdfPageLazyRender(chapterContent || app);
         document.body.classList.add('bk-reading-page');
         _maybeEnterSplitMode(bookId);
@@ -725,7 +739,11 @@
                 var els = [];
                 var paragraphs = container.querySelectorAll('.bk-paragraph, .bk-quote-content, .bk-heading, .bk-code, li');
                 for (var pi = 0; pi < paragraphs.length; pi++) {
-                  els.push({ el: paragraphs[pi] });
+                  // 懒渲染下跳过隐藏占位块内的空元素（visibility:hidden 的块无内容）
+                  var el = paragraphs[pi];
+                  var block = el.closest ? el.closest('.bk-lazy-block') : null;
+                  if (block && block.style && block.style.visibility === 'hidden') continue;
+                  els.push({ el: el });
                 }
                 return els;
               }

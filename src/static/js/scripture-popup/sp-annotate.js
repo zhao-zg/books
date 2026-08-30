@@ -1,6 +1,8 @@
   /* ═══════════════════════════ 自动标注正文 ═══════════════════════════ */
-  function annotateInlineRefs() {
-    var paras = document.querySelectorAll('.content-text, .bk-paragraph');
+  function annotateInlineRefs(rootEl) {
+    // rootEl 可选：懒渲染时只标注指定容器内的段落（未传则全文档）
+    var scope = rootEl || document;
+    var paras = scope.querySelectorAll('.content-text, .bk-paragraph');
     paras.forEach(function (p) {
       // 获取所有文本节点（跳过已有 span 内部的文本）
       var walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null);
