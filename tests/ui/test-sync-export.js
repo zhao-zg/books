@@ -83,6 +83,31 @@ win.BKShelf = {
     }
 };
 
+// 4b. ImportManager — 模拟导入书数据 + PDF 二进制存储（mode='full' 用）
+var _mockImportedBooks = {};   // { bookId: bookData | null }
+var _mockPdfStoreData = {};    // { 'pdf:<bookId>': ArrayBuffer | Uint8Array }
+var _mockPdfStore = {
+    getItem: function (key) {
+        return Promise.resolve(_mockPdfStoreData.hasOwnProperty(key) ? _mockPdfStoreData[key] : null);
+    }
+};
+win.ImportManager = {
+    getImportedBook: function (bookId) {
+        return Promise.resolve(_mockImportedBooks.hasOwnProperty(bookId) ? _mockImportedBooks[bookId] : null);
+    },
+    getPdfDataStore: function () {
+        return _mockPdfStore;
+    }
+};
+
+// 4c. DataManager — 降级数据源（ImportManager 无数据时用）
+var _mockDmBooks = {};  // { bookId: bookData | null }
+win.DataManager = {
+    getBook: function (bookId) {
+        return Promise.resolve(_mockDmBooks.hasOwnProperty(bookId) ? _mockDmBooks[bookId] : null);
+    }
+};
+
 // 5. BK.Export.exportBinary — 拦截调用，保存参数供断言
 var _exportBinaryCalls = [];
 win.BK.Export = {
@@ -103,6 +128,9 @@ assert.ok(typeof win.BK.Sync.exportData === 'function', 'sync-export.js 必须�
 // ── 测试数据 ────────────────────────────────────────────────────────────
 const BOOK_A = 'epub-aaa';
 const BOOK_B = 'pdf-bbb';
+
+// PDF 模拟二进制（区别于普通字符串，用于验证 original.pdf 内容完整性）
+var _pdfBinary = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34]); // "%PDF-1.4"
 
 function seedLocalStorage(ls) {
     // Book A 阅读数据
@@ -134,6 +162,17 @@ function seedMocks() {
         { id: BOOK_A, title: 'EPUB Book A', format: 'epub' },
         { id: BOOK_B, title: 'PDF Book B', format: 'pdf' }
     ];
+    // full 模式书籍数据
+    _mockImportedBooks[BOOK_A] = {
+        id: BOOK_A, title: 'EPUB Book A', format: 'epub',
+        chapters: [{ num: 1, content: [{ type: 'html', html: '<p>ch1</p>' }] }]
+    };
+    _mockImportedBooks[BOOK_B] = {
+        id: BOOK_B, title: 'PDF Book B', format: 'pdf',
+        chapters: [{ num: 1, content: [{ type: 'pdf_page', pageNumber: 1, pdfBookId: BOOK_B }] }]
+    };
+    _mockPdfStoreData['pdf:' + BOOK_B] = _pdfBinary;
+    _mockDmBooks = {}; // 降级源默认空，个别测试需时再设
 }
 
 // ── 解压 ZIP 并返回文件内容 ─────────────────────────────────────────────
@@ -149,6 +188,26 @@ function unzipToMap(bytes) {
                 return Promise.resolve();
             }
             return entry.async('string').then(function (content) {
+                result[name] = { content: content };
+            });
+        });
+        return Promise.all(promises).then(function () { return result; });
+    });
+}
+
+// ── 解压 ZIP 并返回文件内容（含二进制） ─────────────────────────────────
+function unzipToMapBinary(bytes) {
+    var zip = new win.JSZip();
+    return zip.loadAsync(bytes).then(function (loaded) {
+        var result = {};
+        var files = Object.keys(loaded.files);
+        var promises = files.map(function (name) {
+            var entry = loaded.files[name];
+            if (entry.dir) {
+                result[name] = { dir: true };
+                return Promise.resolve();
+            }
+            return entry.async('uint8array').then(function (content) {
                 result[name] = { content: content };
             });
         });
@@ -299,6 +358,133 @@ describe('BK.Sync.exportData (mode:data)', function () {
                 ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
                 ('0' + date.getDate()).slice(-2);
             assert.ok(filename.indexOf(dateStr) > 0, '文件名应含日期 ' + dateStr + '，实际=' + filename);
+        });
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// mode='full' 测试
+// ═══════════════════════════════════════════════════════════════════════
+describe('BK.Sync.exportData (mode:full)', function () {
+    beforeEach(function () {
+        win.localStorage.clear();
+        _exportBinaryCalls = [];
+        seedLocalStorage(win.localStorage);
+        seedMocks();
+    });
+
+    test('full 模式 ZIP 含 books/<bookId>/book.json，内容等于 mock bookData', function () {
+        return win.BK.Sync.exportData([BOOK_A, BOOK_B], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            var bjAPath = 'books/' + BOOK_A + '/book.json';
+            var bjBPath = 'books/' + BOOK_B + '/book.json';
+            assert.ok(files[bjAPath], '必须含 ' + bjAPath);
+            assert.ok(files[bjBPath], '必须含 ' + bjBPath);
+            var bjA = JSON.parse(files[bjAPath].content);
+            var bjB = JSON.parse(files[bjBPath].content);
+            assert.equal(bjA.id, BOOK_A);
+            assert.equal(bjA.format, 'epub');
+            assert.equal(bjB.id, BOOK_B);
+            assert.equal(bjB.format, 'pdf');
+        });
+    });
+
+    test('full 模式 PDF 书含 books/<bookId>/original.pdf，二进制内容正确', function () {
+        return win.BK.Sync.exportData([BOOK_B], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMapBinary(bytes);
+        }).then(function (files) {
+            var pdfPath = 'books/' + BOOK_B + '/original.pdf';
+            assert.ok(files[pdfPath], 'PDF 书必须含 ' + pdfPath);
+            var pdfBytes = files[pdfPath].content;
+            assert.ok(pdfBytes instanceof Uint8Array, 'original.pdf 应为 Uint8Array');
+            assert.equal(pdfBytes.length, _pdfBinary.length);
+            for (var i = 0; i < _pdfBinary.length; i++) {
+                assert.equal(pdfBytes[i], _pdfBinary[i], 'byte ' + i + ' 应匹配');
+            }
+        });
+    });
+
+    test('full 模式非 PDF 书不含 original.pdf', function () {
+        return win.BK.Sync.exportData([BOOK_A], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            assert.ok(!files['books/' + BOOK_A + '/original.pdf'],
+                'EPUB 书不应含 original.pdf');
+        });
+    });
+
+    test('full 模式仍含 userdata.json（schema:3 + bookmarks + highlights + scroll）', function () {
+        return win.BK.Sync.exportData([BOOK_A, BOOK_B], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            var udAPath = 'books/' + BOOK_A + '/userdata.json';
+            var udBPath = 'books/' + BOOK_B + '/userdata.json';
+            assert.ok(files[udAPath], 'full 模式也必须含 ' + udAPath);
+            assert.ok(files[udBPath], 'full 模式也必须含 ' + udBPath);
+            var udA = JSON.parse(files[udAPath].content);
+            var udB = JSON.parse(files[udBPath].content);
+            assert.equal(udA.schema, 3);
+            assert.equal(udA.progress, '42');
+            assert.equal(udA.bookmarks.length, 1);
+            assert.equal(udA.highlights.length, 2);
+            assert.equal(udA.scroll['3'], '123');
+            assert.equal(udB.schema, 3);
+            assert.equal(udB.progress, '80');
+            assert.equal(udB.bookmarks.length, 1);
+            assert.equal(udB.highlights.length, 1);
+            assert.equal(udB.scroll['1'], '200');
+        });
+    });
+
+    test('full 模式仍含 shelf.json 和 manifest.json', function () {
+        return win.BK.Sync.exportData([BOOK_A, BOOK_B], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            assert.ok(files['shelf.json'], 'full 模式必须有 shelf.json');
+            assert.ok(files['manifest.json'], 'full 模式必须有 manifest.json');
+            var manifest = JSON.parse(files['manifest.json'].content);
+            assert.equal(manifest.version, 3);
+            assert.equal(manifest.type, 'sync-data');
+            assert.equal(manifest.bookCount, 2);
+        });
+    });
+
+    test('full 模式 ImportManager 无数据时降级 DataManager', function () {
+        // ImportManager 无 BOOK_A 数据，降级到 DataManager
+        _mockImportedBooks[BOOK_A] = null;
+        _mockDmBooks[BOOK_A] = {
+            id: BOOK_A, title: 'EPUB Book A (from DM)', format: 'epub',
+            chapters: []
+        };
+        return win.BK.Sync.exportData([BOOK_A], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            var bjPath = 'books/' + BOOK_A + '/book.json';
+            assert.ok(files[bjPath], '降级后仍应有 book.json');
+            var bj = JSON.parse(files[bjPath].content);
+            assert.equal(bj.title, 'EPUB Book A (from DM)');
+        });
+    });
+
+    test('full 模式书籍数据不存在时不写 book.json 但仍写 userdata.json', function () {
+        var missingId = 'missing-xxx';
+        return win.BK.Sync.exportData([missingId], { mode: 'full' }).then(function () {
+            var bytes = _exportBinaryCalls[0].bytes;
+            return unzipToMap(bytes);
+        }).then(function (files) {
+            assert.ok(!files['books/' + missingId + '/book.json'],
+                '数据不存在的书不应含 book.json');
+            assert.ok(!files['books/' + missingId + '/original.pdf'],
+                '数据不存在的书不应含 original.pdf');
+            assert.ok(files['books/' + missingId + '/userdata.json'],
+                '即使书籍数据缺失，userdata.json 仍应写入');
         });
     });
 });

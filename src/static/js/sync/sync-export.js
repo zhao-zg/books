@@ -7,10 +7,13 @@
  *   ├── shelf.json          # BKShelf.all() 原样数组
  *   └── books/
  *       ├── <bookId>/
- *       │   └── userdata.json   # 进度 + 书签 + 高亮 + 滚动 + PDF 数据（schema:3）
+ *       │   ├── userdata.json   # 进度 + 书签 + 高亮 + 滚动 + PDF 数据（schema:3）
+ *       │   ├── book.json       # （仅 mode='full'）完整书籍数据
+ *       │   └── original.pdf    # （仅 mode='full' 且 PDF 书）原始 PDF 二进制
  *       ...
  *
- * mode='data' 时不含 book.json / original.pdf（那些是 mode='full' 的职责）。
+ * mode='data'（默认）仅含 userdata.json。
+ * mode='full' 额外打包书本体（book.json + PDF 书的 original.pdf）。
  *
  * 依赖：
  *   - JSZip (vendor/jszip.min.js)
@@ -19,6 +22,8 @@
  *   - BKStorage.getAllPages (highlight-shared.js)
  *   - BKShelf.all (shelf.js)
  *   - BK.Export.exportBinary (export-core.js)
+ *   - ImportManager.getImportedBook / getPdfDataStore (import-orchestrator.js)
+ *   - DataManager.getBook (dm-api.js)
  *
  * 挂载：window.BK.Sync.exportData(bookIds, opts)
  */
@@ -130,6 +135,65 @@
         return data;
     }
 
+    // ── full 模式辅助函数（书本体获取 + PDF 二进制） ──────────────────────
+
+    /**
+     * 获取单本书的完整数据（mode='full' 用）
+     * 优先 ImportManager（导入书），降级 DataManager（下载书）
+     * 逻辑与 export-batch.js 的 _getBookData 一致
+     * @param {string} bookId
+     * @returns {Promise<Object|null>}
+     */
+    function _getBookData(bookId) {
+        if (win.ImportManager && typeof win.ImportManager.getImportedBook === 'function') {
+            return win.ImportManager.getImportedBook(bookId).then(function (book) {
+                if (book) return book;
+                if (win.DataManager && typeof win.DataManager.getBook === 'function') {
+                    return win.DataManager.getBook(bookId);
+                }
+                return null;
+            });
+        }
+        if (win.DataManager && typeof win.DataManager.getBook === 'function') {
+            return win.DataManager.getBook(bookId);
+        }
+        return Promise.resolve(null);
+    }
+
+    /**
+     * 判断书籍数据是否为 PDF 书（与 export-batch.js 的 _isPdfBookData 一致）
+     * @param {Object} bookData
+     * @returns {boolean}
+     */
+    function _isPdfBookData(bookData) {
+        if (!bookData) return false;
+        if (bookData.format === 'pdf') return true;
+        var chapters = bookData.chapters || [];
+        for (var i = 0; i < chapters.length; i++) {
+            var content = chapters[i].content;
+            if (Array.isArray(content)) {
+                for (var j = 0; j < content.length; j++) {
+                    if (content[j] && content[j].type === 'pdf_page') return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 获取 PDF 书的原始二进制（mode='full' 用）
+     * @param {string} bookId
+     * @returns {Promise<ArrayBuffer|Uint8Array|null>}
+     */
+    function _getPdfData(bookId) {
+        var store = (win.ImportManager && typeof win.ImportManager.getPdfDataStore === 'function')
+            ? win.ImportManager.getPdfDataStore() : null;
+        if (!store) return Promise.resolve(null);
+        return store.getItem('pdf:' + bookId).then(function (data) {
+            return data || null;
+        }).catch(function () { return null; });
+    }
+
     // ── 主入口 ──────────────────────────────────────────────────────────
 
     /**
@@ -168,32 +232,66 @@
             var zip = new JSZip();
             var booksFolder = zip.folder('books');
 
-            // 逐书写入 userdata.json
+            // 逐书处理：
+            // - data 模式：同步写 userdata.json
+            // - full 模式：异步获取 bookData → 写 book.json → PDF 书异步取 original.pdf
+            // full 模式需串行（异步链）避免内存爆炸
+            var chain = Promise.resolve();
             for (var i = 0; i < bookIds.length; i++) {
-                var bookId = bookIds[i];
-                var userData = _buildUserData(bookId, allBookmarks, allPages);
-                var bookFolder = booksFolder.folder(bookId);
-                bookFolder.file('userdata.json', JSON.stringify(userData, null, 2));
+                (function (bookId) {
+                    chain = chain.then(function () {
+                        var bookFolder = booksFolder.folder(bookId);
+
+                        // 用户数据（两种模式都写）
+                        var userData = _buildUserData(bookId, allBookmarks, allPages);
+                        bookFolder.file('userdata.json', JSON.stringify(userData, null, 2));
+
+                        // full 模式：额外打包书本体
+                        if (mode !== 'full') return;
+
+                        return _getBookData(bookId).then(function (bookData) {
+                            if (!bookData) {
+                                console.warn('[BK.Sync] exportData: 书籍数据未找到，跳过 book.json id=' + bookId);
+                                return;
+                            }
+
+                            // 写入 book.json（深拷贝避免污染）
+                            var exportData = JSON.parse(JSON.stringify(bookData));
+                            bookFolder.file('book.json', JSON.stringify(exportData, null, 2));
+
+                            // PDF 书：异步取原始二进制
+                            if (_isPdfBookData(bookData)) {
+                                return _getPdfData(bookId).then(function (pdfData) {
+                                    if (pdfData) {
+                                        bookFolder.file('original.pdf', pdfData);
+                                    }
+                                });
+                            }
+                        });
+                    });
+                })(bookIds[i]);
             }
 
-            // 写入 shelf.json（BKShelf.all() 原样）
-            var shelfData = [];
-            if (win.BKShelf && typeof win.BKShelf.all === 'function') {
-                shelfData = win.BKShelf.all();
-            }
-            zip.file('shelf.json', JSON.stringify(shelfData, null, 2));
+            return chain.then(function () {
+                // 写入 shelf.json（BKShelf.all() 原样）
+                var shelfData = [];
+                if (win.BKShelf && typeof win.BKShelf.all === 'function') {
+                    shelfData = win.BKShelf.all();
+                }
+                zip.file('shelf.json', JSON.stringify(shelfData, null, 2));
 
-            // 写入 manifest.json
-            var manifest = {
-                version: MANIFEST_VERSION,
-                type: SYNC_TYPE,
-                exportDate: new Date().toISOString(),
-                bookCount: bookIds.length
-            };
-            zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+                // 写入 manifest.json
+                var manifest = {
+                    version: MANIFEST_VERSION,
+                    type: SYNC_TYPE,
+                    exportDate: new Date().toISOString(),
+                    bookCount: bookIds.length
+                };
+                zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-            console.log('[BK.Sync] exportData: 打包完成，开始生成 ZIP...');
-            return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+                console.log('[BK.Sync] exportData: 打包完成，开始生成 ZIP...');
+                return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+            });
         }).then(function (bytes) {
             var date = new Date();
             var dateStr = date.getFullYear() + '-' +
