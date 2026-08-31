@@ -316,6 +316,15 @@
         },
 
         /**
+         * 保存书签数组（供 sync-import 合并后批量写入）
+         * @param {Array} arr 书签数组
+         * @returns {Promise}
+         */
+        _save: function (arr) {
+            return _save(arr);
+        },
+
+        /**
          * 跳转到书签位置
          * @param {Object} bookmark
          */
