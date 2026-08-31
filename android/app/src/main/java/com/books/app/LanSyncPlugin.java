@@ -11,6 +11,8 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -234,11 +236,11 @@ public class LanSyncPlugin extends Plugin {
                         int port = info.getPort();
                         String host = info.getHost() != null ? info.getHost().getHostAddress() : "";
 
-                        // 通过 evaluateJs 回调 JS 侧的 _onDeviceFound
+                        // 通过 eval 回调 JS 侧的 _onDeviceFound
                         String json = "{\"name\":\"" + escapeJson(name) + "\",\"ip\":\"" + escapeJson(host) + "\",\"port\":" + port + "}";
                         String js = "window.BK.LanSync._onDeviceFound('" + json.replace("'", "\\'") + "')";
                         try {
-                            bridge.evaluateJs(js, null);
+                            bridge.eval(js, null);
                         } catch (Exception e) {
                             Log.e(TAG, "evaluateJs failed: " + e.getMessage());
                         }
@@ -319,7 +321,7 @@ public class LanSyncPlugin extends Plugin {
                 }
 
                 @Override
-                public void onUnregistered(NsdServiceInfo info) {
+                public void onServiceUnregistered(NsdServiceInfo info) {
                     Log.d(TAG, "NSD unregistered");
                 }
             };
@@ -363,7 +365,13 @@ public class LanSyncPlugin extends Plugin {
             }
 
             String uri = session.getUri();
-            HashMap<String, String> params = new HashMap<>(session.getParameters());
+            Map<String, List<String>> rawParams = session.getParameters();
+            HashMap<String, String> params = new HashMap<>();
+            for (Map.Entry<String, List<String>> entry : rawParams.entrySet()) {
+                if (!entry.getValue().isEmpty()) {
+                    params.put(entry.getKey(), entry.getValue().get(0));
+                }
+            }
 
             // 配对码校验
             String code = params.get("code");
@@ -487,7 +495,7 @@ public class LanSyncPlugin extends Plugin {
             CountDownLatch latch = new CountDownLatch(1);
             pendingLatches.put(requestId, latch);
 
-            bridge.evaluateJs(js, null);
+            bridge.eval(js, null);
 
             if (!latch.await(JS_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 pendingLatches.remove(requestId);
