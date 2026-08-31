@@ -310,9 +310,10 @@
     <script src="js/mark-panel/mark-panel.js" defer></script>
     <script src="js/export/export-core.js" defer></script>
     <script src="js/export/export-book.js" defer></script>
-    <!-- sync 模块：sync-data-collect 在 export-batch 之前加载（export-batch 依赖 BK.SyncData）；sync-export 在 sync-data-collect 之后加载（依赖 BK.SyncData + BKBookmark + BKStorage） -->
+    <!-- sync 模块：sync-data-collect 在 export-batch 之前加载（export-batch 依赖 BK.SyncData）；sync-export 在 sync-data-collect 之后加载（依赖 BK.SyncData + BKBookmark + BKStorage）；sync-import 在 import-zip 之后加载（委托旧版 ZIP 给 ImportZip） -->
     <script src="js/sync/sync-data-collect.js" defer></script>
     <script src="js/sync/sync-export.js" defer></script>
+    <script src="js/sync/sync-import.js" defer></script>
     <script src="js/export/export-batch.js" defer></script>
     <script src="js/export/export-pdf-annotated.js" defer></script>
     <script src="js/note-summary.js" defer></script>
@@ -394,7 +395,7 @@
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/bottom-tab-bar.js','./js/pwa-banner.js',
         './js/scripture-popup/sp-shared.js','./js/scripture-popup/sp-dom.js','./js/scripture-popup/sp-render.js','./js/scripture-popup/sp-events.js','./js/scripture-popup/sp-annotate.js','./js/scripture-popup/sp-init.js',
-        './js/nav-stack/nav-back.js','./js/nav-stack/nav-float-bar.js','./js/bible-dict.js','./js/highlight/highlight-shared.js','./js/highlight/highlight-core.js','./js/highlight/highlight-apply.js','./js/highlight/highlight-crud.js','./js/highlight/highlight-ui.js','./js/highlight/highlight-events.js','./js/bookmark.js','./js/export/export-core.js','./js/export/export-book.js','./js/sync/sync-data-collect.js','./js/sync/sync-export.js','./js/export/export-batch.js','./js/export/export-pdf-annotated.js','./js/note-summary.js',
+        './js/nav-stack/nav-back.js','./js/nav-stack/nav-float-bar.js','./js/bible-dict.js','./js/highlight/highlight-shared.js','./js/highlight/highlight-core.js','./js/highlight/highlight-apply.js','./js/highlight/highlight-crud.js','./js/highlight/highlight-ui.js','./js/highlight/highlight-events.js','./js/bookmark.js','./js/export/export-core.js','./js/export/export-book.js','./js/sync/sync-data-collect.js','./js/sync/sync-export.js','./js/sync/sync-import.js','./js/export/export-batch.js','./js/export/export-pdf-annotated.js','./js/note-summary.js',
         './js/resource-pack/rp-shared.js','./js/resource-pack/rp-dialogs.js','./js/resource-pack/rp-import.js','./js/data-manager/dm-shared.js','./js/data-manager/dm-storage.js','./js/data-manager/dm-index.js','./js/data-manager/dm-download.js','./js/data-manager/dm-book-ops.js','./js/data-manager/dm-api.js','./js/data-manager/dm-pack-download.js','./js/background-download.js',
         './js/remote-config.js','./js/webdav-presets.js','./js/app-lifecycle.js','./js/image-utils.js',
         './js/import-manager/import-shared.js','./js/import-manager/import-file-picker.js','./js/import-manager/import-txt.js',
