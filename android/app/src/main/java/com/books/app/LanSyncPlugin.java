@@ -5,7 +5,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 
-import org.nanohttpd.NanoHTTPD;
+import fi.iki.elonen.NanoHTTPD;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
