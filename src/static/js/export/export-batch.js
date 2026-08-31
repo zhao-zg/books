@@ -71,72 +71,6 @@
         });
     }
 
-    // ── 用户数据收集 ──────────────────────────────────────────────────────────
-
-    /**
-     * 收集单本书的 localStorage 用户数据（阅读进度、书签、高亮等）
-     * @param {string} bookId
-     * @returns {Object|null} 用户数据对象，无数据时返回 null
-     *
-     * 收集的 localStorage key：
-     *   bk_progress:<bookId>            — 阅读进度百分比
-     *   bk_chapter_read:<bookId>/<ch>   — 章节已读标记（扫描所有 key）
-     *   bk_pdf_pos:<bookId>             — PDF 当前页码
-     *   bk_pdf_bm:<bookId>             — PDF 书签
-     *   bk_pdf_hl:<bookId>             — PDF 高亮/批注
-     *   bk_lastread_ts:<bookId>        — 最后阅读时间戳
-     */
-    function _collectUserData(bookId) {
-        try {
-            var ls = win.localStorage;
-            if (!ls) return null;
-
-            var data = {};
-
-            // 阅读进度
-            var progress = ls.getItem('bk_progress:' + bookId);
-            if (progress !== null) data.progress = progress;
-
-            // 最后阅读时间
-            var lastReadTs = ls.getItem('bk_lastread_ts:' + bookId);
-            if (lastReadTs !== null) data.lastReadTs = lastReadTs;
-
-            // PDF 阅读位置
-            var pdfPos = ls.getItem('bk_pdf_pos:' + bookId);
-            if (pdfPos !== null) data.pdfPos = pdfPos;
-
-            // PDF 书签
-            var pdfBm = ls.getItem('bk_pdf_bm:' + bookId);
-            if (pdfBm !== null) data.pdfBookmarks = pdfBm;
-
-            // PDF 高亮/批注
-            var pdfHl = ls.getItem('bk_pdf_hl:' + bookId);
-            if (pdfHl !== null) data.pdfHighlights = pdfHl;
-
-            // 章节已读标记（扫描所有匹配的 key）
-            var chapterReads = [];
-            var prefix = 'bk_chapter_read:' + bookId + '/';
-            for (var i = 0; i < ls.length; i++) {
-                var key = ls.key(i);
-                if (key && key.indexOf(prefix) === 0) {
-                    var chNum = key.substring(prefix.length);
-                    if (chNum && ls.getItem(key) === '1') {
-                        chapterReads.push(chNum);
-                    }
-                }
-            }
-            if (chapterReads.length > 0) data.chapterReads = chapterReads;
-
-            // 有任何数据才返回（progress 值为 '0' 也算有效数据）
-            var hasData = data.progress != null
-                || data.lastReadTs || data.pdfPos
-                || data.pdfBookmarks || data.pdfHighlights || data.chapterReads;
-            return hasData ? data : null;
-        } catch (e) {
-            return null;
-        }
-    }
-
     // ── 数据获取 ──────────────────────────────────────────────────────────
 
     /**
@@ -228,7 +162,14 @@
                         bookFolder.file('book.json', JSON.stringify(exportData, null, 2));
 
                         // 收集并写入用户数据（阅读进度、书签、高亮等）
-                        var userData = _collectUserData(bookId);
+                        // 优先使用公共模块 sync-data-collect.js；若未加载（防御），
+                        // 返回 null 并告警，不阻断导出主流程。
+                        var userData = null;
+                        if (win.BK && win.BK.SyncData && typeof win.BK.SyncData.collectUserData === 'function') {
+                            userData = win.BK.SyncData.collectUserData(bookId);
+                        } else {
+                            console.warn('[BK.Export] exportBatch: sync-data-collect.js 未加载，跳过用户数据收集');
+                        }
                         if (userData) {
                             bookFolder.file('userdata.json', JSON.stringify(userData, null, 2));
                         }
