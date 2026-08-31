@@ -55,4 +55,17 @@ describe('lan-sync-qr.js', () => {
         assert.strictEqual(parsed.port, 18080);
         assert.strictEqual(parsed.code, '123456');
     });
+
+    test('buildConnectionString / parseConnectionString 支持 IPv6 地址', () => {
+        var str = win.BK.LanSyncQR.buildConnectionString({
+            ip: 'fd00::1', port: 18080, code: '123456'
+        });
+        assert.ok(str.indexOf('bk-sync://') === 0);
+        assert.ok(str.indexOf('[fd00::1]:18080') > -1, 'IPv6 应以方括号包裹');
+
+        var parsed = win.BK.LanSyncQR.parseConnectionString(str);
+        assert.strictEqual(parsed.ip, 'fd00::1');
+        assert.strictEqual(parsed.port, 18080);
+        assert.strictEqual(parsed.code, '123456');
+    });
 });

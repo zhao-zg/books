@@ -30,9 +30,11 @@ win.BK.LanSync = {
     startServer: function () { return Promise.resolve({ port: 18080, pairCode: '123456', ipAddress: '192.168.1.5' }); },
     stopServer: function () { return Promise.resolve(); },
     getStatus: function () { return Promise.resolve({ running: true, pairCode: '123456', ipAddress: '192.168.1.5', port: 18080 }); },
-    connect: function () { return Promise.resolve({ name: '设备B', books: [] }); },
+    connect: function (ip, port, code) { return Promise.resolve({ name: '设备B', books: [] }); },
     pull: function () { return Promise.resolve({ success: 1, failed: 0, errors: [] }); },
-    push: function () { return Promise.resolve({ success: 1, failed: 0, errors: [] }); }
+    push: function () { return Promise.resolve({ success: 1, failed: 0, errors: [] }); },
+    discover: function () { return Promise.resolve(); },
+    stopDiscovery: function () { return Promise.resolve(); }
 };
 
 function loadModule() {
@@ -92,14 +94,50 @@ describe('lan-sync-panel.js', () => {
         assert.strictEqual(win.BK.LanSyncPanel.getState().mode, 'data');
     });
 
-    test('addDevice / removeDevice 管理设备列表', () => {
-        win.BK.LanSyncPanel.addDevice({ name: '设备A', ip: '192.168.1.5', port: 18080 });
+    test('addDevice / removeDevice 管理设备列表（携带配对码）', () => {
+        win.BK.LanSyncPanel.addDevice({ name: '设备A', ip: '192.168.1.5', port: 18080, code: '654321' });
         var devices = win.BK.LanSyncPanel.getState().devices;
         assert.strictEqual(devices.length, 1);
         assert.strictEqual(devices[0].name, '设备A');
+        assert.strictEqual(devices[0].code, '654321', '设备记录应携带配对码');
 
         win.BK.LanSyncPanel.removeDevice('192.168.1.5');
         devices = win.BK.LanSyncPanel.getState().devices;
         assert.strictEqual(devices.length, 0);
+    });
+
+    test('_handlePull / _handlePush 使用对端配对码而非本机配对码', async () => {
+        // 本机服务配对码 123456，对端设备码 654321
+        win.BK.LanSyncPanel.addDevice({ name: '设备B', ip: '192.168.1.8', port: 18080, code: '654321' });
+
+        var pulled = [];
+        var pushed = [];
+        win.BK.LanSync.pull = function (ip, port, code) {
+            pulled.push({ ip: ip, port: port, code: code });
+            return Promise.resolve({ success: 1, failed: 0, errors: [] });
+        };
+        win.BK.LanSync.push = function (ip, port, code) {
+            pushed.push({ ip: ip, port: port, code: code });
+            return Promise.resolve({ success: 1, failed: 0, errors: [] });
+        };
+
+        // 通过面板 UI 触发（渲染设备列表后点拉取/推送按钮）
+        win.BK.LanSyncPanel.show();
+        var pullBtn = document.querySelector('.lan-sync-btn-pull');
+        assert.ok(pullBtn, '设备列表应渲染拉取按钮');
+        pullBtn.click();
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        var pushBtn = document.querySelector('.lan-sync-btn-push');
+        assert.ok(pushBtn, '设备列表应渲染推送按钮');
+        pushBtn.click();
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        assert.strictEqual(pulled.length, 1);
+        assert.strictEqual(pulled[0].ip, '192.168.1.8');
+        assert.strictEqual(pulled[0].code, '654321', '拉取应使用对端配对码');
+        assert.strictEqual(pushed.length, 1);
+        assert.strictEqual(pushed[0].ip, '192.168.1.8');
+        assert.strictEqual(pushed[0].code, '654321', '推送应使用对端配对码');
     });
 });

@@ -4,12 +4,15 @@
  * 客户端 API（APK + PWA 均可用）：
  *   - connect(ip, port, code)   → GET /info，返回对端设备信息
  *   - pull(ip, port, code, opts) → GET /download → importFromZip 合并
- *   - push(ip, port, code, opts) → generateZipBytes → POST /upload
+ *   - push(ip, port, code, opts) → generateZipBytes → POST /upload（multipart）
+ *   - discover(handler)          → APK：NSD 自动发现对端（回调 onDeviceFound）
+ *   - stopDiscovery()           → 停止 NSD 发现
  *
  * 服务端 JS 桥梁（仅 APK，被 NanoHTTPD 通过 evaluateJs 调用）：
  *   - _handleInfo(requestId)           → 收集设备信息 → deliverResult
  *   - _handleDownload(mode, books, id)  → generateZipBytes → base64 → deliverResult
  *   - _handleUpload(base64Zip, id)      → base64 → importFromZip → deliverResult
+ *   - _onDeviceFound(json)             → NSD 发现回调 → 转发给 discover handler
  *
  * 依赖：
  *   - BK.Sync.generateZipBytes (sync-export.js, T1)
@@ -21,6 +24,8 @@
  */
 (function (win) {
     'use strict';
+
+    var _discoverHandler = null;
 
     var LanSync = {
         // ── 环境检测 ──────────────────────────────────────────────────
@@ -53,7 +58,7 @@
         // ── 客户端（APK + PWA）─────────────────────────────────────────
 
         connect: function (ip, port, code) {
-            var url = 'http://' + ip + ':' + port + '/info?code=' + code;
+            var url = 'http://' + ip + ':' + port + '/info?code=' + win.encodeURIComponent(code);
             return win.fetch(url).then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -63,8 +68,8 @@
         pull: function (ip, port, code, opts) {
             opts = opts || {};
             var mode = opts.mode || 'data';
-            var booksParam = opts.books ? '&books=' + opts.books.join(',') : '';
-            var url = 'http://' + ip + ':' + port + '/download?code=' + code + '&mode=' + mode + booksParam;
+            var booksParam = opts.books ? '&books=' + win.encodeURIComponent(opts.books.join(',')) : '';
+            var url = 'http://' + ip + ':' + port + '/download?code=' + win.encodeURIComponent(code) + '&mode=' + win.encodeURIComponent(mode) + booksParam;
 
             return win.fetch(url).then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -87,11 +92,13 @@
             }
 
             return win.BK.Sync.generateZipBytes(bookIds, { mode: mode }).then(function (zipBytes) {
-                var url = 'http://' + ip + ':' + port + '/upload?code=' + code;
+                // multipart 上传：Blob 保持二进制，NanoHTTPD 走临时文件分支，避免 UTF-8 字符串化损坏 ZIP
+                var form = new FormData();
+                form.append('file', new Blob([zipBytes], { type: 'application/zip' }), 'sync.zip');
+                var url = 'http://' + ip + ':' + port + '/upload?code=' + win.encodeURIComponent(code);
                 return win.fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/zip' },
-                    body: zipBytes
+                    body: form
                 }).then(function (res) {
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     return res.json();
@@ -99,7 +106,32 @@
             });
         },
 
-        // ── JS 桥梁（被 Java evaluateJs 调用，仅 APK）──────────────────
+        // ── NSD 发现（仅 APK）────────────────────────────────────────
+
+        discover: function (handler) {
+            _discoverHandler = typeof handler === 'function' ? handler : null;
+            if (!this.isAvailable()) return Promise.reject(new Error('仅 APK 端可用'));
+            return win.Capacitor.Plugins.LanSync.discover();
+        },
+
+        stopDiscovery: function () {
+            _discoverHandler = null;
+            if (!this.isAvailable()) return Promise.reject(new Error('仅 APK 端可用'));
+            return win.Capacitor.Plugins.LanSync.stopDiscover();
+        },
+
+        // 被 Java NSD DiscoveryListener 通过 evaluateJs 调用（仅 APK）
+        _onDeviceFound: function (deviceJson) {
+            var device = null;
+            try {
+                device = JSON.parse(deviceJson);
+            } catch (e) {
+                return;
+            }
+            if (_discoverHandler) _discoverHandler(device);
+        },
+
+        // ── JS 桥（被 Java evaluateJs 调用，仅 APK）──────────────────
 
         _handleInfo: function (requestId) {
             var info = {

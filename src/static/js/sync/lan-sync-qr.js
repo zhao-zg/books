@@ -16,7 +16,9 @@
     var PROTOCOL = 'bk-sync://';
 
     function buildConnectionString(info) {
-        return PROTOCOL + info.ip + ':' + info.port + '?code=' + info.code;
+        // IPv6 地址需用方括号包裹（如 [fd00::1]:18080）
+        var ip = info.ip.indexOf(':') > -1 ? '[' + info.ip + ']' : info.ip;
+        return PROTOCOL + ip + ':' + info.port + '?code=' + info.code;
     }
 
     function parseConnectionString(str) {
@@ -31,10 +33,21 @@
             hostPart = rest;
             code = '';
         }
-        var parts = hostPart.split(':');
+        // IPv6 格式 [addr]:port，IPv4 格式 addr:port
+        var ip, port;
+        if (hostPart.charAt(0) === '[') {
+            var closeIdx = hostPart.indexOf(']');
+            ip = hostPart.substring(1, closeIdx);
+            var portPart = hostPart.substring(closeIdx + 2); // 跳过 "]:"
+            port = parseInt(portPart || '18080', 10);
+        } else {
+            var parts = hostPart.split(':');
+            ip = parts[0];
+            port = parseInt(parts[1] || '18080', 10);
+        }
         return {
-            ip: parts[0],
-            port: parseInt(parts[1] || '18080', 10),
+            ip: ip,
+            port: port,
             code: code
         };
     }

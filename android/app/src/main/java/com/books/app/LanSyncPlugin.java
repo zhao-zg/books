@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -46,10 +48,15 @@ public class LanSyncPlugin extends Plugin {
     private final ConcurrentHashMap<String, CountDownLatch> pendingLatches = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> pendingResults = new ConcurrentHashMap<>();
 
-    // NSD 注册监听器（T5 实现）
+    // NSD 注册监听器
     private NsdManager nsdManager;
     private NsdManager.RegistrationListener nsdRegistrationListener;
+    // NSD 发现监听器（H3：APK↔APK 自动发现）
+    private NsdManager.DiscoveryListener nsdDiscoveryListener;
     private static final String NSD_SERVICE_TYPE = "_bk-sync._tcp.";
+
+    // 自动关闭：定时器
+    private ScheduledExecutorService idleExecutor;
 
     // ── 插件方法 ──────────────────────────────────────────────────────────
 
@@ -72,6 +79,12 @@ public class LanSyncPlugin extends Plugin {
             server.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
             lastRequestTime = System.currentTimeMillis();
 
+            // 启动自动关闭定时器：每分钟检查一次，10 分钟无活动自动 stopServer
+            startIdleTimer();
+
+            // 服务启动后自动注册 NSD（APK↔APK 自动发现）
+            registerNsdInternal();
+
             JSObject ret = new JSObject();
             ret.put("port", server.getListeningPort());
             ret.put("pairCode", pairCode);
@@ -84,12 +97,43 @@ public class LanSyncPlugin extends Plugin {
 
     @PluginMethod
     public void stopServer(PluginCall call) {
+        stopServerInternal();
+        call.resolve();
+    }
+
+    private void stopServerInternal() {
+        stopIdleTimer();
+        unregisterNsdInternal();
+        stopDiscoveryInternal();
         if (server != null) {
             server.stop();
             server = null;
         }
-        unregisterNsdInternal();
-        call.resolve();
+    }
+
+    // ── 自动关闭定时器 ────────────────────────────────────────────────
+
+    private void startIdleTimer() {
+        stopIdleTimer();
+        idleExecutor = Executors.newSingleThreadScheduledExecutor();
+        idleExecutor.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                if (server == null) return;
+                long idleSeconds = (System.currentTimeMillis() - lastRequestTime) / 1000;
+                if (idleSeconds >= MAX_IDLE_MINUTES * 60L) {
+                    Log.d(TAG, "Auto-stop: idle " + idleSeconds + "s >= " + (MAX_IDLE_MINUTES * 60) + "s");
+                    stopServerInternal();
+                }
+            }
+        }, 60, 60, TimeUnit.SECONDS); // 每分钟检查
+    }
+
+    private void stopIdleTimer() {
+        if (idleExecutor != null) {
+            idleExecutor.shutdownNow();
+            idleExecutor = null;
+        }
     }
 
     @PluginMethod
@@ -128,9 +172,130 @@ public class LanSyncPlugin extends Plugin {
             call.reject("Server not running");
             return;
         }
+        registerNsdInternal();
+        call.resolve();
+    }
 
-        try {
+    @PluginMethod
+    public void unregisterNsd(PluginCall call) {
+        unregisterNsdInternal();
+        call.resolve();
+    }
+
+    // ── NSD 发现（H3：APK↔APK 自动发现）───────────────────────────────
+
+    @PluginMethod
+    public void discover(PluginCall call) {
+        if (nsdManager == null) {
             nsdManager = (NsdManager) getContext().getSystemService(Context.NSD_SERVICE);
+        }
+        if (nsdManager == null) {
+            call.reject("NSD service unavailable");
+            return;
+        }
+
+        // 先停止旧的发现
+        stopDiscoveryInternal();
+
+        nsdDiscoveryListener = new NsdManager.DiscoveryListener() {
+            @Override
+            public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                Log.e(TAG, "NSD discovery start failed: " + errorCode);
+            }
+
+            @Override
+            public void onStopDiscoveryFailed(String serviceType, int errorCode) {
+                Log.e(TAG, "NSD discovery stop failed: " + errorCode);
+            }
+
+            @Override
+            public void onDiscoveryStarted(String serviceType) {
+                Log.d(TAG, "NSD discovery started: " + serviceType);
+            }
+
+            @Override
+            public void onDiscoveryStopped(String serviceType) {
+                Log.d(TAG, "NSD discovery stopped: " + serviceType);
+            }
+
+            @Override
+            public void onServiceFound(NsdServiceInfo serviceInfo) {
+                Log.d(TAG, "NSD service found: " + serviceInfo.getServiceName());
+                // 解析服务获取 IP+端口
+                nsdManager.resolveService(serviceInfo, new NsdManager.ResolveListener() {
+                    @Override
+                    public void onResolveFailed(NsdServiceInfo info, int errorCode) {
+                        Log.e(TAG, "NSD resolve failed: " + errorCode);
+                    }
+
+                    @Override
+                    public void onServiceResolved(NsdServiceInfo info) {
+                        String name = info.getServiceName();
+                        int port = info.getPort();
+                        String host = info.getHost() != null ? info.getHost().getHostAddress() : "";
+
+                        // 通过 evaluateJs 回调 JS 侧的 _onDeviceFound
+                        String json = "{\"name\":\"" + escapeJson(name) + "\",\"ip\":\"" + escapeJson(host) + "\",\"port\":" + port + "}";
+                        String js = "window.BK.LanSync._onDeviceFound('" + json.replace("'", "\\'") + "')";
+                        try {
+                            bridge.evaluateJs(js, null);
+                        } catch (Exception e) {
+                            Log.e(TAG, "evaluateJs failed: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onServiceLost(NsdServiceInfo serviceInfo) {
+                Log.d(TAG, "NSD service lost: " + serviceInfo.getServiceName());
+            }
+        };
+
+        nsdManager.discoverServices(NSD_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, nsdDiscoveryListener);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopDiscover(PluginCall call) {
+        stopDiscoveryInternal();
+        call.resolve();
+    }
+
+    private void stopDiscoveryInternal() {
+        if (nsdManager != null && nsdDiscoveryListener != null) {
+            try {
+                nsdManager.stopServiceDiscovery(nsdDiscoveryListener);
+            } catch (Exception e) {
+                Log.e(TAG, "NSD stop discovery error: " + e.getMessage());
+            }
+            nsdDiscoveryListener = null;
+        }
+    }
+
+    // ── NSD 内部 ──────────────────────────────────────────────────────────
+
+    private void unregisterNsdInternal() {
+        if (nsdManager != null && nsdRegistrationListener != null) {
+            try {
+                nsdManager.unregisterService(nsdRegistrationListener);
+            } catch (Exception e) {
+                Log.e(TAG, "NSD unregister error: " + e.getMessage());
+            }
+            nsdRegistrationListener = null;
+        }
+    }
+
+    private void registerNsdInternal() {
+        if (server == null) return;
+        try {
+            if (nsdManager == null) {
+                nsdManager = (NsdManager) getContext().getSystemService(Context.NSD_SERVICE);
+            }
+            if (nsdManager == null) return;
+
+            // 先注销旧注册
+            unregisterNsdInternal();
 
             NsdServiceInfo serviceInfo = new NsdServiceInfo();
             serviceInfo.setServiceName("书报-" + getDeviceShortId());
@@ -160,28 +325,8 @@ public class LanSyncPlugin extends Plugin {
             };
 
             nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, nsdRegistrationListener);
-            call.resolve();
         } catch (Exception e) {
-            call.reject("NSD registration failed: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void unregisterNsd(PluginCall call) {
-        unregisterNsdInternal();
-        call.resolve();
-    }
-
-    // ── NSD 内部 ──────────────────────────────────────────────────────────
-
-    private void unregisterNsdInternal() {
-        if (nsdManager != null && nsdRegistrationListener != null) {
-            try {
-                nsdManager.unregisterService(nsdRegistrationListener);
-            } catch (Exception e) {
-                Log.e(TAG, "NSD unregister error: " + e.getMessage());
-            }
-            nsdRegistrationListener = null;
+            Log.e(TAG, "NSD register internal error: " + e.getMessage());
         }
     }
 
@@ -229,8 +374,9 @@ public class LanSyncPlugin extends Plugin {
                 return r;
             }
 
-            // 私有 IP 过滤
-            if (!isPrivateIp(session.getRemoteHostName())) {
+            // 私有 IP 过滤（改用 session.getRemoteIpAddress 更可靠）
+            String remoteIp = session.getRemoteIpAddress();
+            if (!isPrivateIp(remoteIp)) {
                 Response r = newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
                     "{\"error\":\"forbidden_network\"}");
                 addCorsHeaders(r);
@@ -272,11 +418,12 @@ public class LanSyncPlugin extends Plugin {
 
         private Response handleDownload(String mode, String books) throws Exception {
             String requestId = UUID.randomUUID().toString();
+            // 对 mode 和 books 做 JS 安全转义（防注入）
+            String safeMode = mode != null ? mode.replaceAll("['\\\\]", "") : "data";
+            String safeBooks = books != null ? books.replaceAll("['\\\\]", "") : "";
             String js = String.format(
                 "window.BK.LanSync._handleDownload('%s','%s','%s')",
-                mode != null ? mode : "data",
-                books != null ? books : "",
-                requestId
+                safeMode, safeBooks, requestId
             );
             String base64 = callJsAndWait("download", requestId, js);
 
@@ -298,10 +445,23 @@ public class LanSyncPlugin extends Plugin {
                 return r;
             }
 
-            // NanoHTTPD 将 body 存入 files map
+            // H1 修复：multipart/form-data 上传，NanoHTTPD parseBody 将文件存入临时路径
+            // 客户端用 FormData + Blob 上传，NanoHTTPD 将文件部分存为临时文件，key 为文件字段名
             HashMap<String, String> files = new HashMap<>();
             session.parseBody(files);
-            String tmpFilePath = files.get("files");
+
+            // NanoHTTPD 将 multipart 文件存为临时文件，key 为表单字段名（客户端用 'file'）
+            String tmpFilePath = files.get("file");
+            if (tmpFilePath == null) {
+                // 兼容：某些 NanoHTTPD 版本用 "files" 作为 key
+                tmpFilePath = files.get("postData");
+            }
+            if (tmpFilePath == null) {
+                Response r = newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                    "{\"error\":\"no_file_uploaded\"}");
+                addCorsHeaders(r);
+                return r;
+            }
 
             // 读取临时文件为 byte[]
             java.nio.file.Path tmpPath = java.nio.file.Paths.get(tmpFilePath);
@@ -378,6 +538,10 @@ public class LanSyncPlugin extends Plugin {
 
     private static String escapeJson(String s) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }

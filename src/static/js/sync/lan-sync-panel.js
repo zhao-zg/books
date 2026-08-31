@@ -18,7 +18,7 @@
     var state = {
         serverRunning: false,
         serverInfo: null,    // {port, pairCode, ipAddress}
-        devices: [],          // [{name, ip, port}]
+        devices: [],          // [{name, ip, port, code}]
         logs: [],             // [{time, msg}]
         mode: 'data',         // 'data' | 'full'
         transferring: false
@@ -50,12 +50,12 @@
             : '<span class="lan-sync-code-empty">—</span>';
 
         var devicesHtml = state.devices.map(function (d) {
-            return '<div class="lan-sync-device" data-ip="' + d.ip + '" data-port="' + d.port + '">' +
+            return '<div class="lan-sync-device" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">' +
                 '<span class="lan-sync-device-icon">📱</span>' +
                 '<span class="lan-sync-device-name">' + _esc(d.name) + '</span>' +
                 '<span class="lan-sync-device-addr">' + _esc(d.ip) + ':' + d.port + '</span>' +
-                '<button class="lan-sync-btn-pull" data-ip="' + d.ip + '" data-port="' + d.port + '">拉取</button>' +
-                '<button class="lan-sync-btn-push" data-ip="' + d.ip + '" data-port="' + d.port + '">推送</button>' +
+                '<button class="lan-sync-btn-pull" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">拉取</button>' +
+                '<button class="lan-sync-btn-push" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">推送</button>' +
                 '</div>';
         }).join('');
 
@@ -87,6 +87,7 @@
             '      <div class="lan-sync-status-row"><span>状态</span><span class="lan-sync-status-' + (running ? 'on' : 'off') + '">' + (running ? '● 服务运行中' : '● 未启动') + '</span></div>' +
             '      <div class="lan-sync-status-row"><span>配对码</span>' + codeHtml + '</div>' +
             '      <div class="lan-sync-status-row"><span>地址</span><span>' + (info.ipAddress ? _esc(info.ipAddress) + ':' + (info.port || '') : '—') + '</span></div>' +
+            (running && info.pairCode && win.BK.LanSyncQR ? _renderQr(info) : '') +
             '      <div class="lan-sync-actions">' +
             '        <button class="lan-sync-btn-start"' + (running ? ' disabled' : '') + '>启动服务</button>' +
             '        <button class="lan-sync-btn-stop"' + (!running ? ' disabled' : '') + '>停止</button>' +
@@ -141,7 +142,8 @@
             pullBtns[j].onclick = function (e) {
                 var ip = e.target.getAttribute('data-ip');
                 var port = parseInt(e.target.getAttribute('data-port'), 10);
-                _handlePull(ip, port);
+                var code = e.target.getAttribute('data-code') || '';
+                _handlePull(ip, port, code);
             };
         }
 
@@ -150,7 +152,8 @@
             pushBtns[k].onclick = function (e) {
                 var ip = e.target.getAttribute('data-ip');
                 var port = parseInt(e.target.getAttribute('data-port'), 10);
-                _handlePush(ip, port);
+                var code = e.target.getAttribute('data-code') || '';
+                _handlePush(ip, port, code);
             };
         }
     }
@@ -167,6 +170,12 @@
             state.serverRunning = true;
             state.serverInfo = info;
             addLog('服务已启动，配对码 ' + info.pairCode);
+            // 自动启动 NSD 发现（仅 APK 环境可用时）
+            if (win.BK.LanSync.isAvailable() && win.BK.LanSync.discover) {
+                win.BK.LanSync.discover(function (device) {
+                    if (device) addDevice(device);
+                }).catch(function () {});
+            }
             _renderPanel();
         }).catch(function (err) {
             addLog('启动失败：' + (err.message || err));
@@ -174,6 +183,9 @@
     }
 
     function _handleStop() {
+        if (win.BK.LanSync.stopDiscovery) {
+            win.BK.LanSync.stopDiscovery().catch(function () {});
+        }
         win.BK.LanSync.stopServer().then(function () {
             state.serverRunning = false;
             state.serverInfo = null;
@@ -191,22 +203,23 @@
         if (!addr || !code) { addLog('请输入 IP:端口 和配对码'); return; }
 
         var parts = addr.split(':');
-        var ip = parts[0];
         var port = parseInt(parts[1] || '18080', 10);
+        var ip = parts[0];
 
         addLog('正在连接 ' + ip + ':' + port + '...');
         win.BK.LanSync.connect(ip, port, code).then(function (info) {
             addLog('已连接 ' + info.name + '（' + (info.books ? info.books.length : 0) + ' 本书）');
-            addDevice({ name: info.name, ip: ip, port: port });
+            // 手动连接成功后保存对端配对码，后续 pull/push 使用
+            addDevice({ name: info.name, ip: ip, port: port, code: code });
         }).catch(function (err) {
             addLog('连接失败：' + (err.message || err));
         });
     }
 
-    function _handlePull(ip, port) {
+    function _handlePull(ip, port, code) {
         if (state.transferring) { addLog('正在传输中，请稍候'); return; }
         state.transferring = true;
-        var code = (state.serverInfo && state.serverInfo.pairCode) ? state.serverInfo.pairCode : '';
+        // 使用对端配对码（来自设备记录或参数），而非本机 pairCode
         addLog('正在拉取数据...');
         win.BK.LanSync.pull(ip, port, code, { mode: state.mode }).then(function (result) {
             addLog('拉取完成：成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
@@ -217,10 +230,10 @@
         });
     }
 
-    function _handlePush(ip, port) {
+    function _handlePush(ip, port, code) {
         if (state.transferring) { addLog('正在传输中，请稍候'); return; }
         state.transferring = true;
-        var code = (state.serverInfo && state.serverInfo.pairCode) ? state.serverInfo.pairCode : '';
+        // 使用对端配对码（来自设备记录或参数），而非本机 pairCode
         addLog('正在推送数据...');
         win.BK.LanSync.push(ip, port, code, { mode: state.mode }).then(function (result) {
             addLog('推送完成：对端成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
@@ -296,6 +309,20 @@
     function _formatCode(code) {
         if (!code) return '';
         return code.split('').join(' ');
+    }
+
+    function _renderQr(info) {
+        try {
+            var connStr = win.BK.LanSyncQR.buildConnectionString({
+                ip: info.ipAddress,
+                port: info.port,
+                code: info.pairCode
+            });
+            var qr = win.BK.LanSyncQR.render(connStr);
+            return '<div class="lan-sync-qr"><div class="lan-sync-qr-label">扫码连接</div>' + qr.html + '</div>';
+        } catch (e) {
+            return '';
+        }
     }
 
     function _esc(s) {

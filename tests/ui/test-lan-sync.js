@@ -67,7 +67,9 @@ function setupMocks() {
                 getStatus: function () { return Promise.resolve({ running: true }); },
                 deliverResult: function (opts) { return Promise.resolve(); },
                 registerNsd: function () { return Promise.resolve(); },
-                unregisterNsd: function () { return Promise.resolve(); }
+                unregisterNsd: function () { return Promise.resolve(); },
+                discover: function () { return Promise.resolve(); },
+                stopDiscover: function () { return Promise.resolve(); }
             }
         }
     };
@@ -182,13 +184,13 @@ describe('lan-sync.js', () => {
         assert.ok(win._fetchCalls[win._fetchCalls.length - 1].url.indexOf('mode=full') > -1);
     });
 
-    test('push 调用 generateZipBytes + POST /upload', async () => {
-        var savedGen = win.BK.Sync.generateZipBytes;
+    test('push 调用 generateZipBytes + POST /upload（multipart）', async () => {
+        var savedSave = win.BK.Sync.generateZipBytes;
         var genCalled = false;
         win.BK.Sync.generateZipBytes = function (bookIds, opts) {
             genCalled = true;
             assert.strictEqual(opts.mode, 'data');
-            return savedGen(bookIds, opts);
+            return savedSave(bookIds, opts);
         };
 
         var result = await win.BK.LanSync.push('192.168.1.5', 18080, '123456', { mode: 'data' });
@@ -198,10 +200,45 @@ describe('lan-sync.js', () => {
         var uploadCall = win._fetchCalls.find(function (c) { return c.url.indexOf('/upload') > -1; });
         assert.ok(uploadCall, '应有 /upload fetch 调用');
         assert.strictEqual(uploadCall.opts.method, 'POST');
-        assert.strictEqual(uploadCall.opts.headers['Content-Type'], 'application/zip');
-        assert.ok(uploadCall.opts.body instanceof Uint8Array, 'POST body 应为 Uint8Array');
+        assert.ok(uploadCall.opts.body instanceof FormData,
+            'POST body 应为 FormData（multipart 保持二进制，避免 NanoHTTPD UTF-8 字符串化损坏 ZIP）');
+        assert.ok(uploadCall.opts.body.has('file'), 'FormData 应包含 file 字段');
+        var file = uploadCall.opts.body.get('file');
+        assert.ok(file instanceof Blob, 'file 应为 Blob');
+        assert.strictEqual(file.type, 'application/zip');
+        assert.strictEqual(file.name, 'sync.zip');
+        // multipart 上传不允许显式 Content-Type（浏览器自动加 boundary）
+        assert.strictEqual(uploadCall.opts.headers, undefined,
+            'fetch 不应显式设置 Content-Type（multipart boundary 由浏览器生成）');
 
-        win.BK.Sync.generateZipBytes = savedGen;
+        win.BK.Sync.generateZipBytes = savedSave;
+    });
+
+    test('discover 调用 Capacitor NSD 发现并回调 handler', async () => {
+        var discovered = [];
+        await win.BK.LanSync.discover(function (device) {
+            discovered.push(device);
+        });
+
+        // 模拟 Java 端 NSD DiscoveryListener 通过 evaluateJs 回调
+        win.BK.LanSync._onDeviceFound(JSON.stringify({ name: '书报-AB12', ip: '192.168.1.8', port: 18080 }));
+        assert.strictEqual(discovered.length, 1, 'handler 应收到发现设备');
+        assert.strictEqual(discovered[0].ip, '192.168.1.8');
+
+        // stopDiscovery 后不再回调
+        await win.BK.LanSync.stopDiscovery();
+        win.BK.LanSync._onDeviceFound(JSON.stringify({ name: '书报-CD34', ip: '192.168.1.9', port: 18080 }));
+        assert.strictEqual(discovered.length, 1, 'stopDiscovery 后不应再回调');
+    });
+
+    test('discover 在 PWA（无 Capacitor）环境拒绝', async () => {
+        var savedCapacitor = win.Capacitor;
+        delete win.Capacitor;
+        await assert.rejects(
+            win.BK.LanSync.discover(function () {}),
+            /仅 APK 端可用/
+        );
+        win.Capacitor = savedCapacitor;
     });
 
     test('_handleInfo 返回设备信息 JSON 并调用 deliverResult', async () => {
