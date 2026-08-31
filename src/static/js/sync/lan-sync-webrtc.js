@@ -118,7 +118,7 @@
             return _waitIceComplete(pc);
         }).then(function () {
             var sdp = pc.localDescription.sdp;
-            return encodeSignal({ type: 'offer', sdp: sdp });
+            return { signalText: encodeSignal({ type: 'offer', sdp: sdp }) };
         });
     }
 
@@ -159,7 +159,7 @@
             return _waitIceComplete(pc);
         }).then(function () {
             var sdp = pc.localDescription.sdp;
-            return encodeSignal({ type: 'answer', sdp: sdp });
+            return { signalText: encodeSignal({ type: 'answer', sdp: sdp }) };
         });
     }
 
