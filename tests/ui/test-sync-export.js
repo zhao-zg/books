@@ -159,8 +159,8 @@ function seedMocks() {
         { key: '/' + BOOK_B + '/1', highlights: [{ id: 'h3', text: '划线B', note: '', timestamp: 1800000000002 }] }
     ];
     _mockShelf = [
-        { id: BOOK_A, title: 'EPUB Book A', format: 'epub' },
-        { id: BOOK_B, title: 'PDF Book B', format: 'pdf' }
+        { bookId: BOOK_A, title: 'EPUB Book A', format: 'epub' },
+        { bookId: BOOK_B, title: 'PDF Book B', format: 'pdf' }
     ];
     // full 模式书籍数据
     _mockImportedBooks[BOOK_A] = {
@@ -222,6 +222,13 @@ describe('BK.Sync.exportData (mode:data)', function () {
         _exportBinaryCalls = [];
         seedLocalStorage(win.localStorage);
         seedMocks();
+        // 恢复 win.BK.Export（回归测试会覆盖它）
+        win.BK.Export = {
+            exportBinary: function (bytes, filename, mime, opts) {
+                _exportBinaryCalls.push({ bytes: bytes, filename: filename, mime: mime, opts: opts });
+                return Promise.resolve({ saved: true });
+            }
+        };
     });
 
     test('返回 Promise', function () {
@@ -266,6 +273,10 @@ describe('BK.Sync.exportData (mode:data)', function () {
             assert.ok(files['shelf.json'], '必须含 shelf.json');
             var shelf = JSON.parse(files['shelf.json'].content);
             assert.deepEqual(shelf, _mockShelf);
+            // 书架记录字段必须为 bookId（与 shelf.js 契约一致），不能是 id
+            assert.equal(shelf[0].bookId, BOOK_A, '书架记录字段应为 bookId');
+            assert.equal(shelf[1].bookId, BOOK_B, '书架记录字段应为 bookId');
+            assert.ok(!('id' in shelf[0]), '书架记录不应含 id 字段');
         });
     });
 
@@ -360,6 +371,45 @@ describe('BK.Sync.exportData (mode:data)', function () {
             assert.ok(filename.indexOf(dateStr) > 0, '文件名应含日期 ' + dateStr + '，实际=' + filename);
         });
     });
+
+    test('generateZipBytes 返回 Uint8Array 且可被 JSZip 解压', async () => {
+        // 准备：mock shelf + localStorage 数据
+        win.BKShelf = { all: function () { return [{ bookId: 'book1', title: '测试书1' }]; } };
+        win.localStorage.setItem('bk_progress:book1', '50');
+        win.localStorage.setItem('bk_lastread_ts:book1', '1700000000000');
+
+        assert.ok(win.BK.Sync.generateZipBytes, 'generateZipBytes 应已暴露');
+        var bytes = await win.BK.Sync.generateZipBytes(['book1'], { mode: 'data' });
+
+        assert.ok(bytes instanceof Uint8Array, '应返回 Uint8Array');
+        assert.ok(bytes.length > 0, 'ZIP 不应为空');
+
+        // 验证 ZIP 内容结构
+        var zip = await win.JSZip.loadAsync(bytes);
+        assert.ok(zip.file('manifest.json'), '应含 manifest.json');
+        assert.ok(zip.file('shelf.json'), '应含 shelf.json');
+        assert.ok(zip.folder('books'), '应含 books/ 文件夹');
+
+        var manifest = JSON.parse(await zip.file('manifest.json').async('string'));
+        assert.strictEqual(manifest.version, 3);
+        assert.strictEqual(manifest.type, 'sync-data');
+        assert.strictEqual(manifest.bookCount, 1);
+    });
+
+    test('exportData 仍然正常工作（回归测试）', async () => {
+        win.BKShelf = { all: function () { return [{ bookId: 'book1', title: '测试书1' }]; } };
+        win.localStorage.setItem('bk_progress:book1', '50');
+        // mock exportBinary 避免实际下载
+        var exportedBytes = null;
+        win.BK.Export = { exportBinary: function (bytes, name, mime, opts) {
+            exportedBytes = bytes;
+            return Promise.resolve({});
+        }};
+
+        await win.BK.Sync.exportData(['book1'], { mode: 'data' });
+        assert.ok(exportedBytes instanceof Uint8Array, 'exportData 仍应通过 exportBinary 落地');
+        assert.ok(exportedBytes.length > 0, '导出的 ZIP 不应为空');
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -371,6 +421,13 @@ describe('BK.Sync.exportData (mode:full)', function () {
         _exportBinaryCalls = [];
         seedLocalStorage(win.localStorage);
         seedMocks();
+        // 恢复 win.BK.Export（回归测试会覆盖它）
+        win.BK.Export = {
+            exportBinary: function (bytes, filename, mime, opts) {
+                _exportBinaryCalls.push({ bytes: bytes, filename: filename, mime: mime, opts: opts });
+                return Promise.resolve({ saved: true });
+            }
+        };
     });
 
     test('full 模式 ZIP 含 books/<bookId>/book.json，内容等于 mock bookData', function () {

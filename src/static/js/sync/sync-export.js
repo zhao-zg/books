@@ -197,13 +197,14 @@
     // ── 主入口 ──────────────────────────────────────────────────────────
 
     /**
-     * 导出同步数据 ZIP
-     * @param {string[]} bookIds  要导出的书籍 ID 列表
+     * 生成同步 ZIP 字节流（不触发下载）
+     * 供 LanSync push 模式及 exportData 共用
+     * @param {string[]} bookIds  要打包的书籍 ID 列表
      * @param {Object}   [opts]
-     *   - {string} mode  'data'（仅用户数据）或 'full'（含书籍正文，任务3实现）
-     * @returns {Promise}
+     *   - {string} mode  'data'（仅用户数据）或 'full'（含书籍正文）
+     * @returns {Promise<Uint8Array>}
      */
-    function exportData(bookIds, opts) {
+    function generateZipBytes(bookIds, opts) {
         opts = opts || {};
         var mode = opts.mode || 'data';
 
@@ -214,7 +215,7 @@
             return Promise.reject(new Error('未选择任何书籍'));
         }
 
-        console.log('[BK.Sync] exportData: 开始打包 ' + bookIds.length + ' 本书（mode=' + mode + '）');
+        console.log('[BK.Sync] generateZipBytes: 开始打包 ' + bookIds.length + ' 本书（mode=' + mode + '）');
         var t0 = Date.now();
 
         // 预取全量书签和高亮（避免逐书重复调用 getAll）
@@ -251,7 +252,7 @@
 
                         return _getBookData(bookId).then(function (bookData) {
                             if (!bookData) {
-                                console.warn('[BK.Sync] exportData: 书籍数据未找到，跳过 book.json id=' + bookId);
+                                console.warn('[BK.Sync] generateZipBytes: 书籍数据未找到，跳过 book.json id=' + bookId);
                                 return;
                             }
 
@@ -289,18 +290,32 @@
                 };
                 zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
-                console.log('[BK.Sync] exportData: 打包完成，开始生成 ZIP...');
+                console.log('[BK.Sync] generateZipBytes: 打包完成，开始生成 ZIP...');
                 return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
             });
         }).then(function (bytes) {
+            console.log('[BK.Sync] generateZipBytes: ZIP 生成完成，大小=' + (bytes.length / 1024).toFixed(2) +
+                'KB，总耗时 ' + (Date.now() - t0) + 'ms');
+            return bytes;
+        });
+    }
+
+    /**
+     * 导出同步数据 ZIP（生成字节 + 触发下载）
+     * @param {string[]} bookIds  要导出的书籍 ID 列表
+     * @param {Object}   [opts]
+     *   - {string} mode  'data'（仅用户数据）或 'full'（含书籍正文，任务3实现）
+     * @returns {Promise}
+     */
+    function exportData(bookIds, opts) {
+        return generateZipBytes(bookIds, opts).then(function (bytes) {
             var date = new Date();
             var dateStr = date.getFullYear() + '-' +
                 ('0' + (date.getMonth() + 1)).slice(-2) + '-' +
                 ('0' + date.getDate()).slice(-2);
             var filename = 'bk-sync-export-' + dateStr + '.zip';
 
-            console.log('[BK.Sync] exportData: ZIP 生成完成，大小=' + (bytes.length / 1024).toFixed(2) +
-                'KB，文件名=' + filename + '，总耗时 ' + (Date.now() - t0) + 'ms');
+            console.log('[BK.Sync] exportData: ZIP 已生成，文件名=' + filename);
 
             if (win.BK && win.BK.Export && win.BK.Export.exportBinary) {
                 return win.BK.Export.exportBinary(bytes, filename, 'application/zip', {
@@ -338,5 +353,6 @@
     win.BK = win.BK || {};
     win.BK.Sync = win.BK.Sync || {};
     win.BK.Sync.exportData = exportData;
+    win.BK.Sync.generateZipBytes = generateZipBytes;
 
 })(window);
