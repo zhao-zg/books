@@ -37,6 +37,36 @@ win.BK.LanSync = {
     stopDiscovery: function () { return Promise.resolve(); }
 };
 
+// Mock LanSyncQR（_renderQr 与 renderSignalQr 依赖）
+win.BK.LanSyncQR = {
+    buildConnectionString: function (info) {
+        return 'bk-sync://' + info.ip + ':' + info.port + '?code=' + info.code;
+    },
+    render: function (text) {
+        return { html: '<div class="qr-mock">' + text + '</div>' };
+    }
+};
+
+// Mock LanSyncWebRTC（默认不支持，可在测试中覆写）
+win.BK.LanSyncWebRTC = {
+    isSupported: function () { return false; },
+    createOffer: function () { return Promise.reject(new Error('mock')); },
+    acceptOffer: function () { return Promise.reject(new Error('mock')); },
+    acceptAnswer: function () { return Promise.reject(new Error('mock')); },
+    push: function () { return Promise.resolve({ sent: 0 }); },
+    pull: function () { return Promise.resolve({ requested: true }); },
+    close: function () {}
+};
+
+// Mock LanSyncWebRTCUI
+win.BK.LanSyncWebRTCUI = {
+    scanQR: function () { return Promise.reject(new Error('mock')); },
+    stopScan: function () { return Promise.resolve(); },
+    renderSignalQr: function (text, label) {
+        return '<div class="lan-sync-wrtc-qr">' + (label || '') + '|' + text + '</div>';
+    }
+};
+
 function loadModule() {
     var srcPath = join(__dirname, '..', '..', 'src', 'static', 'js', 'sync', 'lan-sync-panel.js');
     var code = readFileSync(srcPath, 'utf-8');
@@ -85,6 +115,75 @@ describe('lan-sync-panel.js', () => {
         assert.ok(state.hasOwnProperty('devices'));
         assert.ok(state.hasOwnProperty('logs'));
         assert.ok(state.hasOwnProperty('mode'));
+    });
+
+    test('getState 返回 wrtc 状态结构', () => {
+        var state = win.BK.LanSyncPanel.getState();
+        assert.ok(state.hasOwnProperty('wrtc'), '应包含 wrtc 状态');
+        assert.ok(state.wrtc.hasOwnProperty('supported'));
+        assert.ok(state.wrtc.hasOwnProperty('connected'));
+        assert.ok(state.wrtc.hasOwnProperty('isInitiator'));
+        assert.ok(state.wrtc.hasOwnProperty('offerText'));
+        assert.ok(state.wrtc.hasOwnProperty('answerText'));
+        assert.ok(state.wrtc.hasOwnProperty('scanning'));
+    });
+
+    test('show 渲染 PWA 直连区域（不支持时显示提示）', () => {
+        win.BK.LanSyncPanel.show();
+        var unsupported = document.querySelector('.lan-sync-wrtc-unsupported');
+        assert.ok(unsupported, '不支持 WebRTC 时应显示提示');
+    });
+
+    test('show 渲染 PWA 直连区域（支持时显示创建/扫码按钮）', () => {
+        win.BK.LanSyncWebRTC.isSupported = function () { return true; };
+        win.BK.LanSyncPanel.show();
+        var createBtn = document.querySelector('.lan-sync-wrtc-create');
+        var scanBtn = document.querySelector('.lan-sync-wrtc-scan-offer');
+        assert.ok(createBtn, '应显示创建连接按钮');
+        assert.ok(scanBtn, '应显示扫码连接按钮');
+        win.BK.LanSyncWebRTC.isSupported = function () { return false; };
+    });
+
+    test('wrtc 创建连接生成 offer 后渲染二维码与扫码应答按钮', async () => {
+        win.BK.LanSyncWebRTC.isSupported = function () { return true; };
+        win.BK.LanSyncWebRTC.createOffer = function () {
+            return Promise.resolve({ signalText: 'bk-wrtc-v1:offer-test' });
+        };
+        win.BK.LanSyncPanel.show();
+        var createBtn = document.querySelector('.lan-sync-wrtc-create');
+        createBtn.click();
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        var qr = document.querySelector('.lan-sync-wrtc-qr');
+        assert.ok(qr, '应渲染 offer 二维码区域');
+        var scanAnswerBtn = document.querySelector('.lan-sync-wrtc-scan-answer');
+        assert.ok(scanAnswerBtn, '应显示扫码获取应答按钮');
+        var state = win.BK.LanSyncPanel.getState();
+        assert.strictEqual(state.wrtc.offerText, 'bk-wrtc-v1:offer-test');
+        assert.strictEqual(state.wrtc.isInitiator, true);
+        win.BK.LanSyncWebRTC.isSupported = function () { return false; };
+    });
+
+    test('wrtc 关闭后重置连接状态但保留 supported', async () => {
+        win.BK.LanSyncWebRTC.isSupported = function () { return true; };
+        win.BK.LanSyncWebRTC.createOffer = function () {
+            return Promise.resolve({ signalText: 'bk-wrtc-v1:offer-test' });
+        };
+        win.BK.LanSyncPanel.show();
+        var createBtn = document.querySelector('.lan-sync-wrtc-create');
+        createBtn.click();
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        var closeBtn = document.querySelector('.lan-sync-wrtc-close');
+        assert.ok(closeBtn, 'offer 状态下应显示取消按钮');
+        closeBtn.click();
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        var state = win.BK.LanSyncPanel.getState();
+        assert.strictEqual(state.wrtc.offerText, null, '关闭后 offer 应清空');
+        assert.strictEqual(state.wrtc.connected, false);
+        assert.strictEqual(state.wrtc.supported, true, '关闭后 supported 不应被重置');
+        win.BK.LanSyncWebRTC.isSupported = function () { return false; };
     });
 
     test('setMode 切换传输模式', () => {

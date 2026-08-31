@@ -21,7 +21,16 @@
         devices: [],          // [{name, ip, port, code}]
         logs: [],             // [{time, msg}]
         mode: 'data',         // 'data' | 'full'
-        transferring: false
+        transferring: false,
+        // PWA↔PWA WebRTC 状态
+        wrtc: {
+            supported: false,
+            connected: false,
+            isInitiator: false,
+            offerText: null,    // 本机生成的 offer 信令文本
+            answerText: null,   // 对端生成的 answer 信令文本
+            scanning: false
+        }
     };
 
     var panelEl = null;
@@ -70,6 +79,9 @@
 
         var modeChecked = state.mode === 'full' ? 'checked' : '';
 
+        // PWA↔PWA 区域
+        var wrtcHtml = _renderWrtcSection();
+
         var logsHtml = state.logs.map(function (l) {
             return '<div class="lan-sync-log-entry"><span class="lan-sync-log-time">' + l.time + '</span> ' + _esc(l.msg) + '</div>';
         }).join('');
@@ -97,6 +109,10 @@
             '      <div class="lan-sync-section-title">可用设备</div>' +
             '      <div class="lan-sync-devices">' + devicesHtml + '</div>' +
             '    </div>' +
+            (wrtcHtml ? '    <div class="lan-sync-section">' +
+            '      <div class="lan-sync-section-title">PWA 直连（浏览器↔浏览器）</div>' +
+            '      <div class="lan-sync-wrtc">' + wrtcHtml + '</div>' +
+            '    </div>' : '') +
             '    <div class="lan-sync-section">' +
             '      <div class="lan-sync-section-title">传输模式</div>' +
             '      <label class="lan-sync-radio"><input type="radio" name="lan-sync-mode" value="data"' + (state.mode === 'data' ? ' checked' : '') + '> 仅数据（进度·书签·划线）</label>' +
@@ -115,6 +131,267 @@
         _bindEvents();
     }
 
+    // ── PWA↔PWA WebRTC 区域渲染 ─────────────────────────────────
+
+    function _renderWrtcSection() {
+        var wrtc = state.wrtc;
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+
+        // 模块未加载
+        if (!RTC) {
+            return '<div class="lan-sync-wrtc-unsupported">PWA 直连模块未加载</div>';
+        }
+
+        // 不支持 WebRTC 时显示提示
+        if (!RTC.isSupported()) {
+            return '<div class="lan-sync-wrtc-unsupported">当前环境不支持 WebRTC（需 HTTPS）</div>';
+        }
+
+        // 已连接
+        if (wrtc.connected) {
+            return '<div class="lan-sync-wrtc-connected">' +
+                '<div class="lan-sync-wrtc-status">● 已连接' + (wrtc.isInitiator ? '（发起方）' : '（应答方）') + '</div>' +
+                '<div class="lan-sync-wrtc-actions">' +
+                '<button class="lan-sync-wrtc-pull">拉取</button>' +
+                '<button class="lan-sync-wrtc-push">推送</button>' +
+                '<button class="lan-sync-wrtc-close">断开</button>' +
+                '</div></div>';
+        }
+
+        // 等待 answer（发起方已创建 offer）
+        if (wrtc.offerText && !wrtc.answerText) {
+            var UI = win.BK && win.BK.LanSyncWebRTCUI;
+            var qrHtml = UI ? UI.renderSignalQr(wrtc.offerText, '请对方扫码后，再扫码获取应答') : '';
+            return qrHtml +
+                '<div class="lan-sync-wrtc-actions">' +
+                '<button class="lan-sync-wrtc-scan-answer">扫码获取应答</button>' +
+                '<button class="lan-sync-wrtc-close">取消</button>' +
+                '</div>';
+        }
+
+        // 等待 offer（应答方扫码）
+        if (wrtc.scanning) {
+            return '<div class="lan-sync-wrtc-scanning">正在扫码...</div>' +
+                '<div class="lan-sync-wrtc-actions">' +
+                '<button class="lan-sync-wrtc-close">取消</button>' +
+                '</div>';
+        }
+
+        // 初始状态
+        return '<div class="lan-sync-wrtc-actions">' +
+            '<button class="lan-sync-wrtc-create">创建连接</button>' +
+            '<button class="lan-sync-wrtc-scan-offer">扫码连接</button>' +
+            '</div>' +
+            '<div class="lan-sync-wrtc-hint">浏览器间直连传输，无需服务端</div>';
+    }
+
+    // ── PWA↔PWA 事件处理 ─────────────────────────
+
+    function _handleWrtcCreate() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        if (!RTC || !RTC.isSupported()) { addLog('当前环境不支持 WebRTC'); return; }
+
+        addLog('正在创建 PWA 直连（offer）...');
+        RTC.createOffer({
+            onState: _handleWrtcState,
+            onFile: _handleWrtcFile
+        }).then(function (result) {
+            state.wrtc.offerText = result.signalText;
+            state.wrtc.isInitiator = true;
+            addLog('offer 已生成，请对方扫码');
+            _renderPanel();
+        }).catch(function (err) {
+            addLog('创建连接失败：' + (err.message || err));
+        });
+    }
+
+    function _handleWrtcScanOffer() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        var UI = win.BK && win.BK.LanSyncWebRTCUI;
+        if (!RTC || !UI) { addLog('PWA 直连未就绪'); return; }
+
+        state.wrtc.scanning = true;
+        _renderPanel();
+        addLog('正在扫码获取 offer...');
+        UI.scanQR(function (text) {
+            state.wrtc.scanning = false;
+            addLog('已识别 offer，正在生成应答...');
+            RTC.acceptOffer(text, {
+                onState: _handleWrtcState,
+                onFile: _handleWrtcFile
+            }).then(function (result) {
+                state.wrtc.answerText = result.signalText;
+                state.wrtc.isInitiator = false;
+                addLog('应答已生成，请对方扫码');
+                _renderPanel();
+            }).catch(function (err) {
+                addLog('应答失败：' + (err.message || err));
+                _renderPanel();
+            });
+        }, function (err) {
+            state.wrtc.scanning = false;
+            addLog('扫码失败：' + (err.message || err));
+            _renderPanel();
+        }).catch(function (err) {
+            state.wrtc.scanning = false;
+            addLog('扫码失败：' + (err.message || err));
+            _renderPanel();
+        });
+    }
+
+    function _handleWrtcScanAnswer() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        var UI = win.BK && win.BK.LanSyncWebRTCUI;
+        if (!RTC || !UI) { addLog('PWA 直连未就绪'); return; }
+
+        state.wrtc.scanning = true;
+        _renderPanel();
+        addLog('正在扫码获取应答...');
+        UI.scanQR(function (text) {
+            state.wrtc.scanning = false;
+            RTC.acceptAnswer(text).then(function () {
+                addLog('应答已接受，等待连接...');
+                _renderPanel();
+            }).catch(function (err) {
+                addLog('应答无效：' + (err.message || err));
+                _renderPanel();
+            });
+        }, function (err) {
+            state.wrtc.scanning = false;
+            addLog('扫码失败：' + (err.message || err));
+            _renderPanel();
+        }).catch(function (err) {
+            state.wrtc.scanning = false;
+            addLog('扫码失败：' + (err.message || err));
+            _renderPanel();
+        });
+    }
+
+    function _handleWrtcState(s) {
+        if (s.status === 'open') {
+            state.wrtc.connected = true;
+            addLog('PWA 直连已建立');
+            _renderPanel();
+        } else if (s.status === 'closed') {
+            state.wrtc.connected = false;
+            addLog('PWA 直连已断开');
+            _renderPanel();
+        } else if (s.status === 'imported') {
+            var r = s.result || {};
+            addLog('数据已接收：成功 ' + r.success + ' 本' + (r.failed ? '，失败 ' + r.failed + ' 本' : ''));
+        } else if (s.status === 'import-error') {
+            addLog('导入失败：' + (s.error || ''));
+        } else if (s.status === 'error') {
+            addLog('连接错误：' + (s.error || ''));
+        }
+    }
+
+    function _handleWrtcFile(buffer) {
+        if (win.BK && win.BK.Sync && win.BK.Sync.importFromZip) {
+            addLog('正在导入接收的数据...');
+            win.BK.Sync.importFromZip(buffer).then(function (result) {
+                addLog('导入完成：成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
+            }).catch(function (err) {
+                addLog('导入失败：' + (err.message || err));
+            });
+        }
+    }
+
+    function _handleWrtcPush() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        if (!RTC) { addLog('PWA 直连未就绪'); return; }
+        if (state.transferring) { addLog('正在传输中，请稍候'); return; }
+        state.transferring = true;
+        addLog('正在推送数据...');
+        var books = _allBookIds();
+        RTC.push(books, { mode: state.mode }).then(function (result) {
+            addLog('推送完成：' + (result.sent ? '已发送 ' + (result.sent / 1024).toFixed(1) + ' KB' : ''));
+        }).catch(function (err) {
+            addLog('推送失败：' + (err.message || err));
+        }).finally(function () {
+            state.transferring = false;
+        });
+    }
+
+    function _handleWrtcPull() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        if (!RTC) { addLog('PWA 直连未就绪'); return; }
+        if (state.transferring) { addLog('正在传输中，请稍候'); return; }
+        state.transferring = true;
+        addLog('正在拉取数据...');
+        RTC.pull({ mode: state.mode }).then(function () {
+            addLog('拉取请求已发送，等待对端响应...');
+        }).catch(function (err) {
+            addLog('拉取失败：' + (err.message || err));
+        }).finally(function () {
+            state.transferring = false;
+        });
+    }
+
+    function _handleWrtcClose() {
+        var RTC = win.BK && win.BK.LanSyncWebRTC;
+        if (RTC) {
+            RTC.close();
+        }
+        if (win.BK && win.BK.LanSyncWebRTCUI) {
+            win.BK.LanSyncWebRTCUI.stopScan().catch(function () {});
+        }
+        var supported = state.wrtc.supported;
+        state.wrtc = {
+            supported: supported, connected: false, isInitiator: false,
+            offerText: null, answerText: null, scanning: false
+        };
+        addLog('PWA 直连已关闭');
+        _renderPanel();
+    }
+
+    function _allBookIds() {
+        var ids = [];
+        if (win.BKShelf && typeof win.BKShelf.all === 'function') {
+            var shelf = win.BKShelf.all();
+            for (var i = 0; i < shelf.length; i++) {
+                var rec = shelf[i];
+                if (rec) {
+                    var bid = rec.bookId || rec.id;
+                    if (bid) ids.push(bid);
+                }
+            }
+        }
+        return ids;
+    }
+
+    function _copyText(text) {
+        try {
+            if (win.navigator && win.navigator.clipboard && win.navigator.clipboard.writeText) {
+                win.navigator.clipboard.writeText(text).then(function () {
+                    addLog('信令文本已复制');
+                }).catch(function () {
+                    _fallbackCopy(text);
+                });
+            } else {
+                _fallbackCopy(text);
+            }
+        } catch (e) {
+            _fallbackCopy(text);
+        }
+    }
+
+    function _fallbackCopy(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            addLog('信令文本已复制');
+        } catch (e) {
+            addLog('复制失败，请手动复制');
+        }
+    }
+
     // ── 事件绑定 ──────────────────────────────────────────────────
 
     function _bindEvents() {
@@ -122,6 +399,35 @@
 
         var backBtn = panelEl.querySelector('.lan-sync-back');
         if (backBtn) backBtn.onclick = function () { hide(); };
+
+        // PWA↔PWA WebRTC 事件
+        var wrtcCreateBtn = panelEl.querySelector('.lan-sync-wrtc-create');
+        if (wrtcCreateBtn) wrtcCreateBtn.onclick = _handleWrtcCreate;
+
+        var wrtcScanOfferBtn = panelEl.querySelector('.lan-sync-wrtc-scan-offer');
+        if (wrtcScanOfferBtn) wrtcScanOfferBtn.onclick = _handleWrtcScanOffer;
+
+        var wrtcScanAnswerBtn = panelEl.querySelector('.lan-sync-wrtc-scan-answer');
+        if (wrtcScanAnswerBtn) wrtcScanAnswerBtn.onclick = _handleWrtcScanAnswer;
+
+        var wrtcCopyBtns = panelEl.querySelectorAll('.lan-sync-btn-copy');
+        for (var ci = 0; ci < wrtcCopyBtns.length; ci++) {
+            wrtcCopyBtns[ci].onclick = (function (btn) {
+                return function () {
+                    var text = btn.getAttribute('data-text') || '';
+                    _copyText(text);
+                };
+            })(wrtcCopyBtns[ci]);
+        }
+
+        var wrtcPushBtn = panelEl.querySelector('.lan-sync-wrtc-push');
+        if (wrtcPushBtn) wrtcPushBtn.onclick = _handleWrtcPush;
+
+        var wrtcPullBtn = panelEl.querySelector('.lan-sync-wrtc-pull');
+        if (wrtcPullBtn) wrtcPullBtn.onclick = _handleWrtcPull;
+
+        var wrtcCloseBtn = panelEl.querySelector('.lan-sync-wrtc-close');
+        if (wrtcCloseBtn) wrtcCloseBtn.onclick = _handleWrtcClose;
 
         var startBtn = panelEl.querySelector('.lan-sync-btn-start');
         if (startBtn) startBtn.onclick = _handleStart;
@@ -248,6 +554,10 @@
 
     function show() {
         _ensurePanel();
+        // 初始化 WebRTC 支持状态
+        if (win.BK && win.BK.LanSyncWebRTC) {
+            state.wrtc.supported = win.BK.LanSyncWebRTC.isSupported();
+        }
         panelEl.style.display = '';
         addLog('面板已打开');
     }
@@ -296,7 +606,15 @@
             devices: state.devices.slice(),
             logs: state.logs.slice(),
             mode: state.mode,
-            transferring: state.transferring
+            transferring: state.transferring,
+            wrtc: {
+                supported: state.wrtc.supported,
+                connected: state.wrtc.connected,
+                isInitiator: state.wrtc.isInitiator,
+                offerText: state.wrtc.offerText,
+                answerText: state.wrtc.answerText,
+                scanning: state.wrtc.scanning
+            }
         };
     }
 

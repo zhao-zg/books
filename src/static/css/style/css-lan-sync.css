@@ -48,6 +48,33 @@
     background: #D4793A; color: #FFF; cursor: pointer;
 }
 .lan-sync-radio { display: block; padding: 6px 0; }
+/* PWA↔PWA WebRTC 直连区域 */
+.lan-sync-wrtc-unsupported {
+    color: #999; font-size: 13px; padding: 8px 0;
+}
+.lan-sync-wrtc-connected {
+    display: flex; flex-direction: column; gap: 12px; padding: 4px 0;
+}
+.lan-sync-wrtc-status {
+    font-weight: 600; color: #4CAF50;
+}
+.lan-sync-wrtc-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.lan-sync-wrtc-actions button {
+    flex: 1; min-width: 90px; padding: 10px; border: 1px solid #D4D2CD; border-radius: 8px;
+    background: #FFF; cursor: pointer; font-size: 14px;
+}
+.lan-sync-wrtc-create { color: #4A90D9; }
+.lan-sync-wrtc-scan-offer { color: #D4793A; }
+.lan-sync-wrtc-scanning { color: #999; padding: 8px 0; }
+.lan-sync-wrtc-hint { color: #999; font-size: 12px; margin-top: 8px; }
+.lan-sync-wrtc-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 8px 0; }
+.lan-sync-wrtc-qr-label { font-size: 13px; color: #666; }
+.lan-sync-wrtc-qr table { margin: 0 auto; }
+.lan-sync-wrtc-copy { text-align: center; }
+.lan-sync-btn-copy {
+    padding: 6px 16px; border: 1px solid #D4D2CD; border-radius: 6px;
+    background: #FFF; cursor: pointer; font-size: 13px; color: #666;
+}
 .lan-sync-log {
     max-height: 200px; overflow-y: auto; background: #FAFAF8;
     border-radius: 8px; padding: 8px; font-size: 12px;
