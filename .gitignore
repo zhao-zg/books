@@ -41,6 +41,8 @@ android/app/src/main/java/com/*
 android/app/src/main/java/com/books/*
 !android/app/src/main/java/com/books/app
 !android/app/src/main/java/com/books/app/**
+!android/app/libs
+!android/app/libs/*
 ios/
 .capacitor/
 
