@@ -665,6 +665,25 @@ describe('书架合并', function () {
             assert.equal(rec.finished, false);
         });
     });
+
+    test('真实导出契约：shelf.json 记录用 bookId 字段也能合并', function () {
+        // 真实 sync-export 的 shelf.json = BKShelf.all() 原样，字段为 bookId（见 shelf.js）
+        var shelfData = [
+            { bookId: BOOK_A, title: 'Book A', note: '导入笔记', rating: 5, finished: true, completedAt: '2026-08-15' }
+        ];
+        var bookMap = {};
+        bookMap[BOOK_A] = { userdata: { schema: 3, bookmarks: [], highlights: [], scroll: {} } };
+
+        return makeSyncZip({ version: 3, type: 'sync-data' }, shelfData, bookMap).then(function (bytes) {
+            return win.BK.Sync.importFromZip(bytes);
+        }).then(function () {
+            var rec = _mockShelf[BOOK_A];
+            assert.ok(rec, '应入架');
+            assert.equal(rec.note, '导入笔记', 'note 应使用导入值');
+            assert.equal(rec.rating, 5, 'rating 应使用导入值');
+            assert.equal(rec.finished, true, 'finished 应为 true');
+        });
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════════════

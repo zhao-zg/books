@@ -42,6 +42,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativeTTSPlugin.class);
         registerPlugin(CrashLogPlugin.class);
         registerPlugin(SaveFilePlugin.class);
+        registerPlugin(LanSyncPlugin.class);
 
         // 在 super.onCreate() 之前检查深链 Intent
         checkDeepLinkIntent(getIntent());

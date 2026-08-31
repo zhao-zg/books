@@ -114,7 +114,7 @@ def generate_book_ysz_json(book_data: dict) -> dict:
       "title": "1001-到底有没有神",
       "category": "福音类",        // 仅 books 系列
       "category_prefix": "1",      // 仅 books 系列
-      "format": "html",
+      "format": "md",       // 内容为清洗后纯文本，视为 markdown
       "chapters": [{"number": 1, "title": "序言", "content": "..."}]
     }
     """
@@ -127,7 +127,7 @@ def generate_book_ysz_json(book_data: dict) -> dict:
     result = {
         'id': book_id,
         'title': title,
-        'format': 'html',
+        'format': 'md',
         'chapters': [
             {
                 'number': ch.get('number', 0),
@@ -479,6 +479,7 @@ def build_all(input_dir: Path, books_src_dir: Path, merged_dir: Path,
                 'title': book_data.get('title', ''),
                 'series': series_id,
                 'chapter_count': ch_count,
+                'format': 'md',  # 书城书内容为清洗后纯文本，视为 markdown
             }
             if 'group' in book_data:
                 book_index_entry['group'] = book_data['group']

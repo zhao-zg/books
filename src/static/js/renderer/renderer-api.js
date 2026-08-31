@@ -235,7 +235,12 @@
         if (win.BKShelf && typeof win.BKShelf.all === 'function') {
           var shelf = win.BKShelf.all();
           for (var i = 0; i < shelf.length; i++) {
-            if (shelf[i] && shelf[i].id) bookIds.push(shelf[i].id);
+            var rec = shelf[i];
+            if (rec) {
+              // 书架记录字段为 bookId（shelf.js）；兼容旧数据/历史包里的 id
+              var bid = rec.bookId || rec.id;
+              if (bid) bookIds.push(bid);
+            }
           }
         }
         if (!bookIds.length) {

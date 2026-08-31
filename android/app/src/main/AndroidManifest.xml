@@ -4,6 +4,11 @@
     <!-- 网络访问 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- 局域网同步：NSD 自动发现 + 网络状态 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- 前台服务（TTS 朗读） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 14+ 前台服务类型声明 -->

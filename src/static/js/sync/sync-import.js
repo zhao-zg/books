@@ -256,39 +256,41 @@
 
     /**
      * 合并书架记录
-     * shelfData 是导入的 shelf.json 数组，每条含 { id, note?, rating?, finished?, completedAt? }
+     * shelfData 是导入的 shelf.json 数组，每条含 { bookId, note?, rating?, finished?, completedAt? }
+     * 注意：书架记录字段为 bookId（shelf.js），兼容旧数据/历史包里的 id。
      */
     function _mergeShelf(shelfData) {
         if (!Array.isArray(shelfData)) return Promise.resolve();
 
         var chain = Promise.resolve();
         shelfData.forEach(function (rec) {
-            if (!rec || !rec.id) return;
+            var bookId = (rec && (rec.bookId || rec.id));
+            if (!bookId) return;
             chain = chain.then(function () {
                 // 入架（幂等）
                 if (win.BKShelf && typeof win.BKShelf.add === 'function') {
-                    win.BKShelf.add(rec.id);
+                    win.BKShelf.add(bookId);
                 }
                 // 本地无 note/rating/finished 时用导入值
                 if (win.BKShelf && typeof win.BKShelf.get === 'function') {
-                    var local = win.BKShelf.get(rec.id);
+                    var local = win.BKShelf.get(bookId);
                     if (local) {
                         // note：本地无时用导入值
                         if ((local.note === null || local.note === undefined) && rec.note) {
                             if (typeof win.BKShelf.updateNote === 'function') {
-                                win.BKShelf.updateNote(rec.id, rec.note);
+                                win.BKShelf.updateNote(bookId, rec.note);
                             }
                         }
                         // rating：本地无时用导入值
                         if ((local.rating === null || local.rating === undefined) && typeof rec.rating === 'number') {
                             if (typeof win.BKShelf.updateRating === 'function') {
-                                win.BKShelf.updateRating(rec.id, rec.rating);
+                                win.BKShelf.updateRating(bookId, rec.rating);
                             }
                         }
                         // finished：本地未标记已读时，导入标记已读
                         if (!local.finished && rec.finished) {
                             if (typeof win.BKShelf.markRead === 'function') {
-                                win.BKShelf.markRead(rec.id, { completedAt: rec.completedAt });
+                                win.BKShelf.markRead(bookId, { completedAt: rec.completedAt });
                             }
                         }
                     }
