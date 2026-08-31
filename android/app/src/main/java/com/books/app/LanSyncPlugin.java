@@ -124,8 +124,46 @@ public class LanSyncPlugin extends Plugin {
 
     @PluginMethod
     public void registerNsd(PluginCall call) {
-        // T5 will implement full NSD registration
-        call.resolve();
+        if (server == null) {
+            call.reject("Server not running");
+            return;
+        }
+
+        try {
+            nsdManager = (NsdManager) getContext().getSystemService(Context.NSD_SERVICE);
+
+            NsdServiceInfo serviceInfo = new NsdServiceInfo();
+            serviceInfo.setServiceName("书报-" + getDeviceShortId());
+            serviceInfo.setServiceType(NSD_SERVICE_TYPE);
+            serviceInfo.setPort(server.getListeningPort());
+
+            nsdRegistrationListener = new NsdManager.RegistrationListener() {
+                @Override
+                public void onServiceRegistered(NsdServiceInfo info) {
+                    Log.d(TAG, "NSD registered: " + info.getServiceName());
+                }
+
+                @Override
+                public void onRegistrationFailed(NsdServiceInfo info, int errorCode) {
+                    Log.e(TAG, "NSD registration failed: " + errorCode);
+                }
+
+                @Override
+                public void onUnregistrationFailed(NsdServiceInfo info, int errorCode) {
+                    Log.e(TAG, "NSD unregistration failed: " + errorCode);
+                }
+
+                @Override
+                public void onUnregistered(NsdServiceInfo info) {
+                    Log.d(TAG, "NSD unregistered");
+                }
+            };
+
+            nsdManager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, nsdRegistrationListener);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("NSD registration failed: " + e.getMessage());
+        }
     }
 
     @PluginMethod
@@ -137,7 +175,27 @@ public class LanSyncPlugin extends Plugin {
     // ── NSD 内部 ──────────────────────────────────────────────────────────
 
     private void unregisterNsdInternal() {
-        // T5 will implement
+        if (nsdManager != null && nsdRegistrationListener != null) {
+            try {
+                nsdManager.unregisterService(nsdRegistrationListener);
+            } catch (Exception e) {
+                Log.e(TAG, "NSD unregister error: " + e.getMessage());
+            }
+            nsdRegistrationListener = null;
+        }
+    }
+
+    private String getDeviceShortId() {
+        try {
+            String id = android.provider.Settings.Secure.getString(
+                getContext().getContentResolver(),
+                android.provider.Settings.Secure.ANDROID_ID
+            );
+            if (id != null && id.length() >= 4) {
+                return id.substring(0, 4).toUpperCase();
+            }
+        } catch (Exception e) { }
+        return "XXXX";
     }
 
     // ── HTTP Server ────────────────────────────────────────────────────────
