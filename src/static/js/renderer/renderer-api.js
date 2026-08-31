@@ -174,6 +174,7 @@
       html += '<button class="bk-settings-row" data-action="sync-export-data"><span class="bk-row-icon">📤</span><span class="bk-row-label">导出同步数据</span><span class="bk-row-sub">进度 · 书签 · 划线</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="sync-export-full"><span class="bk-row-icon">📦</span><span class="bk-row-label">导出含书完整包</span><span class="bk-row-sub">数据 + 书本体</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="sync-import"><span class="bk-row-icon">📥</span><span class="bk-row-label">导入同步数据</span><span class="bk-row-sub">合并去重</span><span class="bk-row-arrow">›</span></button>';
+      html += '<button class="bk-settings-row" data-action="lan-sync"><span class="bk-row-icon">📡</span><span class="bk-row-label">局域网同步</span><span class="bk-row-sub">自动发现 · 一键传输</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="clear-data"><span class="bk-row-icon">🧹</span><span class="bk-row-label">清理数据</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
       html += '</div>'; // bk-settings-left end
@@ -308,6 +309,12 @@
               _handleSyncExport('full');
             } else if (action === 'sync-import') {
               _handleSyncImport();
+            } else if (action === 'lan-sync') {
+              if (win.BK && win.BK.LanSyncPanel) {
+                win.BK.LanSyncPanel.show();
+              } else {
+                alert('局域网同步功能未就绪，请刷新页面后重试');
+              }
             } else if (action === 'clear-data') {
               if (win.BK && win.BK.clearData) win.BK.clearData();
             } else if (action === 'download-mgr') {

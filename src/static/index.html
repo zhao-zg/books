@@ -59,6 +59,7 @@
     <link rel="stylesheet" href="css/style/css-drawers.css">
     <link rel="stylesheet" href="css/style/css-mark-panel.css">
     <link rel="stylesheet" href="css/style/css-responsive.css">
+    <link rel="stylesheet" href="css/style/css-lan-sync.css">
     <style>
         body{padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 4px);padding-top:env(safe-area-inset-top, 0px)}
         .container{padding:0}
@@ -314,7 +315,11 @@
     <script src="js/sync/sync-data-collect.js" defer></script>
     <script src="js/sync/sync-export.js" defer></script>
     <script src="js/sync/sync-import.js" defer></script>
+    <!-- lan-sync 模块：qrcode → lan-sync-qr → lan-sync → lan-sync-panel（依赖顺序） -->
+    <script src="vendor/qrcode.min.js" defer></script>
+    <script src="js/sync/lan-sync-qr.js" defer></script>
     <script src="js/sync/lan-sync.js" defer></script>
+    <script src="js/sync/lan-sync-panel.js" defer></script>
     <script src="js/export/export-batch.js" defer></script>
     <script src="js/export/export-pdf-annotated.js" defer></script>
     <script src="js/note-summary.js" defer></script>
@@ -379,7 +384,7 @@
         './css/style/css-settings.css','./css/style/css-reader.css','./css/style/css-pdf.css','./css/style/css-epub.css',
         './css/style/css-reader-views.css','./css/style/css-highlight.css','./css/style/css-bookmark.css','./css/style/css-popups.css',
         './css/style/css-navigation.css','./css/style/css-shelf.css','./css/style/css-drawers.css',
-        './css/style/css-responsive.css',
+        './css/style/css-responsive.css','./css/style/css-lan-sync.css',
         './js/app-update/race-fastest.js','./js/app-update/au-utils.js','./js/app-update/au-core.js','./js/app-update/au-ui.js','./js/app-update/au-changelog.js','./js/app-update/au-init.js',
         './js/back-stack.js','./js/ref-detector.js','./js/router.js',
         './js/renderer/renderer-shared.js','./js/renderer/renderer-utils.js','./js/renderer/renderer-data.js',
@@ -396,7 +401,7 @@
         './js/dev-console.js','./js/theme-toggle.js','./js/search.js','./js/speech.js',
         './js/bottom-tab-bar.js','./js/pwa-banner.js',
         './js/scripture-popup/sp-shared.js','./js/scripture-popup/sp-dom.js','./js/scripture-popup/sp-render.js','./js/scripture-popup/sp-events.js','./js/scripture-popup/sp-annotate.js','./js/scripture-popup/sp-init.js',
-        './js/nav-stack/nav-back.js','./js/nav-stack/nav-float-bar.js','./js/bible-dict.js','./js/highlight/highlight-shared.js','./js/highlight/highlight-core.js','./js/highlight/highlight-apply.js','./js/highlight/highlight-crud.js','./js/highlight/highlight-ui.js','./js/highlight/highlight-events.js','./js/bookmark.js','./js/export/export-core.js','./js/export/export-book.js','./js/sync/sync-data-collect.js','./js/sync/sync-export.js','./js/sync/sync-import.js','./js/sync/lan-sync.js','./js/export/export-batch.js','./js/export/export-pdf-annotated.js','./js/note-summary.js',
+        './js/nav-stack/nav-back.js','./js/nav-stack/nav-float-bar.js','./js/bible-dict.js','./js/highlight/highlight-shared.js','./js/highlight/highlight-core.js','./js/highlight/highlight-apply.js','./js/highlight/highlight-crud.js','./js/highlight/highlight-ui.js','./js/highlight/highlight-events.js','./js/bookmark.js',        './js/export/export-core.js','./js/export/export-book.js','./js/sync/sync-data-collect.js','./js/sync/sync-export.js','./js/sync/sync-import.js','./js/sync/lan-sync-qr.js','./js/sync/lan-sync.js','./js/sync/lan-sync-panel.js','./js/export/export-batch.js','./js/export/export-pdf-annotated.js','./js/note-summary.js',
         './js/resource-pack/rp-shared.js','./js/resource-pack/rp-dialogs.js','./js/resource-pack/rp-import.js','./js/data-manager/dm-shared.js','./js/data-manager/dm-storage.js','./js/data-manager/dm-index.js','./js/data-manager/dm-download.js','./js/data-manager/dm-book-ops.js','./js/data-manager/dm-api.js','./js/data-manager/dm-pack-download.js','./js/background-download.js',
         './js/remote-config.js','./js/webdav-presets.js','./js/app-lifecycle.js','./js/image-utils.js',
         './js/import-manager/import-shared.js','./js/import-manager/import-file-picker.js','./js/import-manager/import-txt.js',
@@ -407,7 +412,7 @@
         './js/webdav-manager.js',
         './js/webdav-upload.js',
         './js/open-file-handler.js',
-        './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/pdf-lib.min.js','./vendor/marked.min.js',
+        './vendor/localforage.min.js','./vendor/jszip.min.js','./vendor/pdf-lib.min.js','./vendor/qrcode.min.js','./vendor/marked.min.js',
         './vendor/highlight.min.js','./vendor/mermaid.min.js','./vendor/katex.min.js','./vendor/katex.min.css',
         './vendor/highlight-github.css','./vendor/highlight-github-dark.css',
         './vendor/pdf.min.js','./vendor/pdf.worker.min.js',
