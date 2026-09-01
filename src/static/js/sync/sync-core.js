@@ -187,20 +187,6 @@
         }
     }
 
-    /**
-     * 获取书城索引缓存（用于 resolveCityBook 二次校验）
-     * 尽力获取，获取失败返回 null（不阻断流程）
-     * @returns {Object|null}
-     */
-    function _getCachedIndex() {
-        try {
-            if (win.DataManager && typeof win.DataManager.getCachedIndex === 'function') {
-                return win.DataManager.getCachedIndex();
-            }
-        } catch (e) { /* ignore */ }
-        return null;
-    }
-
     // ── 主入口 ──────────────────────────────────────────────────────────
 
     /**
@@ -1193,6 +1179,12 @@
                                 (function (dirName) {
                                     chain = chain.then(function () {
                                         current++;
+                                        // 幽灵书防护：data 模式下本地不存在的导入书
+                                        // 不合并不入架（skipped 已在 dataSkippedDirs 计数，此处不再累计）
+                                        if (skippedIds[dirName]) {
+                                            if (opts.onProgress) opts.onProgress(current, total, dirName);
+                                            return;
+                                        }
                                         var udPath = 'books/' + dirName + '/userdata.json';
                                         var udEntry = zip.file(udPath);
                                         if (!udEntry) {

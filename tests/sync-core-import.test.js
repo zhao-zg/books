@@ -992,6 +992,52 @@ describe('P1 — data 模式幽灵 ID 防护', () => {
       '书城书 data 模式应照常合并');
     assert.ok(result.skipped === 0, '书城书不应计 skipped');
   });
+
+  test('data 包含本地不存在的导入书：不写 userdata（幽灵书 userdata 层排除）', async () => {
+    var origId = 'book-ghost-ud-1';
+    var book = makeTxtBook(origId, '幽灵书userdata');
+    var env = setupImportEnv({
+      cityIndex: { books: [] },
+      epubBookmarks: []
+    });
+    // 本地 importStore 无该书（不传 localImportedBooks）→ 幽灵书
+    var bytes = await makeV4DataZip(
+      [{
+        id: origId,
+        bookJson: book,
+        userdata: {
+          progress: '0.5',
+          lastReadTs: '2000',
+          chapterReads: ['1', '2'],
+          bookmarks: [{ id: 'bm-ghost-1', bookId: origId, cfi: 'cfi-1' }],
+          highlights: [{ key: '/' + origId + '/1', highlights: [{ id: 'hl-ghost-1', text: '幽灵高亮' }] }]
+        }
+      }],
+      [{ id: origId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // localStorage 不应有该书的进度/时间戳
+    assert.equal(win.localStorage.getItem('bk_progress:' + origId), null,
+      '不应写入幽灵书 bk_progress');
+    assert.equal(win.localStorage.getItem('bk_lastread_ts:' + origId), null,
+      '不应写入幽灵书 bk_lastread_ts');
+    assert.equal(win.localStorage.getItem('bk_chapter_read:' + origId + '/1'), null,
+      '不应写入幽灵书章节已读标记');
+    // IndexedDB bookmarks 无该书条目
+    var ghostBm = env.bookmarkStore().find(function (b) { return b.bookId === origId; });
+    assert.ok(!ghostBm, 'IndexedDB bookmarks 不应有幽灵书条目，实际=' +
+      JSON.stringify(env.bookmarkStore()));
+    // IndexedDB highlights 无该书 key
+    assert.ok(!env.highlightPages['/' + origId + '/1'],
+      'IndexedDB highlights 不应有幽灵书条目');
+    // skipped 恰好计一次（不重复累计）
+    assert.equal(result.skipped, 1, 'skipped 应恰好为 1（不重复计），实际=' + result.skipped);
+    // 幽灵书不计 success
+    assert.equal(result.success, 0, '幽灵书不应计 success');
+    assert.equal(result.failed, 0, '幽灵书不应计 failed');
+  });
 });
 
 describe('P2 — 书城书 shelf 补缺', () => {
