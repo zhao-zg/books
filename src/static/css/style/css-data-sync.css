@@ -59,6 +59,12 @@
     width: 100%; border: 1px solid #D4D2CD; border-radius: 8px;
     padding: 10px; font-size: 14px; background: #FFF; color: #3A3835;
 }
+.dsc-btn-del {
+    display: block; width: 100%; margin-top: 2px; padding: 8px 0;
+    border: 1px solid #E8D5CC; border-radius: 8px; background: #FFF;
+    color: #C8553D; font-size: 13px; cursor: pointer;
+}
+.dsc-btn-del:active { background: #F9EFEB; }
 
 /* 导入结果 */
 .dsc-import-result { padding: 0 0 4px; }

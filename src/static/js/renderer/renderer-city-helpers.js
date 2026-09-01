@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
   // ── zl-html 首页渲染辅助函数 ────────────────────────────────────────
 
@@ -408,7 +408,6 @@
           '<div class="dl-tab-bar">' +
             '<button class="dl-tab-btn active" data-dl-tab="download">下载</button>' +
             '<button class="dl-tab-btn" data-dl-tab="export">导出</button>' +
-            '<button class="dl-tab-btn" data-dl-tab="import">导入</button>' +
           '</div>' +
           // ── 下载 Tab（原面板内容） ──
           '<div class="dl-tab-content" id="dlTabDownload">' +
@@ -450,17 +449,6 @@
             '<div class="dl-export-actions">' +
               '<button class="dl-export-btn" id="dlExportSelectAll">全选</button>' +
               '<button class="dl-export-btn dl-export-btn-primary" id="dlExportStart">导出选中</button>' +
-            '</div>' +
-          '</div>' +
-          // ── 导入 Tab ──
-          '<div class="dl-tab-content" id="dlTabImport" style="display:none">' +
-            '<div class="dl-import-hint">从 ZIP 备份文件恢复书籍数据，导入后自动缓存无需重新下载</div>' +
-            '<div class="dl-import-actions">' +
-              '<button class="dl-import-btn dl-import-btn-primary" id="dlImportPick">📂 选择 ZIP 文件</button>' +
-            '</div>' +
-            '<div class="dl-import-status" id="dlImportStatus"></div>' +
-            '<div class="dl-import-progress" id="dlImportProgress" style="display:none">' +
-              '<div class="download-progress-bar" id="dlImportBar" style="width:0%"></div>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -538,7 +526,6 @@
         // 切换内容区
         document.getElementById('dlTabDownload').style.display = (tab === 'download') ? '' : 'none';
         document.getElementById('dlTabExport').style.display = (tab === 'export') ? '' : 'none';
-        document.getElementById('dlTabImport').style.display = (tab === 'import') ? '' : 'none';
         // 导出 Tab 切换时刷新系列列表
         if (tab === 'export') _renderExportSeriesList();
       });
@@ -546,7 +533,6 @@
 
     // ── 导出 Tab 事件 ──
     _initExportTab();
-    _initImportTab();
   }
 
   // ── 导出 Tab ──────────────────────────────────────────────────────────
@@ -696,123 +682,6 @@
       _toast('获取已下载列表失败');
       if (startBtn) startBtn.disabled = false;
     });
-  }
-
-  // ── 导入 Tab ──────────────────────────────────────────────────────────
-
-  /**
-   * 初始化导入 Tab 事件（选择文件按钮）
-   */
-  function _initImportTab() {
-    var pickBtn = document.getElementById('dlImportPick');
-    if (!pickBtn) return;
-
-    pickBtn.addEventListener('click', function () {
-      // 创建隐藏的 file input
-      var input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.zip';
-      input.style.display = 'none';
-      document.body.appendChild(input);
-
-      input.addEventListener('change', function () {
-        var file = input.files && input.files[0];
-        if (file) {
-          _doCityImport(file);
-        }
-        // 清理
-        if (input.parentNode) input.parentNode.removeChild(input);
-      });
-
-      input.click();
-    });
-  }
-
-  /**
-   * 从 ZIP 文件导入书籍数据
-   * @param {File} file  用户选择的 ZIP 文件
-   */
-  function _doCityImport(file) {
-    console.log('[导入] _doCityImport: 开始读取文件 ' + file.name + '，大小=' + (file.size / 1024 / 1024).toFixed(2) + 'MB');
-    if (!win.BK || !win.BK.ImportZip || !win.BK.ImportZip.importFromZip) {
-      _toast('导入模块未加载');
-      return;
-    }
-
-    var statusEl = document.getElementById('dlImportStatus');
-    var progressEl = document.getElementById('dlImportProgress');
-    var barEl = document.getElementById('dlImportBar');
-    var pickBtn = document.getElementById('dlImportPick');
-
-    if (pickBtn) pickBtn.disabled = true;
-    if (statusEl) statusEl.textContent = '正在读取文件...';
-    if (progressEl) progressEl.style.display = '';
-    if (barEl) barEl.style.width = '0%';
-
-    // 1. 读取文件为 ArrayBuffer
-    var reader = new FileReader();
-    reader.onload = function () {
-      var buffer = reader.result;
-      if (statusEl) statusEl.textContent = '正在解析 ZIP...';
-
-      // 2. 调用 importFromZip
-      win.BK.ImportZip.importFromZip(buffer, file.name, {
-        onProgress: function (current, total, title) {
-          if (statusEl) statusEl.textContent = '正在导入 ' + current + '/' + total + '《' + (title || '') + '》';
-          var pct = total > 0 ? Math.round(current / total * 100) : 0;
-          if (barEl) barEl.style.width = pct + '%';
-        }
-      }).then(function (result) {
-        var msg = '导入完成：成功 ' + result.success + ' 本';
-        if (result.skipped > 0) msg += '，已跳过 ' + result.skipped + ' 本';
-        if (result.failed > 0) msg += '，失败 ' + result.failed + ' 本';
-        if (statusEl) statusEl.textContent = msg;
-        if (barEl) barEl.style.width = '100%';
-        _toast(msg);
-
-        // 3. 导入后刷新书城数据
-        // 书城书走 zl-data 缓存（不入 _zlBooks，只需刷新角标）；
-        // 导入书走 imported-data（需 _mergeImportedBooks 合并到 _zlBooks）。
-        var doRefresh = function () {
-            // 先重渲染书城/书架视图（会重建 DOM），再刷新角标
-            // ★ 修复：renderHome 无条件渲染书架页，导致从书城页导入后「页面是书架但 Tab 高亮书城」。
-            //   改为按当前 hash 分发到对应视图；hash 为空/未知时走 renderHome 兜底（书架）。
-            var _h = (win.location && win.location.hash) || '';
-            var _route = _h.replace(/^#\/?/, '').split('/')[0] || '';
-            if (win.BKRenderer) {
-                if (_route === 'city') {
-                    if (typeof win.BKRenderer.renderCityPage === 'function') win.BKRenderer.renderCityPage();
-                } else if (_route === 'shelf') {
-                    if (typeof win.BKRenderer.renderShelfPage === 'function') win.BKRenderer.renderShelfPage();
-                } else if (typeof win.BKRenderer.renderHome === 'function') {
-                    win.BKRenderer.renderHome();
-                }
-            }
-            _refreshAfterDownload();
-        };
-        if (typeof _mergeImportedBooks === 'function') {
-            _mergeImportedBooks().then(doRefresh, doRefresh);
-        } else {
-            doRefresh();
-        }
-      }).catch(function (err) {
-        var msg = (err && err.message) ? err.message : '导入失败';
-        if (statusEl) statusEl.textContent = '导入失败：' + msg;
-        if (progressEl) progressEl.style.display = 'none';
-        _toast('导入失败：' + msg);
-      }).finally(function () {
-        if (pickBtn) pickBtn.disabled = false;
-      });
-    };
-
-    reader.onerror = function () {
-      if (statusEl) statusEl.textContent = '文件读取失败';
-      if (progressEl) progressEl.style.display = 'none';
-      if (pickBtn) pickBtn.disabled = false;
-      _toast('文件读取失败');
-    };
-
-    reader.readAsArrayBuffer(file);
   }
 
   /**

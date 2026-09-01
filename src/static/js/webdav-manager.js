@@ -15,7 +15,7 @@
  *   .downloadFile(config, entry, onProgress)  下载单文件，返回 fileInfo
  *   .resyncBook(book)                依据 book.source 重同步（覆盖同 id）
  *   .saveConfig(config) / getConfigs() / getConfigById(id)
- *   .deleteConfig(id) / getActiveConfig() / setActiveConfig(id)
+ *   .deleteConfig(id)（预置返回 false）/ getActiveConfig() / setActiveConfig(id)
  *   .ERROR / .MESSAGES / .TIMEOUT_MS / .IMPORTABLE_EXT / .AUTH_TYPE
  */
 (function (win) {
@@ -994,6 +994,51 @@
     }
   }
 
+  // 删除用户配置：从 bk_webdav_configs 移除 + 激活 id 回退 + 双缓存同步。
+  // 预置服务器（preset:true，随包下发）不可删，返回 false。
+  // 纯逻辑（删除/回退）由 sync/webdav-config.js 的 removeConfig/resolveActiveAfterRemove 提供。
+  function deleteConfig(id) {
+    if (!id) return false;
+    for (var p = 0; p < _presets.length; p++) {
+      if (_presets[p].id === id) return false;
+    }
+    var raw = _getConfigsRaw();
+    var found = false;
+    for (var i = 0; i < raw.length; i++) {
+      if (raw[i] && raw[i].id === id) { found = true; break; }
+    }
+    if (!found) return false;
+
+    var WC = (win.BK && win.BK.WebDavConfig) ? win.BK.WebDavConfig : null;
+    var remaining = WC ? WC.removeConfig(raw, id) : raw.filter(function (c) { return !(c && c.id === id); });
+    var activeIdBefore = null;
+    try { activeIdBefore = win.localStorage.getItem(ACTIVE_KEY) || null; } catch (e) {}
+    var fb = WC ? WC.resolveActiveAfterRemove(remaining, id, activeIdBefore) : (function () {
+      var act = (activeIdBefore && activeIdBefore === id)
+        ? (remaining.length ? remaining[0].id : null)
+        : activeIdBefore;
+      var actObj = null;
+      for (var a = 0; a < remaining.length; a++) {
+        if (act && remaining[a] && remaining[a].id === act) { actObj = remaining[a]; break; }
+      }
+      return { activeId: act, active: actObj };
+    })();
+
+    // 写回配置存储 + 同步解密缓存
+    try { win.localStorage.setItem(CFG_KEY, JSON.stringify(remaining)); } catch (e2) {}
+    if (_configCache) {
+      _configCache = WC ? WC.removeConfig(_configCache, id)
+        : _configCache.filter(function (c) { return !(c && c.id === id); });
+    }
+    // 激活 id 写回 + DEV-2 激活缓存同步
+    try {
+      if (fb.activeId) win.localStorage.setItem(ACTIVE_KEY, fb.activeId);
+      else win.localStorage.removeItem(ACTIVE_KEY);
+    } catch (e3) {}
+    _activeConfigCache = fb.active;
+    return true;
+  }
+
   function getActiveConfig() {
     // DEV-2：优先返回模块内缓存（含 connect 但未保存的 config）
     if (_activeConfigCache) return _activeConfigCache;
@@ -1195,6 +1240,7 @@
     getAllConfigs: getAllConfigs,
     getActiveConfig: getActiveConfig,
     setActiveConfig: setActiveConfig,
+    deleteConfig: deleteConfig,
     ensureCryptoReady: function () { return _cryptoReady || Promise.resolve(); },
     // 多域名 / 最快节点（供 UI 与测试）
     candidateUrls: candidateUrls,

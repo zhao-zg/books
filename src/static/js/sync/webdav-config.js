@@ -25,6 +25,9 @@
  *   .getConfigById(configs, id)         纯函数：按 id 查找（null 安全）
  *   .resolveActive(configs, id)         纯函数：configs + activeId → 激活配置
  *   .readSavedState(win)                从 window.localStorage 读完整状态
+ *   .removeConfig(configs, id)          纯函数：从配置数组移除指定 id（未命中原样返回）
+ *   .resolveActiveAfterRemove(configs, removedId, activeId)
+ *                                       纯函数：删除后激活 id 回退（删中激活项→第一个/置 null）
  */
 (function (win) {
     'use strict';
@@ -116,6 +119,47 @@
         };
     }
 
+    /**
+     * 从配置数组移除指定 id 的配置（deleteConfig 的纯逻辑部分）
+     * 未命中 / 空 id / 空列表 → 原样返回（拷贝语义：返回新数组，不动入参）
+     * @param {Object[]|null} configs
+     * @param {string|null} id
+     * @returns {Object[]}
+     */
+    function removeConfig(configs, id) {
+        var src = Array.isArray(configs) ? configs : [];
+        var out = [];
+        for (var i = 0; i < src.length; i++) {
+            if (id && src[i] && src[i].id === id) continue;
+            out.push(src[i]);
+        }
+        return out;
+    }
+
+    /**
+     * 删除配置后的激活 id 回退策略：
+     *   - 删除的不是激活项 → 激活 id 保持不变
+     *   - 删除的正是激活项且剩余列表非空 → 回退到第一个（兜底，避免悬空 id）
+     *   - 删除的正是激活项且列表清空 → 置 null
+     *   - 激活 id 本来就缺失 → 保持 null（不凭空选第一个）
+     * @param {Object[]|null} configs       删除后的配置数组
+     * @param {string|null} removedId       被删除的配置 id
+     * @param {string|null} activeId        删除前的激活 id
+     * @returns {{activeId: string|null, active: Object|null}}
+     */
+    function resolveActiveAfterRemove(configs, removedId, activeId) {
+        var removed = removedId || null;
+        var act = activeId || null;
+        if (act && removed && act === removed) {
+            // 激活项被删：剩余列表非空 → 回退第一个；空 → null
+            act = (configs && configs.length) ? configs[0].id : null;
+        }
+        return {
+            activeId: act,
+            active: resolveActive(configs, act)
+        };
+    }
+
     // ── 导出 ──────────────────────────────────────────────────────────────
     win.BK = win.BK || {};
     win.BK.WebDavConfig = {
@@ -127,7 +171,9 @@
         getActiveConfigId: getActiveConfigId,
         getConfigById: getConfigById,
         resolveActive: resolveActive,
-        readSavedState: readSavedState
+        readSavedState: readSavedState,
+        removeConfig: removeConfig,
+        resolveActiveAfterRemove: resolveActiveAfterRemove
     };
 
 })(window);

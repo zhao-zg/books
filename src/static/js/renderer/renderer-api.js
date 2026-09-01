@@ -168,13 +168,10 @@
       html += '<span class="bk-settings-entry-arrow">›</span>';
       html += '</button>';
 
-      // 内容与数据
+      // 内容与数据（四入口已收敛为「数据与同步」中心页，见 BK.DataSyncPage）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">内容与数据</div>';
-      html += '<button class="bk-settings-row" data-action="sync-export-data"><span class="bk-row-icon">📤</span><span class="bk-row-label">导出同步数据</span><span class="bk-row-sub">进度 · 书签 · 划线</span><span class="bk-row-arrow">›</span></button>';
-      html += '<button class="bk-settings-row" data-action="sync-export-full"><span class="bk-row-icon">📦</span><span class="bk-row-label">导出含书完整包</span><span class="bk-row-sub">数据 + 书本体</span><span class="bk-row-arrow">›</span></button>';
-      html += '<button class="bk-settings-row" data-action="sync-import"><span class="bk-row-icon">📥</span><span class="bk-row-label">导入同步数据</span><span class="bk-row-sub">合并去重</span><span class="bk-row-arrow">›</span></button>';
-      html += '<button class="bk-settings-row" data-action="lan-sync"><span class="bk-row-icon">📡</span><span class="bk-row-label">局域网同步</span><span class="bk-row-sub">自动发现 · 一键传输</span><span class="bk-row-arrow">›</span></button>';
+      html += '<button class="bk-settings-row" data-action="data-sync"><span class="bk-row-icon">🔄</span><span class="bk-row-label">数据与同步</span><span class="bk-row-sub">导出 · 导入 · WebDAV · 局域网</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="clear-data"><span class="bk-row-icon">🧹</span><span class="bk-row-label">清理数据</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
       html += '</div>'; // bk-settings-left end
@@ -225,100 +222,20 @@
       var dt0 = document.getElementById('meDevToggle');
       if (dt0) { try { dt0.checked = localStorage.getItem('bk_dev_mode') === '1'; } catch (e) {} }
 
-      // 同步导出/导入辅助函数
-      function _handleSyncExport(mode) {
-        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.exportData) {
-          alert('同步功能未就绪，请刷新页面后重试');
-          return;
-        }
-        // 获取书架上的所有书 ID
-        var bookIds = [];
-        if (win.BKShelf && typeof win.BKShelf.all === 'function') {
-          var shelf = win.BKShelf.all();
-          for (var i = 0; i < shelf.length; i++) {
-            var rec = shelf[i];
-            if (rec) {
-              // 书架记录字段为 bookId（shelf.js）；兼容旧数据/历史包里的 id
-              var bid = rec.bookId || rec.id;
-              if (bid) bookIds.push(bid);
-            }
-          }
-        }
-        if (!bookIds.length) {
-          alert('书架为空，没有可导出的数据');
-          return;
-        }
-        var btn = app.querySelector('[data-action="sync-export-' + mode + '"]');
-        if (btn) { btn.style.opacity = '0.5'; var origLabel = btn.querySelector('.bk-row-label'); if (origLabel) origLabel.textContent = '正在导出…'; }
-        win.BK.SyncCore.exportData(mode, { bookIds: bookIds }).then(function () {
-          if (btn) btn.style.opacity = '';
-        }).catch(function (err) {
-          if (btn) btn.style.opacity = '';
-          console.error('[BK] 同步导出失败:', err);
-          alert('导出失败：' + (err.message || err));
-        });
-      }
-
-      function _handleSyncImport() {
-        // 隐藏 file input 触发选择
-        var input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.zip';
-        input.style.display = 'none';
-        document.body.appendChild(input);
-        input.addEventListener('change', function () {
-          var file = input.files && input.files[0];
-          if (!file) { document.body.removeChild(input); return; }
-          var reader = new FileReader();
-          reader.onload = function () {
-            var buffer = reader.result;
-            document.body.removeChild(input);
-            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {
-              alert('同步功能未就绪，请刷新页面后重试');
-              return;
-            }
-            win.BK.SyncCore.importFromZip(buffer).then(function (result) {
-              var msg = '导入完成：成功 ' + result.success + ' 本';
-              if (result.failed) msg += '，失败 ' + result.failed + ' 本';
-              alert(msg);
-              // 刷新书架
-              try { win.dispatchEvent(new win.CustomEvent('bk-shelf-changed')); } catch (e) {}
-            }).catch(function (err) {
-              console.error('[BK] 同步导入失败:', err);
-              alert('导入失败：' + (err.message || err));
-            });
-          };
-          reader.onerror = function () {
-            document.body.removeChild(input);
-            alert('读取文件失败');
-          };
-          reader.readAsArrayBuffer(file);
-        });
-        input.click();
-      }
-
       // 绑定功能行点击
       var rows = app.querySelectorAll('.bk-settings-row');
       for (var i = 0; i < rows.length; i++) {
         (function(row) {
           row.addEventListener('click', function() {
             var action = row.getAttribute('data-action');
-            if (action === 'sync-export-data') {
-              _handleSyncExport('data');
-            } else if (action === 'sync-export-full') {
-              _handleSyncExport('full');
-            } else if (action === 'sync-import') {
-              _handleSyncImport();
-            } else if (action === 'lan-sync') {
-              if (win.BK && win.BK.LanSyncPanel) {
-                win.BK.LanSyncPanel.show();
+            if (action === 'data-sync') {
+              if (win.BK && win.BK.DataSyncPage && typeof win.BK.DataSyncPage.show === 'function') {
+                win.BK.DataSyncPage.show();
               } else {
-                alert('局域网同步功能未就绪，请刷新页面后重试');
+                alert('数据与同步功能未就绪，请刷新页面后重试');
               }
             } else if (action === 'clear-data') {
               if (win.BK && win.BK.clearData) win.BK.clearData();
-            } else if (action === 'download-mgr') {
-              if (win.BKRenderer && win.BKRenderer.openDownloadManager) win.BKRenderer.openDownloadManager();
             } else if (action === 'install-pwa') {
               var st = document.getElementById('meInstallStatus');
               function setSt(msg, cls) { if (st) { st.textContent = msg; st.className = 'cache-status' + (cls ? ' ' + cls : ''); st.style.display = ''; } }

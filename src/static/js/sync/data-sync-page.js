@@ -247,14 +247,14 @@
         if (!holder) return;
 
         var configs = [];
-        var activeId = null;
+        var activeCfg = null;
         try {
             if (win.WebDavManager && typeof win.WebDavManager.getAllConfigs === 'function') {
                 configs = win.WebDavManager.getAllConfigs() || [];
-                var active = win.WebDavManager.getActiveConfig ? win.WebDavManager.getActiveConfig() : null;
-                activeId = active ? active.id : null;
+                activeCfg = win.WebDavManager.getActiveConfig ? win.WebDavManager.getActiveConfig() : null;
             }
         } catch (e) { /* 配置读取失败 → 空列表 */ }
+        var activeId = activeCfg ? activeCfg.id : null;
 
         if (!configs.length) {
             holder.innerHTML =
@@ -275,6 +275,11 @@
             options += '<option value="' + _esc(c.id) + '"' + sel + '>' + _esc(label) + '</option>';
         }
 
+        // 删除入口：仅对非预置的激活配置显示（预置服务器随包下发，不可删）
+        var delBtnHtml = (activeCfg && !activeCfg.preset)
+            ? '<button class="dsc-btn dsc-btn-del" id="dscWebdavDelBtn">删除此服务器</button>'
+            : '';
+
         holder.innerHTML =
             '<div class="dsc-row">' +
             '  <div class="dsc-row-main">' +
@@ -284,7 +289,71 @@
             '</div>' +
             '<div class="dsc-select-wrap">' +
             '  <select class="dsc-select" id="dscWebdavSelect">' + options + '</select>' +
+            '</div>' +
+            delBtnHtml;
+
+        // 选中/删除事件在此绑定：本函数重渲染后 select/btn 均为新元素，
+        // 内部绑定保证切换与删除后按钮可见性随激活项刷新
+        var select = holder.querySelector('#dscWebdavSelect');
+        if (select) select.onchange = function (e) {
+            try {
+                if (win.WebDavManager && win.WebDavManager.setActiveConfig) {
+                    win.WebDavManager.setActiveConfig(e.target.value);
+                    _toast('已切换同步服务器');
+                    _refreshSyncState();
+                    _renderWebdavConfig();
+                }
+            } catch (err) { _toast('切换失败：' + (err.message || err)); }
+        };
+        var delBtn = holder.querySelector('#dscWebdavDelBtn');
+        if (delBtn) delBtn.onclick = function () { _confirmDeleteActiveConfig(); };
+    }
+
+    /** 删除当前激活的服务器配置（预置不可删；win.BK.openDialog 确认弹窗，禁用原生 confirm） */
+    function _confirmDeleteActiveConfig() {
+        var active = null;
+        try { active = win.WebDavManager.getActiveConfig ? win.WebDavManager.getActiveConfig() : null; } catch (e) { /* ignore */ }
+        if (!active) { _toast('未选中服务器'); return; }
+        if (active.preset) { _toast('预置服务器不可删除'); return; }
+        if (!win.BK || !win.BK.openDialog) { _toast('弹窗组件未就绪'); return; }
+
+        var name = active.name || active.url || active.id;
+        var html =
+            '<div class="bk-dialog" style="width:min(340px,calc(100vw - 40px))">' +
+            '  <div class="bk-drawer-header">' +
+            '    <div class="bk-drawer-title">确认删除</div>' +
+            '    <button class="bk-drawer-close" data-action="dsc-del-close" aria-label="关闭">×</button>' +
+            '  </div>' +
+            '  <div class="bk-drawer-divider"></div>' +
+            '  <div class="bk-webdav-del-body">' +
+            '    <div class="bk-webdav-del-warn">⚠️ 删除后无法恢复</div>' +
+            '    <div class="bk-webdav-del-list">' + _esc(name) + '</div>' +
+            '    <div class="bk-webdav-del-hint">仅删除本机保存的服务器配置，不会删除服务器上的书籍与进度。</div>' +
+            '  </div>' +
+            '  <div class="bk-webdav-del-footer">' +
+            '    <button class="bk-btn bk-btn-secondary" data-action="dsc-del-cancel">取消</button>' +
+            '    <button class="bk-btn bk-btn-danger" data-action="dsc-del-confirm">确认删除</button>' +
+            '  </div>' +
             '</div>';
+        var dlg = win.BK.openDialog({ id: 'dsc-webdav-del-confirm', html: html });
+        if (!dlg) return;
+        var el = document.getElementById('dsc-webdav-del-confirm');
+        if (!el) return;
+
+        function closeDlg() { if (dlg && dlg.close) dlg.close(); }
+        var cancelBtns = el.querySelectorAll('[data-action="dsc-del-cancel"],[data-action="dsc-del-close"]');
+        for (var i = 0; i < cancelBtns.length; i++) cancelBtns[i].onclick = closeDlg;
+        var confirmBtn = el.querySelector('[data-action="dsc-del-confirm"]');
+        if (confirmBtn) confirmBtn.onclick = function () {
+            closeDlg();
+            var ok = false;
+            try { ok = win.WebDavManager.deleteConfig(active.id); } catch (e) { ok = false; }
+            _toast(ok ? '已删除服务器配置' : '删除失败：配置不存在或为预置服务器');
+            if (ok) {
+                _renderWebdavConfig();
+                _refreshSyncState();
+            }
+        };
     }
 
     // ── 事件绑定 ──────────────────────────────────────────────────────
@@ -303,17 +372,8 @@
             };
         }
 
-        var select = panelEl.querySelector('#dscWebdavSelect');
-        if (select) select.onchange = function (e) {
-            var id = e.target.value;
-            try {
-                if (win.WebDavManager && win.WebDavManager.setActiveConfig) {
-                    win.WebDavManager.setActiveConfig(id);
-                    _toast('已切换同步服务器');
-                    _refreshSyncState();
-                }
-            } catch (err) { _toast('切换失败：' + (err.message || err)); }
-        };
+        // WebDAV 配置区（select onchange / 删除按钮）在 _renderWebdavConfig 内部绑定，
+        // 因该区块会重渲染，外部一次性绑定会在重渲染后失效
     }
 
     function _handleAction(action, btn) {

@@ -162,3 +162,51 @@ describe('readSavedState 从 window.localStorage 读取完整状态', () => {
     assert.equal(st.active, null);
   });
 });
+
+// ── removeConfig：删除配置 + 激活 id 回退（任务 7d）─────────────────────
+
+describe('removeConfig 从配置数组删除指定配置', () => {
+  test('命中 → 移除该项，其余保持原顺序', () => {
+    var r = WC.removeConfig([CFG_A, CFG_B], 'wd_a');
+    assert.deepEqual(r, [CFG_B]);
+  });
+
+  test('未命中 / 空 id / 空数组 / null 列表 → 原样返回（不抛异常）', () => {
+    assert.deepEqual(WC.removeConfig([CFG_A, CFG_B], 'nope'), [CFG_A, CFG_B]);
+    assert.deepEqual(WC.removeConfig([CFG_A, CFG_B], null), [CFG_A, CFG_B]);
+    assert.deepEqual(WC.removeConfig([CFG_A, CFG_B], ''), [CFG_A, CFG_B]);
+    assert.deepEqual(WC.removeConfig([], 'wd_a'), []);
+    assert.deepEqual(WC.removeConfig(null, 'wd_a'), []);
+  });
+
+  test('数组内 null 项不崩溃', () => {
+    var r = WC.removeConfig([CFG_A, null, CFG_B], 'wd_a');
+    assert.deepEqual(r, [null, CFG_B]);
+  });
+});
+
+describe('resolveActiveAfterRemove 删除后激活 id 回退', () => {
+  test('删除非激活项 → 激活 id 保持不变', () => {
+    var r = WC.resolveActiveAfterRemove([CFG_A, CFG_B], 'wd_a', 'wd_b');
+    assert.equal(r.activeId, 'wd_b');
+    assert.equal(r.active, CFG_B);
+  });
+
+  test('删除激活项且剩余配置非空 → 回退到第一个（兜底）', () => {
+    var r = WC.resolveActiveAfterRemove([CFG_A, CFG_B], 'wd_b', 'wd_b');
+    assert.equal(r.activeId, 'wd_a');
+    assert.equal(r.active, CFG_A);
+  });
+
+  test('删除激活项且列表清空 → 激活 id 置 null', () => {
+    var r = WC.resolveActiveAfterRemove([], 'wd_a', 'wd_a');
+    assert.equal(r.activeId, null);
+    assert.equal(r.active, null);
+  });
+
+  test('激活 id 本来就缺失 → 保持 null（不凭空选第一个）', () => {
+    var r = WC.resolveActiveAfterRemove([CFG_A, CFG_B], 'wd_a', null);
+    assert.equal(r.activeId, null);
+    assert.equal(r.active, null);
+  });
+});
