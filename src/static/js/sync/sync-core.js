@@ -38,6 +38,7 @@
  * 挂载：window.BK.SyncCore
  *   .generateZipBytes(mode, opts)  → Promise<Uint8Array>
  *   .exportData(mode, opts)        → Promise（生成字节 + exportBinary 写出）
+ *   .importFromZip(fileOrBytes, opts) → Promise<{success, skipped, failed, errors}>
  */
 (function (win) {
     'use strict';
@@ -449,11 +450,678 @@
         });
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  v4 导入实现（无委托链）
+    // ══════════════════════════════════════════════════════════════════════
+
+    var MAX_BOOKMARKS = 100;
+
+    /**
+     * 按 id 合并两个数组（导入版替换重复 id 的条目）
+     * @param {Array} local    本地数组
+     * @param {Array} imported 导入数组
+     * @returns {Array} 合并后的数组
+     */
+    function _mergeById(local, imported) {
+        if (!Array.isArray(local)) local = [];
+        if (!Array.isArray(imported)) imported = [];
+        var map = {};
+        for (var i = 0; i < local.length; i++) {
+            var item = local[i];
+            if (item && item.id) map[item.id] = item;
+        }
+        for (var j = 0; j < imported.length; j++) {
+            var imp = imported[j];
+            if (imp && imp.id) map[imp.id] = imp;
+        }
+        return Object.keys(map).map(function (k) { return map[k]; });
+    }
+
+    /**
+     * 书签数组截断为 MAX_BOOKMARKS 条（按 timestamp 降序保留最新）
+     */
+    function _truncateBookmarks(arr) {
+        if (!Array.isArray(arr) || arr.length <= MAX_BOOKMARKS) return arr;
+        var sorted = arr.slice().sort(function (a, b) {
+            var ta = (a && a.timestamp) ? a.timestamp : 0;
+            var tb = (b && b.timestamp) ? b.timestamp : 0;
+            return tb - ta;
+        });
+        return sorted.slice(0, MAX_BOOKMARKS);
+    }
+
+    /**
+     * 合并阅读进度到 localStorage
+     * 仅在导入 lastReadTs 比本地新时覆盖 progress/lastReadTs
+     * @param {Object} userData  导入的用户数据
+     * @param {string} bookId    目标书籍 ID（可能经过 ID 映射）
+     */
+    function _mergeProgress(userData, bookId) {
+        try {
+            var ls = win.localStorage;
+            if (!ls || !userData) return;
+
+            var importTs = userData.lastReadTs ? parseInt(userData.lastReadTs, 10) : 0;
+            var localTs = 0;
+            var localTsRaw = ls.getItem('bk_lastread_ts:' + bookId);
+            if (localTsRaw) localTs = parseInt(localTsRaw, 10);
+
+            // 进度：导入比本地新时覆盖
+            if (importTs >= localTs) {
+                if (userData.progress !== undefined) {
+                    ls.setItem('bk_progress:' + bookId, userData.progress);
+                }
+                if (userData.lastReadTs !== undefined) {
+                    ls.setItem('bk_lastread_ts:' + bookId, userData.lastReadTs);
+                }
+            }
+
+            // PDF 位置
+            if (userData.pdfPos !== undefined) {
+                ls.setItem('bk_pdf_pos:' + bookId, userData.pdfPos);
+            }
+
+            // PDF 书签/高亮：按 id 合并
+            if (userData.pdfBookmarks !== undefined) {
+                var localPbm = ls.getItem('bk_pdf_bm:' + bookId);
+                var localArr = localPbm ? JSON.parse(localPbm) : [];
+                var importArr = JSON.parse(userData.pdfBookmarks);
+                var merged = _mergeById(localArr, importArr);
+                ls.setItem('bk_pdf_bm:' + bookId, JSON.stringify(merged));
+            }
+            if (userData.pdfHighlights !== undefined) {
+                var localPhl = ls.getItem('bk_pdf_hl:' + bookId);
+                var localHlArr = localPhl ? JSON.parse(localPhl) : [];
+                var importHlArr = JSON.parse(userData.pdfHighlights);
+                var mergedHl = _mergeById(localHlArr, importHlArr);
+                ls.setItem('bk_pdf_hl:' + bookId, JSON.stringify(mergedHl));
+            }
+
+            // 章节已读标记：并集
+            if (Array.isArray(userData.chapterReads)) {
+                var prefix = 'bk_chapter_read:' + bookId + '/';
+                for (var i = 0; i < userData.chapterReads.length; i++) {
+                    var chNum = String(userData.chapterReads[i]);
+                    if (chNum) ls.setItem(prefix + chNum, '1');
+                }
+            }
+
+            // 滚动位置：同章在导入比本地新时覆盖，新章直接写入
+            if (userData.scroll && typeof userData.scroll === 'object') {
+                var scrollPrefix = 'bk_scroll:' + bookId + '/';
+                var chKeys = Object.keys(userData.scroll);
+                for (var j = 0; j < chKeys.length; j++) {
+                    var ch = chKeys[j];
+                    var importScroll = userData.scroll[ch];
+                    var localScroll = ls.getItem(scrollPrefix + ch);
+                    if (localScroll === null || importTs >= localTs) {
+                        ls.setItem(scrollPrefix + ch, importScroll);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[BK.SyncCore] _mergeProgress: 合并进度失败:', bookId, e);
+        }
+    }
+
+    /**
+     * 合并 EPUB 书签到 IndexedDB（BKBookmark store）
+     * 按 id 去重，导入版替换重复 id，超 100 条截断
+     * @param {Array} importedBookmarks  导入的书签数组
+     * @param {Object} idMap            ID 映射表 { oldId: newId }
+     */
+    function _mergeBookmarks(importedBookmarks, idMap) {
+        if (!Array.isArray(importedBookmarks)) return Promise.resolve();
+
+        // ID 映射改写
+        var remapped = importedBookmarks.map(function (bm) {
+            var copy = Object.assign({}, bm);
+            if (idMap && bm.bookId && idMap[bm.bookId]) {
+                var newId = idMap[bm.bookId];
+                copy.bookId = newId;
+                if (copy.path) {
+                    copy.path = copy.path.replace('/' + bm.bookId + '/', '/' + newId + '/');
+                }
+            }
+            return copy;
+        });
+
+        if (!win.BKBookmark || typeof win.BKBookmark.getAll !== 'function') {
+            return Promise.resolve();
+        }
+        return win.BKBookmark.getAll().then(function (local) {
+            var merged = _mergeById(local, remapped);
+            merged = _truncateBookmarks(merged);
+            if (win.BKBookmark._save) {
+                return win.BKBookmark._save(merged);
+            }
+            return Promise.resolve();
+        }).catch(function (e) {
+            console.warn('[BK.SyncCore] _mergeBookmarks: 合并书签失败:', e);
+        });
+    }
+
+    /**
+     * 合并 EPUB 高亮到 IndexedDB（highlights store，每页一键）
+     * 逐 key 合并，同 key 内按 id 去重
+     * @param {Array} importedHighlights  导入的高亮页数组 [{ key, highlights }]
+     * @param {Object} idMap              ID 映射表
+     */
+    function _mergeHighlights(importedHighlights, idMap) {
+        if (!Array.isArray(importedHighlights)) return Promise.resolve();
+        if (!win.BKStorage || typeof win.BKStorage.getPage !== 'function') {
+            return Promise.resolve();
+        }
+
+        var chain = Promise.resolve();
+        importedHighlights.forEach(function (page) {
+            if (!page || !page.key || !Array.isArray(page.highlights)) return;
+            chain = chain.then(function () {
+                // ID 映射改写 key
+                var targetKey = page.key;
+                if (idMap) {
+                    var match = page.key.match(/^\/([^\/]+)\/(.+)$/);
+                    if (match && idMap[match[1]]) {
+                        targetKey = '/' + idMap[match[1]] + '/' + match[2];
+                    }
+                }
+                return win.BKStorage.getPage(targetKey).then(function (localArr) {
+                    var merged = _mergeById(localArr, page.highlights);
+                    return win.BKStorage.setPage(targetKey, merged);
+                });
+            });
+        });
+        return chain.catch(function (e) {
+            console.warn('[BK.SyncCore] _mergeHighlights: 合并高亮失败:', e);
+        });
+    }
+
+    /**
+     * 合并书架记录（补缺不覆盖已有）
+     * shelfData 是导入的 shelf.json 数组
+     * 注意：书城书（ID 恒等映射且存在于书城索引）不走 BKShelf.add，
+     *       由用户在书城点击打开时自动入架（幂等）。
+     */
+    function _mergeShelf(shelfData, idMap) {
+        if (!Array.isArray(shelfData)) return Promise.resolve();
+
+        var indexData = null;
+        if (win.DataManager && typeof win.DataManager.getCachedIndex === 'function') {
+            indexData = win.DataManager.getCachedIndex();
+        }
+
+        var chain = Promise.resolve();
+        shelfData.forEach(function (rec) {
+            var bookId = (rec && (rec.bookId || rec.id));
+            if (!bookId) return;
+            // ID 映射
+            if (idMap && idMap[bookId]) {
+                bookId = idMap[bookId];
+            }
+            // 书城书（ID 恒等映射）：跳过入架，由用户在书城点击时入架
+            var isCityBook = false;
+            if (idMap && idMap[rec.bookId || rec.id] === (rec.bookId || rec.id)) {
+                // 恒等映射意味着是书城书
+                if (win.BK && win.BK.SyncShared && typeof win.BK.SyncShared.resolveCityBook === 'function') {
+                    isCityBook = win.BK.SyncShared.resolveCityBook(indexData, bookId);
+                }
+            }
+            chain = chain.then(function () {
+                if (isCityBook) return; // 书城书不入架
+                if (win.BKShelf && typeof win.BKShelf.add === 'function') {
+                    win.BKShelf.add(bookId);
+                }
+                if (win.BKShelf && typeof win.BKShelf.get === 'function') {
+                    var local = win.BKShelf.get(bookId);
+                    if (local) {
+                        if ((local.note === null || local.note === undefined) && rec.note) {
+                            if (typeof win.BKShelf.updateNote === 'function') {
+                                win.BKShelf.updateNote(bookId, rec.note);
+                            }
+                        }
+                        if ((local.rating === null || local.rating === undefined) && typeof rec.rating === 'number') {
+                            if (typeof win.BKShelf.updateRating === 'function') {
+                                win.BKShelf.updateRating(bookId, rec.rating);
+                            }
+                        }
+                        if (!local.finished && rec.finished) {
+                            if (typeof win.BKShelf.markRead === 'function') {
+                                win.BKShelf.markRead(bookId, { completedAt: rec.completedAt });
+                            }
+                        }
+                    }
+                }
+            });
+        });
+        return chain;
+    }
+
+    /**
+     * 确定书城索引是否已就绪，未就绪时尝试加载
+     * @returns {Promise<void>}
+     */
+    function _ensureIndexReady() {
+        if (win.DataManager && typeof win.DataManager.getCachedIndex === 'function') {
+            var idx = win.DataManager.getCachedIndex();
+            if (idx && Array.isArray(idx.books) && idx.books.length > 0) {
+                return Promise.resolve();
+            }
+            if (typeof win.DataManager.loadIndex === 'function') {
+                return win.DataManager.loadIndex().catch(function () {});
+            }
+        }
+        return Promise.resolve();
+    }
+
+    /**
+     * 确定每本书的目标 ID
+     * - 有 book.json 且非书城书：生成新 imported- ID
+     * - 书城书或无 book.json：恒等映射
+     * @param {Object} zip          JSZip 实例
+     * @param {string[]} bookDirNames  books/ 下的子目录名
+     * @returns {Promise<{ idMap, bookDataMap, fullBookDirs }>}
+     */
+    function _resolveIdMap(zip, bookDirNames) {
+        var idMap = {};
+        var bookDataMap = {};
+        var fullBookDirs = [];
+
+        var chain = Promise.resolve();
+        bookDirNames.forEach(function (dirName) {
+            chain = chain.then(function () {
+                var bookJsonEntry = zip.file('books/' + dirName + '/book.json');
+                if (!bookJsonEntry) return;
+                return bookJsonEntry.async('string').then(function (text) {
+                    try {
+                        var bd = JSON.parse(text);
+                        if (bd && bd.id) {
+                            bookDataMap[bd.id] = bd;
+                            fullBookDirs.push({ dirName: dirName, bookId: bd.id });
+                        }
+                    } catch (e) { /* 忽略解析失败 */ }
+                });
+            });
+        });
+
+        return chain.then(function () {
+            var indexData = null;
+            if (win.DataManager && typeof win.DataManager.getCachedIndex === 'function') {
+                indexData = win.DataManager.getCachedIndex();
+            }
+            fullBookDirs.forEach(function (entry) {
+                var oldId = entry.bookId;
+                var isCity = false;
+                if (win.BK && win.BK.SyncShared && typeof win.BK.SyncShared.resolveCityBook === 'function') {
+                    isCity = win.BK.SyncShared.resolveCityBook(indexData, oldId);
+                }
+                if (isCity) {
+                    idMap[oldId] = oldId;
+                } else {
+                    var newId = null;
+                    if (win.BK && win.BK.SyncShared && typeof win.BK.SyncShared.generateBookId === 'function') {
+                        newId = win.BK.SyncShared.generateBookId();
+                    } else {
+                        newId = 'imported-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+                    }
+                    idMap[oldId] = newId;
+                    console.log('[BK.SyncCore] importFromZip: 导入书 ID 映射 ' + oldId + ' → ' + newId);
+                }
+            });
+            return { idMap: idMap, bookDataMap: bookDataMap, fullBookDirs: fullBookDirs };
+        });
+    }
+
+    /**
+     * 保存书本体（book.json + PDF 二进制）到本地存储
+     * 仅 full 模式且非书城书执行
+     * @param {Object} zip
+     * @param {Array} fullBookDirs  [{ dirName, bookId }]
+     * @param {Object} idMap
+     * @param {Object} bookDataMap
+     * @param {Object} opts         依赖注入 stores
+     */
+    function _saveBookData(zip, fullBookDirs, idMap, bookDataMap, opts) {
+        var importStore = opts.importStore || null;
+        var zlStore = opts.zlStore || null;
+        var pdfStore = opts.pdfStore || null;
+
+        var chain = Promise.resolve();
+        fullBookDirs.forEach(function (entry) {
+            var oldId = entry.bookId;
+            var newId = idMap[oldId];
+            var bookData = bookDataMap[oldId];
+            if (!bookData || !newId) return;
+
+            // 书城书：保持原 ID，缓存到 zl-data，不入架，不写 imported_ids
+            if (newId === oldId) {
+                chain = chain.then(function () {
+                    return _saveCityBook(zip, entry, bookData, zlStore, pdfStore, opts);
+                });
+                return;
+            }
+
+            // 导入书：生成新 imported- ID → imported-data store + 入架
+            chain = chain.then(function () {
+                return _saveImportedBook(zip, entry, bookData, newId, importStore, pdfStore, opts);
+            });
+        });
+        return chain;
+    }
+
+    /**
+     * 保存书城书到 zl-data 缓存
+     * - 已下载则跳过不覆盖
+     * - PDF 书：original.pdf 写入 pdfStore（原 ID）
+     */
+    function _saveCityBook(zip, entry, bookData, zlStore, pdfStore, opts) {
+        var bookId = bookData.id;
+        var isPdf = (win.BK && win.BK.SyncShared && typeof win.BK.SyncShared.isPdfBookData === 'function')
+            ? win.BK.SyncShared.isPdfBookData(bookData)
+            : (bookData.format === 'pdf');
+
+        // PDF 书：写入 pdfStore（原 ID）
+        var pdfPromise = Promise.resolve();
+        if (isPdf && pdfStore) {
+            var pdfPath = 'books/' + entry.dirName + '/original.pdf';
+            var pdfEntry = zip.file(pdfPath);
+            if (pdfEntry) {
+                pdfPromise = pdfEntry.async('uint8array').then(function (pdfBytes) {
+                    return pdfStore.setItem('pdf:' + bookId, pdfBytes.buffer || pdfBytes);
+                }).catch(function () {});
+            }
+        }
+
+        return pdfPromise.then(function () {
+            // 检查是否已下载/已缓存
+            if (win.DataManager && typeof win.DataManager.isBookDownloaded === 'function') {
+                return win.DataManager.isBookDownloaded(bookId).then(function (downloaded) {
+                    if (downloaded) {
+                        console.log('[BK.SyncCore] _saveCityBook: 书城书已缓存，跳过 id=' + bookId);
+                        return;
+                    }
+                    return _writeCityBookToZlStore(bookId, bookData, zlStore);
+                });
+            }
+            return _writeCityBookToZlStore(bookId, bookData, zlStore);
+        });
+    }
+
+    function _writeCityBookToZlStore(bookId, bookData, zlStore) {
+        if (!zlStore) return Promise.resolve();
+        var key = (win.BK && win.BK.SyncShared) ? win.BK.SyncShared.KEY_ZL_PREFIX + bookId : 'zl_book:' + bookId;
+        return zlStore.setItem(key, bookData).then(function () {
+            console.log('[BK.SyncCore] _saveCityBook: 书城书已缓存到 zl-data id=' + bookId);
+        });
+    }
+
+    /**
+     * 保存导入书到 imported-data store + 入架
+     * - 改写 bookData.id 为新 ID
+     * - PDF 书：重映射 pdf_page.pdfBookId
+     * - PDF 书：original.pdf 写入 pdfStore（新 ID）
+     */
+    function _saveImportedBook(zip, entry, bookData, newId, importStore, pdfStore, opts) {
+        var exportData = JSON.parse(JSON.stringify(bookData));
+        exportData.id = newId;
+
+        var isPdf = (win.BK && win.BK.SyncShared && typeof win.BK.SyncShared.isPdfBookData === 'function')
+            ? win.BK.SyncShared.isPdfBookData(bookData)
+            : (bookData.format === 'pdf');
+
+        // PDF 书：重映射 pdf_page.pdfBookId
+        if (isPdf && exportData.chapters) {
+            for (var i = 0; i < exportData.chapters.length; i++) {
+                var content = exportData.chapters[i].content;
+                if (!Array.isArray(content)) continue;
+                for (var j = 0; j < content.length; j++) {
+                    if (content[j] && content[j].type === 'pdf_page') {
+                        content[j].pdfBookId = newId;
+                    }
+                }
+            }
+        }
+
+        var savePromise = Promise.resolve();
+        if (importStore) {
+            var key = (win.BK && win.BK.SyncShared) ? win.BK.SyncShared.KEY_IMPORT_PREFIX + newId : 'imported_book:' + newId;
+            savePromise = importStore.setItem(key, exportData).then(function () {
+                return importStore.getItem('imported_ids').then(function (ids) {
+                    ids = ids || [];
+                    if (ids.indexOf(newId) < 0) ids.push(newId);
+                    return importStore.setItem('imported_ids', ids);
+                });
+            });
+        }
+
+        return savePromise.then(function () {
+            // 入架
+            try {
+                if (win.BKShelf && win.BKShelf.add) win.BKShelf.add(newId);
+            } catch (e) {}
+            // PDF 书：保存原始 PDF 二进制
+            if (isPdf && pdfStore) {
+                var pdfPath = 'books/' + entry.dirName + '/original.pdf';
+                var pdfEntry = zip.file(pdfPath);
+                if (pdfEntry) {
+                    return pdfEntry.async('uint8array').then(function (pdfBytes) {
+                        var pdfKey = (win.BK && win.BK.SyncShared) ? win.BK.SyncShared.KEY_PDF_PREFIX + newId : 'pdf:' + newId;
+                        return pdfStore.setItem(pdfKey, pdfBytes.buffer || pdfBytes);
+                    }).catch(function () {});
+                }
+            }
+        });
+    }
+
+    /**
+     * 从 ZIP 中读取所有 books/<dir>/userdata.json 的目录名
+     * @param {Object} zip
+     * @returns {string[]}
+     */
+    function _collectBookDirs(zip) {
+        var dirs = {};
+        zip.forEach(function (relativePath) {
+            var match = relativePath.match(/^books\/([^\/]+)\/userdata\.json$/);
+            if (match) {
+                dirs[match[1]] = true;
+            }
+        });
+        return Object.keys(dirs);
+    }
+
+    /**
+     * 从 v4 ZIP 导入数据（合并模式）
+     *
+     * 导入规则：
+     *   - manifest.version === 4 → 按 mode 导入
+     *     · data 包：合并数据（进度按 lastReadTs 取新、书签按 id 去重截断 100、
+     *       chapterReads 并集、shelf 补缺不覆盖已有）
+     *     · full 包：连书文件一起导入（非书城书生成新 imported- ID 入架，
+     *       书城书保持原 ID 缓存到 zl-data 不入架）
+     *   - manifest.version < 4 → 抛错含「旧版本」
+     *   - 无 manifest → 抛错「不是有效的书籍数据包」
+     *   - 孤儿条目（books/ 有目录但 shelf.json 无记录）忽略并继续
+     *
+     * @param {File|ArrayBuffer|Uint8Array} fileOrBytes  ZIP 文件数据
+     * @param {Object} [opts]
+     *   - {Object} importStore  localforage 实例（导入书数据）
+     *   - {Object} zlStore      localforage 实例（书城书数据）
+     *   - {Object} pdfStore     localforage 实例（PDF 二进制）
+     *   - {Function} onProgress(current, total, bookTitle)  进度回调
+     * @returns {Promise<{success:number, skipped:number, failed:number, errors:Array}>}
+     */
+    function importFromZip(fileOrBytes, opts) {
+        opts = opts || {};
+        var JSZip = win.JSZip;
+        if (!JSZip) return Promise.reject(new Error('JSZip 未加载，无法解析 ZIP'));
+
+        // 规范化输入为 JSZip 可接受的格式
+        var input = fileOrBytes;
+        if (fileOrBytes && typeof fileOrBytes === 'object' && typeof fileOrBytes.arrayBuffer === 'function') {
+            // File 对象
+            input = fileOrBytes; // JSZip.loadAsync 接受 File
+        }
+
+        console.log('[BK.SyncCore] importFromZip: 开始导入，大小=' +
+            (input.byteLength || input.length || (input.size ? input.size : 0)) + ' 字节');
+        var t0 = Date.now();
+
+        return JSZip.loadAsync(input).then(function (zip) {
+            // 1. 验证 manifest.json
+            var manifestFile = zip.file('manifest.json');
+            if (!manifestFile) {
+                return Promise.reject(new Error('不是有效的书籍数据包'));
+            }
+
+            return manifestFile.async('string').then(function (manifestText) {
+                var manifest;
+                try {
+                    manifest = JSON.parse(manifestText);
+                } catch (e) {
+                    return Promise.reject(new Error('不是有效的书籍数据包'));
+                }
+
+                if (!manifest || !manifest.version) {
+                    return Promise.reject(new Error('不是有效的书籍数据包'));
+                }
+
+                // 旧版本包 → 明确报错
+                if (manifest.version < MANIFEST_VERSION) {
+                    return Promise.reject(new Error(
+                        '此包由旧版本导出，请在新旧设备间用局域网同步或重新导出'
+                    ));
+                }
+
+                if (manifest.version !== MANIFEST_VERSION) {
+                    return Promise.reject(new Error('不支持的包版本（期望 v' + MANIFEST_VERSION + '）'));
+                }
+
+                var mode = manifest.mode || 'data';
+                console.log('[BK.SyncCore] importFromZip: v' + manifest.version + ' 包，mode=' + mode);
+
+                // 2. 收集 books 目录
+                var bookDirNames = _collectBookDirs(zip);
+                if (!bookDirNames.length) {
+                    // 可能只有 shelf.json 无 books 目录（书架补缺场景）
+                    var shelfOnlyFile = zip.file('shelf.json');
+                    if (shelfOnlyFile) {
+                        return shelfOnlyFile.async('string').then(function (shelfText) {
+                            var shelfData;
+                            try { shelfData = JSON.parse(shelfText); } catch (e) { shelfData = []; }
+                            return _mergeShelf(shelfData, {}).then(function () {
+                                return { success: 0, skipped: 0, failed: 0, errors: [] };
+                            });
+                        });
+                    }
+                    return { success: 0, skipped: 0, failed: 0, errors: [] };
+                }
+
+                console.log('[BK.SyncCore] importFromZip: 发现 ' + bookDirNames.length + ' 本书的同步数据');
+
+                // 3. 确保书城索引就绪（full 模式分流需要）
+                return _ensureIndexReady().then(function () {
+                    // 4. 解析 ID 映射（full 模式有 book.json 的书可能需重映射）
+                    return _resolveIdMap(zip, bookDirNames);
+                }).then(function (idMapResult) {
+                    var idMap = idMapResult.idMap;
+                    var bookDataMap = idMapResult.bookDataMap;
+                    var fullBookDirs = idMapResult.fullBookDirs;
+
+                    // 5. full 模式：保存书本体
+                    var saveBooksPromise;
+                    if (mode === 'full' && fullBookDirs.length > 0) {
+                        saveBooksPromise = _saveBookData(zip, fullBookDirs, idMap, bookDataMap, opts);
+                    } else {
+                        saveBooksPromise = Promise.resolve();
+                    }
+
+                    return saveBooksPromise.then(function () {
+                        // 6. 读取 shelf.json
+                        var shelfFile = zip.file('shelf.json');
+                        return shelfFile
+                            ? shelfFile.async('string').then(function (text) {
+                                try { return JSON.parse(text); } catch (e) { return []; }
+                            })
+                            : Promise.resolve([]);
+                    }).then(function (shelfData) {
+                        // 7. 合并书架
+                        return _mergeShelf(shelfData, idMap).then(function () {
+                            // 8. 逐书合并 userdata
+                            var successCount = 0;
+                            var failCount = 0;
+                            var errors = [];
+                            var current = 0;
+                            var total = bookDirNames.length;
+                            var chain = Promise.resolve();
+
+                            for (var i = 0; i < bookDirNames.length; i++) {
+                                (function (dirName) {
+                                    chain = chain.then(function () {
+                                        current++;
+                                        var udPath = 'books/' + dirName + '/userdata.json';
+                                        var udEntry = zip.file(udPath);
+                                        if (!udEntry) {
+                                            failCount++;
+                                            errors.push({ id: dirName, error: 'userdata.json 未找到' });
+                                            if (opts.onProgress) opts.onProgress(current, total, dirName);
+                                            return;
+                                        }
+                                        return udEntry.async('string').then(function (udText) {
+                                            var userData;
+                                            try {
+                                                userData = JSON.parse(udText);
+                                            } catch (e) {
+                                                failCount++;
+                                                errors.push({ id: dirName, error: 'userdata.json 解析失败' });
+                                                if (opts.onProgress) opts.onProgress(current, total, dirName);
+                                                return;
+                                            }
+
+                                            // 确定目标 bookId
+                                            var targetId = idMap[dirName] || dirName;
+
+                                            // 合并进度（localStorage）
+                                            _mergeProgress(userData, targetId);
+
+                                            // 合并 EPUB 书签（IndexedDB）
+                                            return _mergeBookmarks(userData.bookmarks, idMap).then(function () {
+                                                // 合并 EPUB 高亮（IndexedDB）
+                                                return _mergeHighlights(userData.highlights, idMap);
+                                            }).then(function () {
+                                                successCount++;
+                                                if (opts.onProgress) opts.onProgress(current, total, dirName);
+                                            });
+                                        });
+                                    });
+                                })(bookDirNames[i]);
+                            }
+
+                            return chain.then(function () {
+                                console.log('[BK.SyncCore] importFromZip: 导入完成，成功=' + successCount +
+                                    '，失败=' + failCount + '，耗时=' + (Date.now() - t0) + 'ms');
+                                // 广播事件通知 UI 刷新
+                                try {
+                                    win.dispatchEvent(new win.CustomEvent('bk:data-synced'));
+                                } catch (e) {}
+                                return {
+                                    success: successCount,
+                                    skipped: 0,
+                                    failed: failCount,
+                                    errors: errors
+                                };
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    }
+
     // ── 导出 ──────────────────────────────────────────────────────────────
     win.BK = win.BK || {};
     win.BK.SyncCore = {
         generateZipBytes: generateZipBytes,
-        exportData: exportData
+        exportData: exportData,
+        importFromZip: importFromZip
     };
 
 })(window);
