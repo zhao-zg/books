@@ -227,7 +227,7 @@
 
       // 同步导出/导入辅助函数
       function _handleSyncExport(mode) {
-        if (!win.BK || !win.BK.Sync || !win.BK.Sync.exportData) {
+        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.exportData) {
           alert('同步功能未就绪，请刷新页面后重试');
           return;
         }
@@ -250,7 +250,7 @@
         }
         var btn = app.querySelector('[data-action="sync-export-' + mode + '"]');
         if (btn) { btn.style.opacity = '0.5'; var origLabel = btn.querySelector('.bk-row-label'); if (origLabel) origLabel.textContent = '正在导出…'; }
-        win.BK.Sync.exportData(bookIds, { mode: mode }).then(function () {
+        win.BK.SyncCore.exportData(mode, { bookIds: bookIds }).then(function () {
           if (btn) btn.style.opacity = '';
         }).catch(function (err) {
           if (btn) btn.style.opacity = '';
@@ -273,11 +273,11 @@
           reader.onload = function () {
             var buffer = reader.result;
             document.body.removeChild(input);
-            if (!win.BK || !win.BK.Sync || !win.BK.Sync.importFromZip) {
+            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {
               alert('同步功能未就绪，请刷新页面后重试');
               return;
             }
-            win.BK.Sync.importFromZip(buffer).then(function (result) {
+            win.BK.SyncCore.importFromZip(buffer).then(function (result) {
               var msg = '导入完成：成功 ' + result.success + ' 本';
               if (result.failed) msg += '，失败 ' + result.failed + ' 本';
               alert(msg);

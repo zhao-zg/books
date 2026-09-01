@@ -300,9 +300,9 @@
     }
 
     function _handleWrtcFile(buffer) {
-        if (win.BK && win.BK.Sync && win.BK.Sync.importFromZip) {
+        if (win.BK && win.BK.SyncCore && win.BK.SyncCore.importFromZip) {
             addLog('正在导入接收的数据...');
-            win.BK.Sync.importFromZip(buffer).then(function (result) {
+            win.BK.SyncCore.importFromZip(buffer).then(function (result) {
                 addLog('导入完成：成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
             }).catch(function (err) {
                 addLog('导入失败：' + (err.message || err));

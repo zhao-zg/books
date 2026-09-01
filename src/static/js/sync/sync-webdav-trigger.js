@@ -10,6 +10,13 @@
  *   - 并发守卫：_syncing 标志，正在同步时跳过新触发
  *   - 仅在 WebDAV 已配置时触发
  *
+ * 同步状态事件（任务 5，供任务 6 中心页订阅）：
+ *   - onSyncStateChange(cb)   订阅状态变化，返回取消订阅函数
+ *   - getSyncState()          读当前状态快照
+ *   - 状态形状：{ running, lastSyncTs, lastResult, lastError }
+ *   - 开始时广播 { running: true }；结束/失败时广播终态（running: false + 结果）
+ *   - 未配置 WebDAV 时不广播（无状态转移）
+ *
  * 依赖：BK.SyncWebDAV（sync-webdav.js）、WebDavManager（webdav-manager.js）、BKRouter（router.js）
  * 挂载：window.BK.SyncWebDAVTrigger
  */
@@ -20,6 +27,69 @@
     var _debounceTimer = null;
     var _syncing = false;
     var _lastWasReading = false; // 上一次 dispatch 时是否处于阅读视图
+
+    // ── 同步状态（任务 5：供中心页订阅）──────────────────────────
+    var _syncState = {
+        running: false,
+        lastSyncTs: null,
+        lastResult: null,
+        lastError: null
+    };
+    var _stateSubs = []; // 状态订阅者列表
+
+    /** 广播状态到所有订阅者（浅拷贝，防外部改内部状态） */
+    function _broadcastState() {
+        var snapshot = {
+            running: _syncState.running,
+            lastSyncTs: _syncState.lastSyncTs,
+            lastResult: _syncState.lastResult,
+            lastError: _syncState.lastError
+        };
+        for (var i = 0; i < _stateSubs.length; i++) {
+            try {
+                _stateSubs[i](snapshot);
+            } catch (e) {
+                // 单个订阅者异常不影响其余订阅者
+                console.warn('[SyncWebDAVTrigger] 状态订阅者异常:', e);
+            }
+        }
+    }
+
+    /**
+     * 订阅同步状态变化
+     * @param {Function} cb(state)  状态回调
+     * @returns {Function} 取消订阅函数
+     */
+    function onSyncStateChange(cb) {
+        if (typeof cb !== 'function') return function () {};
+        _stateSubs.push(cb);
+        return function () {
+            var idx = _stateSubs.indexOf(cb);
+            if (idx >= 0) _stateSubs.splice(idx, 1);
+        };
+    }
+
+    /** 读当前同步状态快照 */
+    function getSyncState() {
+        return {
+            running: _syncState.running,
+            lastSyncTs: _syncState.lastSyncTs,
+            lastResult: _syncState.lastResult,
+            lastError: _syncState.lastError
+        };
+    }
+
+    /** 错误条目汇总（result.errors → 单条可读信息） */
+    function _summarizeErrors(errors) {
+        if (!Array.isArray(errors) || !errors.length) return null;
+        var parts = [];
+        for (var i = 0; i < errors.length && i < 5; i++) {
+            var e = errors[i];
+            parts.push((e && (e.id || '') ? e.id + ': ' : '') + (e && e.error ? e.error : '未知错误'));
+        }
+        var suffix = errors.length > 5 ? '（等 ' + errors.length + ' 项）' : '';
+        return '同步完成但有错误：' + parts.join('；') + suffix;
+    }
 
     /**
      * 判断 path 是否为阅读视图（2 段：bookId/chapter）
@@ -47,34 +117,50 @@
 
     /**
      * 执行后台同步（非阻塞，失败仅 warn）
+     * 返回同步 promise（供测试与中心页手动触发等待完成），未触发时返回 resolved
      */
     function runSync() {
         if (_syncing) {
             console.log('[SyncWebDAVTrigger] 同步进行中，跳过');
-            return;
+            return Promise.resolve();
         }
         var config = getConfig();
         if (!config) {
             console.log('[SyncWebDAVTrigger] WebDAV 未配置，跳过同步');
-            return;
+            return Promise.resolve();
         }
         if (!win.BK || !win.BK.SyncWebDAV) {
             console.warn('[SyncWebDAVTrigger] BK.SyncWebDAV 不可用');
-            return;
+            return Promise.resolve();
         }
 
         _syncing = true;
+        _syncState.running = true;
+        _syncState.lastError = null;
+        _broadcastState();
         console.log('[SyncWebDAVTrigger] 开始后台同步...');
-        win.BK.SyncWebDAV.sync(config).then(function (result) {
+        return win.BK.SyncWebDAV.sync(config).then(function (result) {
             _syncing = false;
+            _syncState.running = false;
+            _syncState.lastSyncTs = Date.now();
             if (result && result.errors && result.errors.length > 0) {
+                _syncState.lastResult = null;
+                _syncState.lastError = _summarizeErrors(result.errors);
                 console.warn('[SyncWebDAVTrigger] 同步完成，但有错误:', result.errors);
             } else {
+                _syncState.lastResult = result || { pulled: 0, pushed: 0, errors: [] };
+                _syncState.lastError = null;
                 console.log('[SyncWebDAVTrigger] 同步完成: pulled=' + (result ? result.pulled : 0) + ' pushed=' + (result ? result.pushed : 0));
             }
+            _broadcastState();
         }).catch(function (err) {
             _syncing = false;
-            console.warn('[SyncWebDAVTrigger] 同步失败:', err.message || err);
+            _syncState.running = false;
+            _syncState.lastSyncTs = Date.now();
+            _syncState.lastResult = null;
+            _syncState.lastError = (err && err.message) ? err.message : String(err);
+            console.warn('[SyncWebDAVTrigger] 同步失败:', _syncState.lastError);
+            _broadcastState();
         });
     }
 
@@ -134,6 +220,9 @@
         init: init,
         runSync: runSync,
         isReadingPath: isReadingPath,
+        // 同步状态事件（任务 6 中心页订阅）
+        onSyncStateChange: onSyncStateChange,
+        getSyncState: getSyncState,
         _onPageChange: onPageChange // 暴露用于测试
     };
 

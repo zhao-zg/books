@@ -56,9 +56,10 @@
     RESYNC_DONE: '已重新同步'
   };
 
-  // localStorage 键
-  var CFG_KEY = 'bk_webdav_configs';
-  var ACTIVE_KEY = 'bk_webdav_active';
+  // localStorage 键（统一由 sync/webdav-config.js 提供，不迁移数据）
+  // 本模块仍保留：AES-GCM 解密缓存、预置服务器合并、激活缓存（DEV-2）、多域名竞速
+  var CFG_KEY = (win.BK && win.BK.WebDavConfig) ? win.BK.WebDavConfig.KEY_CONFIGS : 'bk_webdav_configs';
+  var ACTIVE_KEY = (win.BK && win.BK.WebDavConfig) ? win.BK.WebDavConfig.KEY_ACTIVE : 'bk_webdav_active';
 
   // DEV-2（设计偏差修复）：模块内缓存当前激活的 config 对象（含 connect 但未 save 的）。
   // getActiveConfig 优先返回此缓存，fallback 到按存储 id 查找，保证「刚 connect 未保存」也能读到。
@@ -216,6 +217,11 @@
   }
 
   function _getConfigsRaw() {
+    // 统一读取原语（键名与回退行为对齐）：坏 JSON/非数组 → []，绝不抛异常
+    if (win.BK && win.BK.WebDavConfig) {
+      return win.BK.WebDavConfig.readSavedState(win).configs;
+    }
+    // 降级路径（WebDavConfig 未加载时保持原行为）
     try {
       return JSON.parse(win.localStorage.getItem(CFG_KEY) || '[]') || [];
     } catch (e) {

@@ -2,7 +2,7 @@
  * sync-webdav.js — WebDAV 双向增量同步协调器
  *
  * 基于远端 manifest 比对本地阅读数据时间戳，决定 pull/push 哪些书。
- * 每本书一个 ZIP 包（复用 BK.Sync.generateZipBytes），远端目录结构：
+ * 每本书一个 ZIP 包（复用 BK.SyncCore.generateZipBytes），远端目录结构：
  *
  *   bk-sync/
  *   ├── manifest.json     # {version, lastSyncTs, books: {bookId: {ts, size}}}
@@ -12,7 +12,7 @@
  * 触发时机：进/退书事件（reader-page-change），进书 pull、退书 push（后台化）
  *
  * 依赖：
- *   - BK.Sync.generateZipBytes / importFromZip (sync-export.js / sync-import.js)
+ *   - BK.SyncCore.generateZipBytes / importFromZip (sync-core.js)
  *   - BKShelf.all (shelf.js)
  *   - WebDavManager (webdav-manager.js)
  *
@@ -165,12 +165,13 @@
         if (!config) return Promise.reject(new Error('WebDAV 配置缺失'));
         if (!bookId) return Promise.reject(new Error('bookId 缺失'));
 
-        // 1. 生成 ZIP（复用 sync-export 的 generateZipBytes）
-        if (!win.BK || !win.BK.Sync || !win.BK.Sync.generateZipBytes) {
-            return Promise.reject(new Error('BK.Sync.generateZipBytes 不可用'));
+        // 1. 生成 ZIP（复用 sync-core 的 generateZipBytes）
+        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.generateZipBytes) {
+            return Promise.reject(new Error('BK.SyncCore.generateZipBytes 不可用'));
         }
 
-        return win.BK.Sync.generateZipBytes([bookId], { mode: 'data' }).then(function (bytes) {
+        // SyncCore 签名：generateZipBytes(mode, { bookIds })
+        return win.BK.SyncCore.generateZipBytes('data', { bookIds: [bookId] }).then(function (bytes) {
             // 2. 确保远端目录存在
             return win.WebDavManager.ensureRemotePath(config, remoteBase).then(function () {
                 // 3. 上传 ZIP
@@ -203,12 +204,12 @@
             var buffer = fileInfo.arrayBuffer || fileInfo.text;
             if (!buffer) return Promise.reject(new Error('下载失败：无内容'));
 
-            // 导入（复用 sync-import 的 importFromZip）
-            if (!win.BK || !win.BK.Sync || !win.BK.Sync.importFromZip) {
-                return Promise.reject(new Error('BK.Sync.importFromZip 不可用'));
+            // 导入（复用 sync-core 的 importFromZip）
+            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {
+                return Promise.reject(new Error('BK.SyncCore.importFromZip 不可用'));
             }
 
-            return win.BK.Sync.importFromZip(buffer).then(function (result) {
+            return win.BK.SyncCore.importFromZip(buffer).then(function (result) {
                 console.log('[SyncWebDAV] pullBook 成功: ' + entry.name +
                     ', success=' + (result ? result.success : 0));
                 return { ok: true };

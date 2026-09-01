@@ -184,20 +184,9 @@
         return Promise.reject(new Error('数据管理器不可用'));
     }
 
-    /** 构造 SyncShared.getBookData 的 store 依赖（缺失时返回空对象由其降级） */
+    /** 构造 SyncShared.getBookData 的 store 依赖（已收编至 BK.SyncShared.resolveSharedDeps） */
     function _syncSharedDeps() {
-        var deps = {};
-        try {
-            if (win.ImportManager && typeof win.ImportManager.getImportStore === 'function') {
-                deps.importStore = win.ImportManager.getImportStore();
-            }
-        } catch (e) { /* ignore */ }
-        try {
-            if (win.DataManager && typeof win.DataManager.getZlStore === 'function') {
-                deps.zlStore = win.DataManager.getZlStore();
-            }
-        } catch (e) { /* ignore */ }
-        return deps;
+        return win.BK.SyncShared.resolveSharedDeps(win);
     }
 
     /** 仅获取书名（PDF 用） */

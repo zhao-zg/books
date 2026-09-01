@@ -6,8 +6,8 @@
  *   - sync-import.js:     _isCityBookId（无二次校验版，统一为带校验版）
  *   - export-batch.js:    _getBookData / _isPdfBookData / _generateId
  *   - sync-export.js:     _getBookData / _isPdfBookData
- *   - export-book.js:     _getBookData
- *   - webdav-upload.js:   _getBookDataForExport
+ *   - export-book.js:     _getBookData + _syncSharedDeps
+ *   - webdav-upload.js:   _getBookDataForExport + _syncSharedDeps
  *
  * 合并差异说明：
  *   1. _isCityBookId 两处不一致：import-zip 有缓存+二次校验（防索引未就绪误判），
@@ -23,6 +23,8 @@
  *     避免单测碰真 IndexedDB。
  *   - resolveCityBook(idx, bookId) 接受索引对象作为参数（由调用方从
  *     DataManager.getCachedIndex() 获取后传入），纯函数无副作用。
+ *   - resolveSharedDeps([win]) 构造 getBookData 的 store 依赖
+ *     （收编 export-book/webdav-upload 的 _syncSharedDeps，见函数注释）
  *
  * 挂载：window.BK.SyncShared
  *   .isCityBookId(id)
@@ -30,6 +32,7 @@
  *   .isPdfBookData(bookData)
  *   .generateBookId()
  *   .getBookData(bookId, deps)
+ *   .resolveSharedDeps([win])  构造 getBookData 的 store 依赖（收编 export-book/webdav-upload）
  *   .KEY_IMPORT_PREFIX / .KEY_ZL_PREFIX / .KEY_PDF_PREFIX（常量，供调用方对齐）
  */
 (function (win) {
@@ -185,6 +188,31 @@
         });
     }
 
+    /**
+     * 构造 getBookData 的 store 依赖
+     * 收编 export-book.js / webdav-upload.js 中完全相同的 _syncSharedDeps：
+     * 通过 ImportManager.getImportStore / DataManager.getZlStore 取 localforage 实例，
+     * 任一不可用时跳过该依赖（getBookData 内部降级处理）。
+     *
+     * @param {Window} [w]  可注入的 window（缺省 win，供单测）
+     * @returns {Object} { importStore?, zlStore? }
+     */
+    function resolveSharedDeps(w) {
+        w = w || win;
+        var deps = {};
+        try {
+            if (w.ImportManager && typeof w.ImportManager.getImportStore === 'function') {
+                deps.importStore = w.ImportManager.getImportStore();
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            if (w.DataManager && typeof w.DataManager.getZlStore === 'function') {
+                deps.zlStore = w.DataManager.getZlStore();
+            }
+        } catch (e) { /* ignore */ }
+        return deps;
+    }
+
     // ── 导出 ──────────────────────────────────────────────────────────────
     win.BK = win.BK || {};
     win.BK.SyncShared = {
@@ -193,6 +221,7 @@
         isCityBookId: isCityBookId,
         resolveCityBook: resolveCityBook,
         getBookData: getBookData,
+        resolveSharedDeps: resolveSharedDeps,
         // 常量（供调用方对齐 key 格式）
         KEY_IMPORT_PREFIX: KEY_IMPORT_PREFIX,
         KEY_ZL_PREFIX: KEY_ZL_PREFIX,

@@ -201,20 +201,9 @@
     return Promise.resolve(null);
   }
 
-  /** 构造 SyncShared.getBookData 的 store 依赖（缺失时返回空对象由其降级） */
+  /** 构造 SyncShared.getBookData 的 store 依赖（已收编至 BK.SyncShared.resolveSharedDeps） */
   function _syncSharedDeps() {
-    var deps = {};
-    try {
-      if (win.ImportManager && typeof win.ImportManager.getImportStore === 'function') {
-        deps.importStore = win.ImportManager.getImportStore();
-      }
-    } catch (e) { /* ignore */ }
-    try {
-      if (win.DataManager && typeof win.DataManager.getZlStore === 'function') {
-        deps.zlStore = win.DataManager.getZlStore();
-      }
-    } catch (e) { /* ignore */ }
-    return deps;
+    return win.BK.SyncShared.resolveSharedDeps(win);
   }
 
   // ── 文本/Markdown/EPUB 生成已收编至 sync/book-convert.js（BK.BookConvert）──

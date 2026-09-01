@@ -31,10 +31,10 @@ vm.runInThisContext(jszipCode, { filename: jszipPath, displayErrors: true });
 // ── Mock 依赖 ───────────────────────────────────────────────────────────
 function setupMocks() {
     win.BK = win.BK || {};
-    win.BK.Sync = win.BK.Sync || {};
+    win.BK.SyncCore = win.BK.SyncCore || {};
 
     // mock generateZipBytes
-    win.BK.Sync.generateZipBytes = function (bookIds, opts) {
+    win.BK.SyncCore.generateZipBytes = function (bookIds, opts) {
         var zip = new win.JSZip();
         zip.file('manifest.json', JSON.stringify({ version: 3, type: 'sync-data', bookCount: bookIds.length }));
         zip.file('shelf.json', '[]');
@@ -42,7 +42,7 @@ function setupMocks() {
     };
 
     // mock importFromZip
-    win.BK.Sync.importFromZip = function (buffer) {
+    win.BK.SyncCore.importFromZip = function (buffer) {
         return Promise.resolve({ success: 2, failed: 0, errors: [] });
     };
 
@@ -162,10 +162,10 @@ describe('lan-sync.js', () => {
     });
 
     test('pull 调用 GET /download 并调用 importFromZip', async () => {
-        var savedImport = win.BK.Sync.importFromZip;
+        var savedImport = win.BK.SyncCore.importFromZip;
         var importCalled = false;
         var importedBuffer = null;
-        win.BK.Sync.importFromZip = function (buffer) {
+        win.BK.SyncCore.importFromZip = function (buffer) {
             importCalled = true;
             importedBuffer = buffer;
             return Promise.resolve({ success: 1, failed: 0, errors: [] });
@@ -176,7 +176,7 @@ describe('lan-sync.js', () => {
         assert.ok(importedBuffer instanceof ArrayBuffer, '传给 importFromZip 的应为 ArrayBuffer');
         assert.strictEqual(result.success, 1);
 
-        win.BK.Sync.importFromZip = savedImport;
+        win.BK.SyncCore.importFromZip = savedImport;
     });
 
     test('pull 支持 mode=full 参数', async () => {
@@ -185,12 +185,12 @@ describe('lan-sync.js', () => {
     });
 
     test('push 调用 generateZipBytes + POST /upload（multipart）', async () => {
-        var savedSave = win.BK.Sync.generateZipBytes;
+        var savedSave = win.BK.SyncCore.generateZipBytes;
         var genCalled = false;
-        win.BK.Sync.generateZipBytes = function (bookIds, opts) {
+        win.BK.SyncCore.generateZipBytes = function (mode, opts) {
             genCalled = true;
-            assert.strictEqual(opts.mode, 'data');
-            return savedSave(bookIds, opts);
+            assert.strictEqual(mode, 'data');
+            return savedSave(mode, opts);
         };
 
         var result = await win.BK.LanSync.push('192.168.1.5', 18080, '123456', { mode: 'data' });
@@ -211,7 +211,7 @@ describe('lan-sync.js', () => {
         assert.strictEqual(uploadCall.opts.headers, undefined,
             'fetch 不应显式设置 Content-Type（multipart boundary 由浏览器生成）');
 
-        win.BK.Sync.generateZipBytes = savedSave;
+        win.BK.SyncCore.generateZipBytes = savedSave;
     });
 
     test('discover 调用 Capacitor NSD 发现并回调 handler', async () => {
@@ -276,7 +276,7 @@ describe('lan-sync.js', () => {
 
     test('_handleUpload 解码 base64 并调用 importFromZip', async () => {
         var importCalled = false;
-        win.BK.Sync.importFromZip = function (buffer) {
+        win.BK.SyncCore.importFromZip = function (buffer) {
             importCalled = true;
             assert.ok(buffer instanceof ArrayBuffer, '应为 ArrayBuffer');
             return Promise.resolve({ success: 2, failed: 0, errors: [] });
@@ -303,7 +303,7 @@ describe('lan-sync.js', () => {
     });
 
     test('_handleUpload 错误时返回 error JSON', async () => {
-        win.BK.Sync.importFromZip = function () {
+        win.BK.SyncCore.importFromZip = function () {
             return Promise.reject(new Error('导入失败测试'));
         };
 

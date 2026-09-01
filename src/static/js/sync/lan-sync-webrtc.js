@@ -23,7 +23,7 @@
  *
  * 依赖：
  *   - LZString (vendor/lz-string.min.js)
- *   - BK.Sync.generateZipBytes / importFromZip (sync-export.js / sync-import.js)
+ *   - BK.SyncCore.generateZipBytes / importFromZip (sync-core.js)
  *
  * 挂载：window.BK.WebRTCSync
  */
@@ -309,11 +309,12 @@
     }
 
     function _handlePullRequest(mode, books) {
-        if (!win.BK || !win.BK.Sync || !win.BK.Sync.generateZipBytes) {
+        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.generateZipBytes) {
             _sendControl({ type: 'error', message: 'generateZipBytes 未就绪' });
             return;
         }
-        win.BK.Sync.generateZipBytes(books, { mode: mode }).then(function (bytes) {
+        // SyncCore 签名：generateZipBytes(mode, { bookIds })——mode 在前，books 为空时自动取书架全部
+        win.BK.SyncCore.generateZipBytes(mode, { bookIds: books }).then(function (bytes) {
             _sendControl({ type: 'file-start', name: 'sync.zip', size: bytes.length });
             _sendBinary(bytes);
         }).catch(function (err) {
@@ -349,10 +350,11 @@
         if (!_channel || _channel.readyState !== 'open') {
             return Promise.reject(new Error('连接未建立'));
         }
-        if (!win.BK || !win.BK.Sync || !win.BK.Sync.generateZipBytes) {
+        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.generateZipBytes) {
             return Promise.reject(new Error('generateZipBytes 未就绪'));
         }
-        return win.BK.Sync.generateZipBytes(bookIds, { mode: opts.mode || 'data' }).then(function (bytes) {
+        // SyncCore 签名：generateZipBytes(mode, { bookIds })——mode 在前，books 为空时自动取书架全部
+        return win.BK.SyncCore.generateZipBytes(opts.mode || 'data', { bookIds: bookIds }).then(function (bytes) {
             _sendControl({ type: 'file-start', name: 'sync.zip', size: bytes.length });
             _sendBinary(bytes);
             return { sent: bytes.length };
@@ -386,8 +388,8 @@
             return;
         }
         // 无回调时自动导入
-        if (win.BK && win.BK.Sync && win.BK.Sync.importFromZip) {
-            win.BK.Sync.importFromZip(buffer).then(function (result) {
+        if (win.BK && win.BK.SyncCore && win.BK.SyncCore.importFromZip) {
+            win.BK.SyncCore.importFromZip(buffer).then(function (result) {
                 _notifyState({ status: 'imported', result: result });
             }).catch(function (err) {
                 _notifyState({ status: 'import-error', error: err.message || String(err) });

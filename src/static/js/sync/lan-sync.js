@@ -15,8 +15,7 @@
  *   - _onDeviceFound(json)             → NSD 发现回调 → 转发给 discover handler
  *
  * 依赖：
- *   - BK.Sync.generateZipBytes (sync-export.js, T1)
- *   - BK.Sync.importFromZip (sync-import.js)
+ *   - BK.SyncCore.generateZipBytes / importFromZip (sync-core.js)
  *   - BKShelf.all (shelf.js)
  *   - Capacitor.Plugins.LanSync (仅 APK)
  *
@@ -75,10 +74,10 @@
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.arrayBuffer();
             }).then(function (buffer) {
-                if (!win.BK || !win.BK.Sync || !win.BK.Sync.importFromZip) {
+                if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {
                     throw new Error('importFromZip 未就绪');
                 }
-                return win.BK.Sync.importFromZip(buffer);
+                return win.BK.SyncCore.importFromZip(buffer);
             });
         },
 
@@ -87,11 +86,12 @@
             var mode = opts.mode || 'data';
             var bookIds = opts.books || [];
 
-            if (!win.BK || !win.BK.Sync || !win.BK.Sync.generateZipBytes) {
+            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.generateZipBytes) {
                 return Promise.reject(new Error('generateZipBytes 未就绪'));
             }
 
-            return win.BK.Sync.generateZipBytes(bookIds, { mode: mode }).then(function (zipBytes) {
+            // SyncCore 签名：generateZipBytes(mode, { bookIds })——mode 在前，books 为空时自动取书架全部
+            return win.BK.SyncCore.generateZipBytes(mode, { bookIds: bookIds }).then(function (zipBytes) {
                 // multipart 上传：Blob 保持二进制，NanoHTTPD 走临时文件分支，避免 UTF-8 字符串化损坏 ZIP
                 var form = new FormData();
                 form.append('file', new Blob([zipBytes], { type: 'application/zip' }), 'sync.zip');
@@ -172,12 +172,13 @@
                 }
             }
 
-            if (!win.BK || !win.BK.Sync || !win.BK.Sync.generateZipBytes) {
+            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.generateZipBytes) {
                 _deliverResult(requestId, JSON.stringify({ error: 'generateZipBytes 未就绪' }));
                 return Promise.resolve();
             }
 
-            return win.BK.Sync.generateZipBytes(bookIds, { mode: mode || 'data' }).then(function (bytes) {
+            // SyncCore 签名：generateZipBytes(mode, { bookIds })；bookIds 空时其内部自动从书架收集全部
+            return win.BK.SyncCore.generateZipBytes(mode || 'data', { bookIds: bookIds }).then(function (bytes) {
                 var base64 = _bytesToBase64(bytes);
                 _deliverResult(requestId, base64);
             }).catch(function (err) {
@@ -194,12 +195,12 @@
                 return Promise.resolve();
             }
 
-            if (!win.BK || !win.BK.Sync || !win.BK.Sync.importFromZip) {
+            if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {
                 _deliverResult(requestId, JSON.stringify({ success: 0, failed: 0, errors: ['importFromZip 未就绪'] }));
                 return Promise.resolve();
             }
 
-            return win.BK.Sync.importFromZip(buffer).then(function (result) {
+            return win.BK.SyncCore.importFromZip(buffer).then(function (result) {
                 _deliverResult(requestId, JSON.stringify(result));
             }).catch(function (err) {
                 _deliverResult(requestId, JSON.stringify({

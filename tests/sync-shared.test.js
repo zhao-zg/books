@@ -249,3 +249,70 @@ describe('getBookData 三 store 路由读取', () => {
     assert.equal(result, null);
   });
 });
+
+describe('resolveSharedDeps store 依赖构造（收编 _syncSharedDeps）', () => {
+  test('ImportManager/DataManager 可用时注入两个 store', () => {
+    var fakeImportStore = { marker: 'import' };
+    var fakeZlStore = { marker: 'zl' };
+    var fakeWin = {
+      ImportManager: { getImportStore: () => fakeImportStore },
+      DataManager: { getZlStore: () => fakeZlStore }
+    };
+    var deps = SS.resolveSharedDeps(fakeWin);
+    assert.equal(deps.importStore, fakeImportStore);
+    assert.equal(deps.zlStore, fakeZlStore);
+  });
+
+  test('管理器缺失时跳过对应依赖', () => {
+    var fakeWin = {
+      ImportManager: { getImportStore: () => ({}) }
+      // DataManager 缺失
+    };
+    var deps = SS.resolveSharedDeps(fakeWin);
+    assert.ok(deps.importStore, 'importStore 应存在');
+    assert.equal(deps.zlStore, undefined, 'zlStore 应缺失');
+  });
+
+  test('getImportStore 抛异常时吞错降级', () => {
+    var fakeWin = {
+      ImportManager: { getImportStore: () => { throw new Error('store 未初始化'); } },
+      DataManager: { getZlStore: () => ({}) }
+    };
+    var deps = SS.resolveSharedDeps(fakeWin);
+    assert.equal(deps.importStore, undefined);
+    assert.ok(deps.zlStore, 'zlStore 不受影响');
+  });
+
+  test('getZlStore 抛异常时吞错降级', () => {
+    var fakeWin = {
+      ImportManager: { getImportStore: () => ({}) },
+      DataManager: { getZlStore: () => { throw new Error('store 未初始化'); } }
+    };
+    var deps = SS.resolveSharedDeps(fakeWin);
+    assert.ok(deps.importStore, 'importStore 不受影响');
+    assert.equal(deps.zlStore, undefined);
+  });
+
+  test('不传 win 时默认用全局 win（真实调用形态）', () => {
+    // 保存原值，测试后恢复
+    var savedIM = win.ImportManager;
+    var savedDM = win.DataManager;
+    var fakeImportStore = { marker: 'import' };
+    var fakeZlStore = { marker: 'zl' };
+    win.ImportManager = { getImportStore: () => fakeImportStore };
+    win.DataManager = { getZlStore: () => fakeZlStore };
+    try {
+      var deps = SS.resolveSharedDeps();
+      assert.equal(deps.importStore, fakeImportStore);
+      assert.equal(deps.zlStore, fakeZlStore);
+    } finally {
+      win.ImportManager = savedIM;
+      win.DataManager = savedDM;
+    }
+  });
+
+  test('两个管理器都缺失时返回空对象', () => {
+    var deps = SS.resolveSharedDeps({});
+    assert.deepEqual(deps, {});
+  });
+});
