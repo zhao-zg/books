@@ -27,7 +27,7 @@ remote_servers:
   cloudflare:
     # ── 账户1 域名 ──
     - https://books.1189.dpdns.org/
-    - https://books.zhaozg.cloudns.org/
+    - https://books.xzdjx.dpdns.org/
     - https://books.zzgxxx.eu.org/
     - https://books.bxg.dpdns.org/
     # ── 账户2 域名（待配置） ──
