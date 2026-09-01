@@ -100,6 +100,11 @@ function makeFakeLS(data) {
 }
 
 // ── 辅助：构造完整 mock 环境 ──────────────────────────────────────────────
+// opts:
+//   lsData / importStoreData / zlStoreData / pdfStoreData / shelfRecords
+//   epubBookmarks / highlightPages / cityIndex / downloadedBooks
+//   localImportedBooks — 预置到 importStore 的本地已存在导入书 ID 列表（data 模式合并资格）
+//   dataManager — 覆盖/扩展 mock DataManager 的字段（如 cacheBook: undefined 强制走直写回退）
 function setupImportEnv(opts) {
   opts = opts || {};
 
@@ -109,7 +114,15 @@ function setupImportEnv(opts) {
   makeFakeLS(lsData);
 
   // forage stores
-  var importStore = makeFakeStore(opts.importStoreData || {});
+  var importStoreData = {};
+  Object.assign(importStoreData, opts.importStoreData || {});
+  // 预置本地已存在的导入书（data 模式 userdata 合并 + 入架资格）
+  (opts.localImportedBooks || []).forEach(function (id) {
+    if (!importStoreData['imported_book:' + id]) {
+      importStoreData['imported_book:' + id] = makeTxtBook(id);
+    }
+  });
+  var importStore = makeFakeStore(importStoreData);
   var zlStore = makeFakeStore(opts.zlStoreData || {});
   var pdfStore = makeFakeStore(opts.pdfStoreData || {});
 
@@ -119,6 +132,8 @@ function setupImportEnv(opts) {
   win.BKShelf = {
     all: function () { return Object.keys(shelfRecords).map(function (k) { return shelfRecords[k]; }); },
     add: function (bookId) {
+      // 模拟 shelf.js:98 的 purged 守卫：bk_purged:<id> 存在时不入架（阻止复活）
+      if (lsData['bk_purged:' + bookId] === '1') return;
       if (!shelfRecords[bookId]) {
         shelfRecords[bookId] = { id: bookId, addedAt: Date.now() };
       }
@@ -170,21 +185,36 @@ function setupImportEnv(opts) {
     _pages: highlightPages
   };
 
-  // mock DataManager（书城索引 + 缓存）
+  // mock DataManager（书城索引 + 缓存 + 索引构建）
   var cityIndex = opts.cityIndex || null;
   var downloadedBooks = {};
   Object.assign(downloadedBooks, opts.downloadedBooks || {});
-  win.DataManager = {
+  var cacheBookCalls = [];
+  var contentIndexCalls = [];
+  var bookIndexCalls = [];
+  var dmDefaults = {
     getCachedIndex: function () { return cityIndex; },
     loadIndex: function () { return Promise.resolve(cityIndex); },
     isBookDownloaded: function (bookId) {
       return Promise.resolve(!!downloadedBooks[bookId]);
     },
     cacheBook: function (bookId, bookData) {
-      // 写入 zlStore（由调用方注入）
-      return Promise.resolve();
+      // 模拟 dm-book-ops.js cacheBook：写 zl-data + 返回 bookData（调用方断言）
+      cacheBookCalls.push({ id: bookId, bookData: bookData });
+      var key = (win.BK && win.BK.SyncShared)
+        ? win.BK.SyncShared.KEY_ZL_PREFIX + bookId : 'zl_book:' + bookId;
+      return zlStore.setItem(key, bookData).then(function () { return bookData; });
+    },
+    buildContentIndex: function (bookData) {
+      contentIndexCalls.push(bookData);
+    },
+    addToBookIndex: function (bookData) {
+      bookIndexCalls.push(bookData);
     }
   };
+  // opts.dataManager 可覆盖字段（如 cacheBook: null 强制 sync-core 走直写回退）
+  var dm = Object.assign({}, dmDefaults, opts.dataManager || {});
+  win.DataManager = dm;
 
   return {
     importStore: importStore,
@@ -193,7 +223,10 @@ function setupImportEnv(opts) {
     shelfRecords: shelfRecords,
     bookmarkStore: function () { return bookmarkStore; },
     highlightPages: highlightPages,
-    downloadedBooks: downloadedBooks
+    downloadedBooks: downloadedBooks,
+    cacheBookCalls: cacheBookCalls,
+    contentIndexCalls: contentIndexCalls,
+    bookIndexCalls: bookIndexCalls
   };
 }
 
@@ -503,7 +536,7 @@ describe('v4 full 包导入 — 书文件写入', () => {
     assert.equal(win.localStorage.getItem('bk_progress:' + newId), '0.5');
   });
 
-  test('书城书：保持原 ID，写入 zlStore，不入架', async () => {
+  test('书城书：保持原 ID，写入 zlStore，入架并补缺', async () => {
     var cityBookId = 'books-2-2082';
     var book = makeTxtBook(cityBookId, '书城TXT书');
     var env = setupImportEnv({
@@ -511,7 +544,7 @@ describe('v4 full 包导入 — 书文件写入', () => {
     });
     var bytes = await makeV4FullZip(
       [{ id: cityBookId, bookJson: book, userdata: { progress: '0.4', lastReadTs: '2000' } }],
-      [{ id: cityBookId }]
+      [{ id: cityBookId, note: '导入笔记', rating: 3 }]
     );
     var result = await SC.importFromZip(bytes, {
       importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
@@ -525,8 +558,10 @@ describe('v4 full 包导入 — 书文件写入', () => {
     var importKeys = Object.keys(env.importStore._raw);
     var importBookKey = importKeys.find(function (k) { return k.indexOf(cityBookId) !== -1; });
     assert.ok(!importBookKey, 'importStore 不应有书城书');
-    // shelf 不应有书城书（由用户在书城点击时入架）
-    assert.ok(!env.shelfRecords[cityBookId], 'shelf 不应有书城书');
+    // 书城书也入架 + 补缺 note/rating（P2 修复：不再跳过书城书）
+    assert.ok(env.shelfRecords[cityBookId], 'shelf 应有书城书');
+    assert.equal(env.shelfRecords[cityBookId].note, '导入笔记', '书城书 note 应补缺');
+    assert.equal(env.shelfRecords[cityBookId].rating, 3, '书城书 rating 应补缺');
     // 进度应写入原 ID
     assert.equal(win.localStorage.getItem('bk_progress:' + cityBookId), '0.4');
   });
@@ -881,5 +916,266 @@ describe('data 模式 — 滚动位置合并', () => {
       importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
     });
     assert.equal(win.localStorage.getItem('bk_scroll:' + bookId + '/5'), '300');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// 审查问题修复回归测试（P1-P5、P7）
+// ════════════════════════════════════════════════════════════════════════
+
+describe('P1 — data 模式幽灵 ID 防护', () => {
+
+  test('data 包含 book.json：本地不存在的导入书不重映射不合并不入架', async () => {
+    var origId = 'book-local-missing-1';
+    var book = makeTxtBook(origId, '幽灵书');
+    var env = setupImportEnv({ cityIndex: { books: [] } });
+    // data 包带 book.json（导出端 data 模式会写 book.json）
+    var bytes = await makeV4DataZip(
+      [{ id: origId, bookJson: book, userdata: { progress: '0.5', lastReadTs: '2000' } }],
+      [{ id: origId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // 不应生成幽灵 imported- ID
+    var keys = Object.keys(env.importStore._raw);
+    var ghostKey = keys.find(function (k) {
+      return k.indexOf('imported_book:') === 0;
+    });
+    assert.ok(!ghostKey, 'importStore 不应有幽灵 imported_book: key');
+    // shelf 不应有任何 imported- 幽灵条目
+    var shelfIds = Object.keys(env.shelfRecords);
+    var ghostShelf = shelfIds.find(function (k) { return k.indexOf('imported-') === 0; });
+    assert.ok(!ghostShelf, 'shelf 不应有幽灵 imported- 条目，实际=' + JSON.stringify(shelfIds));
+    // 计入 skipped
+    assert.ok(result.skipped >= 1, 'skipped 应 ≥1，实际=' + result.skipped);
+  });
+
+  test('data 包含 book.json：本地已存在的导入书正常合并并保持原 ID', async () => {
+    var origId = 'imported-exist-1';
+    var book = makeTxtBook(origId, '本地已有书');
+    var env = setupImportEnv({
+      cityIndex: { books: [] },
+      localImportedBooks: [origId]
+    });
+    var bytes = await makeV4DataZip(
+      [{ id: origId, bookJson: book, userdata: { progress: '0.5', lastReadTs: '2000' } }],
+      [{ id: origId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // 恒等映射：进度写入原 ID，不生成新 ID
+    assert.equal(win.localStorage.getItem('bk_progress:' + origId), '0.5',
+      '进度应写入原 ID（本地已存在，恒等映射）');
+    var newKeys = Object.keys(env.importStore._raw).filter(function (k) {
+      return k.indexOf('imported_book:') === 0 && k !== 'imported_book:' + origId;
+    });
+    assert.ok(!newKeys.length, '不应生成新的 imported- ID');
+    assert.ok(result.skipped === 0, '本地已存在不应计 skipped');
+  });
+
+  test('data 包含 book.json：书城书正常合并（ID 跨设备稳定）', async () => {
+    var cityId = 'books-2-3001';
+    var book = makeTxtBook(cityId, '书城书合并');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] }
+    });
+    var bytes = await makeV4DataZip(
+      [{ id: cityId, bookJson: book, userdata: { progress: '0.6', lastReadTs: '2000' } }],
+      [{ id: cityId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.equal(win.localStorage.getItem('bk_progress:' + cityId), '0.6',
+      '书城书 data 模式应照常合并');
+    assert.ok(result.skipped === 0, '书城书不应计 skipped');
+  });
+});
+
+describe('P2 — 书城书 shelf 补缺', () => {
+
+  test('data 模式：书城书 note/rating/finished 补缺合并并入架', async () => {
+    var cityId = 'books-2-3002';
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] }
+    });
+    var bytes = await makeV4DataZip(
+      [{ id: cityId, userdata: {} }],
+      [{ id: cityId, note: '导入笔记', rating: 4, finished: true, completedAt: 8888 }]
+    );
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.ok(env.shelfRecords[cityId], '书城书应入架');
+    assert.equal(env.shelfRecords[cityId].note, '导入笔记', 'note 应补缺');
+    assert.equal(env.shelfRecords[cityId].rating, 4, 'rating 应补缺');
+    assert.equal(env.shelfRecords[cityId].finished, true, 'finished 应补缺');
+  });
+
+  test('data 模式：purged 书城书不复活（仍补缺元数据）', async () => {
+    var cityId = 'books-2-3003';
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] },
+      lsData: { ['bk_purged:' + cityId]: '1' }
+    });
+    var bytes = await makeV4DataZip(
+      [{ id: cityId, userdata: { progress: '0.2', lastReadTs: '1000' } }],
+      [{ id: cityId, note: '被移除书的笔记' }]
+    );
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.ok(!env.shelfRecords[cityId], 'purged 书不应入架');
+    // 进度照常合并（purged 只挡入架，不挡数据合并）
+    assert.equal(win.localStorage.getItem('bk_progress:' + cityId), '0.2',
+      'purged 不应影响 userdata 合并');
+  });
+
+  test('full 模式：purged 书城书不复活（cacheBook 路径不改写 purged 状态）', async () => {
+    var cityId = 'books-2-3004';
+    var book = makeTxtBook(cityId, 'purged书城书');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] },
+      lsData: { ['bk_purged:' + cityId]: '1' }
+    });
+    var bytes = await makeV4FullZip(
+      [{ id: cityId, bookJson: book, userdata: {} }],
+      [{ id: cityId }]
+    );
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.ok(!env.shelfRecords[cityId], 'purged 书城书不应入架');
+  });
+});
+
+describe('P3 — 书城书 cacheBook 路径与失败计数', () => {
+
+  test('full 模式：书城书走 DataManager.cacheBook（调用断言）', async () => {
+    var cityId = 'books-2-3005';
+    var book = makeTxtBook(cityId, 'cacheBook路径');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] }
+    });
+    var bytes = await makeV4FullZip(
+      [{ id: cityId, bookJson: book, userdata: {} }],
+      [{ id: cityId }]
+    );
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.equal(env.cacheBookCalls.length, 1, 'cacheBook 应被调用 1 次');
+    assert.equal(env.cacheBookCalls[0].id, cityId, 'cacheBook 应收到书城书 ID');
+    // cacheBook 写入 zl_book:<id>
+    assert.ok(env.zlStore._raw['zl_book:' + cityId], 'zlStore 应有 cacheBook 写入的数据');
+  });
+
+  test('full 模式：已下载书城书跳过 cacheBook 并计入 skipped', async () => {
+    var cityId = 'books-2-3006';
+    var book = makeTxtBook(cityId, '已下载书');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] },
+      downloadedBooks: { [cityId]: true }
+    });
+    var bytes = await makeV4FullZip(
+      [{ id: cityId, bookJson: book, userdata: {} }],
+      [{ id: cityId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.equal(env.cacheBookCalls.length, 0, '已下载不应调 cacheBook');
+    assert.ok(result.skipped >= 1, '已下载跳过应计 skipped，实际=' + result.skipped);
+  });
+
+  test('full 模式：DataManager 不可用时书城书回退直写 zlStore', async () => {
+    var cityId = 'books-2-3007';
+    var book = makeTxtBook(cityId, '直写回退');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] },
+      // cacheBook: null → sync-core 应识别为不可用，回退 _writeCityBookToZlStore
+      dataManager: { cacheBook: null }
+    });
+    var bytes = await makeV4FullZip(
+      [{ id: cityId, bookJson: book, userdata: {} }],
+      [{ id: cityId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.equal(result.success, 1, '回退直写不应计失败');
+    assert.ok(env.zlStore._raw['zl_book:' + cityId], 'zlStore 应有直写数据');
+  });
+
+  test('full 模式：cacheBook 失败计入 failed 并记录错误', async () => {
+    var cityId = 'books-2-3008';
+    var book = makeTxtBook(cityId, 'cacheBook失败');
+    var env = setupImportEnv({
+      cityIndex: { books: [{ id: cityId }] },
+      dataManager: {
+        cacheBook: function () { return Promise.reject(new Error('写入失败')); }
+      }
+    });
+    var bytes = await makeV4FullZip(
+      [{ id: cityId, bookJson: book, userdata: {} }],
+      [{ id: cityId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.equal(result.failed, 1, 'cacheBook 失败应计 failed');
+    assert.equal(result.errors.length, 1, 'errors 应有 1 条');
+    assert.equal(result.errors[0].id, cityId, '错误应携带书 ID');
+  });
+});
+
+describe('P4 — 导入书内容索引', () => {
+
+  test('full 模式：导入书保存后调用 buildContentIndex + addToBookIndex', async () => {
+    var origId = 'imported-idx-1';
+    var book = makeTxtBook(origId, '索引测试');
+    var env = setupImportEnv({ cityIndex: { books: [] } });
+    var bytes = await makeV4FullZip(
+      [{ id: origId, bookJson: book, userdata: {} }],
+      [{ id: origId }]
+    );
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    var keys = Object.keys(env.importStore._raw);
+    var bookKey = keys.find(function (k) { return k.indexOf('imported_book:') === 0; });
+    var newId = bookKey.replace('imported_book:', '');
+    assert.equal(env.contentIndexCalls.length, 1, 'buildContentIndex 应被调用 1 次');
+    assert.equal(env.contentIndexCalls[0].id, newId, 'buildContentIndex 应收到新 ID 的书');
+    assert.equal(env.bookIndexCalls.length, 1, 'addToBookIndex 应被调用 1 次');
+  });
+});
+
+describe('P7 — shelf-only 包路径', () => {
+
+  test('仅 shelf.json 无 books 目录：入架前加载书城索引', async () => {
+    var cityId = 'books-2-3009';
+    var env = setupImportEnv({});
+    var zip = new RealJSZip();
+    zip.file('manifest.json', JSON.stringify({
+      version: 4, mode: 'data', exportedAt: '2026-09-01T00:00:00Z', deviceName: 'test'
+    }));
+    zip.file('shelf.json', JSON.stringify([{ id: cityId, note: '索引补缺' }]));
+    var bytes = await zip.generateAsync({ type: 'uint8array' });
+    // 注入 DataManager：getCachedIndex 首次返回 null，loadIndex 后返回索引
+    var idx = { books: [{ id: cityId }] };
+    var loadCalled = { v: false };
+    win.DataManager = Object.assign({}, win.DataManager, {
+      getCachedIndex: function () { return loadCalled.v ? idx : null; },
+      loadIndex: function () { loadCalled.v = true; return Promise.resolve(idx); }
+    });
+    await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    assert.ok(loadCalled.v, 'loadIndex 应被调用（入架前索引就绪）');
+    assert.ok(env.shelfRecords[cityId], '书城书应入架');
+    assert.equal(env.shelfRecords[cityId].note, '索引补缺', 'note 应补缺');
   });
 });
