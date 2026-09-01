@@ -4,6 +4,7 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
 
 import fi.iki.elonen.NanoHTTPD;
 
@@ -34,6 +35,7 @@ import android.util.Log;
  *
  * 安全：配对码校验 + 私有 IP 过滤 + 10 分钟无活动自动关闭。
  */
+@CapacitorPlugin(name = "LanSync")
 public class LanSyncPlugin extends Plugin {
 
     private static final String TAG = "LanSyncPlugin";

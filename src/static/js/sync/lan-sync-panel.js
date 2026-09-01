@@ -63,18 +63,14 @@
                 '<span class="lan-sync-device-icon">📱</span>' +
                 '<span class="lan-sync-device-name">' + _esc(d.name) + '</span>' +
                 '<span class="lan-sync-device-addr">' + _esc(d.ip) + ':' + d.port + '</span>' +
-                '<button class="lan-sync-btn-pull" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">拉取</button>' +
-                '<button class="lan-sync-btn-push" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">推送</button>' +
+                '<button class="lan-sync-btn-pull" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">下载</button>' +
+                '<button class="lan-sync-btn-push" data-ip="' + _esc(d.ip) + '" data-port="' + d.port + '" data-code="' + _esc(d.code || '') + '">发送</button>' +
                 '</div>';
         }).join('');
 
         if (!devicesHtml) {
-            devicesHtml = '<div class="lan-sync-no-device">暂无可用设备</div>' +
-                '<div class="lan-sync-manual">' +
-                '<input type="text" class="lan-sync-input-ip" placeholder="IP:端口" />' +
-                '<input type="text" class="lan-sync-input-code" placeholder="配对码" />' +
-                '<button class="lan-sync-btn-connect">连接</button>' +
-                '</div>';
+            devicesHtml = '<div class="lan-sync-no-device">还没有发现其他设备</div>' +
+                '<div class="lan-sync-no-device-hint">请确认两台设备已连接同一个 WiFi，并已在对方设备上打开「局域网同步」</div>';
         }
 
         var modeChecked = state.mode === 'full' ? 'checked' : '';
@@ -94,31 +90,48 @@
             '    <span class="lan-sync-title">局域网同步</span>' +
             '  </div>' +
             '  <div class="lan-sync-body">' +
+            '    <div class="lan-sync-tip">两台设备连接同一个 WiFi 后，即可互相传输书籍与阅读进度。</div>' +
             '    <div class="lan-sync-section">' +
-            '      <div class="lan-sync-section-title">本机状态</div>' +
-            '      <div class="lan-sync-status-row"><span>状态</span><span class="lan-sync-status-' + (running ? 'on' : 'off') + '">' + (running ? '● 服务运行中' : '● 未启动') + '</span></div>' +
-            '      <div class="lan-sync-status-row"><span>配对码</span>' + codeHtml + '</div>' +
-            '      <div class="lan-sync-status-row"><span>地址</span><span>' + (info.ipAddress ? _esc(info.ipAddress) + ':' + (info.port || '') : '—') + '</span></div>' +
-            (running && info.pairCode && win.BK.LanSyncQR ? _renderQr(info) : '') +
-            '      <div class="lan-sync-actions">' +
-            '        <button class="lan-sync-btn-start"' + (running ? ' disabled' : '') + '>启动服务</button>' +
-            '        <button class="lan-sync-btn-stop"' + (!running ? ' disabled' : '') + '>停止</button>' +
+            '      <div class="lan-sync-card">' +
+            (running
+                ? '<div class="lan-sync-status-dot on"></div>' +
+                  '<div class="lan-sync-status-text">' +
+                  '  <div class="lan-sync-status-title">本机已就绪</div>' +
+                  '  <div class="lan-sync-status-desc">其他设备在「局域网同步」中可以看到这台设备</div>' +
+                  '</div>' +
+                  '<div class="lan-sync-qr-wrap">' +
+                  (win.BK.LanSyncQR ? _renderQr(info) : '') +
+                  '<div class="lan-sync-qr-tip">对方扫码即可连接本机</div>' +
+                  '</div>' +
+                  '<div class="lan-sync-code-line">' +
+                  '  <span>配对码</span>' + codeHtml +
+                  '</div>'
+                : '<div class="lan-sync-status-text">' +
+                  '  <div class="lan-sync-status-title">本机同步服务未开启</div>' +
+                  '  <div class="lan-sync-status-desc">开启后才能被其他设备发现和连接</div>' +
+                  '</div>' +
+                  '<button class="lan-sync-btn-start">开启本机同步</button>') +
             '      </div>' +
             '    </div>' +
             '    <div class="lan-sync-section">' +
-            '      <div class="lan-sync-section-title">可用设备</div>' +
+            '      <div class="lan-sync-section-title">找到设备后，点「下载」或「发送」</div>' +
+            '      <div class="lan-sync-manual">' +
+            '        <input type="text" class="lan-sync-input-ip" placeholder="输入对方 IP，如 192.168.1.5" />' +
+            '        <input type="text" class="lan-sync-input-code" placeholder="配对码" />' +
+            '        <button class="lan-sync-btn-connect">连接</button>' +
+            '      </div>' +
             '      <div class="lan-sync-devices">' + devicesHtml + '</div>' +
             '    </div>' +
             (wrtcHtml ? '    <div class="lan-sync-section">' +
-            '      <div class="lan-sync-section-title">PWA 直连（浏览器↔浏览器）</div>' +
+            '      <div class="lan-sync-section-title">扫码直连（浏览器间）</div>' +
             '      <div class="lan-sync-wrtc">' + wrtcHtml + '</div>' +
             '    </div>' : '') +
-            '    <div class="lan-sync-section">' +
-            '      <div class="lan-sync-section-title">传输模式</div>' +
-            '      <label class="lan-sync-radio"><input type="radio" name="lan-sync-mode" value="data"' + (state.mode === 'data' ? ' checked' : '') + '> 仅数据（进度·书签·划线）</label>' +
-            '      <label class="lan-sync-radio"><input type="radio" name="lan-sync-mode" value="full"' + (state.mode === 'full' ? ' checked' : '') + '> 含书完整包</label>' +
+            '    <div class="lan-sync-section lan-sync-section-hideable">' +
+            '      <div class="lan-sync-section-title">传输内容</div>' +
+            '      <label class="lan-sync-radio"><input type="radio" name="lan-sync-mode" value="data"' + (state.mode === 'data' ? ' checked' : '') + '> 仅阅读数据（进度 · 书签 · 划线）</label>' +
+            '      <label class="lan-sync-radio"><input type="radio" name="lan-sync-mode" value="full"' + (state.mode === 'full' ? ' checked' : '') + '> 连同书籍文件一起</label>' +
             '    </div>' +
-            '    <div class="lan-sync-section">' +
+            '    <div class="lan-sync-section lan-sync-section-hideable">' +
             '      <div class="lan-sync-section-title">传输日志</div>' +
             '      <div class="lan-sync-log">' + logsHtml + '</div>' +
             '    </div>' +
@@ -432,9 +445,6 @@
         var startBtn = panelEl.querySelector('.lan-sync-btn-start');
         if (startBtn) startBtn.onclick = _handleStart;
 
-        var stopBtn = panelEl.querySelector('.lan-sync-btn-stop');
-        if (stopBtn) stopBtn.onclick = _handleStop;
-
         var connectBtn = panelEl.querySelector('.lan-sync-btn-connect');
         if (connectBtn) connectBtn.onclick = _handleManualConnect;
 
@@ -471,17 +481,13 @@
             addLog('当前环境不支持局域网同步服务端');
             return;
         }
-        addLog('正在启动服务...');
+        addLog('正在开启本机同步...');
         win.BK.LanSync.startServer().then(function (info) {
             state.serverRunning = true;
             state.serverInfo = info;
-            addLog('服务已启动，配对码 ' + info.pairCode);
+            addLog('本机同步已开启，配对码 ' + info.pairCode);
             // 自动启动 NSD 发现（仅 APK 环境可用时）
-            if (win.BK.LanSync.isAvailable() && win.BK.LanSync.discover) {
-                win.BK.LanSync.discover(function (device) {
-                    if (device) addDevice(device);
-                }).catch(function () {});
-            }
+            _startDiscoveryIfNeeded();
             _renderPanel();
         }).catch(function (err) {
             addLog('启动失败：' + (err.message || err));
@@ -495,7 +501,7 @@
         win.BK.LanSync.stopServer().then(function () {
             state.serverRunning = false;
             state.serverInfo = null;
-            addLog('服务已停止');
+            addLog('本机同步已关闭');
             _renderPanel();
         });
     }
@@ -560,6 +566,46 @@
         }
         panelEl.style.display = '';
         addLog('面板已打开');
+        // 打开面板即自动启动服务端（仅 APK；PWA 端仅作为客户端）
+        _autoStartServer();
+    }
+
+    /**
+     * 打开面板时自动启动同步服务端。
+     * 先用 getStatus 校准状态（解决 Java 层 10 分钟空闲自动关闭、进程被杀等
+     * 导致的 JS 状态与原生实际状态不一致），再决定是否调用 startServer。
+     */
+    function _autoStartServer() {
+        var LanSync = win.BK && win.BK.LanSync;
+        if (!LanSync || !LanSync.isAvailable()) return; // PWA 端：仅作为客户端，跳过
+
+        // 1. 校准：向原生层查询真实服务状态，同步 UI 与 state
+        LanSync.getStatus().then(function (st) {
+            if (st && st.running) {
+                state.serverRunning = true;
+                state.serverInfo = st;  // {port, pairCode, ipAddress}
+                _renderPanel();
+                _startDiscoveryIfNeeded();
+            } else {
+                state.serverRunning = false;
+                state.serverInfo = null;
+                _renderPanel();
+                // 2. 未运行 → 自动启动
+                _handleStart();
+            }
+        }).catch(function () {
+            // 查询失败（桥不可用等）→ 保守不自动启动，交由用户手动点击
+            _renderPanel();
+        });
+    }
+
+    /** 服务已运行时补开 NSD 自动发现（幂等） */
+    function _startDiscoveryIfNeeded() {
+        var LanSync = win.BK && win.BK.LanSync;
+        if (!LanSync || !LanSync.isAvailable() || !LanSync.discover) return;
+        LanSync.discover(function (device) {
+            if (device) addDevice(device);
+        }).catch(function () {});
     }
 
     function hide() {
