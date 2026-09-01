@@ -142,6 +142,9 @@
     removeImportedBook: removeImportedBook,
     removePdfData: removePdfData,
     getPdfDataStore: getPdfDataStore,
+    // imported-data store 实例（供 BK.SyncShared.getBookData 依赖注入；
+    // importStore 定义于 import-shared.js 全局作用域，本文件最后加载可见）
+    getImportStore: function () { return importStore; },
     loadBundledBooks: loadBundledBooks,      // [已废弃] 保留空桩，避免引用报错
     getBundledBook: getBundledBook,          // [已废弃] 保留空桩，避免引用报错
     loadEpubResources: loadEpubResources     // [已废弃] 保留空桩，避免引用报错

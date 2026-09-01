@@ -358,6 +358,9 @@
     resumeDownload: resumeDownload,
     cancelDownload: cancelDownload,
     getDownloadStatus: getDownloadStatus,
+    // zl-data store 实例（供 BK.SyncShared.getBookData 依赖注入；
+    // store 定义于 dm-shared.js 全局作用域，先于本文件加载）
+    getZlStore: function () { return store; },
     setBaseUrl: function (urlOrArray) {
       if (Array.isArray(urlOrArray)) {
         DATA_BASE_URLS = urlOrArray.map(function(u) { return u.replace(/\/+$/, ''); });

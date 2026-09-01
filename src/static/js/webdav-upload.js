@@ -11,9 +11,9 @@
  *
  * 依赖：
  *   - WebDavManager (webdav-manager.js) — 上传核心 + 配置管理
- *   - BK.Export (export-core.js / export-book.js) — 书籍数据获取
+ *   - BK.BookConvert (sync/book-convert.js) — TXT/MD/EPUB 文本转换
+ *   - BK.SyncShared (sync/sync-shared.js) — getBookData 数据读取
  *   - BK.openDialog (back-stack.js) — 弹窗系统
- *   - JSZip (vendor/jszip.min.js) — ZIP 打包（批量导出时）
  *
  * 挂载：window.BK.WebDavUpload
  *   .showUploadDialog(bookIds)       单本/批量上传入口
@@ -161,19 +161,19 @@
       });
     }
 
-    // 其他格式：通过 export-book 内部逻辑获取书籍数据并转换为对应格式
+    // 其他格式：数据获取走 sync-shared，转换走 sync/book-convert.js 共享实现
     return _getBookDataForExport(bookId).then(function (bookData) {
       var title = bookData.title || bookId;
       if (format === 'txt') {
-        var text = _bookToText(bookData);
+        var text = win.BK.BookConvert.bookToText(bookData);
         return { filename: title + '.txt', data: '\uFEFF' + text, mime: 'text/plain;charset=utf-8' };
       }
       if (format === 'md') {
-        var md = _bookToMd(bookData);
+        var md = win.BK.BookConvert.bookToMd(bookData);
         return { filename: title + '.md', data: '\uFEFF' + md, mime: 'text/markdown;charset=utf-8' };
       }
       if (format === 'epub') {
-        return _bookToEpub(bookData).then(function (bytes) {
+        return win.BK.BookConvert.bookToEpub(bookData).then(function (bytes) {
           return { filename: title + '.epub', data: bytes, mime: 'application/epub+zip' };
         });
       }
@@ -181,9 +181,13 @@
     });
   }
 
+  /**
+   * 获取书籍数据（统一走 BK.SyncShared.getBookData 双 store 直读）
+   * 降级链：双 store 直读 → DataManager.getBook（书城书在线下载兜底）
+   */
   function _getBookDataForExport(bookId) {
-    if (win.ImportManager && typeof win.ImportManager.getImportedBook === 'function') {
-      return win.ImportManager.getImportedBook(bookId).then(function (book) {
+    if (win.BK && win.BK.SyncShared && win.BK.SyncShared.getBookData) {
+      return win.BK.SyncShared.getBookData(bookId, _syncSharedDeps()).then(function (book) {
         if (book) return book;
         if (win.DataManager && typeof win.DataManager.getBook === 'function') {
           return win.DataManager.getBook(bookId);
@@ -197,160 +201,23 @@
     return Promise.resolve(null);
   }
 
-  // ── 文本/Markdown 生成（复用 export-book.js 逻辑）─────────────────────
-  function _stripHtml(html) {
-    if (!html) return '';
-    var tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
-  }
-
-  function _bookToText(bookData) {
-    var title = bookData.title || bookData.id || '未知';
-    var chapters = bookData.chapters || [];
-    var lines = [title, '========================================', ''];
-    for (var c = 0; c < chapters.length; c++) {
-      var ch = chapters[c];
-      lines.push('【' + (ch.title || ('第' + (ch.number || c + 1) + '章')) + '】');
-      lines.push('');
-      var content = ch.content || [];
-      if (typeof content === 'string') { lines.push(content); }
-      else {
-        for (var i = 0; i < content.length; i++) {
-          var item = content[i];
-          if (!item) continue;
-          var text = item.text || (item.html ? _stripHtml(item.html) : '');
-          if (text) lines.push(text);
-        }
+  /** 构造 SyncShared.getBookData 的 store 依赖（缺失时返回空对象由其降级） */
+  function _syncSharedDeps() {
+    var deps = {};
+    try {
+      if (win.ImportManager && typeof win.ImportManager.getImportStore === 'function') {
+        deps.importStore = win.ImportManager.getImportStore();
       }
-      lines.push('', '----------------------------------------', '');
-    }
-    return lines.join('\n');
-  }
-
-  function _escMd(s) {
-    if (!s) return '';
-    return String(s).replace(/([\\`*_{}\[\]()#+\-.!|>~=])/g, '\\$1');
-  }
-
-  function _bookToMd(bookData) {
-    var title = bookData.title || bookData.id || '未知';
-    var author = bookData.author || '';
-    var chapters = bookData.chapters || [];
-    var lines = ['# ' + _escMd(title)];
-    if (author) lines.push('> ' + _escMd(author));
-    lines.push('', '---', '');
-    for (var c = 0; c < chapters.length; c++) {
-      var ch = chapters[c];
-      lines.push('## ' + _escMd(ch.title || ('第' + (ch.number || c + 1) + '章')));
-      lines.push('');
-      var content = ch.content || [];
-      if (typeof content === 'string') { lines.push(content); }
-      else {
-        for (var i = 0; i < content.length; i++) {
-          var item = content[i];
-          if (!item) continue;
-          var text = item.text || (item.html ? _stripHtml(item.html) : '');
-          if (text) lines.push(text);
-        }
+    } catch (e) { /* ignore */ }
+    try {
+      if (win.DataManager && typeof win.DataManager.getZlStore === 'function') {
+        deps.zlStore = win.DataManager.getZlStore();
       }
-      lines.push('', '---', '');
-    }
-    return lines.join('\n');
+    } catch (e) { /* ignore */ }
+    return deps;
   }
 
-  function _bookToEpub(bookData) {
-    var JSZip = win.JSZip;
-    if (!JSZip) return Promise.reject(new Error('JSZip 未加载'));
-    // 复用 export-book.js 的 EPUB 生成逻辑
-    if (win.BK && win.BK.Export && win.BK.Export.exportBook) {
-      // 通过 exportBook 生成 EPUB 会触发本地下载，不适合上传
-      // 所以这里内联最小 EPUB 生成
-    }
-    var title = bookData.title || '未知';
-    var author = bookData.author || '未知';
-    var uid = 'bk-' + Date.now().toString(36);
-    var chapters = bookData.chapters || [];
-    var zip = new JSZip();
-
-    zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
-    zip.file('META-INF/container.xml',
-      '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n' +
-      '  <rootfiles>\n' +
-      '    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>\n' +
-      '  </rootfiles>\n</container>'
-    );
-
-    var manifestItems = '  <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>\n';
-    var spineItems = '';
-    for (var c = 0; c < chapters.length; c++) {
-      var chId = 'ch' + (c + 1);
-      manifestItems += '  <item id="' + chId + '" href="chapter-' + (c + 1) + '.xhtml" media-type="application/xhtml+xml"/>\n';
-      spineItems += '  <itemref idref="' + chId + '"/>\n';
-    }
-    manifestItems += '  <item id="style" href="style.css" media-type="text/css"/>\n';
-
-    var now = new Date();
-    var isoDate = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' +
-      ('0' + now.getDate()).slice(-2) + 'T' + ('0' + now.getHours()).slice(-2) + ':' +
-      ('0' + now.getMinutes()).slice(-2) + ':' + ('0' + now.getSeconds()).slice(-2) + 'Z';
-
-    function _escXml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-    zip.file('OEBPS/content.opf',
-      '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">\n' +
-      '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n' +
-      '    <dc:identifier id="uid">urn:uuid:' + uid + '</dc:identifier>\n' +
-      '    <dc:title>' + _escXml(title) + '</dc:title>\n' +
-      '    <dc:creator>' + _escXml(author) + '</dc:creator>\n' +
-      '    <dc:language>zh</dc:language>\n' +
-      '    <meta property="dcterms:modified">' + isoDate + '</meta>\n' +
-      '  </metadata>\n' +
-      '  <manifest>\n' + manifestItems + '  </manifest>\n' +
-      '  <spine>\n' + spineItems + '  </spine>\n</package>'
-    );
-
-    zip.file('OEBPS/style.css', 'body{font-family:serif;margin:1em;line-height:1.8}p{text-indent:2em}');
-
-    var navLi = '';
-    for (var n = 0; n < chapters.length; n++) {
-      var chTitle = chapters[n].title || ('第' + (n + 1) + '章');
-      navLi += '    <li><a href="chapter-' + (n + 1) + '.xhtml">' + _escXml(chTitle) + '</a></li>\n';
-    }
-    zip.file('OEBPS/nav.xhtml',
-      '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n' +
-      '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh">\n' +
-      '<head><title>' + _escXml(title) + '</title><link rel="stylesheet" href="style.css"/></head>\n' +
-      '<body><nav epub:type="toc" id="toc"><h1>目录</h1><ol>\n' + navLi + '</ol></nav></body></html>'
-    );
-
-    for (var ci = 0; ci < chapters.length; ci++) {
-      var chapter = chapters[ci];
-      var chapterTitle = chapter.title || ('第' + (ci + 1) + '章');
-      var bodyHtml = '<h1>' + _escXml(chapterTitle) + '</h1>\n';
-      var content = chapter.content || [];
-      if (typeof content === 'string') {
-        bodyHtml += '<p>' + _escXml(content).replace(/\n\n/g, '</p><p>') + '</p>\n';
-      } else {
-        for (var j = 0; j < content.length; j++) {
-          var item = content[j];
-          if (!item) continue;
-          var text = item.text || (item.html ? _stripHtml(item.html) : '');
-          bodyHtml += '<p>' + _escXml(text) + '</p>\n';
-        }
-      }
-      zip.file('OEBPS/chapter-' + (ci + 1) + '.xhtml',
-        '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE html>\n' +
-        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh">\n' +
-        '<head><title>' + _escXml(chapterTitle) + '</title><link rel="stylesheet" href="style.css"/></head>\n' +
-        '<body>\n' + bodyHtml + '</body></html>'
-      );
-    }
-
-    return zip.generateAsync({ type: 'uint8array', mimeType: 'application/epub+zip' });
-  }
+  // ── 文本/Markdown/EPUB 生成已收编至 sync/book-convert.js（BK.BookConvert）──
 
   // ── 上传入口 ──────────────────────────────────────────────────────────
 
