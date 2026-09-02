@@ -212,14 +212,16 @@
         if (!JSZip) return Promise.reject(new Error('JSZip 未加载，无法打包'));
 
         // 确定 bookIds：优先用传入的，缺失时从 BKShelf.all() 收集
+        // 注意：BKShelf.all() 条目字段是 bookId（shelf.js），id 兜底兼容旧数据
         var bookIds = opts.bookIds;
         if (!bookIds || !bookIds.length) {
             bookIds = [];
             if (win.BKShelf && typeof win.BKShelf.all === 'function') {
                 var shelf = win.BKShelf.all();
                 for (var i = 0; i < shelf.length; i++) {
-                    if (shelf[i] && shelf[i].id) {
-                        bookIds.push(shelf[i].id);
+                    var sid = shelf[i] && (shelf[i].bookId || shelf[i].id);
+                    if (sid) {
+                        bookIds.push(sid);
                     }
                 }
             }

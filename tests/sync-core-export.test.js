@@ -276,6 +276,28 @@ describe('generateZipBytes("data") — data 模式', () => {
     assert.deepEqual(shelfData, shelf);
   });
 
+  test('未传 bookIds 时从 BKShelf.all() 收集（真实字段 bookId）', async () => {
+    var bookId = 'bundle-x__真实字段书';
+    var book = makeTxtBook(bookId);
+    var fk = makeFakeJSZip();
+    win.JSZip = fk.JSZip;
+    // 回归：BKShelf.all() 真实条目字段是 bookId（shelf.js），曾因只读 .id 导致恒报"书架为空"
+    var env = setupMockEnv({
+      shelf: [{ bookId: bookId, addedAt: 1700000000000, status: 'collected' }],
+      importStoreData: { ['imported_book:' + bookId]: book }
+    });
+
+    var bytes = await SC.generateZipBytes('data', {
+      importStore: env.importStore,
+      zlStore: env.zlStore,
+      pdfStore: env.pdfStore
+    });
+
+    assert.ok(bytes.length > 0);
+    var names = Object.keys(fk.files);
+    assert.ok(names.indexOf('books/' + bookId + '/userdata.json') !== -1, '应按 bookId 收集并打包该书');
+  });
+
   test('data 模式也输出 book.json（v4 与 v3 的关键差异）', async () => {
     var bookId = 'imported-2';
     var book = makeTxtBook(bookId, '含元数据');
