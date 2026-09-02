@@ -65,7 +65,7 @@
             var storedVersion = null;
             try { storedVersion = localStorage.getItem('bk_pwa_version'); } catch(e) {}
             if (!storedVersion) {
-                window.location.replace(root + 'index.html');
+                window.location.replace(root);
                 return;
             }
             caches.keys().then(function(keys) {
@@ -73,7 +73,7 @@
                     return k.indexOf('bk-data-') === 0 || k === 'bk-main' || k.indexOf('bk-main-') === 0;
                 });
                 if (!hasCoreCache) {
-                    window.location.replace(root + 'index.html');
+                    window.location.replace(root);
                 }
             }).catch(function() {});
         })();

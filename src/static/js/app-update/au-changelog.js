@@ -476,7 +476,7 @@
                         }
                         try { localStorage.removeItem('bk_pwa_version'); } catch(ex) {}
                         try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
-                        Promise.all(steps).then(function() { window.location.replace(root + 'index.html'); });
+                        Promise.all(steps).then(function() { window.location.replace(root); });
                     };
                 } else {
                     var currentClean = (currentVersion || '').replace('v', '');
@@ -511,7 +511,7 @@
                                 try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
                                 try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
                                 window.__bkUpdateInProgress = false;
-                                setTimeout(function() { window.location.replace(root + 'index.html'); }, 800);
+                                setTimeout(function() { window.location.replace(root); }, 800);
                             });
                         } else {
                             // fallback：showMandatoryInstallDialog 不可用时走原流程
@@ -524,7 +524,7 @@
                             try { localStorage.setItem('bk_pwa_version', remoteVersion); } catch(ex) {}
                             try { localStorage.removeItem('bk_all_cached'); } catch(ex) {}
 window.__bkUpdateInProgress = false;
-                            setTimeout(function() { window.location.replace(root + 'index.html'); }, 800);
+                            setTimeout(function() { window.location.replace(root); }, 800);
                         }
                     };
                 }
