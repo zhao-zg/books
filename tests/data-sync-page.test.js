@@ -186,6 +186,32 @@ describe('isSyncServer 同步服务器过滤（预设公共书库不可作私人
   });
 });
 
+describe('buildServerConfig 构造私人同步服务器配置', () => {
+  test('URL 必填且去空白，name 缺省为 WebDAV', () => {
+    var c = PAGE.buildServerConfig('', '  https://dav.example.com/  ');
+    assert.equal(c.name, 'WebDAV');
+    assert.equal(c.url, 'https://dav.example.com/');
+    assert.equal(c.username, undefined);
+    assert.equal(c.password, undefined);
+    assert.equal(c.startPath, undefined);
+  });
+
+  test('可选字段：用户名/密码/起始目录', () => {
+    var c = PAGE.buildServerConfig('我的NAS', 'https://nas/dav', ' user ', ' pass ', ' /books ');
+    assert.equal(c.name, '我的NAS');
+    assert.equal(c.url, 'https://nas/dav');
+    assert.equal(c.username, 'user');
+    assert.equal(c.password, 'pass');
+    assert.equal(c.startPath, '/books');
+  });
+
+  test('空 url：不产生 url 字段（由调用方校验必填）', () => {
+    var c = PAGE.buildServerConfig('x', '   ');
+    assert.equal(c.name, 'x');
+    assert.equal(c.url, undefined);
+  });
+});
+
 describe('模块加载容错', () => {
   test('依赖缺失时可加载（纯函数可用，show 不炸）', () => {
     assert.equal(typeof PAGE.formatImportResult, 'function');

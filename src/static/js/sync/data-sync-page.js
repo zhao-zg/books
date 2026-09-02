@@ -337,20 +337,123 @@
         if (addBtn) addBtn.onclick = function () { _handleAddSyncServer(); };
     }
 
-    /** 「添加服务器」：打开上传对话框（含「手动输入」），保存为私人配置 */
+    /** 「添加服务器」：打开独立配置对话框（书架为空也可用，不依赖上传流程） */
     function _handleAddSyncServer() {
-        if (!win.BK || !win.BK.WebDavUpload || !win.BK.WebDavUpload.showUploadDialog) {
-            _toast('添加服务器功能未就绪');
+        if (!win.BK || !win.BK.openDialog) {
+            _toast('弹窗系统未就绪');
             return;
         }
-        var ids = _allBookIds();
-        if (!ids.length) {
-            _toast('书架没有可上传的书，请先在书架添加一本书');
-            return;
-        }
-        // 打开上传对话框（含手动输入 → 保存配置），用户可填私人 WebDAV 并保存
-        win.BK.WebDavUpload.showUploadDialog(ids);
-        _toast('选择「— 手动输入 —」填写私人 WebDAV，上传后即保存为该服务器');
+        var html =
+            '<div class="bk-dialog" style="width:min(400px,calc(100vw - 40px))">' +
+            '  <div class="bk-drawer-header">' +
+            '    <div class="bk-drawer-title">添加同步服务器</div>' +
+            '    <button class="bk-drawer-close" data-action="dsc-add-close" aria-label="关闭">×</button>' +
+            '  </div>' +
+            '  <div class="bk-drawer-divider"></div>' +
+            '  <div class="bk-wdu-body">' +
+            '    <div class="bk-wdu-section">' +
+            '      <div class="bk-wdu-label">服务器名称（可选）</div>' +
+            '      <input class="bk-field" id="dscAddName" placeholder="例如：我的 NAS" />' +
+            '    </div>' +
+            '    <div class="bk-wdu-section">' +
+            '      <div class="bk-wdu-label">WebDAV 地址</div>' +
+            '      <input class="bk-field" id="dscAddUrl" placeholder="https://example.com/dav" />' +
+            '    </div>' +
+            '    <div class="bk-wdu-section">' +
+            '      <div class="bk-wdu-label">用户名</div>' +
+            '      <input class="bk-field" id="dscAddUser" placeholder="用户名（可选）" />' +
+            '    </div>' +
+            '    <div class="bk-wdu-section">' +
+            '      <div class="bk-wdu-label">密码</div>' +
+            '      <input class="bk-field" id="dscAddPass" type="password" placeholder="密码（可选）" />' +
+            '    </div>' +
+            '    <div class="bk-wdu-section">' +
+            '      <div class="bk-wdu-label">起始目录（可选）</div>' +
+            '      <input class="bk-field" id="dscAddPath" placeholder="/（根目录）" />' +
+            '      <div class="bk-wdu-hint">仅私人服务器可作同步目标，公共书库预设不可选</div>' +
+            '    </div>' +
+            '  </div>' +
+            '  <div class="bk-wdu-footer">' +
+            '    <button class="bk-btn bk-btn-secondary" data-action="dsc-add-close">取消</button>' +
+            '    <button class="bk-btn bk-btn-primary" id="dscAddSaveBtn" data-action="dsc-add-save">保存</button>' +
+            '  </div>' +
+            '</div>';
+        var dlg = win.BK.openDialog({ id: 'dsc-webdav-add-dialog', html: html });
+        if (!dlg) return;
+        var el = document.getElementById('dsc-webdav-add-dialog');
+        if (!el) return;
+
+        function closeDlg() { if (dlg && dlg.close) dlg.close(); }
+        var closeBtns = el.querySelectorAll('[data-action="dsc-add-close"]');
+        for (var i = 0; i < closeBtns.length; i++) closeBtns[i].onclick = closeDlg;
+
+        var saveBtn = el.querySelector('[data-action="dsc-add-save"]');
+        if (saveBtn) saveBtn.onclick = function () {
+            var url = _safeInput(el, '#dscAddUrl');
+            if (!url) { _toast('请填写 WebDAV 地址'); return; }
+            var cfg = buildServerConfig(
+                _safeInput(el, '#dscAddName'),
+                url,
+                _safeInput(el, '#dscAddUser'),
+                _safeInput(el, '#dscAddPass'),
+                _safeInput(el, '#dscAddPath')
+            );
+            if (!win.WebDavManager || !win.WebDavManager.saveConfig) {
+                _toast('配置服务未就绪');
+                return;
+            }
+            var cfg = {
+                name: name,
+                url: url,
+                username: user,
+                password: pass,
+                startPath: path
+            };
+            try {
+                var saved = win.WebDavManager.saveConfig(cfg);
+                // 保存后置为激活，便于直接同步
+                if (win.WebDavManager.setActiveConfig) {
+                    win.WebDavManager.setActiveConfig(saved.id || saved.url);
+                }
+            } catch (err) {
+                _toast('保存失败：' + (err && err.message ? err.message : err));
+                return;
+            }
+            closeDlg();
+            _toast('已保存同步服务器');
+            _renderWebdavConfig();
+            _refreshSyncState();
+        };
+    }
+
+    /**
+     * 构造私人同步服务器配置对象（纯函数，供对话框保存与单测）
+     * 只保留非空字段，url 去首尾空白
+     * @param {string} name  服务器名称（可选）
+     * @param {string} url   WebDAV 地址（必填）
+     * @param {string} [user]   用户名（可选）
+     * @param {string} [pass]   密码（可选）
+     * @param {string} [path]   起始目录（可选）
+     * @returns {Object}
+     */
+    function buildServerConfig(name, url, user, pass, path) {
+        var cfg = { name: (name || '').trim() || 'WebDAV' };
+        var u2 = (url || '').trim();
+        if (u2) cfg.url = u2;
+        var u = (user || '').trim();
+        var p = (pass || '').trim();
+        var pt = (path || '').trim();
+        if (u) cfg.username = u;
+        if (p) cfg.password = p;
+        if (pt) cfg.startPath = pt;
+        return cfg;
+    }
+
+    /** 读取对话框内输入框的值（null 安全） */
+    function _safeInput(root, sel) {
+        if (!root || !sel) return '';
+        var el = root.querySelector(sel);
+        return (el && el.value != null) ? String(el.value).trim() : '';
     }
 
     /** 删除当前激活的服务器配置（预置不可删；win.BK.openDialog 确认弹窗，禁用原生 confirm） */
@@ -740,7 +843,8 @@
         syncStateText: syncStateText,
         formatSyncTime: formatSyncTime,
         formatSize: formatSize,
-        isSyncServer: isSyncServer
+        isSyncServer: isSyncServer,
+        buildServerConfig: buildServerConfig
     };
 
 })(window);
