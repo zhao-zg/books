@@ -76,7 +76,7 @@
   display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
   -webkit-tap-highlight-color: transparent; transition: opacity .15s, background .15s;
 }
-.bk-btn-primary { background: var(--brand, #3D8A5A); color: #FFFFFF; }
+.bk-btn-primary { background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF); }
 .bk-btn-primary:hover { background: rgba(var(--brand-rgb, 61,138,90),.85); }
 .bk-btn-primary:active { opacity: .85; }
 .bk-btn-primary:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
@@ -101,7 +101,7 @@
 .bk-import-action-primary {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; height: 48px; border-radius: 12px; border: none;
-  background: var(--brand, #3D8A5A); color: #FFFFFF;
+  background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF);
   font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background .15s, box-shadow .15s;
@@ -122,7 +122,7 @@
   font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: border-color .15s, background .15s;
 }
-.bk-import-scan-btn:hover { border-color: var(--border, #C5C0B8); background: var(--surface-alt, #FAFAF8); }
+.bk-import-scan-btn:hover { border-color: var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.20)); background: var(--surface-alt, #FAFAF8); }
 .bk-import-scan-btn:active { background: var(--nav-hover, #F1F0ED); }
 .bk-import-scan-btn:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
 
@@ -147,7 +147,7 @@
   border: solid #FFFFFF; border-width: 0 2px 2px 0;
   transform: rotate(45deg); margin-top: -1px;
 }
-.bk-checkbox:hover .bk-checkbox-mark { border-color: var(--border, #C5C0B8); }
+.bk-checkbox:hover .bk-checkbox-mark { border-color: var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.20)); }
 
 /* 文件列表区 */
 .bk-import-list-header {
@@ -160,7 +160,7 @@
   border: 1px solid var(--border, #E5E2DD); background: var(--card-bg, #FFFFFF);
   transition: background .15s, border-color .15s;
 }
-.bk-import-file-card:hover { border-color: var(--border, #C5C0B8); }
+.bk-import-file-card:hover { border-color: var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.20)); }
 .bk-import-file-card.checked { background: rgba(var(--brand-rgb, 61,138,90),.04); border-color: rgba(var(--brand-rgb, 61,138,90),.25); }
 .bk-import-file-icon { font-size: 1.2em; flex-shrink: 0; }
 .bk-import-file-info { flex: 1; min-width: 0; }
@@ -186,7 +186,7 @@
 .bk-import-confirm-btn {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; height: 48px; border-radius: 12px; border: none;
-  background: var(--brand, #3D8A5A); color: #FFFFFF;
+  background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF);
   font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background .15s, box-shadow .15s, opacity .15s;
@@ -280,7 +280,7 @@
 .bk-webdav-done-tag { display: inline-block; flex-shrink: 0; color: var(--brand, #3D8A5A); font-size: var(--text-xs, .75rem);
   font-weight: 600; background: rgba(var(--brand-rgb, 61,138,90),.12); border-radius: 999px; padding: 2px 8px; }
 .bk-webdav-size { color: var(--text-muted, #9A958C); font-size: var(--text-xs, .75rem); flex-shrink: 0; }
-.bk-webdav-dl { border: none; background: var(--brand, #3D8A5A); color: #FFFFFF; border-radius: 8px;
+.bk-webdav-dl { border: none; background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF); border-radius: 8px;
   padding: 5px 12px; font: inherit; font-size: var(--text-xs, .75rem); font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
 .bk-webdav-dl:active { opacity: .85; }
 
@@ -354,7 +354,7 @@
   border: 1px solid var(--border, #E5E2DD);
 }
 .bk-dialog-cancel:active { background: var(--nav-hover, #F1F0ED); }
-.bk-dialog-confirm { background: var(--brand, #3D8A5A); color: #FFFFFF; }
+.bk-dialog-confirm { background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF); }
 .bk-dialog-confirm:active { opacity: .85; }
 /* 标记面板：次级操作按钮（outline 风格） */
 .bk-dialog-outline {
@@ -371,7 +371,7 @@
   flex: 1; height: 44px; border-radius: 8px; border: none;
   font: inherit; font-size: var(--text-md, .9375rem); font-weight: 600; cursor: pointer;
   -webkit-tap-highlight-color: transparent; transition: opacity .15s, background .15s;
-  background: var(--brand, #3D8A5A); color: #FFFFFF;
+  background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF);
 }
 .bk-dialog-primary:active { opacity: .85; }
 /* 清理数据：确认按钮=危险红 */
@@ -412,7 +412,7 @@
 }
 .bk-feedback-cancel { background: var(--card-bg, #FFFFFF); color: var(--text-muted, #9A958C); border: 1px solid var(--border, #E5E2DD); }
 .bk-feedback-cancel:active { background: var(--nav-hover, #F1F0ED); }
-.bk-feedback-submit { background: var(--brand, #3D8A5A); color: #FFFFFF; }
+.bk-feedback-submit { background: var(--brand, #3D8A5A); color: var(--btn-primary-text, #FFFFFF); }
 .bk-feedback-submit:active { opacity: .85; }
 .bk-feedback-status.error { color: var(--danger-text, #C8553D); }
 
