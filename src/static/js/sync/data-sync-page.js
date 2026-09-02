@@ -402,13 +402,6 @@
                 _toast('配置服务未就绪');
                 return;
             }
-            var cfg = {
-                name: name,
-                url: url,
-                username: user,
-                password: pass,
-                startPath: path
-            };
             try {
                 var saved = win.WebDavManager.saveConfig(cfg);
                 // 保存后置为激活，便于直接同步
