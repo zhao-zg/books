@@ -1,126 +1,130 @@
-/* 局域网同步面板样式 */
+/* 局域网同步面板样式
+   主题适配：颜色全部走 css-variables.css 语义变量（--surface/--card-bg/--brand/--border 等），
+   随 cool/warm/dark 三主题切换；fallback 值保持原 cool 视觉 */
 .lan-sync-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: #F5F4F1; z-index: 9999; overflow-y: auto;
+    background: var(--surface, #F5F4F1); z-index: 9999; overflow-y: auto;
     font-size: 14px;
 }
 .lan-sync-panel { max-width: 600px; margin: 0 auto; padding: 0; }
 .lan-sync-header {
     display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; border-bottom: 1px solid #E0DED9;
-    background: #FFF; position: sticky; top: 0; z-index: 1;
+    padding: 12px 16px; border-bottom: 1px solid var(--border, #E0DED9);
+    background: var(--card-bg, #FFFFFF); position: sticky; top: 0; z-index: 1;
 }
-.lan-sync-back { border: none; background: none; font-size: 20px; cursor: pointer; color: #666; }
+.lan-sync-back { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--text-muted, #666); }
 .lan-sync-title { font-size: 18px; font-weight: 600; }
 .lan-sync-body { padding: 16px; }
 
 /* 顶部使用提示 */
 .lan-sync-tip {
-    background: #F1E8DE; color: #8A5A33; border-radius: 8px;
+    background: rgba(181,121,58,.10); color: var(--warning-text, #8A5A33); border-radius: 8px;
     padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 16px;
 }
 
 /* 本机状态卡片 */
 .lan-sync-card {
-    background: #FFF; border: 1px solid #E0DED9; border-radius: 10px;
+    background: var(--card-bg, #FFFFFF); border: 1px solid var(--border, #E0DED9); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 12px;
     align-items: center; text-align: center;
 }
 .lan-sync-status-dot {
-    width: 10px; height: 10px; border-radius: 50%; background: #4CAF50;
+    width: 10px; height: 10px; border-radius: 50%; background: var(--success-text, #4CAF50);
 }
 .lan-sync-status-text { display: flex; flex-direction: column; gap: 4px; }
 .lan-sync-status-title { font-size: 16px; font-weight: 600; }
-.lan-sync-status-desc { color: #999; font-size: 12px; }
+.lan-sync-status-desc { color: var(--text-muted, #999); font-size: 12px; }
 
 /* 配对码行 */
 .lan-sync-code-line {
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-size: 13px; color: #999; padding: 4px 12px;
-    background: #FAFAF8; border-radius: 6px;
+    font-size: 13px; color: var(--text-muted, #999); padding: 4px 12px;
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px;
 }
-.lan-sync-code { font-family: monospace; font-size: 22px; letter-spacing: 2px; font-weight: 600; color: #D4793A; }
-.lan-sync-code-empty { color: #CCC; }
+.lan-sync-code { font-family: monospace; font-size: 22px; letter-spacing: 2px; font-weight: 600; color: var(--brand, #D4793A); }
+.lan-sync-code-empty { color: var(--text-muted, #CCC); }
 
 /* 卡片二维码 */
 .lan-sync-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.lan-sync-qr-tip { font-size: 12px; color: #999; }
+.lan-sync-qr-tip { font-size: 12px; color: var(--text-muted, #999); }
 .lan-sync-qr { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.lan-sync-qr-label { font-size: 12px; color: #999; }
+.lan-sync-qr-label { font-size: 12px; color: var(--text-muted, #999); }
 .lan-sync-qr table { margin: 0 auto; }
 
 /* 主按钮 */
 .lan-sync-btn-start {
     border: none; border-radius: 8px; padding: 12px 24px;
-    background: #D4793A; color: #FFF; font-size: 15px; cursor: pointer;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); font-size: 15px; cursor: pointer;
 }
 
 /* 分区 */
 .lan-sync-section { margin-bottom: 24px; }
-.lan-sync-section-title { font-size: 13px; color: #666; margin-bottom: 8px; font-weight: 600; }
+.lan-sync-section-title { font-size: 13px; color: var(--text-muted, #666); margin-bottom: 8px; font-weight: 600; }
 .lan-sync-section-hideable { display: none; }
 
 /* 手动连接 */
 .lan-sync-manual { display: flex; gap: 8px; margin-bottom: 12px; }
 .lan-sync-input-ip, .lan-sync-input-code {
-    border: 1px solid #D4D2CD; border-radius: 8px; padding: 10px;
-    font-size: 14px; flex: 1; background: #FFF;
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 10px;
+    font-size: 14px; flex: 1; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
 }
 .lan-sync-input-code { max-width: 110px; }
 .lan-sync-btn-connect {
     padding: 10px 16px; border: none; border-radius: 8px;
-    background: #D4793A; color: #FFF; cursor: pointer; font-size: 14px;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
 }
 
 /* 设备列表 */
-.lan-sync-no-device { color: #999; padding: 12px 0 2px; }
-.lan-sync-no-device-hint { color: #BBB; font-size: 12px; padding-bottom: 8px; line-height: 1.5; }
+.lan-sync-no-device { color: var(--text-muted, #999); padding: 12px 0 2px; }
+.lan-sync-no-device-hint { color: var(--text-muted, #BBB); font-size: 12px; padding-bottom: 8px; line-height: 1.5; }
 .lan-sync-device {
     display: flex; align-items: center; gap: 10px; padding: 12px 0;
-    border-bottom: 1px solid #ECEAE5;
+    border-bottom: 1px solid var(--nav-hover, #ECEAE5);
 }
 .lan-sync-device-icon { font-size: 20px; }
-.lan-sync-device-name { font-weight: 500; }
-.lan-sync-device-addr { color: #999; flex: 1; font-size: 12px; }
+.lan-sync-device-name { font-weight: 500; color: var(--text, #3A3835); }
+.lan-sync-device-addr { color: var(--text-muted, #999); flex: 1; font-size: 12px; }
 .lan-sync-btn-pull, .lan-sync-btn-push {
-    padding: 6px 16px; border: 1px solid #D4D2CD; border-radius: 6px;
-    background: #FFF; cursor: pointer; font-size: 13px;
+    padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px;
 }
 .lan-sync-btn-pull { color: #4A90D9; }
-.lan-sync-btn-push { color: #D4793A; }
+[data-theme="dark"] .lan-sync-btn-pull { color: #6B9CFF; }
+.lan-sync-btn-push { color: var(--brand, #D4793A); }
 
 /* PWA↔PWA WebRTC 直连区域 */
 .lan-sync-wrtc-unsupported {
-    color: #999; font-size: 13px; padding: 8px 0;
+    color: var(--text-muted, #999); font-size: 13px; padding: 8px 0;
 }
 .lan-sync-wrtc-connected {
     display: flex; flex-direction: column; gap: 12px; padding: 4px 0;
 }
 .lan-sync-wrtc-status {
-    font-weight: 600; color: #4CAF50;
+    font-weight: 600; color: var(--success-text, #4CAF50);
 }
 .lan-sync-wrtc-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .lan-sync-wrtc-actions button {
-    flex: 1; min-width: 90px; padding: 10px; border: 1px solid #D4D2CD; border-radius: 8px;
-    background: #FFF; cursor: pointer; font-size: 14px;
+    flex: 1; min-width: 90px; padding: 10px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 14px;
 }
 .lan-sync-wrtc-create { color: #4A90D9; }
-.lan-sync-wrtc-scan-offer { color: #D4793A; }
-.lan-sync-wrtc-scanning { color: #999; padding: 8px 0; }
-.lan-sync-wrtc-hint { color: #999; font-size: 12px; margin-top: 8px; }
+[data-theme="dark"] .lan-sync-wrtc-create { color: #6B9CFF; }
+.lan-sync-wrtc-scan-offer { color: var(--brand, #D4793A); }
+.lan-sync-wrtc-scanning { color: var(--text-muted, #999); padding: 8px 0; }
+.lan-sync-wrtc-hint { color: var(--text-muted, #999); font-size: 12px; margin-top: 8px; }
 .lan-sync-wrtc-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 8px 0; }
-.lan-sync-wrtc-qr-label { font-size: 13px; color: #666; }
+.lan-sync-wrtc-qr-label { font-size: 13px; color: var(--text-soft, #666); }
 .lan-sync-wrtc-qr table { margin: 0 auto; }
 .lan-sync-wrtc-copy { text-align: center; }
 .lan-sync-btn-copy {
-    padding: 6px 16px; border: 1px solid #D4D2CD; border-radius: 6px;
-    background: #FFF; cursor: pointer; font-size: 13px; color: #666;
+    padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px; color: var(--text-soft, #666);
 }
 
 /* 日志 */
 .lan-sync-log {
-    max-height: 200px; overflow-y: auto; background: #FAFAF8;
+    max-height: 200px; overflow-y: auto; background: var(--surface-alt, #FAFAF8);
     border-radius: 8px; padding: 8px; font-size: 12px;
 }
-.lan-sync-log-entry { padding: 4px 0; border-bottom: 1px solid #F0EEEA; }
-.lan-sync-log-time { color: #999; }
+.lan-sync-log-entry { padding: 4px 0; border-bottom: 1px solid var(--nav-hover, #F0EEEA); }
+.lan-sync-log-time { color: var(--text-muted, #999); }

@@ -79,9 +79,9 @@
 .bk-btn-primary:hover { background: #358A50; }
 .bk-btn-primary:active { opacity: .85; }
 .bk-btn-primary:focus-visible { outline: 2px solid var(--brand, #3D8A5A); outline-offset: 2px; }
-.bk-btn-secondary { background: #FFFFFF; color: var(--text-muted, #9A958C); border: 1px solid var(--border, #E5E2DD); }
-.bk-btn-secondary:hover { background: #F7F5F1; }
-.bk-btn-secondary:active { background: #F1F0ED; }
+.bk-btn-secondary { background: var(--card-bg, #FFFFFF); color: var(--text-muted, #9A958C); border: 1px solid var(--border, #E5E2DD); }
+.bk-btn-secondary:hover { background: var(--surface-alt, #F7F5F1); }
+.bk-btn-secondary:active { background: var(--nav-hover, #F1F0ED); }
 .bk-btn-outline { background: transparent; color: var(--brand, #3D8A5A); border: 1px solid var(--brand, #3D8A5A); }
 .bk-btn-outline:hover { background: rgba(var(--brand-rgb, 61,138,90),.06); }
 .bk-btn-outline:active { background: rgba(var(--brand-rgb, 61,138,90),.12); }
@@ -329,7 +329,7 @@
 /* 文本域/输入 r12 白底 border */
 .bk-field {
   width: 100%; border-radius: 12px; border: 1px solid var(--border, #E5E2DD);
-  background: #FFFFFF; color: var(--text, #1A1918); padding: 12px;
+  background: var(--card-bg, #FFFFFF); color: var(--text, #1A1918); padding: 12px;
   font: inherit; font-size: var(--text-base, .9375rem); line-height: 1.6;
   box-sizing: border-box; outline: none; resize: vertical; transition: border-color .15s;
 }

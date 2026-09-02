@@ -1,82 +1,83 @@
 /* 数据与同步中心页样式（BK.DataSyncPage）
-   token 对齐 css-lan-sync.css：#F5F4F1 底 / #D4793A 主色 / #E0DED9 边框 / 10px 圆角 */
+   主题适配：颜色全部走 css-variables.css 语义变量（--surface/--card-bg/--brand/--border 等），
+   随 cool/warm/dark 三主题切换；fallback 值保持原 cool 视觉 */
 
 .dsc-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: #F5F4F1; z-index: 9998; overflow-y: auto;
+    background: var(--surface, #F5F4F1); z-index: 9998; overflow-y: auto;
     font-size: 14px;
     -webkit-tap-highlight-color: transparent;
 }
 .dsc-panel { max-width: 600px; margin: 0 auto; padding: 0; }
 .dsc-header {
     display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; border-bottom: 1px solid #E0DED9;
-    background: #FFF; position: sticky; top: 0; z-index: 1;
+    padding: 12px 16px; border-bottom: 1px solid var(--border, #E0DED9);
+    background: var(--card-bg, #FFFFFF); position: sticky; top: 0; z-index: 1;
 }
 .dsc-back {
     border: none; background: none; font-size: 20px; cursor: pointer;
-    color: #666; padding: 0 4px; line-height: 1;
+    color: var(--text-muted, #666); padding: 0 4px; line-height: 1;
 }
 .dsc-title { font-size: 18px; font-weight: 600; }
 .dsc-body { padding: 16px; }
 
 /* 顶部提示 */
 .dsc-tip {
-    background: #F1E8DE; color: #8A5A33; border-radius: 8px;
+    background: rgba(181,121,58,.10); color: var(--warning-text, #8A5A33); border-radius: 8px;
     padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 16px;
 }
 
 /* 分区与卡片 */
 .dsc-section { margin-bottom: 24px; }
-.dsc-section-title { font-size: 13px; color: #666; margin-bottom: 8px; font-weight: 600; }
+.dsc-section-title { font-size: 13px; color: var(--text-muted, #666); margin-bottom: 8px; font-weight: 600; }
 .dsc-card {
-    background: #FFF; border: 1px solid #E0DED9; border-radius: 10px;
+    background: var(--card-bg, #FFFFFF); border: 1px solid var(--border, #E0DED9); border-radius: 10px;
     padding: 4px 16px;
 }
 .dsc-row {
     display: flex; align-items: center; gap: 12px; padding: 12px 0;
 }
 .dsc-row-main { flex: 1; min-width: 0; }
-.dsc-row-title { font-size: 15px; font-weight: 500; color: #3A3835; }
-.dsc-row-desc { font-size: 12px; color: #999; margin-top: 2px; }
-.dsc-divider { height: 1px; background: #ECEAE5; }
+.dsc-row-title { font-size: 15px; font-weight: 500; color: var(--text, #3A3835); }
+.dsc-row-desc { font-size: 12px; color: var(--text-muted, #999); margin-top: 2px; }
+.dsc-divider { height: 1px; background: var(--nav-hover, #ECEAE5); }
 
 /* 按钮 */
 .dsc-btn {
-    flex-shrink: 0; padding: 7px 18px; border: 1px solid #D4D2CD;
-    border-radius: 8px; background: #FFF; color: #D4793A;
+    flex-shrink: 0; padding: 7px 18px; border: 1px solid var(--border, #D4D2CD);
+    border-radius: 8px; background: var(--card-bg, #FFFFFF); color: var(--brand, #D4793A);
     font-size: 13px; cursor: pointer; white-space: nowrap;
 }
-.dsc-btn:active { background: #F9F1EA; }
+.dsc-btn:active { background: var(--nav-hover, #F9F1EA); }
 .dsc-btn:disabled { opacity: .5; cursor: default; }
 .dsc-btn-primary {
-    border: none; background: #D4793A; color: #FFF; padding: 8px 18px;
+    border: none; background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); padding: 8px 18px;
 }
 
 /* 服务器选择 */
 .dsc-select-wrap { padding: 4px 0 12px; }
 .dsc-select {
-    width: 100%; border: 1px solid #D4D2CD; border-radius: 8px;
-    padding: 10px; font-size: 14px; background: #FFF; color: #3A3835;
+    width: 100%; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    padding: 10px; font-size: 14px; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
 }
 .dsc-btn-del {
     display: block; width: 100%; margin-top: 2px; padding: 8px 0;
-    border: 1px solid #E8D5CC; border-radius: 8px; background: #FFF;
-    color: #C8553D; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--danger-border, #E8D5CC); border-radius: 8px; background: var(--card-bg, #FFFFFF);
+    color: var(--danger-text, #C8553D); font-size: 13px; cursor: pointer;
 }
-.dsc-btn-del:active { background: #F9EFEB; }
+.dsc-btn-del:active { background: var(--danger-bg, #F9EFEB); }
 
 /* 导入结果 */
 .dsc-import-result { padding: 0 0 4px; }
 .dsc-import-result:empty { display: none; }
 .dsc-import-msg { font-size: 13px; padding: 8px 12px; border-radius: 8px; line-height: 1.5; }
-.dsc-import-pending { background: #FAFAF8; color: #666; }
-.dsc-import-ok { background: #EDF3EC; color: #4E7A4E; }
-.dsc-import-partial { background: #F7F0E4; color: #8A5A33; }
-.dsc-import-fail { background: #F6E8E4; color: #A34E3F; }
+.dsc-import-pending { background: var(--surface-alt, #FAFAF8); color: var(--text-muted, #666); }
+.dsc-import-ok { background: rgba(var(--brand-rgb, 61,138,90),.10); color: var(--success-text, #4E7A4E); }
+.dsc-import-partial { background: rgba(181,121,58,.10); color: var(--warning-text, #8A5A33); }
+.dsc-import-fail { background: rgba(200,85,61,.10); color: var(--danger-text, #A34E3F); }
 .dsc-import-errors { margin-top: 6px; }
 .dsc-import-error-line {
-    font-size: 12px; color: #8A5A33; padding: 3px 12px;
-    background: #FAFAF8; border-radius: 6px; margin-bottom: 4px;
+    font-size: 12px; color: var(--warning-text, #8A5A33); padding: 3px 12px;
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px; margin-bottom: 4px;
     word-break: break-all;
 }
