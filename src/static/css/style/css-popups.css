@@ -1,6 +1,8 @@
 /* ── 通用对话框基础样式 ───────────────────────────────────── */
 .bk-dialog-mask {
-    position: fixed; inset: 0; z-index: 5000;
+    /* 高于全屏页面（dsc-overlay 9998 / lan-sync-overlay 9999 / epub 9998-9999），
+       低于 hl-modal-mask 10100 与 dev-console 19999，否则页面内容会拦截弹窗按钮点击 */
+    position: fixed; inset: 0; z-index: 10050;
     background: rgba(26,25,23,0.4);
     display: flex; align-items: center; justify-content: center;
     padding: 20px; box-sizing: border-box;
