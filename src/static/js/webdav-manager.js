@@ -984,9 +984,13 @@
       else win.localStorage.removeItem(ACTIVE_KEY);
     } catch (e) {}
     // DEV-2：按 id 在存储中查找并缓存激活 config（未保存的 config 由 connect 直接写 _activeConfigCache）。
+    // 预置 id 不在 bk_webdav_configs 存储，需优先按 getActiveConfig 的回退顺序查 _presets。
     if (!id) {
       _activeConfigCache = null;
       return;
+    }
+    for (var p = 0; p < _presets.length; p++) {
+      if (_presets[p].id === id) { _activeConfigCache = _presets[p]; return; }
     }
     var configs = getConfigs();
     for (var i = 0; i < configs.length; i++) {
@@ -1089,7 +1093,7 @@
   function deleteResource(config, remotePath) {
     return ensureRacedConfig(config).then(function (cfg) {
       var url;
-      if (remotePath && /^[a-z][a-z0-9+. -]*:/i.test(remotePath)) {
+      if (remotePath && /^[a-z][a-z0-9+.\-]*:/i.test(remotePath)) {
         // 绝对 URL：替换为竞速后的域名
         url = _replaceUrlOrigin(remotePath, cfg.url);
       } else {

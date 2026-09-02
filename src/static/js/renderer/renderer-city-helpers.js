@@ -647,24 +647,18 @@
         return;
       }
 
-      // 3. 调用 exportBatch
-      if (!win.BK || !win.BK.Export || !win.BK.Export.exportBatch) {
+      // 3. 调用 BK.SyncCore.exportData（v4 完整数据包，无逐本进度回调）
+      if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.exportData) {
         _toast('导出模块未加载');
         if (startBtn) startBtn.disabled = false;
         return;
       }
 
       if (statusEl) {
-        statusEl.innerHTML = '<div class="dl-export-progress">正在导出 0/' + bookIds.length + '...</div>';
+        statusEl.innerHTML = '<div class="dl-export-progress">正在导出 ' + bookIds.length + ' 本书…</div>';
       }
 
-      win.BK.Export.exportBatch(bookIds, {
-        onProgress: function (current, total, title) {
-          if (statusEl) {
-            statusEl.innerHTML = '<div class="dl-export-progress">正在导出 ' + current + '/' + total + '《' + escText(title) + '》</div>';
-          }
-        }
-      }).then(function () {
+      win.BK.SyncCore.exportData('full', { bookIds: bookIds }).then(function () {
         if (statusEl) {
           statusEl.innerHTML = '<div class="dl-export-done">导出完成，共 ' + bookIds.length + ' 本书</div>';
         }
