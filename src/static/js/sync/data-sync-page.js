@@ -18,7 +18,12 @@
  * 挂载：window.BK.DataSyncPage
  *   .show() / .hide()
  *   纯函数（供单测）：formatImportResult / formatImportErrors / syncStateText /
- *                    formatSyncTime / formatSize
+ *                    formatSyncTime / formatSize / isSyncServer
+ *
+ * 同步服务器选择策略：预设服务器（preset:true，随包下发的公共书库，用户名/密码
+ * 是公开的）不可作为私人同步目标——同步下拉只列出用户自配置/私人服务器，
+ * 避免把阅读进度/笔记写到公共 WebDAV 书库。预设服务器仍可用于上传书到书库
+ * （webdav-upload.js 保留全部配置，属既有用途）。
  *
  * 样式：css-data-sync.css（Soft Nordic 暖调，对齐 lan-sync 面板 token）
  */
@@ -90,6 +95,16 @@
         var i = 0, size = bytes;
         while (size >= 1024 && i < units.length - 1) { size /= 1024; i++; }
         return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+    }
+
+    /**
+     * 是否为可用的私人同步服务器（过滤随包下发的公共预设）
+     * 预置服务器（preset:true）为公开书库，凭据公开，不应承载私人阅读进度同步
+     * @param {Object|null|undefined} cfg
+     * @returns {boolean}
+     */
+    function isSyncServer(cfg) {
+        return !!(cfg && !cfg.preset && (cfg.id || cfg.url));
     }
 
     /**
@@ -241,7 +256,9 @@
         _bindEvents();
     }
 
-    /** WebDAV 配置区（服务器下拉 + 管理） */
+    /** WebDAV 配置区（同步服务器下拉 + 管理）。
+     *  只列出私人/用户配置（isSyncServer 过滤预设公共书库），
+     *  并保留「添加服务器」入口（走上传对话框手动输入，可保存为私人配置）。 */
     function _renderWebdavConfig() {
         var holder = panelEl.querySelector('#dscWebdavConfig');
         if (!holder) return;
@@ -254,29 +271,37 @@
                 activeCfg = win.WebDavManager.getActiveConfig ? win.WebDavManager.getActiveConfig() : null;
             }
         } catch (e) { /* 配置读取失败 → 空列表 */ }
-        var activeId = activeCfg ? activeCfg.id : null;
+
+        // 同步服务器只允许私人配置：过滤预设（公共书库不可作同步目标）
+        configs = configs.filter(isSyncServer);
+
+        // 若当前激活的是预设（此前选中过），激活 id 视为无——避免下拉悬空指向预设
+        var activeId = (activeCfg && isSyncServer(activeCfg)) ? activeCfg.id : null;
 
         if (!configs.length) {
             holder.innerHTML =
                 '<div class="dsc-row">' +
                 '  <div class="dsc-row-main">' +
-                '    <div class="dsc-row-title">未配置服务器</div>' +
-                '    <div class="dsc-row-desc">上传或浏览时可添加服务器</div>' +
+                '    <div class="dsc-row-title">未配置私人服务器</div>' +
+                '    <div class="dsc-row-desc">同步需要私人 WebDAV，公共书库不可作为同步目标</div>' +
                 '  </div>' +
+                '  <button class="dsc-btn" id="dscWebdavAddBtn">添加</button>' +
                 '</div>';
+            var addBtn0 = holder.querySelector('#dscWebdavAddBtn');
+            if (addBtn0) addBtn0.onclick = function () { _handleAddSyncServer(); };
             return;
         }
 
         var options = '';
         for (var i = 0; i < configs.length; i++) {
             var c = configs[i];
-            var label = (c.preset ? '★ ' : '') + (c.name || c.url);
+            var label = c.name || c.url;
             var sel = (c.id === activeId) ? ' selected' : '';
             options += '<option value="' + _esc(c.id) + '"' + sel + '>' + _esc(label) + '</option>';
         }
 
-        // 删除入口：仅对非预置的激活配置显示（预置服务器随包下发，不可删）
-        var delBtnHtml = (activeCfg && !activeCfg.preset)
+        // 删除入口：仅对非预置的激活配置显示（过滤后这里都是私人配置）
+        var delBtnHtml = activeId
             ? '<button class="dsc-btn dsc-btn-del" id="dscWebdavDelBtn">删除此服务器</button>'
             : '';
 
@@ -284,8 +309,9 @@
             '<div class="dsc-row">' +
             '  <div class="dsc-row-main">' +
             '    <div class="dsc-row-title">同步服务器</div>' +
-            '    <div class="dsc-row-desc">选中后用于增量同步与导入</div>' +
+            '    <div class="dsc-row-desc">仅私人 WebDAV 可同步，公共书库不可作为同步目标</div>' +
             '  </div>' +
+            '  <button class="dsc-btn" id="dscWebdavAddBtn">添加</button>' +
             '</div>' +
             '<div class="dsc-select-wrap">' +
             '  <select class="dsc-select" id="dscWebdavSelect">' + options + '</select>' +
@@ -307,6 +333,24 @@
         };
         var delBtn = holder.querySelector('#dscWebdavDelBtn');
         if (delBtn) delBtn.onclick = function () { _confirmDeleteActiveConfig(); };
+        var addBtn = holder.querySelector('#dscWebdavAddBtn');
+        if (addBtn) addBtn.onclick = function () { _handleAddSyncServer(); };
+    }
+
+    /** 「添加服务器」：打开上传对话框（含「手动输入」），保存为私人配置 */
+    function _handleAddSyncServer() {
+        if (!win.BK || !win.BK.WebDavUpload || !win.BK.WebDavUpload.showUploadDialog) {
+            _toast('添加服务器功能未就绪');
+            return;
+        }
+        var ids = _allBookIds();
+        if (!ids.length) {
+            _toast('书架没有可上传的书，请先在书架添加一本书');
+            return;
+        }
+        // 打开上传对话框（含手动输入 → 保存配置），用户可填私人 WebDAV 并保存
+        win.BK.WebDavUpload.showUploadDialog(ids);
+        _toast('选择「— 手动输入 —」填写私人 WebDAV，上传后即保存为该服务器');
     }
 
     /** 删除当前激活的服务器配置（预置不可删；win.BK.openDialog 确认弹窗，禁用原生 confirm） */
@@ -695,7 +739,8 @@
         formatImportErrors: formatImportErrors,
         syncStateText: syncStateText,
         formatSyncTime: formatSyncTime,
-        formatSize: formatSize
+        formatSize: formatSize,
+        isSyncServer: isSyncServer
     };
 
 })(window);

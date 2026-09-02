@@ -169,6 +169,23 @@ describe('formatSize 大小格式化', () => {
   });
 });
 
+describe('isSyncServer 同步服务器过滤（预设公共书库不可作私人同步目标）', () => {
+  test('私人/用户配置 → true', () => {
+    assert.equal(PAGE.isSyncServer({ id: 'wd_1', name: '私人', preset: false }), true);
+    assert.equal(PAGE.isSyncServer({ id: 'wd_2', name: '私人2' }), true, '未标记 preset 的配置视为私人');
+  });
+
+  test('预设服务器（preset:true）→ false', () => {
+    assert.equal(PAGE.isSyncServer({ id: 'preset-0', name: '2期追求', preset: true }), false);
+  });
+
+  test('null / undefined / 空对象 → false', () => {
+    assert.equal(PAGE.isSyncServer(null), false);
+    assert.equal(PAGE.isSyncServer(undefined), false);
+    assert.equal(PAGE.isSyncServer({}), false);
+  });
+});
+
 describe('模块加载容错', () => {
   test('依赖缺失时可加载（纯函数可用，show 不炸）', () => {
     assert.equal(typeof PAGE.formatImportResult, 'function');
