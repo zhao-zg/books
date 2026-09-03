@@ -1136,7 +1136,14 @@
 
       // 注册 backStack
       if (win.BK && win.BK.backStack) {
-        win.BK.backStack.push(function () { self.close(); });
+        var self2 = this;
+        // ★ push 回调内先复位 _inBackStack，再以 skipHistory=true 关闭：
+        //   系统返回键触发时 popstate 已弹出本条目并 history.back()，
+        //   回调内 close() 若再走 discard() 会二次弹栈（误弹下层条目 + 多退一步历史）。
+        win.BK.backStack.push(function () {
+          self2._inBackStack = false;
+          self2.close(true);
+        });
         this._inBackStack = true;
       }
 

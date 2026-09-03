@@ -176,7 +176,9 @@
     if (open) {
       document.addEventListener('keydown', _tocEscHandler);
       if (win.BK && win.BK.backStack) {
-        win.BK.backStack.push(function() { _toggleTocDrawer(false); });
+        // ★ push 回调传 {silent:true}：系统返回键触发时 popstate 已弹出本条目，
+        //   回调内关闭不应再 pop()（否则二次弹栈，误弹下层条目 + 多退一步历史）。
+        win.BK.backStack.push(function() { _toggleTocDrawer(false, { silent: true }); });
       }
       // 防触摸穿透：锁定遮罩滚动
       if (overlay && win.BK && win.BK.lockOverlayScroll) {
@@ -189,7 +191,8 @@
       // 点击章节跳转时（navigate=true）：抽屉的 pushState 历史条目会被 router 的
       // replaceState 复用，这里只移除回退栈回调（silentPop），绝不 history.back，
       // 否则会与章节跳转抢历史记录导致跳回原章节、看起来"点击不跳转"。
-      if (!opts.navigate && win.BK && win.BK.backStack) {
+      // silent=true（系统返回键触发）：popstate 已消耗本条目，同样不能再 pop()。
+      if (!opts.navigate && !opts.silent && win.BK && win.BK.backStack) {
         win.BK.backStack.pop();
       }
     }

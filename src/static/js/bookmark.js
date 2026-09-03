@@ -567,7 +567,10 @@
                         }
                         var mask = document.getElementById('bk-bookmark-list');
                         if (mask && mask.parentNode) mask.parentNode.removeChild(mask);
-                        if (win.BK && win.BK.backStack && win.BK.backStack.discard) win.BK.backStack.discard();
+                        // ★ 跳转用 silentPop：仅移除回退栈回调，不 history.back。
+                        //   后续 navigateReplace 同步 replaceState 复用 pushState 条目，
+                        //   discard()（含异步 history.back）会与之竞态，可能退回原页。
+                        if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) win.BK.backStack.silentPop();
                         if (target && target.path) {
                             var scrollKey = 'bk_scroll:' + target.path;
                             try { localStorage.setItem(scrollKey, String(target.scrollY || 0)); } catch(e) {}

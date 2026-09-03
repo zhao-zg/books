@@ -575,6 +575,7 @@
   }
 
   var _shelfQuickLockCleanup = null;
+  var _quickMenuInBackStack = false; // 快捷菜单是否已注册到 backStack（防双重消耗）
 
   // ── 导出书籍：格式选择弹框 ──────────────────────────────────────────
   function _showExportBookMenu(bookId, bookTitle) {
@@ -801,12 +802,26 @@
     } else {
       mask.classList.add('is-open');
     }
+    // 注册到 backStack：系统返回键关闭快捷菜单（对齐 data-sync-page 模式）
+    if (win.BK && win.BK.backStack) {
+      _quickMenuInBackStack = true;
+      win.BK.backStack.push(function () {
+        _quickMenuInBackStack = false;
+        _closeShelfQuickMenu();
+      });
+    }
   }
 
   function _closeShelfQuickMenu() {
     if (_shelfQuickLockCleanup) { _shelfQuickLockCleanup(); _shelfQuickLockCleanup = null; }
     var m = document.querySelector('.bk-shelf-quick-mask');
     if (m && m.parentNode) m.parentNode.removeChild(m);
+    // 主动关闭（点选菜单项/取消/遮罩等）：消耗对应 history 条目；
+    // 系统返回键触发时回调已置 _quickMenuInBackStack=false，不会走到这里
+    if (_quickMenuInBackStack && win.BK && win.BK.backStack) {
+      _quickMenuInBackStack = false;
+      win.BK.backStack.discard();
+    }
   }
 
   /**

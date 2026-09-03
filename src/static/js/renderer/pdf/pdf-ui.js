@@ -33,6 +33,7 @@
   var _pageJumpOverlay = null;
   var _pageJumpInput = null;
   var _pageJumpError = null;
+  var _pjInBackStack = false; // 页码跳转弹窗是否已注册到 backStack（防双重消耗）
 
   // ==================== 顶部工具栏创建 ====================
 
@@ -428,6 +429,7 @@
   function _showPageJumpDialog() {
     _createPageJumpDialog();
     if (!_pageJumpOverlay) return;
+    if (_pageJumpOverlay.classList.contains('bk-pdf-page-jump-visible')) return; // 幂等：已显示时不重复 push 回退栈
     // 填入当前页码并选中
     var cur = S.currentPage() || 1;
     var total = S.totalPages() || 1;
@@ -439,6 +441,14 @@
     }
     if (_pageJumpError) _pageJumpError.setAttribute('hidden', '');
     _pageJumpOverlay.classList.add('bk-pdf-page-jump-visible');
+    // 注册到 backStack：系统返回键关闭弹窗（对齐 image-utils 模式）
+    if (win.BK && win.BK.backStack) {
+      _pjInBackStack = true;
+      win.BK.backStack.push(function () {
+        _pjInBackStack = false;
+        _hidePageJumpDialog();
+      });
+    }
     // 聚焦并选中（延时等待动画）
     setTimeout(function () {
       if (_pageJumpInput) {
@@ -454,6 +464,12 @@
     if (_pageJumpError) _pageJumpError.setAttribute('hidden', '');
     // 失焦收起软键盘
     if (_pageJumpInput) _pageJumpInput.blur();
+    // 主动关闭（取消/跳转/遮罩点击）：消耗对应 history 条目；
+    // 系统返回键触发时回调已置 _pjInBackStack=false，不会走到这里
+    if (_pjInBackStack && win.BK && win.BK.backStack) {
+      _pjInBackStack = false;
+      win.BK.backStack.discard();
+    }
   }
 
   function _doPageJump() {
@@ -601,6 +617,11 @@
     _pageJumpOverlay = null;
     _pageJumpInput = null;
     _pageJumpError = null;
+    // 书籍退出时弹窗可能仍在回退栈上：弹出回调防孤儿条目（不触发 history.back）
+    if (_pjInBackStack && win.BK && win.BK.backStack) {
+      _pjInBackStack = false;
+      win.BK.backStack.silentPop();
+    }
     _topBar = null;
     _bottomBar = null;
     _pageInfo = null;

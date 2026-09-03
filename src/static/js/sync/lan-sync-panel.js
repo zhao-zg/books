@@ -11,6 +11,8 @@
  *   - BK.LanSync (lan-sync.js)
  *
  * 挂载：window.BK.LanSyncPanel
+ *
+ * show()/hide() 已接入 BK.backStack，支持系统返回键返回上一层（对齐 data-sync-page 模式）
  */
 (function (win) {
     'use strict';
@@ -35,6 +37,7 @@
 
     var panelEl = null;
     var logArea = null;
+    var _inBackStack = false; // 是否已注册到 backStack（系统返回键关闭面板）
 
     // ── 面板渲染 ──────────────────────────────────────────────────
 
@@ -560,11 +563,20 @@
 
     function show() {
         _ensurePanel();
+        if (panelEl.style.display !== 'none') return; // 幂等：已显示时不重复 push 回退栈
         // 初始化 WebRTC 支持状态
         if (win.BK && win.BK.LanSyncWebRTC) {
             state.wrtc.supported = win.BK.LanSyncWebRTC.isSupported();
         }
         panelEl.style.display = '';
+        // 注册到 backStack：系统返回键关闭面板（对齐 data-sync-page/mark-panel 模式）
+        if (win.BK && win.BK.backStack) {
+            _inBackStack = true;
+            win.BK.backStack.push(function () {
+                _inBackStack = false;
+                hide();
+            });
+        }
         addLog('面板已打开');
         // 打开面板即自动启动服务端（仅 APK；PWA 端仅作为客户端）
         _autoStartServer();
@@ -610,6 +622,12 @@
 
     function hide() {
         if (panelEl) panelEl.style.display = 'none';
+        // 主动关闭（返回按钮等）：消耗对应 history 条目；
+        // 系统返回键触发时回调已置 _inBackStack=false，不会走到这里
+        if (_inBackStack && win.BK && win.BK.backStack) {
+            _inBackStack = false;
+            win.BK.backStack.discard();
+        }
     }
 
     function addLog(msg) {

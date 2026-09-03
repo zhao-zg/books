@@ -190,6 +190,10 @@
         if (!dlg) return function() {};
 
         var _panel = 'main';
+        // ★ 面板栈条目计数：_navTo('hist') 时 push 的裸条目需与 _close() 的
+        //   discard 一一配对；openDialog 遮罩点击只会 discard 栈顶（hist 条目），
+        //   若不在此处主动 discard 面板条目会留下孤儿（下次返回键空按一次）。
+        var _panelInBackStack = false;
 
         function _show(name) {
             ['main', 'hist'].forEach(function(p) {
@@ -201,11 +205,15 @@
 
         function _navTo(name) {
             window.BK.backStack.push(function() { _show('main'); });
+            _panelInBackStack = true;
             _show(name);
         }
 
         function _close() {
-            if (_panel !== 'main') window.BK.backStack.discard();
+            if (_panel !== 'main' && _panelInBackStack) {
+                _panelInBackStack = false;
+                window.BK.backStack.discard();
+            }
             dlg.close();
         }
 

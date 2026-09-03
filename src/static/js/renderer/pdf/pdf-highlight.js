@@ -19,6 +19,7 @@
   // ==================== 状态 ====================
 
   var _actionPanel = null;
+  var _actionInBackStack = false; // 操作面板是否已注册到 backStack（防双重消耗）
   var _currentSelection = null; // { page, text, rects }
   var _highlightOverlays = {};  // pageNum → [div elements]（以页码为 key，避免 DOM 元素回收后引用失效）
   var _pendingRenderPages = {};  // pageNum → true（textLayer 尚未就绪时暂存，待渲染完成后补渲）
@@ -26,6 +27,7 @@
   var _drawer = null;
   var _drawerBody = null;
   var _drawerVisible = false;
+  var _drawerInBackStack = false; // 抽屉是否已注册到 backStack（防双重消耗）
   var _pageObserver = null; // MutationObserver 引用（防止内存泄漏）
 
   // ==================== 文本选中监听 ====================
@@ -292,14 +294,17 @@
     // 批注按钮
     var noteBtn = panel.querySelector('.bk-pdf-hl-note-btn');
     noteBtn.addEventListener('click', function () {
-      _doHighlightWithNote();
+      // 先关操作面板（discard 消耗自己的栈条目），再创建高亮+弹批注面板（push 新条目）。
+      // 顺序反了会导致 discard 误 pop 批注面板刚 push 的条目
       _hideActionPanel();
+      _doHighlightWithNote();
     });
 
     return panel;
   }
 
   function _showActionPanel(range, textLayerEl) {
+    if (_actionPanel && _actionPanel.classList.contains('bk-pdf-hl-panel-visible')) return; // 幂等
     _createActionPanel();
     // 每次显示前刷新颜色选中态（外部代码可能改过 _highlightColor）
     _refreshColorRow();
@@ -317,10 +322,26 @@
     _actionPanel.style.left = left + 'px';
     _actionPanel.style.top = top + 'px';
     _actionPanel.classList.add('bk-pdf-hl-panel-visible');
+    // 注册到 backStack：系统返回键关闭面板
+    if (win.BK && win.BK.backStack) {
+      _actionInBackStack = true;
+      win.BK.backStack.push(function () {
+        _actionInBackStack = false;
+        _hideActionPanel();
+      });
+    }
   }
 
   function _hideActionPanel() {
-    if (_actionPanel) _actionPanel.classList.remove('bk-pdf-hl-panel-visible');
+    if (_actionPanel) {
+      _actionPanel.classList.remove('bk-pdf-hl-panel-visible');
+      // 主动关闭（按钮/选区消失）：消耗对应 history 条目；
+      // 系统返回键触发时回调已置 _actionInBackStack=false，不会走到这里
+      if (_actionInBackStack && win.BK && win.BK.backStack) {
+        _actionInBackStack = false;
+        win.BK.backStack.discard();
+      }
+    }
   }
 
   // ==================== 批注浮动输入框 ====================
@@ -328,6 +349,7 @@
   var _notePanel = null;
   var _noteTextarea = null;
   var _noteTargetHlId = null; // 正在编辑批注的高亮 id
+  var _noteInBackStack = false; // 批注面板是否已注册到 backStack（防双重消耗）
 
   function _createNotePanel() {
     if (_notePanel) return _notePanel;
@@ -360,6 +382,7 @@
   }
 
   function _showNotePanel(hlId, existingNote, anchorRect) {
+    if (_notePanel && _notePanel.classList.contains('bk-pdf-note-panel-visible')) return; // 幂等
     _createNotePanel();
     _noteTargetHlId = hlId;
     if (_noteTextarea) {
@@ -377,10 +400,26 @@
     _notePanel.style.left = left + 'px';
     _notePanel.style.top = top + 'px';
     _notePanel.classList.add('bk-pdf-note-panel-visible');
+    // 注册到 backStack：系统返回键关闭面板
+    if (win.BK && win.BK.backStack) {
+      _noteInBackStack = true;
+      win.BK.backStack.push(function () {
+        _noteInBackStack = false;
+        _hideNotePanel();
+      });
+    }
   }
 
   function _hideNotePanel() {
-    if (_notePanel) _notePanel.classList.remove('bk-pdf-note-panel-visible');
+    if (_notePanel) {
+      _notePanel.classList.remove('bk-pdf-note-panel-visible');
+      // 主动关闭（保存/取消/关闭按钮）：消耗对应 history 条目；
+      // 系统返回键触发时回调已置 _noteInBackStack=false，不会走到这里
+      if (_noteInBackStack && win.BK && win.BK.backStack) {
+        _noteInBackStack = false;
+        win.BK.backStack.discard();
+      }
+    }
     _noteTargetHlId = null;
     // 关闭批注面板时通知刷新（高亮可能已创建但批注未保存）
     try { document.dispatchEvent(new CustomEvent('marks-changed')); } catch (e) {}
@@ -859,16 +898,33 @@
   }
 
   function show() {
+    if (_drawerVisible) return; // 幂等：已显示时不重复 push 回退栈
     _createDrawer();
     _populateDrawer();
     if (_drawer) _drawer.classList.add('bk-pdf-hl-drawer-visible');
     _drawerVisible = true;
     S.closeAllDrawersExcept('highlight');
+    // 注册到 backStack：系统返回键关闭抽屉
+    // push 必须放在 closeAllDrawersExcept 之后，避免被互斥关闭的 discard 误 pop 自己刚 push 的条目
+    if (win.BK && win.BK.backStack) {
+      _drawerInBackStack = true;
+      win.BK.backStack.push(function () {
+        _drawerInBackStack = false;
+        hide();
+      });
+    }
   }
 
   function hide() {
+    if (!_drawerVisible) return; // 幂等：未显示时无栈条目可消耗
     if (_drawer) _drawer.classList.remove('bk-pdf-hl-drawer-visible');
     _drawerVisible = false;
+    // 主动关闭（按钮/互斥）：消耗对应 history 条目；
+    // 系统返回键触发时回调已置 _drawerInBackStack=false，不会走到这里
+    if (_drawerInBackStack && win.BK && win.BK.backStack) {
+      _drawerInBackStack = false;
+      win.BK.backStack.discard();
+    }
   }
 
   // _closeOthers 已抽取为公共工具 S.closeAllDrawersExcept
@@ -899,8 +955,19 @@
   // ==================== init / cleanup ====================
 
   function cleanup() {
-    _hideActionPanel();
-    _hideNotePanel();
+    // 注意：cleanup 直接移除 DOM，不走 hide() 的 discard 逻辑。
+    // 若直接调 _hideActionPanel/_hideNotePanel，当栈顶不是自己时 discard 会误 pop 别人的条目，
+    // 故这里只复位标志 + silentPop 弹出自己的回调（不动 history）。
+    if (_actionPanel) _actionPanel.classList.remove('bk-pdf-hl-panel-visible');
+    if (_actionInBackStack && win.BK && win.BK.backStack) {
+      _actionInBackStack = false;
+      win.BK.backStack.silentPop();
+    }
+    if (_notePanel) _notePanel.classList.remove('bk-pdf-note-panel-visible');
+    if (_noteInBackStack && win.BK && win.BK.backStack) {
+      _noteInBackStack = false;
+      win.BK.backStack.silentPop();
+    }
     if (_actionPanel && _actionPanel.parentNode) {
       _actionPanel.parentNode.removeChild(_actionPanel);
     }
@@ -918,6 +985,11 @@
     _drawerBody = null;
     _drawerVisible = false;
     _drawerFilter = 'all';
+    // 书籍退出时抽屉可能仍在回退栈上：弹出回调防孤儿条目（不触发 history.back）
+    if (_drawerInBackStack && win.BK && win.BK.backStack) {
+      _drawerInBackStack = false;
+      win.BK.backStack.silentPop();
+    }
     // 清除所有高亮覆盖层
     var keys = Object.keys(_highlightOverlays);
     for (var i = 0; i < keys.length; i++) {

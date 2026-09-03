@@ -16,7 +16,7 @@
  *   - BK.LanSyncPanel           (lan-sync-panel.js)
  *
  * 挂载：window.BK.DataSyncPage
- *   .show() / .hide()
+ *   .show() / .hide()（自动接入 BK.backStack，支持系统返回键返回上一层）
  *   纯函数（供单测）：formatImportResult / formatImportErrors / syncStateText /
  *                    formatSyncTime / formatSize / isSyncServer
  *
@@ -31,6 +31,7 @@
     'use strict';
 
     var panelEl = null;
+    var _inBackStack = false; // 是否已注册到 backStack（系统返回键关闭面板）
 
     // ── 纯函数（供单测与 UI 复用）──────────────────────────────────────
 
@@ -142,14 +143,29 @@
 
     function show() {
         _ensurePanel();
+        if (panelEl.style.display !== 'none') return; // 幂等：已显示时不重复 push 回退栈
         _render();
         panelEl.style.display = '';
+        // 注册到 backStack：系统返回键关闭面板（对齐 mark-panel/image-utils 模式）
+        if (win.BK && win.BK.backStack) {
+            _inBackStack = true;
+            win.BK.backStack.push(function () {
+                _inBackStack = false;
+                hide();
+            });
+        }
         _refreshSyncState();
     }
 
     function hide() {
         _unsubscribeSyncState();
         if (panelEl) panelEl.style.display = 'none';
+        // 主动关闭（返回按钮等）：消耗对应 history 条目；
+        // 系统返回键触发时回调已置 _inBackStack=false，不会走到这里
+        if (_inBackStack && win.BK && win.BK.backStack) {
+            _inBackStack = false;
+            win.BK.backStack.discard();
+        }
     }
 
     // ── 区块渲染 ──────────────────────────────────────────────────────
@@ -183,10 +199,18 @@
             '            <div class="dsc-row-title">完整数据包</div>' +
             '            <div class="dsc-row-desc">连同书籍文件一起（体积较大）</div>' +
             '          </div>' +
-            '          <button class="dsc-btn" data-action="export-full">导出</button>' +
-            '        </div>' +
-            '      </div>' +
-            '    </div>' +
+'          <button class="dsc-btn" data-action="export-full">导出</button>' +
+'        </div>' +
+'        <div class="dsc-divider"></div>' +
+'        <div class="dsc-row">' +
+'          <div class="dsc-row-main">' +
+'            <div class="dsc-row-title">上传书到 WebDAV</div>' +
+'            <div class="dsc-row-desc">将书架上的书上传到服务器</div>' +
+'          </div>' +
+'          <button class="dsc-btn" data-action="webdav-upload">上传</button>' +
+'        </div>' +
+'      </div>' +
+'    </div>' +
 
             // ── 区块 2：导入 ──
             '    <div class="dsc-section">' +
@@ -199,9 +223,17 @@
             '          </div>' +
             '          <button class="dsc-btn" data-action="import-zip">选择文件</button>' +
             '        </div>' +
-            '        <div class="dsc-import-result" id="dscImportResult"></div>' +
-            '      </div>' +
-            '    </div>' +
+'        <div class="dsc-import-result" id="dscImportResult"></div>' +
+'        <div class="dsc-divider"></div>' +
+'        <div class="dsc-row">' +
+'          <div class="dsc-row-main">' +
+'            <div class="dsc-row-title">从 WebDAV 导入书</div>' +
+'            <div class="dsc-row-desc" id="dscWebdavBooksDesc">浏览远端已同步的书籍</div>' +
+'          </div>' +
+'          <button class="dsc-btn" data-action="webdav-import">浏览</button>' +
+'        </div>' +
+'      </div>' +
+'    </div>' +
 
             // ── 区块 3：WebDAV ──
             '    <div class="dsc-section">' +
@@ -209,31 +241,15 @@
             '      <div class="dsc-card">' +
             '        <div id="dscWebdavConfig"></div>' +
             '        <div class="dsc-divider"></div>' +
-            '        <div class="dsc-row">' +
-            '          <div class="dsc-row-main">' +
-            '            <div class="dsc-row-title">增量同步</div>' +
-            '            <div class="dsc-row-desc" id="dscSyncState">尚未同步过</div>' +
-            '          </div>' +
-            '          <button class="dsc-btn" data-action="sync-now">立即同步</button>' +
-            '        </div>' +
-            '        <div class="dsc-divider"></div>' +
-            '        <div class="dsc-row">' +
-            '          <div class="dsc-row-main">' +
-            '            <div class="dsc-row-title">从 WebDAV 导入书</div>' +
-            '            <div class="dsc-row-desc" id="dscWebdavBooksDesc">浏览远端已同步的书籍</div>' +
-            '          </div>' +
-            '          <button class="dsc-btn" data-action="webdav-import">浏览</button>' +
-            '        </div>' +
-            '        <div class="dsc-divider"></div>' +
-            '        <div class="dsc-row">' +
-            '          <div class="dsc-row-main">' +
-            '            <div class="dsc-row-title">上传书到 WebDAV</div>' +
-            '            <div class="dsc-row-desc">将书架上的书上传到服务器</div>' +
-            '          </div>' +
-            '          <button class="dsc-btn" data-action="webdav-upload">上传</button>' +
-            '        </div>' +
-            '      </div>' +
-            '    </div>' +
+'        <div class="dsc-row">' +
+'          <div class="dsc-row-main">' +
+'            <div class="dsc-row-title">增量同步</div>' +
+'            <div class="dsc-row-desc" id="dscSyncState">尚未同步过</div>' +
+'          </div>' +
+'          <button class="dsc-btn" data-action="sync-now">立即同步</button>' +
+'        </div>' +
+'      </div>' +
+'    </div>' +
 
             // ── 区块 4：局域网 ──
             '    <div class="dsc-section">' +

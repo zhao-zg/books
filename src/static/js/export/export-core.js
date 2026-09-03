@@ -625,6 +625,7 @@
             mask.classList.add('show');
 
             var _done = false;
+            var _inBackStack = false;
             function _finish(v) {
                 if (_done) return;
                 _done = true;
@@ -632,7 +633,20 @@
                 setTimeout(function () {
                     if (mask.parentNode) mask.parentNode.removeChild(mask);
                 }, 200);
+                if (_inBackStack && win.BK && win.BK.backStack) {
+                    _inBackStack = false;
+                    win.BK.backStack.discard(); // 主动关闭：消耗 history 条目
+                }
                 resolve(v === 'cancel' ? null : v);
+            }
+
+            // 接入回退栈：系统返回键取消选择
+            if (win.BK && win.BK.backStack) {
+                _inBackStack = true;
+                win.BK.backStack.push(function () {
+                    _inBackStack = false; // 条目已被 popstate 消耗，防止 _finish 二次 discard
+                    _finish('cancel');
+                });
             }
 
             mask.addEventListener('click', function (e) {

@@ -24,6 +24,7 @@
   var _searchResults = null;
   var _searchCancelBtn = null;
   var _isVisible = false;
+  var _inBackStack = false; // 抽屉是否已注册到 backStack（防双重消耗）
   var _matches = [];          // [{ pageNum, textLayer, span, text }]
   var _currentMatchIdx = -1;
   var _isSearching = false;
@@ -597,6 +598,7 @@
   }
 
   function show() {
+    if (_isVisible) return; // 幂等：已显示时不重复 push 回退栈
     _createSearchBar();
     if (_searchBar) _searchBar.classList.add('bk-pdf-search-visible');
     _isVisible = true;
@@ -605,12 +607,28 @@
       _searchInput.select();
     }
     _closeOthers('search');
+    // 注册到 backStack：系统返回键关闭抽屉
+    // push 必须放在 closeOthers 之后，避免被互斥关闭的 discard 误 pop 自己刚 push 的条目
+    if (win.BK && win.BK.backStack) {
+      _inBackStack = true;
+      win.BK.backStack.push(function () {
+        _inBackStack = false;
+        hide();
+      });
+    }
   }
 
   function hide() {
+    if (!_isVisible) return; // 幂等：未显示时无栈条目可消耗
     if (_searchBar) _searchBar.classList.remove('bk-pdf-search-visible');
     _isVisible = false;
     _clearHighlights();
+    // 主动关闭（按钮/互斥）：消耗对应 history 条目；
+    // 系统返回键触发时回调已置 _inBackStack=false，不会走到这里
+    if (_inBackStack && win.BK && win.BK.backStack) {
+      _inBackStack = false;
+      win.BK.backStack.discard();
+    }
   }
 
   function _closeOthers(except) {
@@ -636,6 +654,11 @@
     _matches = [];
     _currentMatchIdx = -1;
     _isVisible = false;
+    // 书籍退出时抽屉可能仍在回退栈上：弹出回调防孤儿条目（不触发 history.back）
+    if (_inBackStack && win.BK && win.BK.backStack) {
+      _inBackStack = false;
+      win.BK.backStack.silentPop();
+    }
   }
 
   // ==================== 导出 ====================

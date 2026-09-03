@@ -188,14 +188,21 @@ Object.assign(BKHighlight, {
             document.body.appendChild(modal);
 
             function closeModal() {
+                if (modal.style.display !== 'flex') return; // 幂等守卫：未显示时无栈条目可消耗
                 var id = modal.dataset.highlightId;
                 modal.style.display = 'none';
                 if (self._noteLockCleanup) { self._noteLockCleanup(); self._noteLockCleanup = null; }
+                if (self._noteModalInBackStack && window.BK && window.BK.backStack) {
+                    self._noteModalInBackStack = false;
+                    window.BK.backStack.discard(); // 主动关闭：消耗 history 条目
+                }
                 if (id) {
                     var h = self.highlights.find(function (x) { return x.id === id; });
                     if (h && !h.note && !h.color && !h.underline) self.removeHighlight(id);
                 }
             }
+            // 挂到实例上，供回退栈回调复用（popstate 路径标志已复位，不会二次 discard）
+            self._closeNoteModal = closeModal;
 
             document.getElementById('hl-note-cancel').addEventListener('click', closeModal);
             document.getElementById('hl-note-save').addEventListener('click', function () {
@@ -319,11 +326,22 @@ Object.assign(BKHighlight, {
         },
 
         showNoteEditor: function (id) {
-            var h     = this.highlights.find(function (x) { return x.id === id; });
             var modal = document.getElementById('hl-note-modal');
+            if (!modal) return;
+            if (modal.style.display === 'flex') return; // 幂等守卫：已显示
+            var h     = this.highlights.find(function (x) { return x.id === id; });
             modal.dataset.highlightId = id;
             document.getElementById('hl-note-textarea').value = h ? (h.note || '') : '';
             modal.style.display = 'flex';
+            // 接入回退栈：系统返回键关闭批注弹窗
+            if (window.BK && window.BK.backStack) {
+                var self = this;
+                self._noteModalInBackStack = true;
+                window.BK.backStack.push(function () {
+                    self._noteModalInBackStack = false; // 条目已被 popstate 消耗，防止 closeModal 二次 discard
+                    if (self._closeNoteModal) self._closeNoteModal();
+                });
+            }
             setTimeout(function () { document.getElementById('hl-note-textarea').focus(); }, 100);
         },
 

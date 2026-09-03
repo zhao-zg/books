@@ -28,6 +28,7 @@
   var MAX_CONCURRENT = 5;       // 最大并发渲染数
   var THUMB_SCALE = 0.15;       // 缩略图缩放比
   var _isVisible = false;
+  var _inBackStack = false; // 抽屉是否已注册到 backStack（防双重消耗）
 
   // ==================== 创建缩略图条 ====================
 
@@ -204,6 +205,7 @@
   }
 
   function show() {
+    if (_isVisible) return; // 幂等：已显示时不重复 push 回退栈
     _createThumbsBar();
     _populateThumbs();
     if (_thumbsBar) _thumbsBar.classList.add('bk-pdf-thumbs-visible');
@@ -212,11 +214,27 @@
     highlightPage(S.currentPage());
     // 关闭其他面板
     _closeOthers('thumbs');
+    // 注册到 backStack：系统返回键关闭抽屉
+    // push 必须放在 closeOthers 之后，避免被互斥关闭的 discard 误 pop 自己刚 push 的条目
+    if (win.BK && win.BK.backStack) {
+      _inBackStack = true;
+      win.BK.backStack.push(function () {
+        _inBackStack = false;
+        hide();
+      });
+    }
   }
 
   function hide() {
+    if (!_isVisible) return; // 幂等：未显示时无栈条目可消耗
     if (_thumbsBar) _thumbsBar.classList.remove('bk-pdf-thumbs-visible');
     _isVisible = false;
+    // 主动关闭（按钮/互斥）：消耗对应 history 条目；
+    // 系统返回键触发时回调已置 _inBackStack=false，不会走到这里
+    if (_inBackStack && win.BK && win.BK.backStack) {
+      _inBackStack = false;
+      win.BK.backStack.discard();
+    }
   }
 
   function _closeOthers(except) {
@@ -242,6 +260,11 @@
     _renderQueue = [];
     _renderingCount = 0;
     _isVisible = false;
+    // 书籍退出时抽屉可能仍在回退栈上：弹出回调防孤儿条目（不触发 history.back）
+    if (_inBackStack && win.BK && win.BK.backStack) {
+      _inBackStack = false;
+      win.BK.backStack.silentPop();
+    }
   }
 
   // ==================== 导出 ====================

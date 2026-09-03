@@ -171,7 +171,7 @@
       // 内容与数据（四入口已收敛为「数据与同步」中心页，见 BK.DataSyncPage）
       html += '<div class="bk-settings-section">';
       html += '<div class="bk-settings-section-title">内容与数据</div>';
-      html += '<button class="bk-settings-row" data-action="data-sync"><span class="bk-row-icon">🔄</span><span class="bk-row-label">数据与同步</span><span class="bk-row-sub">导出 · 导入 · WebDAV · 局域网</span><span class="bk-row-arrow">›</span></button>';
+      html += '<button class="bk-settings-row" data-action="data-sync"><span class="bk-row-icon">🔄</span><span class="bk-row-label">数据与同步</span><span class="bk-row-arrow">›</span></button>';
       html += '<button class="bk-settings-row" data-action="clear-data"><span class="bk-row-icon">🧹</span><span class="bk-row-label">清理数据</span><span class="bk-row-arrow">›</span></button>';
       html += '</div>';
       html += '</div>'; // bk-settings-left end

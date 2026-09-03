@@ -246,10 +246,19 @@
   // ── 对话框渲染 ──────────────────────────────────────────────────────
   function _renderUploadDialog(bookInfos) {
     // 清理残留的旧弹窗（close() 有 220ms 动画延迟，可能在 DOM 中残留）
+    // ★ 若旧弹框从未 close（程序化重开），其 backStack 条目仍在栈上；
+    //   直接 removeChild 绕过 close() 会留下孤儿条目 + 孤儿 history，
+    //   故先 silentPop() 复位栈（不动 history，与 openDialog 的 discard 配对）。
     var oldEl = document.getElementById('bk-webdav-upload-dialog');
-    if (oldEl && oldEl.parentNode) oldEl.parentNode.removeChild(oldEl);
+    if (oldEl && oldEl.parentNode) {
+      if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) win.BK.backStack.silentPop();
+      oldEl.parentNode.removeChild(oldEl);
+    }
     var oldDirEl = document.getElementById('bk-webdav-upload-dir-dialog');
-    if (oldDirEl && oldDirEl.parentNode) oldDirEl.parentNode.removeChild(oldDirEl);
+    if (oldDirEl && oldDirEl.parentNode) {
+      if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) win.BK.backStack.silentPop();
+      oldDirEl.parentNode.removeChild(oldDirEl);
+    }
 
     var isSingle = bookInfos.length === 1;
     var titleText = isSingle
