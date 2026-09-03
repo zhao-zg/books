@@ -733,6 +733,148 @@ describe('书城书（zl-data 来源）导出', () => {
   });
 });
 
+describe('生产默认 store 回退（修复：UI 调用点不传 store 时导出空内容）', () => {
+  // 回归：generateZipBytes 曾直接取 opts.importStore/zlStore/pdfStore（无生产默认回退），
+  // 而所有 UI 调用点（数据同步中心/书城/书架/WebDAV/LAN）都不传 store，
+  // 导致 getBookData 恒 null → book.json 与书本体全部被静默跳过（data/full 两模式包大小一样）。
+  // 修复：store 依赖改走 _resolveXxxStore 回退链（回退到 win.ImportManager / win.DataManager 生产 store）。
+
+  test('full 模式不传 store：走生产默认 store 回退，含 book.json + book.txt', async () => {
+    var bookId = 'imported-fallback-1';
+    var book = makeTxtBook(bookId, '回退测试书');
+    var fk = makeFakeJSZip();
+    win.JSZip = fk.JSZip;
+
+    var env = setupMockEnv({
+      shelf: [{ id: bookId }],
+      importStoreData: { ['imported_book:' + bookId]: book }
+    });
+
+    // 模拟生产全局 store 入口（修复后 generateZipBytes 缺省走这里）
+    win.ImportManager = win.ImportManager || {};
+    win.ImportManager.getImportStore = function () { return env.importStore; };
+    win.ImportManager.getPdfDataStore = function () { return env.pdfStore; };
+    win.DataManager = win.DataManager || {};
+    win.DataManager.getZlStore = function () { return env.zlStore; };
+
+    try {
+      // 关键：不传 importStore/zlStore/pdfStore（与 UI 调用点一致）
+      await SC.generateZipBytes('full', { bookIds: [bookId] });
+
+      var names = Object.keys(fk.files).sort();
+      assert.ok(names.indexOf('books/' + bookId + '/book.json') !== -1,
+        '不传 store 时必须经生产默认回退拿到书籍数据，写入 book.json');
+      assert.ok(names.indexOf('books/' + bookId + '/book.txt') !== -1,
+        'full 模式必须打包书本体 book.txt');
+    } finally {
+      delete win.ImportManager.getImportStore;
+      delete win.ImportManager.getPdfDataStore;
+      delete win.DataManager.getZlStore;
+    }
+  });
+
+  test('data 模式不传 store：走生产默认 store 回退，含 book.json', async () => {
+    var bookId = 'imported-fallback-2';
+    var book = makeTxtBook(bookId, '回退数据模式');
+    var fk = makeFakeJSZip();
+    win.JSZip = fk.JSZip;
+
+    var env = setupMockEnv({
+      shelf: [{ id: bookId }],
+      importStoreData: { ['imported_book:' + bookId]: book }
+    });
+
+    win.ImportManager = win.ImportManager || {};
+    win.ImportManager.getImportStore = function () { return env.importStore; };
+    win.ImportManager.getPdfDataStore = function () { return env.pdfStore; };
+    win.DataManager = win.DataManager || {};
+    win.DataManager.getZlStore = function () { return env.zlStore; };
+
+    try {
+      await SC.generateZipBytes('data', { bookIds: [bookId] });
+
+      var names = Object.keys(fk.files).sort();
+      assert.ok(names.indexOf('books/' + bookId + '/book.json') !== -1,
+        'data 模式不传 store 时也必须有 book.json');
+      assert.ok(names.indexOf('books/' + bookId + '/userdata.json') !== -1,
+        'data 模式必须有 userdata.json');
+    } finally {
+      delete win.ImportManager.getImportStore;
+      delete win.ImportManager.getPdfDataStore;
+      delete win.DataManager.getZlStore;
+    }
+  });
+
+  test('PDF 书 full 模式不传 store：original.pdf 经生产 pdfStore 回退写入', async () => {
+    var bookId = 'imported-fallback-3';
+    var book = makePdfBook(bookId, '回退PDF书');
+    var pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+    var fk = makeFakeJSZip();
+    win.JSZip = fk.JSZip;
+
+    var env = setupMockEnv({
+      shelf: [{ id: bookId }],
+      importStoreData: { ['imported_book:' + bookId]: book },
+      pdfStoreData: { ['pdf:' + bookId]: pdfBytes }
+    });
+
+    win.ImportManager = win.ImportManager || {};
+    win.ImportManager.getImportStore = function () { return env.importStore; };
+    win.ImportManager.getPdfDataStore = function () { return env.pdfStore; };
+    win.DataManager = win.DataManager || {};
+    win.DataManager.getZlStore = function () { return env.zlStore; };
+
+    try {
+      await SC.generateZipBytes('full', { bookIds: [bookId] });
+
+      var names = Object.keys(fk.files).sort();
+      assert.ok(names.indexOf('books/' + bookId + '/original.pdf') !== -1,
+        'PDF 书 full 模式必须经生产 pdfStore 回退写入 original.pdf');
+    } finally {
+      delete win.ImportManager.getImportStore;
+      delete win.ImportManager.getPdfDataStore;
+      delete win.DataManager.getZlStore;
+    }
+  });
+
+  test('opts 显式传入的 store 优先于生产默认（注入优先级不变）', async () => {
+    var bookId = 'imported-fallback-4';
+    var book = makeTxtBook(bookId, '注入优先');
+    var fk = makeFakeJSZip();
+    win.JSZip = fk.JSZip;
+
+    var env = setupMockEnv({
+      shelf: [{ id: bookId }],
+      importStoreData: { ['imported_book:' + bookId]: book }
+    });
+
+    // 生产默认返回一个空 store（若被采用则导不出 book.json）
+    win.ImportManager = win.ImportManager || {};
+    win.ImportManager.getImportStore = function () { return makeFakeStore({}); };
+    win.ImportManager.getPdfDataStore = function () { return makeFakeStore({}); };
+    win.DataManager = win.DataManager || {};
+    win.DataManager.getZlStore = function () { return makeFakeStore({}); };
+
+    try {
+      // 显式注入真实 store，必须优先于生产默认
+      await SC.generateZipBytes('full', {
+        bookIds: [bookId],
+        importStore: env.importStore,
+        zlStore: env.zlStore,
+        pdfStore: env.pdfStore
+      });
+
+      var names = Object.keys(fk.files).sort();
+      assert.ok(names.indexOf('books/' + bookId + '/book.json') !== -1,
+        'opts 显式注入的 store 必须优先于生产默认');
+    } finally {
+      delete win.ImportManager.getImportStore;
+      delete win.ImportManager.getPdfDataStore;
+      delete win.DataManager.getZlStore;
+    }
+  });
+});
+
 describe('generateZipBytes 返回值与参数校验', () => {
   test('返回 Uint8Array（透传 generateAsync 结果）', async () => {
     var bookId = 'imported-rv-1';

@@ -234,12 +234,15 @@
         console.log('[BK.SyncCore] generateZipBytes: 开始打包 ' + bookIds.length + ' 本书（mode=' + mode + '）');
         var t0 = Date.now();
 
-        // 构造 store 依赖
+        // 构造 store 依赖（优先 opts 注入，缺省回退生产默认 store：
+        // ImportManager.getImportStore / DataManager.getZlStore / ImportManager.getPdfDataStore。
+        // 回归修复：UI 调用点均不传 store，此前直接取 opts 导致 store 全 null，
+        // getBookData 恒 null → book.json 与书本体被静默跳过、data/full 两模式包内容一样）
         var deps = {
-            importStore: opts.importStore || null,
-            zlStore: opts.zlStore || null
+            importStore: _resolveImportStore(opts),
+            zlStore: _resolveZlStore(opts)
         };
-        var pdfStore = opts.pdfStore || null;
+        var pdfStore = _resolvePdfStore(opts);
 
         // 预取全量书签和高亮（避免逐书重复调用 getAll）
         var bookmarksPromise = (win.BKBookmark && typeof win.BKBookmark.getAll === 'function')
