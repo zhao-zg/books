@@ -4,14 +4,13 @@
  * 四区块结构（设计文档 docs/plans/2026-09-01-data-sync-center-design.md 第 4 节）：
  *   1. 导出区：仅数据 / 完整包 两按钮 → BK.SyncCore.exportData('data'|'full')
  *   2. 导入区：选 ZIP → BK.SyncCore.importFromZip（旧包 v1/v2/v3 直接报错）
- *   3. WebDAV 区：配置管理 + 增量同步状态 + 立即同步 + 从 WebDAV 导入书 + 上传书
+ *   3. WebDAV 区：配置管理 + 增量同步状态 + 立即同步
  *   4. 局域网区：入口按钮 → BK.LanSyncPanel.show()（复用现有面板，不重做 UI）
  *
  * 依赖（均在前序 defer 加载；运行时守卫访问，不在此处做模块级求值）：
  *   - BK.SyncCore               (sync-core.js)
  *   - BK.SyncWebDAVTrigger      (sync-webdav-trigger.js)
  *   - WebDavManager             (webdav-manager.js)
- *   - BK.WebDavUpload           (webdav-upload.js)
  *   - BK.WebDavConfig           (webdav-config.js，仅读配置展示)
  *   - BK.LanSyncPanel           (lan-sync-panel.js)
  *
@@ -22,8 +21,7 @@
  *
  * 同步服务器选择策略：预设服务器（preset:true，随包下发的公共书库，用户名/密码
  * 是公开的）不可作为私人同步目标——同步下拉只列出用户自配置/私人服务器，
- * 避免把阅读进度/笔记写到公共 WebDAV 书库。预设服务器仍可用于上传书到书库
- * （webdav-upload.js 保留全部配置，属既有用途）。
+ * 避免把阅读进度/笔记写到公共 WebDAV 书库。
  *
  * 样式：css-data-sync.css（Soft Nordic 暖调，对齐 lan-sync 面板 token）
  */
@@ -201,14 +199,6 @@
             '          </div>' +
 '          <button class="dsc-btn" data-action="export-full">导出</button>' +
 '        </div>' +
-'        <div class="dsc-divider"></div>' +
-'        <div class="dsc-row">' +
-'          <div class="dsc-row-main">' +
-'            <div class="dsc-row-title">上传书到 WebDAV</div>' +
-'            <div class="dsc-row-desc">将书架上的书上传到服务器</div>' +
-'          </div>' +
-'          <button class="dsc-btn" data-action="webdav-upload">上传</button>' +
-'        </div>' +
 '      </div>' +
 '    </div>' +
 
@@ -224,14 +214,6 @@
             '          <button class="dsc-btn" data-action="import-zip">选择文件</button>' +
             '        </div>' +
 '        <div class="dsc-import-result" id="dscImportResult"></div>' +
-'        <div class="dsc-divider"></div>' +
-'        <div class="dsc-row">' +
-'          <div class="dsc-row-main">' +
-'            <div class="dsc-row-title">从 WebDAV 导入书</div>' +
-'            <div class="dsc-row-desc" id="dscWebdavBooksDesc">浏览远端已同步的书籍</div>' +
-'          </div>' +
-'          <button class="dsc-btn" data-action="webdav-import">浏览</button>' +
-'        </div>' +
 '      </div>' +
 '    </div>' +
 
@@ -538,8 +520,6 @@
             case 'export-full': return _handleExport('full', btn);
             case 'import-zip': return _handleImportZip();
             case 'sync-now': return _handleSyncNow(btn);
-            case 'webdav-import': return _handleWebdavImport();
-            case 'webdav-upload': return _handleWebdavUpload();
             case 'lan-sync': return _handleLanSync();
         }
     }
@@ -698,94 +678,6 @@
         var el = panelEl && panelEl.querySelector('#dscSyncState');
         if (!el) return;
         el.textContent = syncStateText(state, hasConfig);
-    }
-
-    /** 「从 WebDAV 导入书」：列出 bk-sync 远端 ZIP → 逐本导入 */
-    function _handleWebdavImport() {
-        var config = _getActiveWebdavConfig();
-        if (!config) { _toast('请先配置 WebDAV 服务器'); return; }
-        if (!win.WebDavManager || typeof win.WebDavManager.listDir !== 'function') {
-            _toast('WebDAV 功能未就绪');
-            return;
-        }
-        var REMOTE_DIR = (win.BK && win.BK.SyncWebDAV && win.BK.SyncWebDAV.REMOTE_DIR) || 'bk-sync';
-        var desc = panelEl.querySelector('#dscWebdavBooksDesc');
-        if (desc) desc.textContent = '正在读取远端目录…';
-
-        win.WebDavManager.listDir(config, REMOTE_DIR).then(function (entries) {
-            var zips = [];
-            for (var i = 0; i < entries.length; i++) {
-                var en = entries[i];
-                if (!en.isDir && en.name && /\.zip$/i.test(en.name)) zips.push(en);
-            }
-            if (!zips.length) {
-                if (desc) desc.textContent = '远端没有可导入的书籍';
-                _toast('远端 bk-sync 目录暂无书籍');
-                return;
-            }
-            _importWebdavBooks(config, zips, desc);
-        }).catch(function (err) {
-            if (desc) desc.textContent = '浏览远端已同步的书籍';
-            _toast('读取远端失败：' + (err && (err.hint || err.message) ? (err.hint || err.message) : err));
-        });
-    }
-
-    function _importWebdavBooks(config, zips, desc) {
-        var total = zips.length;
-        var ok = 0, fail = 0;
-        var chain = Promise.resolve();
-
-        function _done() {
-            if (desc) desc.textContent = '上次导入：成功 ' + ok + ' / ' + total + ' 本';
-            _toast(ok === total ? '导入完成：' + ok + ' 本' : '导入完成：成功 ' + ok + ' 本，失败 ' + fail + ' 本');
-        }
-
-        zips.forEach(function (entry) {
-            chain = chain.then(function () {
-                if (desc) desc.textContent = '正在导入 ' + (ok + fail + 1) + '/' + total + '：' + entry.name;
-                return win.WebDavManager.downloadFile(config, entry).then(function (info) {
-                    var buffer = info && (info.arrayBuffer || info.text);
-                    if (!buffer) throw new Error('下载失败：无内容');
-                    return win.BK.SyncCore.importFromZip(buffer);
-                }).then(function () {
-                    ok++;
-                }).catch(function () {
-                    fail++;
-                });
-            });
-        });
-        chain.then(_done, _done);
-    }
-
-    /** 「上传书到 WebDAV」：复用 webdav-upload 上传对话框 */
-    function _handleWebdavUpload() {
-        if (!win.BK || !win.BK.WebDavUpload || !win.BK.WebDavUpload.showUploadDialog) {
-            _toast('上传功能未就绪');
-            return;
-        }
-        var ids = _allBookIds();
-        if (!ids.length) {
-            _toast('书架没有可上传的书');
-            return;
-        }
-        win.BK.WebDavUpload.showUploadDialog(ids);
-    }
-
-    function _allBookIds() {
-        var ids = [];
-        try {
-            if (win.BKShelf && typeof win.BKShelf.all === 'function') {
-                var shelf = win.BKShelf.all();
-                for (var i = 0; i < shelf.length; i++) {
-                    var rec = shelf[i];
-                    if (rec) {
-                        var bid = rec.bookId || rec.id;
-                        if (bid) ids.push(bid);
-                    }
-                }
-            }
-        } catch (e) { /* ignore */ }
-        return ids;
     }
 
     // ── 区块 4：局域网 ────────────────────────────────────────────────

@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'f15d0a4d-d61b-4718-8ee0-007887a138e0'
-  PropagateID: 'f15d0a4d-d61b-4718-8ee0-007887a138e0'
-  ReservedCode1: '2d0dbe68-2a93-482c-ad70-3c8427833170'
-  ReservedCode2: '2d0dbe68-2a93-482c-ad70-3c8427833170'
+  ProduceID: '8c861be3-7341-46ea-be60-411311afc1b0'
+  PropagateID: '8c861be3-7341-46ea-be60-411311afc1b0'
+  ReservedCode1: 'da851f0c-4215-4fff-9f56-3f6f58c2b77f'
+  ReservedCode2: 'da851f0c-4215-4fff-9f56-3f6f58c2b77f'
 ---
 
 # 数据与同步中心整合 — 设计文档
@@ -78,14 +78,13 @@ AIGC:
        ├─ ③ WebDAV 区
        │    ├ 服务器配置（全局唯一一份）
        │    ├ 增量同步：状态 + 上次同步时间 + 立即同步
-       │    ├ 从 WebDAV 导入书（原书架 WebDAV Tab 迁入）
-       │    └ 上传书到 WebDAV
+
        └─ ④ 局域网同步（现面板整体迁入）
 
 书架页（快捷口，只留高频操作）
-  ├ 头部「+添加」→ 纯本地导入（删 WebDAV Tab）
+  ├ 头部「📂导入」→ 本地文件 + WebDAV 远程文件管理器（恢复双卡片式）
   ├ 编辑态批量条「导出」→ 调新导出核心
-  ├ 编辑态批量条「上传 WebDAV」→ 调统一模块（未配置则提示去中心）
+  ├ 编辑态批量条「上传 WebDAV」→ 调 webdav-upload 模块
   └ 长按单书「导出书籍」TXT/MD/EPUB/PDF 保留
 
 书城页（快捷口，只出不进）
@@ -174,7 +173,7 @@ bk-book-<date>.zip（v4）
 2. **v4 核心**：TDD 实现 `sync-core.js` → 测试过。
 3. **底层切换**：lan-sync / webrtc / webdav 改调 sync-core → 测试过。
 4. **中心页 UI**：`data-sync-page.js` 四区块 + WebDAV 配置归拢 → 手动验证。
-5. **入口收敛**：我的页 4 项→1 项；书架删 WebDAV Tab；书城删导入 Tab；删 download-mgr 死代码。
+5. **入口收敛**：我的页 4 项→1 项；书架保留 WebDAV 导入 Tab（恢复双卡片式）；书城删导入 Tab；删 download-mgr 死代码。
 6. **收尾**：三副本同步（git 只跟踪 src）、预缓存清单核对、全量回归。
 
 ## 10. 明确不做

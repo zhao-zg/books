@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'ee988c7a-562b-45bf-a475-9168b6b69afc'
-  PropagateID: 'ee988c7a-562b-45bf-a475-9168b6b69afc'
-  ReservedCode1: '322102ae-5e48-4c7b-8fef-5b622a0508d2'
-  ReservedCode2: '322102ae-5e48-4c7b-8fef-5b622a0508d2'
+  ProduceID: 'bf036aca-29de-4bb9-8df7-761b80edd2c2'
+  PropagateID: 'bf036aca-29de-4bb9-8df7-761b80edd2c2'
+  ReservedCode1: '563dee63-fd45-4d66-ace4-67bf9207a22f'
+  ReservedCode2: '563dee63-fd45-4d66-ace4-67bf9207a22f'
 ---
 
 # 数据与同步中心整合 — 实施计划
@@ -116,7 +116,7 @@ AIGC:
 1. 全屏页骨架：顶栏返回 + 四区块（导出 / 导入 / WebDAV / 局域网），风格对齐 lan-sync-panel（暖调低饱和、正文 18px/UI 14px/辅助 12px）。
 2. 导出区两按钮：调 SyncCore.exportData('data'|'full')，导出中 loading，完成后 toast 显示文件名。
 3. 导入区：文件选择 → SyncCore.importFromZip，旧包报错文案原样展示。
-4. WebDAV 区：配置表单（从现有 WebDavManager 配置迁移读取）、增量同步状态行（订阅 onSyncStateChange）、立即同步按钮、从 WebDAV 导入书列表、上传书入口。
+4. WebDAV 区：配置表单（从现有 WebDavManager 配置迁移读取）、增量同步状态行（订阅 onSyncStateChange）、立即同步按钮。（WebDAV 导入书已回归书架导入对话框，上传书入口保留在书架编辑态批量条）
 5. 局域网区：嵌入现有 LanSyncPanel 或按钮跳转其面板。
 6. 点击不得触发阅读页浮动控制栏（沿用既有弹层约定）。
 7. index.html：新 script 按依赖顺序插入 defer 列表；SW 预缓存清单补 4 个新文件；三副本同步此文件改动（src 优先）。
