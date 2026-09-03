@@ -92,10 +92,30 @@
 .bk-btn-block { width: 100%; }
 .bk-btn:disabled { opacity: .5; cursor: default; }
 
-/* 状态标签色 */
+/* ── 状态标签色 ── */
 .bk-status-danger { color: var(--danger-text, #C8553D); }
 .bk-status-warn { color: var(--warning-text, #B5793A); }
 .bk-status-earth { color: #D89575; }
+
+/* ── 导入对话框：来源选择卡片（信封入口） ──────────────────── */
+.bk-source-row { display: flex; gap: 12px; }
+.bk-source-card {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 12px; border-radius: 14px; border: 1.5px solid var(--border, #E5E2DD);
+  background: var(--card-bg, #FFFFFF); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.bk-source-card:hover { border-color: var(--interactive-soft-border, #C5C0B8); background: var(--surface-alt, #FAFAF8); }
+.bk-source-card.active {
+  border-color: var(--brand, #3D8A5A); background: rgba(var(--brand-rgb, 61,138,90),.06);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 61,138,90),.08);
+}
+.bk-source-card-icon { font-size: 1.5em; line-height: 1; }
+.bk-source-card-label {
+  font-size: var(--text-sm, .8125rem); font-weight: 600; color: var(--text, #1A1918);
+  transition: color .15s;
+}
+.bk-source-card.active .bk-source-card-label { color: var(--brand, #3D8A5A); }
 
 /* 主操作按钮（选择文件）：大号 primary */
 .bk-import-action-primary {
@@ -215,6 +235,10 @@
 
 /* 小标签 muted */
 .bk-label-muted { font-size: var(--text-xs, .75rem); color: var(--text-muted, #9A958C); margin: 0 0 8px; }
+
+/* ── WebDAV 导入子视图（Soft Nordic 设计令牌）────────────────── */
+/* 全程使用既有 CSS 变量，不硬编码颜色（sage=--brand / 画布=--surface / 卡片=--card-bg / 描边=--border / 文本=--text / muted=--text-muted） */
+#bkImportWebdavView { margin-top: 14px; }
 
 /* 连接配置面板 */
 .bk-webdav-form { display: flex; flex-direction: column; gap: 10px; }
