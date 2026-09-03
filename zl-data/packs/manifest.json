@@ -1,0 +1,146 @@
+{
+  "version": 2026090400,
+  "maxPackSize": 26214400,
+  "packs": [
+    {
+      "id": "books",
+      "files": [
+        "books-part1.zip",
+        "books-part2.zip",
+        "books-part3.zip"
+      ],
+      "totalSize": 61152517,
+      "totalOriginalSize": 174192203,
+      "bookCount": 677,
+      "parts": [
+        {
+          "file": "books-part1.zip",
+          "size": 25509967,
+          "bookCount": 336,
+          "sha256": "877c30dc9dc7e47567a83437ccc4948c3ec90cd03372bb86873e988c55a4ba92"
+        },
+        {
+          "file": "books-part2.zip",
+          "size": 25563359,
+          "bookCount": 282,
+          "sha256": "c53df95b77e4824dd21c0e3b4745f6995764a48ca620c40a0efd7136b9bd15be"
+        },
+        {
+          "file": "books-part3.zip",
+          "size": 10079191,
+          "bookCount": 59,
+          "sha256": "6ca6a9f064d37bd6e91d4d24f2cb8aa9e8886257506b9cfb0f03309695f289c1"
+        }
+      ]
+    },
+    {
+      "id": "lee8",
+      "files": [
+        "lee8-part1.zip",
+        "lee8-part2.zip"
+      ],
+      "totalSize": 28554719,
+      "totalOriginalSize": 82813664,
+      "bookCount": 344,
+      "parts": [
+        {
+          "file": "lee8-part1.zip",
+          "size": 25303799,
+          "bookCount": 310,
+          "sha256": "bd67f7ca5cd8ceeaca2986b01990f3f97e2da30c35983817082ff1dc3c948b5b"
+        },
+        {
+          "file": "lee8-part2.zip",
+          "size": 3250920,
+          "bookCount": 34,
+          "sha256": "88c1b7b76971c6ebae615e9764ebaad06bbf164a94d2bc3d2fb25a1d9c9b5404"
+        }
+      ]
+    },
+    {
+      "id": "nee",
+      "files": [
+        "nee.zip"
+      ],
+      "totalSize": 8292683,
+      "totalOriginalSize": 23250789,
+      "bookCount": 62,
+      "parts": [
+        {
+          "file": "nee.zip",
+          "size": 8292683,
+          "bookCount": 62,
+          "sha256": "bc5da283238b42e8a218312ca2239c4a43533673ba46a671727636a1c6d0015c"
+        }
+      ]
+    },
+    {
+      "id": "smdj8",
+      "files": [
+        "smdj8.zip"
+      ],
+      "totalSize": 9402536,
+      "totalOriginalSize": 28413951,
+      "bookCount": 63,
+      "parts": [
+        {
+          "file": "smdj8.zip",
+          "size": 9402536,
+          "bookCount": 63,
+          "sha256": "8527acd1a0efcaa2bf70b379d6dcdf4113d2a4e1c4fb7fc53aec6dff4a853bb8"
+        }
+      ]
+    },
+    {
+      "id": "sy_auto",
+      "files": [
+        "sy_auto.zip"
+      ],
+      "totalSize": 18971320,
+      "totalOriginalSize": 56425669,
+      "bookCount": 250,
+      "parts": [
+        {
+          "file": "sy_auto.zip",
+          "size": 18971320,
+          "bookCount": 250,
+          "sha256": "d69aa42250c7f78d230575dd1740287c7bab6e5f7a8e888548586ea27bdb94b6"
+        }
+      ]
+    },
+    {
+      "id": "测试1",
+      "files": [
+        "测试1.zip"
+      ],
+      "totalSize": 736412,
+      "totalOriginalSize": 4340304,
+      "bookCount": 1,
+      "parts": [
+        {
+          "file": "测试1.zip",
+          "size": 736412,
+          "bookCount": 1,
+          "sha256": "aa386fce5d898eee1a02fb8bd1002833607d246837d9d4f0cc5a59b8a2598321"
+        }
+      ]
+    },
+    {
+      "id": "测试2",
+      "files": [
+        "测试2.zip"
+      ],
+      "totalSize": 7532,
+      "totalOriginalSize": 31327,
+      "bookCount": 3,
+      "parts": [
+        {
+          "file": "测试2.zip",
+          "size": 7532,
+          "bookCount": 3,
+          "sha256": "baefb130aab841ed8f7b8ba16a7e943f0b21204320c9276a8bfb9bb748fd726c"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,422 @@
+/* ── EPUB 脚注引用（duokan-footnote 行内标记）──
+   保留原始 EPUB 的 <img> 图标（如 MDC 的 verse.png）；
+   无 img 时回退为 <span class="bk-epub-fn-ref-text">†</span> 文本符号 */
+.bk-epub-fn-ref {
+  display: inline-block;
+  cursor: pointer;
+  vertical-align: super;
+  line-height: 1;
+  text-decoration: none;
+  margin: 0 0.1em;
+  padding: 0.12em 0.3em 0.06em;
+  border-radius: 0.35em;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: background .15s;
+}
+.bk-epub-fn-ref:hover { background: rgba(var(--brand-rgb, 61,138,90),.14); }
+.bk-epub-fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); }
+/* 回退文本符号 †（无 img 子节点时的占位）：上移 + 加粗，与图标视觉对齐 */
+.bk-epub-fn-ref-text {
+  font-weight: bold;
+  position: relative;
+  top: -0.15em;
+  color: var(--text-secondary, #666);
+}
+/* 图片图标样式（还原原始 EPUB .footnote_img 规则） */
+.bk-epub-fn-ref img {
+  height: 0.9em;
+  vertical-align: middle;
+  border: none;
+}
+.bk-epub-fn-ref:hover {
+  opacity: 0.85;
+  text-decoration: none;
+}
+[data-theme="dark"] .bk-epub-fn-ref:active { background: rgba(var(--brand-rgb),.32); }
+[data-theme="dark"] .bk-epub-fn-ref img {
+  /* 暗色模式下保持原始彩色图标外观（verse.png 黄底蓝字在暗色背景下具备良好对比度）。
+     不调整 brightness，避免 brightness(0.9) 让蓝字进一步变暗导致清晰度下降。 */
+  filter: none;
+}
+
+/* EPUB 脚注弹窗遮罩 */
+.bk-epub-fn-popup-mask {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.12);
+  z-index: 9998;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bk-epub-fn-popup-mask-active {
+  display: block;
+}
+
+/* EPUB 脚注弹窗 */
+.bk-epub-fn-popup {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  max-width: min(480px, calc(100vw - 20px));
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  padding: 16px 18px;
+  font-size: calc(var(--reading-font-size, 16px) * 0.9);
+  line-height: 1.6;
+}
+.bk-epub-fn-popup-active {
+  display: block;
+}
+.bk-epub-fn-popup-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: var(--text-muted, #999);
+  line-height: 1;
+}
+.bk-epub-fn-popup-close:hover {
+  color: var(--text, #333);
+}
+.bk-epub-fn-popup-content {
+  color: var(--text, #333);
+}
+.bk-epub-fn-popup-content p {
+  margin: 0.3em 0;
+  line-height: 1.6;
+}
+[data-theme="dark"] .bk-epub-fn-popup {
+  background: #2a2a2a;
+  border-color: #444;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+[data-theme="dark"] .bk-epub-fn-popup-mask {
+  background: rgba(0,0,0,0.3);
+}
+
+/* ── EPUB 大纲层级样式 ────────────────────────────────────── */
+/* 大点 壹贰叁 — 加粗、楷体、稍大 */
+.bk-epub-dadian {
+  font-weight: bold;
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  text-indent: 0;
+}
+/* 中点 一二三 — 正常粗细 */
+.bk-epub-zhongdian {
+  font-weight: normal;
+  text-indent: 1em;
+}
+/* 小点 1 2 3 — 更缩进 */
+.bk-epub-xiaodian {
+  font-weight: normal;
+  text-indent: 2em;
+}
+/* 字母点 a b c */
+.bk-epub-zimudian {
+  font-weight: normal;
+  text-indent: 3em;
+  font-size: 0.95em;
+}
+/* 括号点 */
+.bk-epub-kuohaodian {
+  font-weight: normal;
+  text-indent: 3.5em;
+  font-size: 0.95em;
+}
+
+/* ── EPUB 晨兴/信息喂养样式 ────────────────────────────────── */
+/* 晨兴喂养背景框 */
+.bk-epub-chenxing_box {
+  background-color: rgba(var(--brand-rgb, 61,138,90), 0.06);
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90), 0.15);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+/* 周几导航标签 */
+.bk-epub-gangmu_wn {
+  font-weight: bold;
+  color: var(--brand, #3D8A5A);
+  text-indent: 0;
+}
+/* 晨兴周几标签（红字标题） */
+.bk-heading.bk-epub-chenxing_wn {
+  color: #c0392b;
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  text-align: center;
+  text-indent: 0;
+}
+/* 晨兴喂养/信息选读标题 */
+.bk-heading.bk-epub-chenxing_wyxd {
+  font-weight: bold;
+  color: var(--brand, #3D8A5A);
+  font-family: 'STHeiti', 'SimHei', '黑体', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+  text-align: center;
+  text-indent: 0;
+}
+/* 禱读经文（引用块） */
+.bk-quote.bk-epub-chenxing_verse {
+  font-weight: bold;
+  border-left-color: #c0392b;
+}
+.bk-quote.bk-epub-chenxing_verse .bk-quote-content {
+  font-style: normal;
+  font-family: 'FZXiaoBiaoSong-B05S', 'STSong', '宋体', 'SimSun', 'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+}
+/* 晨兴经文引用块内的 b/strong 允许换行（覆盖 #chapterContent b 和 .bk-carousel-page .content b 的 nowrap） */
+#chapterContent .bk-epub-chenxing_verse b,
+#chapterContent .bk-epub-chenxing_verse strong,
+.bk-carousel-page .content .bk-epub-chenxing_verse b,
+.bk-carousel-page .content .bk-epub-chenxing_verse strong {
+  white-space: normal;
+}
+/* 晨兴正文 */
+.bk-epub-chenxing_content {
+  text-indent: 1em;
+}
+/* 读经行 */
+.bk-epub-verse_text {
+  font-size: 0.9em;
+  text-indent: 0;
+}
+/* 经文内容（脚注中的经文段落） */
+.bk-epub-verse {
+  color: var(--text-muted);
+  margin-left: 1em;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+/* 总题 */
+.bk-heading.bk-epub-zongti {
+  color: var(--text-muted);
+  text-align: center;
+}
+/* 篇题 */
+.bk-heading.bk-epub-content_title {
+  color: var(--brand, #3D8A5A);
+  font-family: 'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif;
+  font-size: 1.3em;
+  text-align: center;
+}
+
+/* ── EPUB <br> linebreak ─────────────────────────────────── */
+br.bk-linebreak {
+  display: block;
+  content: '';
+  margin-top: 0.3em;
+}
+
+/* ── 代码块高亮增强 ──────────────────────────────────────── */
+pre.bk-code {
+  border-radius: 8px;
+  overflow-x: auto;
+  position: relative;
+}
+pre.bk-code.hljs {
+  background: var(--code-bg, #f6f8fa);
+}
+pre.bk-code code {
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: 0.85em;
+  line-height: 1.6;
+  tab-size: 4;
+}
+
+/* ── 任务列表 Checkbox ─────────────────────────────────────── */
+.bk-list li {
+  position: relative;
+}
+.bk-task-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-muted, #999);
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-right: 6px;
+  position: relative;
+  cursor: default;
+  flex-shrink: 0;
+}
+.bk-task-checkbox:checked {
+  background: var(--brand, #3D8A5A);
+  border-color: var(--brand, #3D8A5A);
+}
+.bk-task-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.bk-list li:has(.bk-task-checkbox:checked) {
+  color: var(--text-muted, #999);
+  text-decoration: line-through;
+}
+
+/* ── Mermaid 图表 ──────────────────────────────────────────── */
+.bk-mermaid {
+  margin: 1em auto;
+  text-align: center;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.bk-mermaid pre.mermaid {
+  display: flex;
+  justify-content: center;
+}
+.bk-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── KaTeX 数学公式 ───────────────────────────────────────── */
+.bk-math {
+  display: block;
+  margin: 0.8em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.bk-math .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+}
+
+/* ── 缩进标记（Tab 缩进转换） ── */
+.bk-indent {
+  display: inline;
+  white-space: pre;
+}
+.bk-indent-1 { }
+.bk-indent-2 { }
+
+/* ── 大纲层级缩进（中文编号层级） ── */
+.bk-outline-indent {
+  display: inline;
+  white-space: pre;
+}
+.bk-outline-2 { }
+.bk-outline-3 { }
+.bk-outline-4 { }
+
+/* ── mark 高亮（++text++ 格式） ── */
+mark.bk-mark-highlight {
+  background: rgba(255, 214, 0, 0.25);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+[data-theme="dark"] mark.bk-mark-highlight {
+  background: rgba(255, 214, 0, 0.35);
+  color: inherit;
+}
+
+/* ── 图片 Lightbox ────────────────────────────────────────── */
+.bk-lightbox-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  justify-content: center;
+  align-items: center;
+  touch-action: none;
+}
+.bk-lightbox-overlay.bk-lightbox-active {
+  display: flex;
+}
+.bk-lightbox-container {
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+}
+.bk-lightbox-img {
+  max-width: 95vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.bk-lightbox-close {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+  opacity: 0.7;
+  line-height: 1;
+  padding: 4px 8px;
+}
+.bk-lightbox-close:hover {
+  opacity: 1;
+}
+figure.bk-figure img {
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+figure.bk-figure img:hover {
+  transform: scale(1.02);
+}
+
+/* ── 表格 ─────────────────────────────────────────────────── */
+.bk-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+  display: block;
+}
+.bk-table th,
+.bk-table td {
+  border: 1px solid var(--border, #E5E2DD);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.bk-table th {
+  background: var(--surface-alt, #EDEAE4);
+  font-weight: 600;
+  color: var(--text-primary, #2A2825);
+}
+.bk-table tr:nth-child(even) td {
+  background: var(--surface-alt, #F7F5F2);
+}
+.bk-table a {
+  color: var(--brand, #3D8A5A);
+  text-decoration: none;
+}
+.bk-table a:hover {
+  text-decoration: underline;
+}
+
+/* 页面顶部滚动进度条 */
+#bkReadingProgress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--brand, #3D8A5A);
+  z-index: 9998;
+  width: 0%;
+  transition: width 0.15s linear;
+  pointer-events: none;
+}
+

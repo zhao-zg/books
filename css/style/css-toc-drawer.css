@@ -1,0 +1,327 @@
+/* ── 目录侧边栏 Drawer ──────────────────────────────────── */
+.bk-toc-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  max-width: 85vw;
+  height: 100vh;
+  background: var(--surface, #fff);
+  z-index: 1000;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--border, #E5E2DD);
+  display: flex;
+  flex-direction: column;
+}
+.bk-toc-drawer.open {
+  transform: translateX(0);
+}
+.bk-toc-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-strong, rgba(44, 24, 16, 0.38));  /* C5: 改用暖色遮罩令牌，与设计系统一致 */
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.bk-toc-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+  touch-action: none;
+}
+.bk-toc-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid var(--border, #E5E2DD);
+  flex-shrink: 0;
+  gap: 8px;
+}
+.bk-toc-drawer-titles { flex: 1; min-width: 0; }
+.bk-toc-drawer-book-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--heading, #111);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.bk-toc-drawer-author {
+  font-size: var(--text-sm);
+  color: var(--text-muted, #888);
+  margin-top: 2px;
+}
+.bk-toc-drawer-close {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-alt, #EDEAE4);
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  font-size: var(--text-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.bk-toc-drawer-close:active { background: var(--nav-hover, #ECEAE5); }
+.bk-toc-search {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #E5E2DD);
+}
+.bk-toc-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.bk-toc-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted, #aaa);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.bk-toc-search-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.bk-toc-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--border, #E5E2DD);
+  border-radius: 8px;
+  font-size: var(--text-base);
+  outline: none;
+  background: var(--surface-alt, #EDEAE4);
+  color: var(--text, #1A1918);
+  transition: border-color 0.15s, padding-right 0.15s;
+}
+.bk-toc-search-input:focus {
+  border-color: var(--brand, #3D8A5A);
+}
+.bk-toc-search-input::placeholder {
+  color: var(--text-muted, #aaa);
+}
+/* 有文字时给清除按钮留空间 */
+.bk-toc-search-input:not(:placeholder-shown) {
+  padding-right: 34px;
+}
+.bk-toc-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-muted, #ccc);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, opacity 0.15s;
+  opacity: 0.7;
+}
+.bk-toc-search-clear:active {
+  opacity: 1;
+  background: var(--text-muted, #999);
+}
+.bk-toc-search-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted, #888);
+  padding: 4px 4px 0;
+  min-height: 0;
+  transition: min-height 0.15s;
+}
+.bk-toc-search-count:not(:empty) {
+  min-height: 18px;
+}
+.bk-toc-chapter-item.bk-toc-hidden { display: none; }
+.bk-toc-no-results {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted, #888);
+  font-size: var(--text-base);
+}
+.bk-toc-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.bk-toc-chapter-list {
+  display: flex;
+  flex-direction: column;
+}
+.bk-toc-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  text-decoration: none;
+  color: var(--text, #1A1918);
+  font-size: var(--text-base);
+  border-bottom: 1px solid var(--border, #E5E2DD);
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.bk-toc-chapter-item:active { background: var(--nav-hover, #ECEAE5); }
+.bk-toc-chapter-item.bk-toc-current {
+  background: var(--nav-hover, #ECEAE5);
+  color: var(--brand, #3D8A5A);
+  font-weight: 500;
+  position: relative;
+}
+.bk-toc-chapter-item.bk-toc-current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--brand, #3D8A5A);
+  border-radius: 0 2px 2px 0;
+}
+.bk-toc-chapter-num {
+  font-size: var(--text-xs);
+  font-family: var(--num-font-family);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #888);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.bk-toc-chapter-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.1em;
+  line-height: 1.4;
+}
+.bk-toc-chapter-badge {
+  font-size: var(--text-xs);
+  background: var(--brand, #3D8A5A);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+
+/* ── 书籍缓存/下载状态徽章（书城卡 .zl-book-card.is-city-book 内的 .cache-status） ────
+ * 设计原则：
+ *  - 已缓存：低调绿色角标「✓ 已缓存」，半透明背景，不抢封面视觉
+ *  - 下载中：橙色脉冲 + 禁用 .book-link 再次点击（pointer-events:none）
+ *  - 失败：红色徽章不脉冲，状态保留供用户查看/重试
+ *  - 空徽章不显示（:empty 选择器）
+ * 文字内容由 _buildBookCard（常态）/ _handleBookClick（下载中）/ _refreshAfterDownload（刷新）写入，
+ * CSS 仅负责定位、配色与动画。
+ * ----------------------------------------------------------------------------- */
+.zl-book-card.is-city-book .cache-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: rgba(26, 25, 24, 0.82);
+  color: #fff;
+  font-size: var(--text-xs, 11px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity .2s var(--ease-out, ease), transform .2s var(--ease-out, ease);
+  pointer-events: none;
+  z-index: 3;
+  max-width: calc(100% - 16px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 内容非空时显示（由 JS 设置 textContent → :empty 自动判断） */
+.zl-book-card.is-city-book .cache-status:not(:empty) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 已缓存常态角标：右下角小圆形 ✓，不挡封面内容 */
+.zl-book-card.is-city-book .cache-status.is-cached {
+  top: auto;
+  bottom: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(61, 138, 90, 0.88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  letter-spacing: 0;
+  opacity: 0.92;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 兼容旧通用规则：css-base.css 中 .zl-book-card .cache-status 用了 margin-left/opacity 等
+ * flex-item 样式，城市卡用绝对定位覆盖之。 */
+
+@keyframes bk-pulse {
+  0%, 100% { opacity: 0.78; transform: translateY(0) scale(0.98); }
+  50%      { opacity: 1;    transform: translateY(0) scale(1.04); }
+}
+
+/* 下载中：橙色文字 + 脉冲动画 */
+.zl-book-card.is-city-book[data-downloading="true"] .cache-status {
+  color: var(--warning-text, #B5793A);
+  background: rgba(26, 25, 24, 0.85);
+  animation: bk-pulse 1.2s ease-in-out infinite;
+}
+
+/* 下载中：禁用 .book-link 再次点击（防抖）；视觉上轻降饱和度提示忙碌 */
+.zl-book-card.is-city-book[data-downloading="true"] .book-link {
+  pointer-events: none;
+  cursor: default;
+}
+.zl-book-card.is-city-book[data-downloading="true"] .bk-cover {
+  filter: saturate(0.85) brightness(0.96);
+  transition: filter .25s ease;
+}
+
+/* 下载失败：红色徽章不脉冲，状态保留 */
+.zl-book-card.is-city-book[data-download-failed="true"] .cache-status {
+  animation: none;
+  color: #fff;
+  background: rgba(200, 85, 61, 0.88);
+}
+

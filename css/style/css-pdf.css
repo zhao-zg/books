@@ -1,0 +1,2413 @@
+/* ===================================================================
+ * css-pdf.css - PDF 阅读器独立样式表
+ *
+ * 设计目标：对标市面主流 PDF 阅读器（Acrobat Reader / PDF.js / 福昕）
+ *   - 单页横向滑动（scroll-snap）为主模式，连续垂直滚动为可切换模式
+ *   - 顶部工具栏（页码 / 进度条 / 目录 / 缩略图 / 模式 / 夜间 / 搜索）
+ *   - 底部缩略图导航条、右侧目录抽屉、顶部搜索栏
+ *   - 加载 Spinner、错误重试 UI、夜间反色、移动优先响应式
+ *
+ * 与 css-reader.css 的关系：本文件由 css-reader.css 通过 @import 引入，
+ *   所有 .bk-pdf-* 选择器集中在此，便于维护。
+ *
+ * 三级断点：375px（手机）/ 480px（大手机）/ 767px+（平板桌面）
+ * =================================================================== */
+
+/* ── 1. PDF 模式容器（中灰背景 + 贴边 / 居中限宽）────────────────── */
+/* 触发条件：.content 内含 .bk-pdf-page 即进入 PDF 模式
+   （:has() 现代浏览器驱动；.bk-pdf-mode 为降级 class，由 JS 加上） */
+#chapterContent:has(.bk-pdf-page),
+.bk-carousel-page .content:has(.bk-pdf-page),
+#chapterContent.bk-pdf-mode,
+.bk-carousel-page .content.bk-pdf-mode {
+  padding-left: 0;
+  padding-right: 0;
+  background: #525659;          /* 中灰背景突出白色页面（Acrobat #525659） */
+}
+
+/* 桌面端：PDF 容器居中限宽，两侧留中灰 */
+@media (min-width: 768px) {
+  #chapterContent:has(.bk-pdf-page),
+  .bk-carousel-page .content:has(.bk-pdf-page),
+  #chapterContent.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-mode {
+    width: 100%;
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* 横屏手机：去除限宽，PDF 充分利用横向空间 */
+@media (orientation: landscape) and (max-height: 500px) {
+  #chapterContent:has(.bk-pdf-page),
+  .bk-carousel-page .content:has(.bk-pdf-page),
+  #chapterContent.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-mode {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* Single 模式强制覆盖：桌面端居中限宽 + 横屏限宽 均不适用，必须填满 Carousel page 宽度。
+   修复：当 .content 同时有 .bk-pdf-mode 和 .bk-pdf-single 时，
+   桌面端 .bk-pdf-mode 的 max-width:820px / 横屏 css-reader.css 的 max-width:640px
+   优先级可能与 .bk-pdf-single 相同（0,2,0），后定义规则覆盖先定义规则导致宽度被限制。
+   用双 class 选择器（0,3,0）提高优先级确保 Single 模式宽度始终正确。 */
+@media (min-width: 768px) {
+  #chapterContent.bk-pdf-single.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-single.bk-pdf-mode {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #chapterContent.bk-pdf-single.bk-pdf-mode,
+  .bk-carousel-page .content.bk-pdf-single.bk-pdf-mode {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* PDF 模式下页码栏对比度修复（中灰背景上的深黑标题对比度不足） */
+#chapterContent.bk-pdf-mode .bk-page-title,
+.bk-carousel-page .content.bk-pdf-mode .bk-page-title {
+  color: #F2F2F2;
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── 2. 单页横向滑动模式（scroll-snap）─────────────────────────── */
+/* 触发：.bk-pdf-mode 同时叠加 .bk-pdf-single（由 navigator/renderer 加上）
+   单页模式：.content 自身成为横向 scroll-snap 容器，每页占整屏宽 */
+
+/* 修复：Carousel 场景下 .bk-carousel-page 的 overflow-x:hidden 会阻断
+   内部 .content.bk-pdf-single 的 scroll-snap 横向滚动。
+   改为 overflow-x:clip（仅视觉裁剪，不建立滚动容器），
+   让内部 scroll-snap 容器成为唯一的横向滚动层，
+   避免"嵌套滚动"导致 scroll-snap 失效、两页并排、页面截断等问题。
+   clip 与 hidden 的区别：clip 不创建格式化上下文，内部 scroll-snap 可以正常工作。 */
+.bk-carousel-page:has(.content.bk-pdf-single) {
+  overflow-x: clip;
+}
+
+#chapterContent.bk-pdf-single,
+.bk-carousel-page .content.bk-pdf-single {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;          /* Single 模式：纵向滚动由 .bk-pdf-page 内部处理，避免嵌套滚动冲突 */
+  height: 100%;
+  width: 100%;                 /* 显式宽度，防止 Carousel flex column 中 .content 宽度收缩 */
+  max-width: none;             /* 不限宽——桌面端 .bk-pdf-mode 的 820px 和横屏 640px 不应影响 Single 模式 */
+  align-self: stretch;         /* flex column 中显式拉伸，防止被 flex 收缩算法压缩宽度 */
+  margin-left: 0;              /* 取消居中 margin，必须左对齐填满 Carousel page */
+  margin-right: 0;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding: 0;
+  gap: 0;
+  scrollbar-width: none;                 /* Firefox: 隐藏滚动条 */
+}
+#chapterContent.bk-pdf-single::-webkit-scrollbar,
+.bk-carousel-page .content.bk-pdf-single::-webkit-scrollbar {
+  display: none;                          /* WebKit: 隐藏滚动条 */
+}
+
+/* Single 模式下隐藏章节标题（横向 scroll-snap 中标题占宽度并显示文字） */
+#chapterContent.bk-pdf-single .bk-page-title,
+.bk-carousel-page .content.bk-pdf-single .bk-page-title {
+  display: none;
+}
+
+/* 单页模式下，每个 .bk-pdf-page 占满视口宽，scroll-snap 居中 */
+#chapterContent.bk-pdf-single .bk-pdf-page,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;   /* 强制最小宽度，防止 Carousel 场景下 flex 计算导致页面宽度不足 */
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 短页面安全居中，长页面从顶部开始可滚动。
+     不用 justify-content: safe center：safe 关键字在部分 WebView/内核
+     （如华为/荣耀 EMUI 内置内核）不生效，退化成 center 后长页顶部会被顶出
+     可视区且 scrollTop 无法为负，导致 PDF 长页开头内容不可达。
+     改用 flex-start + canvas-wrap 的 margin:auto，全内核兼容。 */
+  justify-content: flex-start;
+  margin: 0;
+  min-height: 100%;
+  background: transparent;     /* 单页模式页面卡片透明，由 #525659 容器提供底色 */
+  box-shadow: none;
+}
+
+/* 单页模式下 .bk-pdf-canvas-wrap 才显示白底 + 阴影 */
+#chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap {
+  background: #fff;
+  border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边替代静态阴影 */
+  box-shadow: none;                                    /* DESIGN: 默认无阴影 */
+  border-radius: 2px;
+}
+
+/* Single 模式下 .bk-pdf-page 去除所有卡片装饰（无边框/无圆角），canvas 自身尺寸即为页面尺寸 */
+#chapterContent.bk-pdf-single .bk-pdf-page,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page {
+  border: none;
+  border-radius: 0;
+  overflow-y: auto;           /* 允许单页内纵向滚动（长页面超出视口高度时） */
+  overscroll-behavior-y: contain;
+}
+
+/* Single 模式下 .bk-pdf-canvas-wrap 去除描边，避免翻页时两页间出现细线 */
+#chapterContent.bk-pdf-single .bk-pdf-page:not(.bk-pdf-zoomed) .bk-pdf-canvas-wrap,
+.bk-carousel-page .content.bk-pdf-single .bk-pdf-page:not(.bk-pdf-zoomed) .bk-pdf-canvas-wrap {
+  border: none;
+  border-radius: 0;
+  /* 垂直安全居中：短 PDF 页（未超一屏）canvas 垂直居中；
+     长 PDF 页（超出视口高度）margin auto 归零、从顶部排列可滚动，
+     避免顶部内容被挤出视口（替代父容器 safe center，全内核兼容）。
+     zoomed 状态保持 margin:0 顶对齐，由 .bk-pdf-page.bk-pdf-zoomed 规则处理 */
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* ── 3. PDF 页面卡片（连续模式 / 默认）────────────────────────── */
+.bk-pdf-page {
+  position: relative;
+  margin: 8px 0;
+  min-height: 120px;
+  background: #fff;            /* 连续模式：每页白底 */
+  border-radius: 2px;
+  overflow: hidden;
+  text-align: center;
+  border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边替代静态阴影 */
+  box-shadow: none;                                    /* DESIGN: 默认无阴影 */
+}
+
+/* 缩放时：page 变为可滚动容器，让放大后的 canvas 可滚动查看 */
+.bk-pdf-page.bk-pdf-zoomed {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+}
+
+/* spinner-wrap（加载中居中 spinner） */
+.bk-pdf-spinner-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* canvas wrap：作为 文本层/注解层 的定位锚点
+   will-change: transform 提前晋升 GPU 合成层，首次 pinch/双击缩放不掉帧 */
+.bk-pdf-canvas-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  line-height: 0;
+  will-change: transform;
+  contain: layout style;
+}
+
+.bk-pdf-page.bk-pdf-zoomed .bk-pdf-canvas-wrap {
+  margin: 0;
+}
+
+.bk-pdf-canvas {
+  display: block;
+  margin: 0 auto;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+/* ── 4. 加载 Spinner（SVG 旋转动画）────────────────────────────── */
+.bk-pdf-spinner {
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+.bk-pdf-spinner-svg {
+  width: 100%;
+  height: 100%;
+  animation: bk-pdf-spinner-rotate 1.4s linear infinite;
+  stroke: var(--brand, #3D8A5A);                        /* DESIGN: Sage Moss spinner */
+}
+
+@keyframes bk-pdf-spinner-rotate {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ── 5. 错误重试 UI ───────────────────────────────────────────── */
+.bk-pdf-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #c62828;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.bk-pdf-error-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.bk-pdf-error-text {
+  font-size: 14px;
+  color: #666;
+}
+
+.bk-pdf-retry-btn {
+  pointer-events: auto;
+  padding: 6px 18px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--brand, #3D8A5A);                    /* DESIGN: Sage Moss primary button */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-retry-btn:active {
+  background: var(--brand, #3D8A5A);
+  opacity: 0.85;
+}
+
+/* ── 6. 文本层（选词 / 复制 / 搜索）────────────────────────────── */
+/* 对标 pdf.js 官方 viewer 的 text_layer 样式 */
+.bk-pdf-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  opacity: 0.25;
+  line-height: 1;
+  text-align: initial;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 4;
+  pointer-events: auto;
+  /* 默认禁用文本选择：避免移动端点击/轻扫触发原生长按全选 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 长按选词激活：仅在该状态下允许选择文本 */
+.bk-pdf-text-layer.bk-pdf-text-selecting {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.bk-pdf-text-layer span,
+.bk-pdf-text-layer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.bk-pdf-text-layer ::selection {
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss selection */
+}
+
+.bk-pdf-text-layer ::-moz-selection {
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss selection */
+}
+
+.bk-pdf-text-layer .highlight {
+  margin: -1px;
+  padding: 1px;
+  background-color: rgba(180, 0, 170, 0.3);
+  border-radius: 4px;
+}
+
+.bk-pdf-text-layer .highlight.selected {
+  background-color: rgba(0, 100, 0, 0.3);
+}
+
+/* 长按选词时提高文本层可见性，避免透明字符被手指遮挡 */
+.bk-pdf-page.bk-pdf-long-press .bk-pdf-text-layer {
+  opacity: 0.4;
+}
+
+/* ── 7. 注解层（超链接 / 表单）────────────────────────────────── */
+.bk-pdf-annotation-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.bk-pdf-annotation-layer section {
+  position: absolute;
+  text-align: initial;
+  pointer-events: auto;
+}
+
+.bk-pdf-annotation-layer .linkAnnotation > a {
+  position: absolute;
+  font-size: 1em;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.bk-pdf-annotation-layer .linkAnnotation > a:hover {
+  background: rgba(var(--brand-rgb, 61,138,90), 0.12);                  /* DESIGN: Sage Moss hover */
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90), 0.40);
+  box-sizing: border-box;
+}
+
+.bk-pdf-annotation-layer .linkAnnotation > a:active {
+  background: rgba(var(--brand-rgb, 61,138,90), 0.25);                  /* DESIGN: Sage Moss active */
+}
+
+.bk-pdf-annotation-layer .textWidgetAnnotation input,
+.bk-pdf-annotation-layer .textWidgetAnnotation textarea,
+.bk-pdf-annotation-layer .choiceWidgetAnnotation select,
+.bk-pdf-annotation-layer .buttonWidgetAnnotation.checkBox input,
+.bk-pdf-annotation-layer .buttonWidgetAnnotation.radioButton input {
+  background-color: rgba(var(--brand-rgb, 61,138,90), 0.10);           /* DESIGN: Sage Moss form widget */
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── 8. 顶部工具栏（页码 / 进度条 / 功能按钮）────────────────────── */
+.bk-pdf-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 6px;
+  background: var(--card-bg);                          /* DESIGN: Card White, not glass */
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  z-index: 900;
+  transform: translateY(-100%);
+  transition: transform 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 可见态（ui.showUI 时 JS 加上 bk-pdf-ui-visible） */
+.bk-pdf-top-bar.bk-pdf-ui-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bk-pdf-tb-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1;
+}
+
+.bk-pdf-tb-btn:hover {
+  background: var(--interactive-soft-bg);
+}
+
+.bk-pdf-tb-btn:active {
+  background: rgba(var(--brand-rgb), 0.18);
+}
+
+/* F5：工具栏按钮禁用态（撤销按钮无栈时灰显） */
+.bk-pdf-tb-btn:disabled,
+.bk-pdf-tb-btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.bk-pdf-tb-undo {
+  font-size: 20px;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.bk-pdf-tb-undo[disabled] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.bk-pdf-tb-back {
+  font-size: 26px;
+}
+
+.bk-pdf-tb-page-info {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bk-pdf-tb-page-label {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-tb-page-label:active {
+  background: var(--border);
+}
+
+.bk-pdf-tb-progress {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+/* range 滑块在 WebKit / Firefox 下的轨道颜色 */
+.bk-pdf-tb-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--brand);
+  border-radius: 50%;
+  border: 2px solid var(--card-bg);
+  cursor: pointer;
+}
+
+.bk-pdf-tb-progress::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--brand);
+  border-radius: 50%;
+  border: 2px solid var(--card-bg);
+  cursor: pointer;
+}
+
+.bk-pdf-tb-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* ── 8.5 底部工具栏（显示与标注类按钮 + 缩放控件）──────────────────────
+ * 顶栏负责阅读导航（返回/页码/搜索/目录/缩略图），底栏负责显示与标注
+ * （撤销/书签/高亮/夜间/亮度/模式/缩放），避免按鈕挤一行。
+ * 显隐逻辑与顶栏统一：JS 加 .bk-pdf-ui-visible 触发可见态。
+ * 缩放区 .bk-pdf-bottom-zoom 在移动端 <768px 隐藏，改为 pinch 手势。
+ */
+.bk-pdf-bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  background: var(--card-bg);                          /* DESIGN: Card White, not glass */
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  z-index: 900;
+  transform: translateY(100%);
+  transition: transform 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+              opacity 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 可见态（与 .bk-pdf-top-bar 同步由 JS 控制） */
+.bk-pdf-bottom-bar.bk-pdf-ui-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bk-pdf-bb-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* 底栏内的缩放按鈕缩小到与通用按钮一致，保持视觉统一 */
+.bk-pdf-bottom-bar .bk-pdf-zoom-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.bk-pdf-bottom-bar .bk-pdf-zoom-value {
+  min-width: 44px;
+  font-size: 12px;
+}
+
+/* ── 9. 缩略图导航条（底部弹出）────────────────────────────────── */
+.bk-pdf-thumbs-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 38vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);                          /* DESIGN: Card White, not glass */
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  z-index: 920;
+  transform: translateY(100%);
+  transition: transform 0.28s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  pointer-events: none;
+}
+
+.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.bk-pdf-thumbs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.bk-pdf-thumbs-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.bk-pdf-thumbs-close,
+.bk-pdf-outline-close,
+.bk-pdf-search-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-thumbs-close:hover,
+.bk-pdf-outline-close:hover,
+.bk-pdf-search-close:hover {
+  background: var(--interactive-soft-bg);
+  color: var(--text);
+}
+
+.bk-pdf-thumbs-container {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 单个缩略图 */
+.bk-pdf-thumb {
+  flex: 0 0 auto;
+  width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background: transparent;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-thumb:hover {
+  background: var(--interactive-soft-bg);
+}
+
+.bk-pdf-thumb.bk-pdf-thumb-active {
+  border-color: var(--brand);
+  background: var(--interactive-soft-bg);
+}
+
+.bk-pdf-thumb-canvas-wrap {
+  width: 100%;
+  background: #fff;
+  border-radius: 2px;
+  border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边替代静态阴影 */
+  box-shadow: none;                                    /* DESIGN: 默认无阴影 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+  overflow: hidden;
+}
+
+.bk-pdf-thumb-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.bk-pdf-thumb-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 10. 目录抽屉（右侧滑出）───────────────────────────────────── */
+.bk-pdf-outline-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80vw;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);                          /* DESIGN: Card White */
+  color: var(--text);
+  z-index: 930;
+  transform: translateX(100%);
+  transition: transform 0.28s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  pointer-events: none;
+  border-left: 1px solid var(--border);
+}
+
+.bk-pdf-outline-drawer.bk-pdf-outline-visible {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.bk-pdf-outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.bk-pdf-outline-title {
+  font-size: 16px;                    /* DESIGN: lg heading */
+  font-weight: 600;
+  color: var(--text);
+}
+
+.bk-pdf-outline-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 0 calc(env(safe-area-inset-bottom, 0px) + 6px);
+}
+
+.bk-pdf-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bk-pdf-outline-item {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.bk-pdf-outline-toggle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-outline-link {
+  flex: 1 1 auto;
+  display: block;
+  padding: 9px 14px 9px 4px;
+  color: var(--text);              /* DESIGN: readable body text, not text-soft */
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: break-word;        /* N1: 不断词，仅在溢出时换行，避免 Revival→Rev/ival */
+  word-break: normal;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-outline-link:hover,
+.bk-pdf-outline-link:active {
+  background: var(--interactive-soft-bg);
+  color: var(--text);
+}
+
+/* 嵌套层级缩进 */
+.bk-pdf-outline-children .bk-pdf-outline-link {
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+.bk-pdf-outline-children .bk-pdf-outline-children .bk-pdf-outline-link {
+  padding-left: 32px;
+}
+
+.bk-pdf-outline-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── 11. 搜索栏（顶部弹出）────────────────────────────────────── */
+.bk-pdf-search-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);                          /* DESIGN: Card White, not glass */
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  z-index: 940;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
+  transform: translateY(-100%);
+  transition: transform 0.25s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  pointer-events: none;
+}
+
+.bk-pdf-search-bar.bk-pdf-search-visible {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.bk-pdf-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bk-pdf-search-input {
+  flex: 1 1 auto;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm, 8px);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color 0.2s var(--ease-out, ease), box-shadow 0.2s var(--ease-out, ease);  /* P1-2: 与通用搜索框一致，用 ease-out 令牌 */
+}
+
+.bk-pdf-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.bk-pdf-search-input:focus {
+  border-color: var(--brand);
+  background: var(--card-bg);
+  box-shadow: 0 0 0 2px var(--interactive-soft-border, rgba(var(--brand-rgb, 61,138,90),.16));  /* P1-1: 2px ring + 令牌，与通用 .bk-search-input 完全一致 */
+}
+
+.bk-pdf-search-prev,
+.bk-pdf-search-next {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-search-prev:hover,
+.bk-pdf-search-next:hover {
+  background: var(--interactive-soft-bg);
+}
+
+.bk-pdf-search-close {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+}
+
+/* 取消按钮：仅搜索中显示，红色文字提示，与关闭按钮区分 */
+.bk-pdf-search-cancel {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--danger, #E53935);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 14px;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.bk-pdf-search-cancel[hidden] {
+  display: none !important;
+}
+
+.bk-pdf-search-cancel:active {
+  background: rgba(229, 57, 53, 0.12);
+}
+
+.bk-pdf-search-info {
+  padding: 6px 4px 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
+}
+
+/* 搜索高亮（叠加在 text-layer span 上） */
+.bk-pdf-text-layer .bk-pdf-search-match {
+  background-color: rgba(255, 213, 0, 0.5);
+  border-radius: 2px;
+}
+
+.bk-pdf-text-layer .bk-pdf-search-current {
+  background-color: rgba(255, 130, 0, 0.85) !important;
+  outline: 2px solid rgba(255, 200, 0, 0.9);
+}
+
+/* 搜索时提高文本层可见性 */
+.bk-pdf-page[data-pdf-searching] .bk-pdf-text-layer {
+  opacity: 0.45;
+}
+
+/* ── 12. 缩放按钮（供底栏缩放区复用，原独立胶囊 .bk-pdf-zoom-bar 已废弃）── */
+.bk-pdf-zoom-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 22px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.2s;
+  padding: 0;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-zoom-btn:hover {
+  background: var(--interactive-soft-bg);
+}
+
+.bk-pdf-zoom-btn:active {
+  background: rgba(var(--brand-rgb), 0.18);
+}
+
+.bk-pdf-zoom-value {
+  min-width: 52px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* ── 13. 夜间 / 反色 / 护眼模式 ──────────────────────────────── */
+/* 触发：JS 在 body 加 .bk-pdf-night / .bk-pdf-sepia / .bk-pdf-green class
+   invert：CSS filter:invert(1) hue-rotate(180deg) 反相画面
+   sepia：暖黄背景 + 暖色滤镜
+   green：护眼绿背景 + 暖色滤镜
+   例外：工具栏 UI 不受影响 */
+
+/* --- 夜间反色模式 --- */
+
+body.bk-pdf-night #chapterContent.bk-pdf-mode,
+body.bk-pdf-night .bk-carousel-page .content.bk-pdf-mode {
+  background: #1a1a1a;
+}
+
+body.bk-pdf-night #chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+body.bk-pdf-night .bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+body.bk-pdf-night .bk-pdf-page {
+  background: #c8c8c8;
+}
+
+body.bk-pdf-night .bk-pdf-canvas-wrap,
+body.bk-pdf-night .bk-pdf-canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+body.bk-pdf-night .bk-pdf-text-layer {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+body.bk-pdf-night .bk-pdf-annotation-layer {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* --- 护眼暖黄模式 --- */
+
+body.bk-pdf-sepia #chapterContent.bk-pdf-mode,
+body.bk-pdf-sepia .bk-carousel-page .content.bk-pdf-mode {
+  background: #f5e6c8;
+}
+
+body.bk-pdf-sepia .bk-pdf-page {
+  background: #f8ecd0;
+}
+
+body.bk-pdf-sepia #chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+body.bk-pdf-sepia .bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap {
+  background: #f8ecd0;
+  border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边 */
+  box-shadow: none;
+}
+
+body.bk-pdf-sepia .bk-pdf-canvas-wrap,
+body.bk-pdf-sepia .bk-pdf-canvas {
+  filter: sepia(0.15) brightness(0.96);
+}
+
+body.bk-pdf-sepia .bk-pdf-text-layer {
+  filter: sepia(0.15) brightness(0.96);
+}
+
+body.bk-pdf-sepia .bk-pdf-annotation-layer {
+  filter: sepia(0.15) brightness(0.96);
+}
+
+/* --- 护眼绿色模式 --- */
+
+body.bk-pdf-green #chapterContent.bk-pdf-mode,
+body.bk-pdf-green .bk-carousel-page .content.bk-pdf-mode {
+  background: #c8d8b8;
+}
+
+body.bk-pdf-green .bk-pdf-page {
+  background: #d2e4c4;
+}
+
+body.bk-pdf-green #chapterContent.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap,
+body.bk-pdf-green .bk-carousel-page .content.bk-pdf-single .bk-pdf-page .bk-pdf-canvas-wrap {
+  background: #d2e4c4;
+  border: 1px solid var(--border, #E5E2DD);           /* DESIGN: 1px描边 */
+  box-shadow: none;
+}
+
+body.bk-pdf-green .bk-pdf-canvas-wrap,
+body.bk-pdf-green .bk-pdf-canvas {
+  filter: sepia(0.1) brightness(0.95) hue-rotate(10deg);
+}
+
+body.bk-pdf-green .bk-pdf-text-layer {
+  filter: sepia(0.1) brightness(0.95) hue-rotate(10deg);
+}
+
+body.bk-pdf-green .bk-pdf-annotation-layer {
+  filter: sepia(0.1) brightness(0.95) hue-rotate(10deg);
+}
+
+/* --- 所有模式下工具栏/抽屉/控件本身不应用滤镜 --- */
+
+body.bk-pdf-night .bk-pdf-top-bar,
+body.bk-pdf-night .bk-pdf-bottom-bar,
+body.bk-pdf-night .bk-pdf-thumbs-bar,
+body.bk-pdf-night .bk-pdf-outline-drawer,
+body.bk-pdf-night .bk-pdf-bookmark-drawer,
+  body.bk-pdf-night .bk-pdf-search-bar,
+body.bk-pdf-sepia .bk-pdf-top-bar,
+body.bk-pdf-sepia .bk-pdf-bottom-bar,
+body.bk-pdf-sepia .bk-pdf-thumbs-bar,
+body.bk-pdf-sepia .bk-pdf-outline-drawer,
+body.bk-pdf-sepia .bk-pdf-bookmark-drawer,
+  body.bk-pdf-sepia .bk-pdf-search-bar,
+body.bk-pdf-green .bk-pdf-top-bar,
+body.bk-pdf-green .bk-pdf-bottom-bar,
+body.bk-pdf-green .bk-pdf-thumbs-bar,
+body.bk-pdf-green .bk-pdf-outline-drawer,
+body.bk-pdf-green .bk-pdf-bookmark-drawer,
+  body.bk-pdf-green .bk-pdf-search-bar {
+  filter: none;
+}
+
+/* ── 14. 书签抽屉（右侧滑出）──────────────────────────────────── */
+.bk-pdf-bookmark-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80vw;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);                          /* DESIGN: Card White */
+  color: var(--text);
+  z-index: 935;
+  transform: translateX(100%);
+  transition: transform 0.28s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  pointer-events: none;
+  border-left: 1px solid var(--border);
+}
+
+.bk-pdf-bookmark-drawer.bk-pdf-bookmark-visible {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.bk-pdf-bookmark-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.bk-pdf-bookmark-title {
+  font-size: 16px;                    /* DESIGN: lg heading */
+  font-weight: 600;
+  color: var(--text);
+}
+
+.bk-pdf-bookmark-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bk-pdf-bookmark-close:hover {
+  background: var(--interactive-soft-bg);
+  color: var(--text);
+}
+
+.bk-pdf-bookmark-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 6px 0 calc(env(safe-area-inset-bottom, 0px) + 6px);  /* C4 回退：分割线式占满宽度，左右无 padding */
+}
+
+.bk-pdf-bookmark-item {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);  /* C4 回退：分割线式，上下衔接无间距 */
+}
+
+.bk-pdf-bookmark-page-num {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-left: 8px;
+}
+
+.bk-pdf-bookmark-del {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, background 0.15s;
+}
+
+.bk-pdf-bookmark-del:hover {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+/* F4：书签标题编辑按钮 */
+.bk-pdf-bookmark-edit {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, background 0.15s;
+  margin-right: 2px;
+}
+
+.bk-pdf-bookmark-edit:hover {
+  background: var(--tag-bg, rgba(var(--brand-rgb, 61,138,90), 0.1));
+  color: var(--accent-color, var(--brand, #3D8A5A));
+}
+
+.bk-pdf-bm-edit-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* F4：书签编辑弹窗（基于 page-jump 弹窗，额外覆盖） */
+.bk-pdf-bm-edit-overlay {
+  /* 复用 .bk-pdf-page-jump-overlay 的全部样式（JS 中同时挂载两个类名） */
+}
+.bk-pdf-bm-edit-dialog {
+  /* 弹窗尺寸/圆角/阴影继承 page-jump-dialog，此处仅覆盖差异化样式 */
+  width: 300px;
+}
+.bk-pdf-bm-edit-input {
+  /* 文本输入（非数字），取消 number 类型外观 */
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+  padding-left: 14px;
+}
+
+/* 书签按钮高亮态（当前页已加书签） */
+.bk-pdf-tb-btn.bk-pdf-tb-bookmark-active {
+  color: var(--warning-text);
+  background: rgba(var(--brand-rgb), 0.12);
+}
+
+/* 优化2：缩略图条展开时隐藏底栏，避免底部弹出抽屉与底栏控件重叠。
+ * （Capacitor WebView 基于 Chromium，支持 :has() 选择器；纯 CSS 零 JS 改动） */
+body:has(.bk-pdf-thumbs-bar.bk-pdf-thumbs-visible) .bk-pdf-bottom-bar {
+  opacity: 0 !important;
+  transform: translateY(100%) !important;
+  pointer-events: none !important;
+}
+
+/* ── 16. 文本选中操作面板 ──────────────────────────────────────── */
+.bk-pdf-hl-action-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--card-bg);                          /* DESIGN: Card White */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  z-index: 950;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  box-shadow: var(--shadow-float);                      /* DESIGN: Float shadow for action panel */
+}
+
+.bk-pdf-hl-action-panel.bk-pdf-hl-panel-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 颜色选择行 */
+.bk-pdf-hl-color-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2px 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bk-pdf-hl-color-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  background-clip: padding-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.bk-pdf-hl-color-dot:active {
+  transform: scale(0.92);
+}
+
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-active {
+  border-color: var(--text);
+  /* 用阴影画第二层圆环，避免 background-clip 把 border 也染色 */
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4px var(--text);
+}
+
+/* 5 色圆点（颜色与高亮覆盖层一致） */
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-yellow { background: #D4A843; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-green  { background: #5E9E6F; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-blue   { background: #5A8BA8; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-pink   { background: #C4787A; }
+.bk-pdf-hl-color-dot.bk-pdf-hl-color-orange { background: #C4854A; }
+
+/* 按钮行（原 .bk-pdf-hl-action-panel 的横向布局 responsibilities 迁移到这里） */
+.bk-pdf-hl-btn-row {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  align-items: center;
+}
+
+.bk-pdf-hl-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 18px;
+  width: 36px;
+  height: 32px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bk-pdf-hl-btn:active {
+  background: var(--interactive-soft-bg);
+}
+
+/* ── 17. 高亮覆盖层 ────────────────────────────────────────────── */
+.bk-pdf-hl-overlay {
+  position: absolute;
+  border-radius: 2px;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.bk-pdf-hl-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: inherit;
+  opacity: 0.65;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-hl-overlay {
+  mix-blend-mode: screen;
+}
+[data-theme="dark"] .bk-pdf-hl-overlay::before {
+  opacity: 0.5;
+}
+
+.bk-pdf-hl-yellow { background: #D4A843; }
+.bk-pdf-hl-green  { background: #5E9E6F; }
+.bk-pdf-hl-blue   { background: #5A8BA8; }
+.bk-pdf-hl-pink   { background: #C4787A; }
+.bk-pdf-hl-orange { background: #C4854A; }
+
+/* ── 17b. 下划线覆盖层 ─────────────────────────────── */
+.bk-pdf-hl-underline {
+  background: transparent !important;
+  mix-blend-mode: normal;
+  border-bottom: 2px solid currentColor;
+}
+.bk-pdf-hl-underline::before { display: none; }
+.bk-pdf-hl-underline.bk-pdf-hl-yellow  { color: #D4A843; border-bottom-color: #D4A843; }
+.bk-pdf-hl-underline.bk-pdf-hl-green   { color: #5E9E6F; border-bottom-color: #5E9E6F; }
+.bk-pdf-hl-underline.bk-pdf-hl-blue    { color: #5A8BA8; border-bottom-color: #5A8BA8; }
+.bk-pdf-hl-underline.bk-pdf-hl-pink    { color: #C4787A; border-bottom-color: #C4787A; }
+.bk-pdf-hl-underline.bk-pdf-hl-orange  { color: #C4854A; border-bottom-color: #C4854A; }
+
+/* ── 17b2. 删除线覆盖层 ─────────────────────────────── */
+.bk-pdf-hl-strikethrough {
+  background: transparent !important;
+  mix-blend-mode: normal;
+}
+/* 删除线中线用 ::before 画（高亮背景已被 transparent 清除，::before 不再需要画背景） */
+.bk-pdf-hl-strikethrough::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: currentColor;
+  pointer-events: none;
+}
+.bk-pdf-hl-strikethrough.bk-pdf-hl-yellow  { color: #D4A843; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-green   { color: #5E9E6F; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-blue    { color: #5A8BA8; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-pink    { color: #C4787A; }
+.bk-pdf-hl-strikethrough.bk-pdf-hl-orange  { color: #C4854A; }
+
+/* ── 17b3. 批注波浪下划线覆盖层 ──────────────────────────────── */
+/* 批注波浪线用 ::after（下划线用 border-bottom，删除线中线也用 ::after 但删除线不会与批注共存） */
+.bk-pdf-hl-note::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%233D8A5A' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 8px 3px;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-hl-note::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 下划线+批注共存：调整波浪线位置到 border-bottom 下方 */
+.bk-pdf-hl-underline.bk-pdf-hl-note::after {
+  bottom: -3px;
+}
+
+/* ── 17c. 标注类型图标 ─────────────────────────────────────── */
+.bk-pdf-hl-type-icon {
+  font-size: 12px;
+  margin-right: 4px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* ── 18. 高亮列表抽屉 ──────────────────────────────────────────── */
+.bk-pdf-hl-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80vw;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);                          /* DESIGN: Card White */
+  color: var(--text);
+  z-index: 935;
+  transform: translateX(100%);
+  transition: transform 0.28s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  pointer-events: none;
+  border-left: 1px solid var(--border);
+}
+
+.bk-pdf-hl-drawer.bk-pdf-hl-drawer-visible {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.bk-pdf-hl-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bk-pdf-hl-drawer-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.bk-pdf-hl-drawer-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 50%;               /* N8: 统一为圆形，与其他抽屉关闭按钮一致 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bk-pdf-hl-drawer-close:hover {
+  background: var(--interactive-soft-bg);
+  color: var(--text);
+}
+
+.bk-pdf-hl-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bk-pdf-hl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bk-pdf-hl-list-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 13px;
+  flex-shrink: 0;
+}
+
+.bk-pdf-hl-list-dot-yellow { background: #D4A843; }
+.bk-pdf-hl-list-dot-green  { background: #5E9E6F; }
+.bk-pdf-hl-list-dot-blue   { background: #5A8BA8; }
+.bk-pdf-hl-list-dot-pink   { background: #C4787A; }
+.bk-pdf-hl-list-dot-orange { background: #C4854A; }
+
+.bk-pdf-hl-link {
+  flex: 1;
+  min-width: 0;
+}
+
+.bk-pdf-hl-page-num {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.bk-pdf-hl-note-badge {
+  font-size: 12px;
+}
+
+/* ── 18b. 筛选标签 ────────────────────────────────────────── */
+.bk-pdf-hl-drawer-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bk-pdf-hl-tab {
+  background: var(--surface-alt);
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;                               /* DESIGN: Pill shape */
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bk-pdf-hl-tab-active {
+  background: var(--interactive-soft-bg);
+  color: var(--brand);
+  font-weight: 500;
+}
+
+/* ── 18c. 批注预览 ────────────────────────────────────────── */
+.bk-pdf-hl-note-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0 2px 28px;
+  line-height: 1.4;
+  word-break: break-all;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+/* ── 18d. 底部统计栏 ────────────────────────────────────────── */
+.bk-pdf-hl-drawer-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.bk-pdf-hl-stat-dot {
+  color: var(--muted);
+}
+
+.bk-pdf-hl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 护眼模式下高亮面板排除滤镜 */
+body.bk-pdf-sepia .bk-pdf-hl-action-panel,
+body.bk-pdf-green .bk-pdf-hl-action-panel,
+body.bk-pdf-night .bk-pdf-hl-action-panel,
+body.bk-pdf-sepia .bk-pdf-hl-drawer,
+body.bk-pdf-green .bk-pdf-hl-drawer,
+body.bk-pdf-night .bk-pdf-hl-drawer {
+  filter: none;
+}
+
+/* ── 19. 批注浮动输入框 ────────────────────────────────────────── */
+.bk-pdf-note-panel {
+  position: fixed;
+  width: 240px;
+  background: var(--card-bg);                          /* DESIGN: Card White */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  z-index: 960;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.18s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+              transform 0.18s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.bk-pdf-note-panel.bk-pdf-note-panel-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.bk-pdf-note-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 0;
+}
+
+.bk-pdf-note-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.bk-pdf-note-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bk-pdf-note-close:hover {
+  color: var(--text);
+}
+
+.bk-pdf-note-input {
+  display: block;
+  width: 208px;
+  margin: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 48px;
+  max-height: 120px;
+  outline: none;
+  font-family: inherit;
+}
+
+.bk-pdf-note-input:focus {
+  border-color: var(--brand);
+}
+
+.bk-pdf-note-input::placeholder {
+  color: var(--text-muted);
+}
+
+.bk-pdf-note-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 4px 12px 10px;
+}
+
+.bk-pdf-note-save,
+.bk-pdf-note-cancel {
+  border: none;
+  border-radius: var(--radius-sm, 8px);                /* C2: 统一按钮圆角令牌 */
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bk-pdf-note-save {
+  background: var(--brand);
+  color: var(--btn-primary-text);
+}
+
+.bk-pdf-note-save:active {
+  opacity: 0.85;
+}
+
+.bk-pdf-note-cancel {
+  background: var(--surface-alt);
+  color: var(--text-muted);
+}
+
+.bk-pdf-note-cancel:active {
+  opacity: 0.85;
+}
+
+/* 护眼模式下批注面板排除滤镜 */
+body.bk-pdf-sepia .bk-pdf-note-panel,
+body.bk-pdf-green .bk-pdf-note-panel,
+body.bk-pdf-night .bk-pdf-note-panel {
+  filter: none;
+}
+
+/* ── 15.5 响应式：375px 小屏优化 ────────────────────────────────── */
+@media (max-width: 375px) {
+  .bk-pdf-top-bar {
+    gap: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .bk-pdf-tb-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .bk-pdf-tb-back {
+    font-size: 22px;
+  }
+
+  .bk-pdf-tb-page-label {
+    font-size: 12px;
+  }
+
+  .bk-pdf-tb-btn-group {
+    gap: 0;
+  }
+
+  /* 缩略图缩小 */
+  .bk-pdf-thumb {
+    width: 60px;
+  }
+
+  .bk-pdf-thumb-label {
+    font-size: 10px;
+  }
+
+  /* 目录/书签抽屉变窄 */
+  .bk-pdf-outline-drawer,
+  .bk-pdf-bookmark-drawer {
+    width: 88vw;
+  }
+}
+
+/* ── 16. 响应式：480px 大屏手机 ────────────────────────────────── */
+@media (min-width: 376px) and (max-width: 480px) {
+  .bk-pdf-tb-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .bk-pdf-thumb {
+    width: 72px;
+  }
+}
+
+/* ── 17. 响应式：平板 / 桌面（>=768px）────────────────────────── */
+@media (min-width: 768px) {
+  .bk-pdf-top-bar {
+    padding-left: 16px;
+    padding-right: 16px;
+    gap: 12px;
+  }
+
+  .bk-pdf-tb-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .bk-pdf-tb-page-label {
+    font-size: 14px;
+  }
+
+  /* 桌面端缩略图更大 */
+  .bk-pdf-thumb {
+    width: 96px;
+  }
+
+  .bk-pdf-thumb-label {
+    font-size: 12px;
+  }
+
+  /* 目录/书签抽屉放宽 */
+  .bk-pdf-outline-drawer,
+  .bk-pdf-bookmark-drawer {
+    max-width: 360px;
+  }
+
+  .bk-pdf-outline-link {
+    padding: 11px 14px 11px 4px;
+    font-size: 15px;
+  }
+}
+
+/* ── 18. 连续滚动模式（独立全屏容器，绕过 Carousel）────────────── */
+.bk-pdf-continuous-view {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #525659;
+  z-index: 10;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 0;
+  /* 不预留滚动条空间（详见 .bk-carousel-page 说明） */
+}
+
+/* N9: 连续模式页面间距稍大于单页模式，提升页面间区分度 */
+.bk-pdf-continuous-view .bk-pdf-page {
+  margin: 10px 0;
+}
+
+/* 首尾页安全区处理：第一页顶部避开刘海/状态栏，最后一页底部避开 home indicator */
+.bk-pdf-continuous-view .bk-pdf-page:first-child {
+  margin-top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
+.bk-pdf-continuous-view .bk-pdf-page:last-child {
+  margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+}
+
+/* T1: 单页 PDF 垂直居中（避免顶部贴齐+底部大片灰色空白）。
+ * 多页时保持 block + overflow-y:auto 常规滚动；单页时切换为 flex 列布局 + 居中。
+ * 首尾页 safe-area 改由容器 padding 承载，避免与 justify-content:center 冲突。 */
+.bk-pdf-continuous-view.bk-pdf-continuous-single {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.bk-pdf-continuous-view.bk-pdf-continuous-single .bk-pdf-page:first-child,
+.bk-pdf-continuous-view.bk-pdf-continuous-single .bk-pdf-page:last-child {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+/* 移动端隐藏底栏缩放区，改用双指捏合 pinch 与双击手势完成缩放，避免遮挡阅读区域。
+ * 桌面端（≥768px）无触摸条件，保留缩放 UI 作为鼠标操作入口。 */
+@media (max-width: 767px) {
+  .bk-pdf-bottom-bar .bk-pdf-bottom-zoom {
+    display: none;
+  }
+}
+
+/* 桌面端：连续视图居中限宽，两侧留中灰 */
+@media (min-width: 768px) {
+  .bk-pdf-continuous-view .bk-pdf-page {
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* 横屏手机：去除限宽 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .bk-pdf-continuous-view .bk-pdf-page {
+    max-width: none;
+  }
+}
+
+/* ── 18.1 横向 PDF 页面专用：page 内部允许横向滚动 ───────────────
+ * 由 JS 在每个横向 PDF page 上加 .bk-pdf-landscape-page 触发
+ * 渲染时检测 baseViewport.width > height 改用 fit-to-height，
+ * canvas 通常比视口宽，需 page 容器横向滚动查看完整内容
+ */
+.bk-pdf-page.bk-pdf-landscape-page {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  text-align: left;
+}
+
+/* 横向 PDF 桌面端取消 820px 限宽，让 page 容纳完整 canvas */
+@media (min-width: 768px) {
+  .bk-pdf-page.bk-pdf-landscape-page {
+    max-width: none;
+  }
+}
+
+/* 横向 PDF page 内滚动条样式（细长，避免遮挡内容） */
+.bk-pdf-page.bk-pdf-landscape-page::-webkit-scrollbar {
+  height: 6px;
+}
+.bk-pdf-page.bk-pdf-landscape-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bk-pdf-page.bk-pdf-landscape-page::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+}
+
+/* --- 夜间反色模式：连续视图 --- */
+body.bk-pdf-night .bk-pdf-continuous-view {
+  background: #1a1a1a;
+}
+
+/* --- 护眼暖黄模式：连续视图 --- */
+body.bk-pdf-sepia .bk-pdf-continuous-view {
+  background: #f5e6c8;
+}
+body.bk-pdf-sepia .bk-pdf-continuous-view .bk-pdf-page {
+  background: #f8ecd0;
+}
+
+/* --- 护眼绿色模式：连续视图 --- */
+body.bk-pdf-green .bk-pdf-continuous-view {
+  background: #c8d8b8;
+}
+body.bk-pdf-green .bk-pdf-continuous-view .bk-pdf-page {
+  background: #d2e4c4;
+}
+
+/* 护眼模式下连续视图内部控件排除滤镜 */
+body.bk-pdf-sepia .bk-pdf-continuous-view,
+body.bk-pdf-green .bk-pdf-continuous-view,
+body.bk-pdf-night .bk-pdf-continuous-view {
+  /* 连续视图本身不应用滤镜，滤镜只作用于 canvas-wrap / text-layer */
+}
+
+/* 连续视图滚动条：隐藏以去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
+.bk-pdf-continuous-view { scrollbar-width: none; }                     /* Chrome 121+, Firefox */
+.bk-pdf-continuous-view::-webkit-scrollbar { display: none; }         /* Chrome < 121, Edge, Safari */
+
+/* ── 19. 阅读模式 body 标记（仅用于全局识别，本身无样式）────────── */
+body.bk-pdf-reading {
+  /* 触屏滑动时禁用浏览器默认双击缩放/拉动 */
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+/* ── 19. 单页模式禁用浏览器横向滑动惯性，避免误触切章 ─────────── */
+/* 注：carousel 与 PDF 单页模式手势冲突由 JS 处理；此处仅为视觉/手感优化 */
+#chapterContent.bk-pdf-single {
+  scroll-snap-stop: always;
+}
+
+/* ── 20. 减少动画（无障碍）────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .bk-pdf-top-bar,
+  .bk-pdf-thumbs-bar,
+  .bk-pdf-outline-drawer,
+  .bk-pdf-bookmark-drawer,
+  .bk-pdf-search-bar,
+  .bk-pdf-canvas {
+    transition: none !important;
+  }
+
+  .bk-pdf-spinner-svg {
+    animation-duration: 2.5s;
+  }
+
+  #chapterContent.bk-pdf-single,
+  .bk-carousel-page .content.bk-pdf-single {
+    scroll-behavior: auto;
+  }
+}
+
+/* ── 21. 连续滚动模式渲染性能优化 ──────────────────────────────────
+   对未渲染的页面应用 content-visibility: auto，让浏览器可跳过屏幕外
+   占位 DOM 的样式/布局计算；回前台时只需重建可见区域，消除白屏。
+   ★ 关键：只对 [data-pdf-rendered] != "1" 的页面生效，避免 canvas
+   内容被跳过渲染（content-visibility 会让子树跳过 paint）。
+   contain-intrinsic-size 防止滚动条跳动，给出合理占位高度 */
+@supports (content-visibility: auto) {
+  .bk-pdf-continuous-view .bk-pdf-page:not([data-pdf-rendered="1"]):not([data-pdf-rendering="1"]) {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 90vh;
+  }
+  /* 视口外已渲染页面的 canvas 用 contain 隔离，减少合成层重建成本 */
+  .bk-pdf-continuous-view .bk-pdf-page {
+    contain: layout paint style;
+  }
+}
+
+/* ── 22. 页码跳转弹窗 ───────────────────────────────────────────── */
+.bk-pdf-page-jump-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 24, 16, 0.38);                  /* DESIGN: Warm overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.bk-pdf-page-jump-overlay.bk-pdf-page-jump-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bk-pdf-page-jump-dialog {
+  background: var(--card-bg, var(--surface, #fff));
+  border-radius: 16px;
+  padding: 22px 20px 16px;
+  width: 280px;
+  max-width: calc(100vw - 48px);
+  box-shadow: 0 10px 32px rgba(90, 65, 30, 0.12);      /* DESIGN: Dialog shadow */
+  transform: scale(0.92);
+  transition: transform 0.2s var(--ease-out, ease);
+}
+
+.bk-pdf-page-jump-overlay.bk-pdf-page-jump-visible .bk-pdf-page-jump-dialog {
+  transform: scale(1);
+}
+
+.bk-pdf-page-jump-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.bk-pdf-page-jump-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 16px; /* >=16px 避免 iOS 自动缩放 */
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--surface-alt, #f7f6f2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.bk-pdf-page-jump-input:focus {
+  border-color: var(--accent-color, var(--brand, #3D8A5A));
+  background: var(--card-bg, var(--surface, #fff));
+}
+
+.bk-pdf-page-jump-input::-webkit-outer-spin-button,
+.bk-pdf-page-jump-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.bk-pdf-page-jump-error {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--danger, #E53935);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.bk-pdf-page-jump-error[hidden] {
+  display: none;
+}
+
+.bk-pdf-page-jump-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.bk-pdf-page-jump-btn {
+  flex: 1;
+  padding: 9px 0;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius-sm, 8px);                /* C2: 统一按钮圆角令牌 */
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.bk-pdf-page-jump-btn:active {
+  transform: scale(0.97);
+}
+
+.bk-pdf-page-jump-cancel {
+  background: var(--surface-alt, #f7f6f2);
+}
+
+.bk-pdf-page-jump-go {
+  background: var(--accent-color, var(--brand, #3D8A5A));
+  color: #fff;
+  border-color: var(--accent-color, var(--brand, #3D8A5A));
+  font-weight: 600;
+}
+
+/* ── 23. Reflow 文字重排模式 ─────────────────────────────────────
+   流式排版视图：适合移动端窄屏阅读 PDF 文字内容，
+   无 canvas 渲染，纯 HTML 文字 + 内联图片 */
+
+.bk-pdf-reflow-view {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px 18px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* 隐藏滚动条：去除右侧边距，滚动仍可用（鼠标滚轮/触摸/键盘） */
+  scrollbar-width: none;          /* Chrome 121+, Firefox */
+  line-height: 1.75;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--surface, #fff);
+  /* P1-2: 中文不拆字（keep-all），英文长词超出时再断（break-word）
+   * 避免 CJK 短语被生硬拆行，也避免英文长串溢出 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  /* 首行缩进继承到段落 */
+  text-align: left;
+}
+/* Reflow 视图滚动条隐藏（Chromium 旧版 / Edge / Safari） */
+.bk-pdf-reflow-view::-webkit-scrollbar { display: none; }
+
+/* 段落（P1-2: 紧凑行距，让正文连贯） */
+.bk-pdf-reflow-para {
+  margin: 0 0 0.25em;
+  text-indent: 0;
+}
+
+.bk-pdf-reflow-para-start {
+  margin-top: 0.8em;
+  text-indent: 2em;
+}
+
+/* P0-2: 标题层级（JS 通过字号 modal 分析给行加 .bk-pdf-reflow-h1 / .bk-pdf-reflow-h2）
+ * h1 用于文档主标题（字号 ≥ 1.6× modal）；h2 用于章节标题（字号 ≥ 1.3× modal） */
+.bk-pdf-reflow-h1 {
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 1.2em 0 0.5em;
+  text-indent: 0;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.bk-pdf-reflow-h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 1em 0 0.4em;
+  text-indent: 0;
+  color: var(--text);
+}
+
+/* P1-1: 页码分隔符弱化 —— 去横线，改为上下留白 + 弱化 chip
+ * 行业惯例（Adobe Liquid Mode / Scholaread）不在流中加硬横线分隔，避免打断流式阅读 */
+.bk-pdf-reflow-page-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1.8em 0 1em;
+  gap: 0;
+  /* 去掉横线（::before/::after 不再生成） */
+}
+
+/* 保留 ::before/::after 选择器但不再生成横线，避免影响 JS 引用 */
+.bk-pdf-reflow-page-divider::before,
+.bk-pdf-reflow-page-divider::after {
+  content: none;
+}
+
+.bk-pdf-reflow-page-num {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  padding: 2px 10px;
+  background: transparent;
+  border-radius: var(--radius-full, 9999px);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+/* Reflow 高亮标注 */
+.bk-pdf-reflow-hl {
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.bk-pdf-reflow-hl-yellow {
+  background: #E8D18C;
+}
+
+.bk-pdf-reflow-hl-green {
+  background: #A8D4B0;
+}
+
+.bk-pdf-reflow-hl-blue {
+  background: #9DC0D4;
+}
+
+.bk-pdf-reflow-hl-pink {
+  background: #D9A5A6;
+}
+
+.bk-pdf-reflow-hl-orange {
+  background: #DCBD8A;
+}
+
+/* 暗色模式下提高高亮透明度 */
+[data-theme="dark"] .bk-pdf-reflow-hl-yellow { background: rgba(212, 168, 67, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-green  { background: rgba(94, 158, 111, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-blue   { background: rgba(90, 139, 168, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-pink   { background: rgba(196, 120, 122, 0.5); }
+[data-theme="dark"] .bk-pdf-reflow-hl-orange { background: rgba(196, 133, 74, 0.5); }
+
+/* 下划线 */
+.bk-pdf-reflow-underline {
+  text-decoration: underline;
+  text-decoration-color: var(--text);
+  text-underline-offset: 2px;
+}
+
+.bk-pdf-reflow-hl-yellow.bk-pdf-reflow-underline {
+  text-decoration-color: #a88530;
+}
+
+.bk-pdf-reflow-hl-green.bk-pdf-reflow-underline {
+  text-decoration-color: #3f7a50;
+}
+
+.bk-pdf-reflow-hl-blue.bk-pdf-reflow-underline {
+  text-decoration-color: #3a6d85;
+}
+
+.bk-pdf-reflow-hl-pink.bk-pdf-reflow-underline {
+  text-decoration-color: #994a4c;
+}
+
+.bk-pdf-reflow-hl-orange.bk-pdf-reflow-underline {
+  text-decoration-color: #9a6030;
+}
+
+/* 删除线 */
+.bk-pdf-reflow-strikethrough {
+  text-decoration: line-through;
+  text-decoration-color: var(--text);
+}
+
+.bk-pdf-reflow-hl-yellow.bk-pdf-reflow-strikethrough {
+  text-decoration-color: #a88530;
+}
+
+.bk-pdf-reflow-hl-green.bk-pdf-reflow-strikethrough {
+  text-decoration-color: #3f7a50;
+}
+
+.bk-pdf-reflow-hl-blue.bk-pdf-reflow-strikethrough {
+  text-decoration-color: #3a6d85;
+}
+
+.bk-pdf-reflow-hl-pink.bk-pdf-reflow-strikethrough {
+  text-decoration-color: #994a4c;
+}
+
+.bk-pdf-reflow-hl-orange.bk-pdf-reflow-strikethrough {
+  text-decoration-color: #9a6030;
+}
+
+/* 批注波浪下划线：改用 ::after 伪元素画 SVG，释放 text-decoration 给下划线/删除线 */
+.bk-pdf-reflow-note {
+  position: relative;
+}
+.bk-pdf-reflow-note::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%233D8A5A' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 8px 3px;
+  pointer-events: none;
+}
+[data-theme="dark"] .bk-pdf-reflow-note::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='3' viewBox='0 0 8 3'%3E%3Cpath d='M0 1.5 Q2 0 4 1.5 Q6 3 8 1.5' fill='none' stroke='%235EAE7E' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+/* 下划线+批注共存：波浪线位置下移 */
+.bk-pdf-reflow-underline.bk-pdf-reflow-note::after {
+  bottom: -3px;
+}
+
+/* 批注徽章（行内）—— 重置父级标记样式，徽章不属于内容 */
+.bk-pdf-reflow-note-badge {
+  font-size: 14px;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 2px;
+  -webkit-tap-highlight-color: transparent;
+  background: none !important;
+  text-decoration: none !important;
+}
+
+/* 图片容器 */
+.bk-pdf-reflow-img-wrap {
+  margin: 0.8em 0;
+  text-align: center;
+}
+
+.bk-pdf-reflow-img-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  font-size: 28px;
+  background: var(--surface-alt, #f7f6f2);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.bk-pdf-reflow-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* 夜间/护眼模式适配（P1-3: 色值对齐 PDF 模块其他视图，不再硬编码不一致色值） */
+.bk-pdf-night .bk-pdf-reflow-view {
+  background: #1a1a1a;          /* 对齐 .bk-pdf-night #chapterContent.bk-pdf-mode */
+  color: #c8c8d0;
+}
+
+.bk-pdf-sepia .bk-pdf-reflow-view {
+  background: #f5e6c8;          /* 对齐 .bk-pdf-sepia #chapterContent.bk-pdf-mode */
+  color: #5b4636;
+}
+
+.bk-pdf-green .bk-pdf-reflow-view {
+  background: #c8d8b8;          /* 对齐 .bk-pdf-green #chapterContent.bk-pdf-mode */
+  color: #2d4a2d;
+}
+
+/* 移动端 Reflow 优化 */
+@media (max-width: 767px) {
+  .bk-pdf-reflow-view {
+    padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
+    font-size: 17px; /* 移动端稍大字号 */
+    line-height: 1.8;
+  }
+}
+
+/* Bug11: Reflow 模式搜索高亮样式 */
+.bk-pdf-reflow-view .bk-pdf-search-match {
+  background: rgba(255, 255, 0, 0.4);
+  border-radius: 2px;
+}
+.bk-pdf-reflow-view .bk-pdf-search-current {
+  background: rgba(255, 140, 0, 0.6);
+}
+
+/* ── 模式切换过渡遮罩 ─────────────────────────────────────── */
+.bk-pdf-switch-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;            /* 不阻挡交互（遮罩只是视觉覆盖） */
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.bk-pdf-switch-mask-show {
+  opacity: 1;
+}
+.bk-pdf-switch-mask-fade {
+  opacity: 0;
+}
