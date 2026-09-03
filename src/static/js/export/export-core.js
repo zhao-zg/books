@@ -247,6 +247,13 @@
                     return { method: 'cache-only', shared: false, fallback: true };
                 }
 
+                // Share 原生端只认 file://，finishCacheWrite 返回的是 content://，须转换
+                var shareFileUri = _uriToFileUrl(fileUri, filePath);
+                if (!shareFileUri) {
+                    console.log('[BK.Export] Cache+Share 分块写入：URI 无法转换为 file://（uri=' + fileUri + '，path=' + filePath + '），降级为 cache-only');
+                    return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
+                }
+
                 if (!Share) {
                     console.log('[BK.Export] Cache+Share 分块写入：Share 插件不可用，降级为 cache-only');
                     return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
@@ -260,7 +267,7 @@
                     return Share.share({
                         title: filename,
                         dialogTitle: '选择保存位置',
-                        files: [fileUri]
+                        files: [shareFileUri]
                     }).then(function () {
                         console.log('[BK.Export] Cache+Share 分块写入：分享成功');
                         return { method: 'share', shared: true, fileUri: fileUri };
@@ -289,6 +296,25 @@
         if (!mime) return 'application/octet-stream';
         var idx = mime.indexOf(';');
         return (idx >= 0 ? mime.substring(0, idx) : mime).trim();
+    }
+
+    /**
+     * URI → Share 插件可用的 file:// URL
+     * Capacitor Share 原生端 shareFiles() 只接受 file:// 前缀（非 file: 直接 reject
+     * "only file urls are supported"）；而 SaveFile.finishCacheWrite 返回 content://
+     * URI（FileProvider）。Share 原生端拿到 file:// 后会自己用 FileProvider 转回
+     * content://（同一个 authority，round-trip 安全），故这里统一规范化为 file://。
+     * @param {string} fileUri       插件返回的 URI（content:// 或 file://）
+     * @param {string} fallbackPath  插件返回的绝对路径（无则传 null）
+     * @returns {string|null}  file:// URL；无法转换时返回 null（调用方降级 cache-only）
+     */
+    function _uriToFileUrl(fileUri, fallbackPath) {
+        fileUri = String(fileUri || '');
+        if (fileUri.indexOf('file://') === 0) return fileUri;
+        var path = String(fallbackPath || '');
+        if (!path) return null;
+        if (path.indexOf('file://') === 0) return path; // 防御：path 本身带 scheme
+        return 'file://' + (path.charAt(0) === '/' ? '' : '/') + path;
     }
 
     // ====================================================================
@@ -373,6 +399,13 @@
             if (!fileUri) throw new Error('无法获取文件 URI');
             console.log('[BK.Export] Cache+Share 策略：文件 URI=' + fileUri);
 
+            // Share 原生端只认 file://；Filesystem.getUri 理论上返回 file://，防御性转换
+            var shareFileUri = _uriToFileUrl(fileUri, null);
+            if (!shareFileUri) {
+                console.log('[BK.Export] Cache+Share 策略：URI 非 file:// 且无路径可转换（' + fileUri + '），降级为 cache-only');
+                return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
+            }
+
             if (!Share) {
                 console.log('[BK.Export] Cache+Share 策略：Share 插件不可用，降级为 cache-only');
                 return { method: 'cache-only', shared: false, fileUri: fileUri, fallback: true };
@@ -386,7 +419,7 @@
                 return Share.share({
                     title: filename,
                     dialogTitle: '选择保存位置',
-                    files: [fileUri]
+                    files: [shareFileUri]
                 }).then(function () {
                     console.log('[BK.Export] Cache+Share 策略：分享成功');
                     return { method: 'share', shared: true, fileUri: fileUri };
@@ -821,7 +854,10 @@
         // 暴露工具供测试/扩展
         _isNative: _isNative,
         _utf8ToBase64: _utf8ToBase64,
-        _bytesToBase64: _bytesToBase64
+        _bytesToBase64: _bytesToBase64,
+        _uriToFileUrl: _uriToFileUrl,
+        _exportNativeShare: _exportNativeShare,
+        _exportNativeShareChunked: _exportNativeShareChunked
     };
 
 })(window);
