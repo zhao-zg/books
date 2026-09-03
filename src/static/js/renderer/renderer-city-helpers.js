@@ -408,6 +408,7 @@
           '<div class="dl-tab-bar">' +
             '<button class="dl-tab-btn active" data-dl-tab="download">下载</button>' +
             '<button class="dl-tab-btn" data-dl-tab="export">导出</button>' +
+            '<button class="dl-tab-btn" data-dl-tab="import">导入</button>' +
           '</div>' +
           // ── 下载 Tab（原面板内容） ──
           '<div class="dl-tab-content" id="dlTabDownload">' +
@@ -449,6 +450,13 @@
             '<div class="dl-export-actions">' +
               '<button class="dl-export-btn" id="dlExportSelectAll">全选</button>' +
               '<button class="dl-export-btn dl-export-btn-primary" id="dlExportStart">导出选中</button>' +
+            '</div>' +
+          '</div>' +
+          // ── 导入 Tab ──
+          '<div class="dl-tab-content" id="dlTabImport" style="display:none">' +
+            '<div class="dl-export-hint">支持导入 EPUB / PDF / TXT / Markdown 电子书，以及 Books 导出的 ZIP 数据包（自动还原阅读进度、书签与标注）。可选择本地文件，或从 WebDAV 远程导入。</div>' +
+            '<div class="dl-export-actions">' +
+              '<button class="dl-export-btn dl-export-btn-primary" id="dlImportStart">📂 选择文件导入</button>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -526,13 +534,29 @@
         // 切换内容区
         document.getElementById('dlTabDownload').style.display = (tab === 'download') ? '' : 'none';
         document.getElementById('dlTabExport').style.display = (tab === 'export') ? '' : 'none';
+        document.getElementById('dlTabImport').style.display = (tab === 'import') ? '' : 'none';
         // 导出 Tab 切换时刷新系列列表
         if (tab === 'export') _renderExportSeriesList();
+        // 切回下载 Tab 时刷新存储统计（导入 ZIP 数据包后统计可能已变化）
+        if (tab === 'download') _refreshStorageStats();
       });
     }
 
     // ── 导出 Tab 事件 ──
     _initExportTab();
+
+    // ── 导入 Tab 事件 ──
+    var dlImportStart = document.getElementById('dlImportStart');
+    if (dlImportStart) {
+      dlImportStart.addEventListener('click', function () {
+        // 与书架页 📂 入口一致：优先资源包导入对话框，回退旧版 pickAndImport
+        if (win.BKResourcePack && win.BKResourcePack.showImportDialog) {
+          win.BKResourcePack.showImportDialog();
+        } else if (win.BKRenderer && win.BKRenderer.pickAndImport) {
+          win.BKRenderer.pickAndImport();
+        }
+      });
+    }
   }
 
   // ── 导出 Tab ──────────────────────────────────────────────────────────
