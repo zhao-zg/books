@@ -230,7 +230,7 @@
         return _close;
     }
     
-    function handleVersionComparison(dialogId, statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl) {
+    function handleVersionComparison(dialogId, statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl, closeDialog) {
         var currentClean = currentVersion.replace('v', '');
         var latestClean = latestVersion.replace('v', '');
 
@@ -248,17 +248,17 @@
             statusEl.innerHTML = '✅ 发现新版本<br>当前: v' + currentClean + '<br>最新: v' + latestClean + sizeText;
             btnEl.style.display = 'block';
             btnEl.textContent = '立即更新';
-            btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
+            btnEl.onclick = function() { if (closeDialog) closeDialog(); AppUpdate.downloadApkWithUI(downloadUrl); };
         } else if (comparison === 0) {
             statusEl.innerHTML = '✅ 已是最新版本<br>版本: v' + currentClean;
             btnEl.style.display = 'block';
             btnEl.textContent = '重新下载';
-            btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
+            btnEl.onclick = function() { if (closeDialog) closeDialog(); AppUpdate.downloadApkWithUI(downloadUrl); };
         } else if (comparison === null) {
             statusEl.innerHTML = '⚠️ 无法比较版本<br>当前: ' + currentVersion + '<br>最新: v' + latestClean;
             btnEl.style.display = 'block';
             btnEl.textContent = '下载最新版';
-            btnEl.onclick = function() { AppUpdate.downloadApkWithUI(downloadUrl); };
+            btnEl.onclick = function() { if (closeDialog) closeDialog(); AppUpdate.downloadApkWithUI(downloadUrl); };
         } else {
             statusEl.innerHTML = '当前: v' + currentClean + '<br>远程: v' + latestClean;
         }
@@ -268,7 +268,7 @@
     AppUpdate.showCloudflareUpdateDialog = function() {
         var CLOUDFLARE_SERVERS = (window.BK_SERVERS && window.BK_SERVERS.cloudflare) || [];
         
-        createUpdateDialog('cloudflareUpdateDialog', '发现新版本', 'cfCheckStatus', 'cfUpdateBtn');
+        var closeDialog = createUpdateDialog('cloudflareUpdateDialog', '发现新版本', 'cfCheckStatus', 'cfUpdateBtn');
         
         var statusEl = document.getElementById('cfCheckStatus');
         var btnEl = document.getElementById('cfUpdateBtn');
@@ -355,7 +355,7 @@
                 var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
                 var sizeText = apkSize ? ' (' + (apkSize / 1024 / 1024).toFixed(1) + ' MB)' : '';
 
-                handleVersionComparison('cloudflareUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl);
+                handleVersionComparison('cloudflareUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, downloadUrl, closeDialog);
 
                 if (comparison > 0) {
                     var clInline = document.getElementById('cloudflareUpdateDialog-cl-inline');
@@ -386,7 +386,7 @@
         var GITHUB_API_URL = (window.BK_SERVERS && window.BK_SERVERS.github_api) ||
             'https://api.github.com/repos/zhao-zg/books/releases/latest';
         
-        createUpdateDialog('githubUpdateDialog', '发现新版本', 'ghCheckStatus', 'ghUpdateBtn');
+        var closeDialog = createUpdateDialog('githubUpdateDialog', '发现新版本', 'ghCheckStatus', 'ghUpdateBtn');
         
         var statusEl = document.getElementById('ghCheckStatus');
         var btnEl = document.getElementById('ghUpdateBtn');
@@ -415,7 +415,7 @@
                     var comparison = AppUpdate.compareVersion(latestVersion.replace('v', ''), currentVersion.replace('v', ''));
                     var sizeText = ' (' + (apk.size / 1024 / 1024).toFixed(1) + ' MB)';
 
-                    handleVersionComparison('githubUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, apk.browser_download_url);
+                    handleVersionComparison('githubUpdateDialog', statusEl, btnEl, comparison, currentVersion, latestVersion, sizeText, apk.browser_download_url, closeDialog);
 
                     if (comparison > 0) {
                         var clInline = document.getElementById('githubUpdateDialog-cl-inline');
