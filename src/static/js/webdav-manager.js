@@ -712,7 +712,7 @@
 
         // 退化：无流式 reader，一次性读取
         clearTimeout(timer);
-        if (ext === 'epub' || ext === 'pdf') {
+        if (ext === 'epub' || ext === 'pdf' || ext === 'zip') {
           return resp.arrayBuffer().then(function (buf) {
             return assemble([new Uint8Array(buf)], buf.byteLength, ext, entry, url);
           });
@@ -745,6 +745,13 @@
     }
     if (ext === 'pdf') {
       base.mime = entry.mime || 'application/pdf';
+      base.arrayBuffer = full.buffer;
+      return base;
+    }
+    if (ext === 'zip') {
+      // 同步数据包（<bookId>.zip）为二进制容器，必须保留原始字节
+      // （曾因走文本解码分支导致 WebDAV pull 解析失败）
+      base.mime = entry.mime || 'application/zip';
       base.arrayBuffer = full.buffer;
       return base;
     }

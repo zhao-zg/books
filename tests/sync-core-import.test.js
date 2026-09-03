@@ -1225,3 +1225,81 @@ describe('P7 — shelf-only 包路径', () => {
     assert.equal(env.shelfRecords[cityId].note, '索引补缺', 'note 应补缺');
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// bug#5 回归测试 — 目录名 ≠ bookId 隐式约定加固
+// idMap/skippedIds 以 book.json 内真实 ID 为键，
+// importFromZip 下游 3 处消费点（跳过计数/幽灵防护/目标 ID 解析）原以目录名
+// 查找，目录名≠bookId 时静默错位。修复后应经 dirToId 显式映射。
+// ════════════════════════════════════════════════════════════════════════
+
+describe('bug#5 — 目录名≠bookId 异常包防护', () => {
+
+  test('data 模式：目录名≠bookId 的幽灵书仍被正确跳过（skippedIds 经 dirToId 查找）', async () => {
+    var origId = 'ghost-real-id-1';
+    var book = makeTxtBook(origId, '改名目录幽灵书');
+    var env = setupImportEnv({ cityIndex: { books: [] } });
+    // 本地 importStore 无该书 → 幽灵书；目录名故意与 bookId 不同
+    var bytes = await makeV4DataZip(
+      [{ id: origId, dirName: 'renamed-dir-1', bookJson: book, userdata: { progress: '0.5' } }],
+      [{ id: origId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // 幽灵防护生效：进度不写入、入架被排除、计入 skipped
+    assert.equal(win.localStorage.getItem('bk_progress:' + origId), null,
+      '目录名≠bookId 的幽灵书不应写入进度');
+    assert.ok(!env.shelfRecords[origId], '目录名≠bookId 的幽灵书不应入架');
+    assert.equal(result.skipped, 1, '应经 dirToId 正确计入 skipped，实际=' + result.skipped);
+  });
+
+  test('full 模式：目录名≠bookId 的导入书 ID 重映射后进度写入新 ID', async () => {
+    var origId = 'orig-id-2';
+    var book = makeTxtBook(origId, '改名目录导入书');
+    var env = setupImportEnv({ cityIndex: { books: [] } });
+    var bytes = await makeV4FullZip(
+      [{
+        id: origId, dirName: 'renamed-dir-2', bookJson: book,
+        bookText: '第一章\r\n正文。',
+        userdata: { progress: '0.7', lastReadTs: '3000' }
+      }],
+      [{ id: origId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // full 模式生成新 imported- ID，userdata 合并须写入新 ID（非目录名/原 ID）
+    var keys = Object.keys(env.importStore._raw);
+    var bookKey = keys.find(function (k) { return k.indexOf('imported_book:') === 0; });
+    assert.ok(bookKey, 'full 模式应保存导入书');
+    var newId = bookKey.replace('imported_book:', '');
+    assert.notEqual(newId, origId, '应生成新 ID');
+    assert.notEqual(newId, 'renamed-dir-2', '新 ID 不应错位成目录名');
+    assert.equal(win.localStorage.getItem('bk_progress:' + newId), '0.7',
+      '进度应写入重映射后的新 ID');
+    assert.equal(result.success, 1, '应成功导入 1 本');
+  });
+
+  test('full 模式：目录名≠bookId 的书城书保持原 ID 且内容直写正确', async () => {
+    var cityId = 'books-9-4001';
+    var book = makeTxtBook(cityId, '改名目录书城书');
+    var env = setupImportEnv({ cityIndex: { books: [{ id: cityId }] } });
+    var bytes = await makeV4FullZip(
+      [{
+        id: cityId, dirName: 'renamed-dir-3', bookJson: book,
+        bookText: '第一章\r\n书城正文。',
+        userdata: { progress: '0.3', lastReadTs: '4000' }
+      }],
+      [{ id: cityId }]
+    );
+    var result = await SC.importFromZip(bytes, {
+      importStore: env.importStore, zlStore: env.zlStore, pdfStore: env.pdfStore
+    });
+    // 书城书恒等映射：内容与进度都应落在原 ID，不受目录名影响
+    assert.ok(env.zlStore._raw['zl_book:' + cityId], '书城书内容应写入原 ID');
+    assert.equal(win.localStorage.getItem('bk_progress:' + cityId), '0.3',
+      '进度应写入书城书原 ID');
+    assert.equal(result.success, 1, '应成功导入 1 本');
+  });
+});

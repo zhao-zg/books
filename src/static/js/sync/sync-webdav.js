@@ -200,9 +200,10 @@
         return win.WebDavManager.downloadFile(config, entry).then(function (fileInfo) {
             if (!fileInfo) return Promise.reject(new Error('下载失败：无数据'));
 
-            // 获取 ArrayBuffer
-            var buffer = fileInfo.arrayBuffer || fileInfo.text;
-            if (!buffer) return Promise.reject(new Error('下载失败：无内容'));
+            // 获取 ArrayBuffer（同步 ZIP 是二进制，必须是 arrayBuffer；
+            // 若退化成 text 说明字节已被 UTF-8 解码破坏，直接报错避免下游 JSZip 解析出乱码）
+            var buffer = fileInfo.arrayBuffer;
+            if (!buffer) return Promise.reject(new Error('下载失败：ZIP 内容为空或非二进制'));
 
             // 导入（复用 sync-core 的 importFromZip）
             if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) {

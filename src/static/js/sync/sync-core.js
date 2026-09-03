@@ -319,7 +319,9 @@
                                         }).catch(function (e) {
                                             console.warn('[BK.SyncCore] generateZipBytes: EPUB 转换失败，回退 TXT id=' + bookId, e);
                                             contentStr = win.BK.BookConvert.bookToText(bookData);
-                                            bookFolder.file('book.txt', contentStr);
+                                            // 写入与目标同名文件（fileName），而非硬编码 book.txt
+                                            // （book.txt 无任何导入侧消费者，属死文件）
+                                            bookFolder.file(fileName, contentStr);
                                         });
                                     } else {
                                         contentStr = win.BK.BookConvert.bookToText(bookData);
@@ -701,17 +703,22 @@
      * - 书城书或无 book.json：恒等映射
      * - data 模式：导入书（非书城书且有 book.json）仅当本地已存在才恒等映射，
      *   否则记入 skippedIds（幽灵 ID 防护：不合并不入架）
+     * 注意：idMap/skippedIds 均以 book.json 内真实 ID 为键（与 _mergeShelf/
+     * _mergeBookmarks/_mergeHighlights 消费口径一致）；
+     * importFromZip 内按目录名迭代时须经 dirToId 显式解析真实 ID，
+     * 勿再依赖「目录名 == bookId」隐式约定（异常包会静默错位）。
      * @param {Object} zip          JSZip 实例
      * @param {string[]} bookDirNames  books/ 下的子目录名
      * @param {string} mode         'data' | 'full'
      * @param {Object} opts         依赖注入（importStore 用于本地存在性检查）
-     * @returns {Promise<{ idMap, bookDataMap, fullBookDirs, skippedIds }>}
+     * @returns {Promise<{ idMap, bookDataMap, fullBookDirs, skippedIds, dirToId }>}
      */
     function _resolveIdMap(zip, bookDirNames, mode, opts) {
         var idMap = {};
         var bookDataMap = {};
         var fullBookDirs = [];
         var skippedIds = {};
+        var dirToId = {};
 
         var chain = Promise.resolve();
         bookDirNames.forEach(function (dirName) {
@@ -724,6 +731,8 @@
                         if (bd && bd.id) {
                             bookDataMap[bd.id] = bd;
                             fullBookDirs.push({ dirName: dirName, bookId: bd.id });
+                            // 显式记录目录名→真实 ID（防御目录名≠bookId 的异常包）
+                            dirToId[dirName] = bd.id;
                         }
                     } catch (e) { /* 忽略解析失败 */ }
                 });
@@ -783,7 +792,11 @@
                 });
             });
             return chain2.then(function () {
-                return { idMap: idMap, bookDataMap: bookDataMap, fullBookDirs: fullBookDirs, skippedIds: skippedIds };
+                return {
+                    idMap: idMap, bookDataMap: bookDataMap,
+                    fullBookDirs: fullBookDirs, skippedIds: skippedIds,
+                    dirToId: dirToId
+                };
             });
         });
     }
@@ -1137,12 +1150,14 @@
                     var bookDataMap = idMapResult.bookDataMap;
                     var fullBookDirs = idMapResult.fullBookDirs;
                     var skippedIds = idMapResult.skippedIds || {};
+                    // 目录名→真实 bookId 显式映射（目录名≠bookId 的异常包防护）
+                    var dirToId = idMapResult.dirToId || {};
 
                     // data 模式资格跳过计数（books/ 有目录但本地不存在）
                     var dataSkippedDirs = 0;
                     if (mode === 'data') {
                         bookDirNames.forEach(function (dirName) {
-                            if (skippedIds[dirName]) dataSkippedDirs++;
+                            if (skippedIds[dirToId[dirName] || dirName]) dataSkippedDirs++;
                         });
                     }
                     // 幽灵 ID 防护：跳过书的 shelf 记录不补缺不入架
@@ -1183,7 +1198,7 @@
                                         current++;
                                         // 幽灵书防护：data 模式下本地不存在的导入书
                                         // 不合并不入架（skipped 已在 dataSkippedDirs 计数，此处不再累计）
-                                        if (skippedIds[dirName]) {
+                                        if (skippedIds[dirToId[dirName] || dirName]) {
                                             if (opts.onProgress) opts.onProgress(current, total, dirName);
                                             return;
                                         }
@@ -1206,8 +1221,8 @@
                                                 return;
                                             }
 
-                                            // 确定目标 bookId
-                                            var targetId = idMap[dirName] || dirName;
+                                        // 确定目标 bookId（目录名≠bookId 时经 dirToId 解析）
+                                        var targetId = idMap[dirToId[dirName] || dirName] || dirToId[dirName] || dirName;
 
                                             // 合并进度（localStorage）
                                             _mergeProgress(userData, targetId);

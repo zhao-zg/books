@@ -134,9 +134,9 @@
                     });
                 }
 
-                // 批注标记：小方块图标
+                // 批注标记：小方块图标（右缘钳制，防页边高亮时图标被裁切）
                 if (hasNote) {
-                    var mx = c.x + c.width + 3;
+                    var mx = Math.min(c.x + c.width + 3, pw - 8);
                     var my = c.y + c.height / 2 - 4;
                     page.drawRectangle({
                         x: mx, y: my,
