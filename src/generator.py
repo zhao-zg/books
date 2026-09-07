@@ -136,6 +136,18 @@ class BooksGenerator:
         if os.path.exists(headers_src):
             shutil.copy2(headers_src, os.path.join(self.output_dir, '_headers'))
 
+        # Pages Functions（服务端伪装拦截）
+        # 将项目根 functions/ 目录复制到 output/functions/，部署到 CF Pages 后自动生效
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        functions_src = os.path.join(project_root, 'functions')
+        functions_dst = os.path.join(self.output_dir, 'functions')
+        if os.path.isdir(functions_src):
+            # 清理旧副本（防止残留文件）
+            if os.path.isdir(functions_dst):
+                shutil.rmtree(functions_dst)
+            shutil.copytree(functions_src, functions_dst)
+            print("✓ functions/ 已复制（服务端伪装拦截）")
+
     def generate_speedtest_bin(self):
         """生成测速文件（供 download 竞速测带宽）
 
