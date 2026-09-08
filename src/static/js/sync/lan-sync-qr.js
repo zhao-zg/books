@@ -60,14 +60,22 @@
         qr.addData(text);
         qr.make();
 
-        var html = '';
+        // 自适应模块尺寸：长信令（如 WebRTC offer）模块数多，
+        // 固定 3px 会在窄屏溢出（620px+ 宽度）。按视口与模块数动态计算，
+        // 并用 CSS max-width:100% 兜底（css-lan-sync.css 已覆盖 td 内联宽高）。
         var count = qr.getModuleCount();
+        var viewportW = 300;
+        try { viewportW = Math.min(win.innerWidth || 300, 600); } catch (e) {}
+        var availW = Math.max(120, viewportW - 64); // 减去面板左右 padding
+        var px = Math.max(1, Math.min(4, Math.floor(availW / count)));
+
+        var html = '';
         html += '<table class="lan-sync-qr-table" style="border-collapse:collapse;">';
         for (var r = 0; r < count; r++) {
             html += '<tr>';
             for (var c = 0; c < count; c++) {
                 var dark = qr.isDark(r, c);
-                html += '<td style="width:3px;height:3px;background:' + (dark ? '#000' : '#fff') + ';"></td>';
+                html += '<td style="width:' + px + 'px;height:' + px + 'px;background:' + (dark ? '#000' : '#fff') + ';"></td>';
             }
             html += '</tr>';
         }

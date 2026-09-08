@@ -8,6 +8,9 @@
  *   - 连接后显示「推送」「拉取」按钮 + 传输模式
  *
  * 扫码实现：getUserMedia + video 元素 → canvas 帧 → jsQR 解码
+ * 修复（2026-09）：video 元素此前从未插入 DOM，即使摄像头打开也看不到预览；
+ * 现改为全屏扫码遮罩（BK.openDialog），支持取消按钮与系统返回键关闭，
+ * video 设 muted 避免自动播放策略拦截，错误回调只通知一次防重复弹错。
  *
  * 依赖：
  *   - BK.LanSyncWebRTC (lan-sync-webrtc.js)
@@ -26,45 +29,103 @@
     var _scanErrorCb = null;   // 扫码错误回调
     var _scanCanvas = null;
     var _scanCtx = null;
+    var _scanDialog = null;    // 扫码遮罩（BK.openDialog 返回值）
+    var _scanErrorNotified = false; // 错误是否已通知（防重复）
+    var _scanSucceeded = false;    // 是否已扫码成功（成功时关闭遮罩不再报"已取消"）
 
     // ── 扫码 ──────────────────────────────────────────────────────
 
-    /**
-     * 打开摄像头扫码
+    /** 关闭扫码遮罩（若存在） */
+    function _closeScanDialog() {
+        if (_scanDialog) {
+            try { _scanDialog.close(); } catch (e) {}
+            _scanDialog = null;
+        }
+    }
+
+    /** 打开摄像头扫码
      * @param {Function} onSuccess  (text) 扫码成功
      * @param {Function} onError    (err) 失败/取消
      * @returns {Promise<{stop:Function}>}
      */
     function scanQR(onSuccess, onError) {
+        _scanErrorNotified = false;
+        _scanSucceeded = false;
+        // 错误统一走 onError 通知（且仅一次）；已提供 onError 时不再 reject，
+        // 避免调用方 onError + .catch 双重处理（面板三处调用均传 onError）
+        function _failOnce(err) {
+            if (!_scanErrorNotified) {
+                _scanErrorNotified = true;
+                if (onError) { try { onError(err); } catch (e) {} }
+            }
+            return onError ? Promise.resolve({ stop: stopScan }) : Promise.reject(err);
+        }
         if (!win.navigator || !win.navigator.mediaDevices || !win.navigator.mediaDevices.getUserMedia) {
-            var err = new Error('当前环境不支持摄像头（需 HTTPS 或 localhost）');
-            if (onError) onError(err);
-            return Promise.reject(err);
+            return _failOnce(new Error('当前环境不支持摄像头（需 HTTPS 或 localhost）'));
         }
         if (typeof win.jsQR !== 'function') {
-            var err2 = new Error('扫码库未加载（jsQR）');
-            if (onError) onError(err2);
-            return Promise.reject(err2);
+            return _failOnce(new Error('扫码库未加载（jsQR）'));
         }
 
         _scanErrorCb = onError || null;
         _scanRaf = 0;
+
+        // 打开全屏扫码遮罩：内嵌 video 预览 + 取消按钮，接系统返回键
+        var tip = '正在打开摄像头...';
+        _scanDialog = BK.openDialog({
+            id: 'bk-scan-dialog',
+            className: 'bk-dialog-mask bk-scan-dialog',
+            html: '<div class="bk-scan-dialog-box">' +
+                '<div class="bk-scan-dialog-title">扫码</div>' +
+                '<div class="bk-scan-dialog-video-wrap"><video playsinline muted autoplay></video>' +
+                '<div class="bk-scan-dialog-tip">' + tip + '</div></div>' +
+                '<button class="bk-scan-dialog-cancel">取消</button>' +
+                '</div>',
+            onClose: function () {
+                // 遮罩被关闭（取消/系统返回键/点遮罩）：停止扫码并通知错误回调；
+                // 扫码成功路径先置 _scanSucceeded 再关遮罩，不会误报取消
+                stopScan();
+                if (!_scanErrorNotified && !_scanSucceeded) {
+                    _scanErrorNotified = true;
+                    if (_scanErrorCb) {
+                        try { _scanErrorCb(new Error('已取消扫码')); } catch (e) {}
+                    }
+                }
+                _scanDialog = null;
+            }
+        });
+        if (!_scanDialog) {
+            // 同 id 遮罩已存在（上次未关）：复用提示，直接失败返回
+            return _failOnce(new Error('扫码遮罩已打开，请先关闭'));
+        }
+        var cancelBtn = _scanDialog.mask.querySelector('.bk-scan-dialog-cancel');
+        if (cancelBtn) cancelBtn.addEventListener('click', function () {
+            _closeScanDialog();
+        });
 
         return win.navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'environment' },
             audio: false
         }).then(function (stream) {
             _scanStream = stream;
-            var video = document.createElement('video');
-            video.setAttribute('playsinline', 'true');
-            video.style.width = '100%';
-            video.style.maxWidth = '400px';
-            video.style.aspectRatio = '1/1';
-            video.style.objectFit = 'cover';
-            video.style.borderRadius = '8px';
+            var video = _scanDialog
+                ? _scanDialog.mask.querySelector('video')
+                : null;
+            if (!video) { // 遮罩已被提前关闭
+                stopScan();
+                return { stop: stopScan };
+            }
             video.srcObject = stream;
-            video.play();
+            video.muted = true; // muted 属性在部分 WebView 不生效，JS 属性双保险
+            var p = video.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { /* 自动播放拦截不阻断：video 有 muted 属性，静默重试 */ });
+            }
             _scanVideo = video;
+
+            // 摄像头已打开：隐藏"正在打开"提示，显示对准提示
+            var tipEl = _scanDialog && _scanDialog.mask.querySelector('.bk-scan-dialog-tip');
+            if (tipEl) tipEl.textContent = '将二维码放入框内，自动识别';
 
             _scanCanvas = document.createElement('canvas');
             _scanCanvas.width = 640;
@@ -75,6 +136,7 @@
 
             function tick() {
                 if (!keepScanning || !_scanVideo || _scanVideo.readyState < 2) {
+                    if (!keepScanning) return;
                     _scanRaf = requestAnimationFrame(tick);
                     return;
                 }
@@ -87,7 +149,9 @@
                         var code = win.jsQR(imageData.data, imageData.width, imageData.height);
                         if (code && code.data) {
                             keepScanning = false;
+                            _scanSucceeded = true;
                             stopScan();
+                            _closeScanDialog();
                             if (onSuccess) onSuccess(code.data);
                             return;
                         }
@@ -99,8 +163,10 @@
 
             return { stop: stopScan };
         }).catch(function (err) {
-            if (onError) onError(err);
-            throw err;
+            // getUserMedia 失败：先通知真实错误（遮罩 onClose 见 _scanErrorNotified 不会重复报"已取消"），再关遮罩
+            _failOnce(err);
+            _closeScanDialog();
+            return onError ? Promise.resolve({ stop: stopScan }) : Promise.reject(err);
         });
     }
 
@@ -121,7 +187,9 @@
         _scanCtx = null;
     }
 
+    /** 外部停止扫码（面板「取消」路径）：同步关闭遮罩，经由 onClose 通知取消 */
     function stopScanning() {
+        _closeScanDialog();
         stopScan();
         return Promise.resolve();
     }

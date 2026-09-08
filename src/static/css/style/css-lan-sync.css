@@ -3,7 +3,7 @@
    随 cool/warm/dark 三主题切换；fallback 值保持原 cool 视觉 */
 .lan-sync-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--surface, #F5F4F1); z-index: 9999; overflow-y: auto;
+    background: var(--surface, #F5F4F1); z-index: 9999; overflow-y: auto; overflow-x: hidden;
     font-size: 14px;
 }
 .lan-sync-panel { max-width: 600px; margin: 0 auto; padding: 0; }
@@ -50,6 +50,10 @@
 .lan-sync-qr { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .lan-sync-qr-label { font-size: 12px; color: var(--text-muted, #999); }
 .lan-sync-qr table { margin: 0 auto; }
+.lan-sync-qr-wrap, .lan-sync-qr { max-width: 100%; }
+
+/* WebRTC 信令 QR：长信令模块多，尺寸由 JS 按视口动态计算（lan-sync-qr.js render） */
+.lan-sync-wrtc-qr table { margin: 0 auto; }
 
 /* 主按钮 */
 .lan-sync-btn-start {
@@ -66,13 +70,14 @@
 .lan-sync-section-title { font-size: 13px; color: var(--text-muted, #666); margin-bottom: 8px; font-weight: 600; }
 .lan-sync-section-hideable { display: none; }
 
-/* 手动连接 */
-.lan-sync-manual { display: flex; gap: 8px; margin-bottom: 12px; }
+/* 手动连接：窄屏自动换行（flex 子项 min-width:0 允许收缩，防横向溢出） */
+.lan-sync-manual { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .lan-sync-input-ip, .lan-sync-input-code {
     border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 10px;
-    font-size: 14px; flex: 1; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
+    font-size: 14px; flex: 1 1 120px; min-width: 0; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
 }
-.lan-sync-input-code { max-width: 110px; }
+.lan-sync-input-code { flex: 0 1 110px; max-width: 110px; }
+.lan-sync-btn-connect, .lan-sync-btn-scan-connect { flex: 0 0 auto; }
 .lan-sync-btn-connect {
     padding: 10px 16px; border: none; border-radius: 8px;
     background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
@@ -88,10 +93,11 @@
 .lan-sync-device {
     display: flex; align-items: center; gap: 10px; padding: 12px 0;
     border-bottom: 1px solid var(--nav-hover, #ECEAE5);
+    flex-wrap: wrap;
 }
-.lan-sync-device-icon { font-size: 20px; }
-.lan-sync-device-name { font-weight: 500; color: var(--text, #3A3835); }
-.lan-sync-device-addr { color: var(--text-muted, #999); flex: 1; font-size: 12px; }
+.lan-sync-device-icon { font-size: 20px; flex: 0 0 auto; }
+.lan-sync-device-name { font-weight: 500; color: var(--text, #3A3835); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-sync-device-addr { color: var(--text-muted, #999); flex: 1 1 auto; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lan-sync-btn-pull, .lan-sync-btn-push {
     padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
     background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px;
@@ -136,3 +142,29 @@
 }
 .lan-sync-log-entry { padding: 4px 0; border-bottom: 1px solid var(--nav-hover, #F0EEEA); }
 .lan-sync-log-time { color: var(--text-muted, #999); }
+
+/* ── 扫码遮罩（BK.openDialog 承载，系统返回键可关）──────────── */
+/* .bk-scan-dialog 与 .bk-dialog-mask 同元素（openDialog className 追加），基础遮罩样式见 css-popups.css */
+.bk-scan-dialog .bk-scan-dialog-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: var(--card-bg, #FFFFFF); border-radius: 14px; padding: 20px 20px 16px;
+    max-width: calc(100vw - 48px); width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.bk-scan-dialog .bk-scan-dialog-title { font-size: 16px; font-weight: 600; color: var(--text, #3A3835); }
+.bk-scan-dialog .bk-scan-dialog-video-wrap {
+    position: relative; width: 100%; aspect-ratio: 1/1; overflow: hidden;
+    border-radius: 10px; background: #000;
+}
+.bk-scan-dialog .bk-scan-dialog-video-wrap video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.bk-scan-dialog .bk-scan-dialog-tip {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px 12px; font-size: 12px; color: #FFF;
+    background: rgba(0,0,0,.45); text-align: center;
+}
+.bk-scan-dialog .bk-scan-dialog-cancel {
+    padding: 10px 0; width: 100%; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-soft, #666); font-size: 14px; cursor: pointer;
+}
