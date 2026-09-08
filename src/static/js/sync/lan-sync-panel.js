@@ -81,6 +81,11 @@
         // PWA↔PWA 区域
         var wrtcHtml = _renderWrtcSection();
 
+        // 本机地址信息（IP:端口）——补全卡片信息，PWA 端无服务时显示占位
+        var selfAddrHtml = info.ipAddress
+            ? '<div class="lan-sync-self-addr">本机地址 <span class="lan-sync-self-addr-val">' + _esc(info.ipAddress) + ':' + _esc(info.port || '18080') + '</span></div>'
+            : '<div class="lan-sync-self-addr">本机地址：启动同步后显示</div>';
+
         var logsHtml = state.logs.map(function (l) {
             return '<div class="lan-sync-log-entry"><span class="lan-sync-log-time">' + l.time + '</span> ' + _esc(l.msg) + '</div>';
         }).join('');
@@ -107,6 +112,7 @@
                   (win.BK.LanSyncQR ? _renderQr(info) : '') +
                   '<div class="lan-sync-qr-tip">对方扫码即可连接本机</div>' +
                   '</div>' +
+                  selfAddrHtml +
                   '<div class="lan-sync-code-line">' +
                   '  <span>配对码</span>' + codeHtml +
                   '</div>'
@@ -121,7 +127,6 @@
             '      <div class="lan-sync-section-title">找到设备后，点「下载」或「发送」</div>' +
             '      <div class="lan-sync-manual">' +
             '        <input type="text" class="lan-sync-input-ip" placeholder="输入对方 IP，如 192.168.1.5" />' +
-            '        <input type="text" class="lan-sync-input-code" placeholder="配对码" />' +
             '        <button class="lan-sync-btn-connect">连接</button>' +
             '        <button class="lan-sync-btn-scan-connect">扫码</button>' +
             '      </div>' +
@@ -143,9 +148,9 @@
             '  </div>' +
             '</div>';
 
-        if (!logArea) {
-            logArea = panelEl.querySelector('.lan-sync-log');
-        }
+        // 面板每次重建后必须重新捕获 logArea 引用（innerHTML 重建会丢弃旧节点，
+        // 若沿用旧引用，传输日志会追加到已脱离文档的节点上，页面不再显示）
+        logArea = panelEl.querySelector('.lan-sync-log');
         _bindEvents();
     }
 
@@ -563,52 +568,205 @@
 
     function _handleManualConnect() {
         var ipInput = panelEl.querySelector('.lan-sync-input-ip');
-        var codeInput = panelEl.querySelector('.lan-sync-input-code');
-        if (!ipInput || !codeInput) return;
+        if (!ipInput) return;
         var addr = ipInput.value.trim();
-        var code = codeInput.value.trim();
-        if (!addr || !code) { addLog('请输入 IP:端口 和配对码'); return; }
+        if (!addr) { _toast('请输入对方 IP'); return; }
 
         var parts = addr.split(':');
         var port = parseInt(parts[1] || '18080', 10);
         var ip = parts[0];
 
-        addLog('正在连接 ' + ip + ':' + port + '...');
-        win.BK.LanSync.connect(ip, port, code).then(function (info) {
-            addLog('已连接 ' + info.name + '（' + (info.books ? info.books.length : 0) + ' 本书）');
-            // 手动连接成功后保存对端配对码，后续 pull/push 使用
-            addDevice({ name: info.name, ip: ip, port: port, code: code });
+        // 配对码改为连接时弹窗输入（手动输入 IP 场景无配对码来源）
+        _askPairCode('连接 ' + ip + ':' + port).then(function (code) {
+            addLog('正在连接 ' + ip + ':' + port + '...');
+            return win.BK.LanSync.connect(ip, port, code).then(function (info) {
+                addLog('已连接 ' + info.name + '（' + (info.books ? info.books.length : 0) + ' 本书）');
+                // 手动连接成功后保存对端配对码，后续 pull/push 使用
+                addDevice({ name: info.name, ip: ip, port: port, code: code });
+            });
         }).catch(function (err) {
+            if (err && err.code === 'cancelled') return; // 用户取消
             addLog('连接失败：' + (err.message || err));
         });
     }
 
+    /**
+     * 弹窗输入配对码。返回 Promise<string>；用户取消时 reject { code: 'cancelled' }。
+     * @param {string} label 提示文案（如「连接 192.168.1.5:18080」）
+     */
+    function _askPairCode(label) {
+        return new Promise(function (resolve, reject) {
+            if (!win.BK || !win.BK.openDialog) {
+                reject(new Error('弹窗系统未就绪'));
+                return;
+            }
+            var html =
+                '<div class="lan-sync-code-dialog">' +
+                '  <div class="lan-sync-code-dialog-title">输入配对码</div>' +
+                '  <div class="lan-sync-code-dialog-desc">请在对方面板查看 6 位配对码</div>' +
+                (label ? '  <div class="lan-sync-code-dialog-target">' + _esc(label) + '</div>' : '') +
+                '  <input type="text" class="lan-sync-code-dialog-input" inputmode="numeric" maxlength="6" placeholder="如 123456" />' +
+                '  <div class="lan-sync-code-dialog-actions">' +
+                '    <button class="lan-sync-code-dialog-cancel">取消</button>' +
+                '    <button class="lan-sync-code-dialog-ok">确定</button>' +
+                '  </div>' +
+                '</div>';
+            var dlg = win.BK.openDialog({
+                id: 'bk-lan-sync-code-dialog',
+                html: html,
+                onClose: function () {
+                    // 系统返回键/点遮罩关闭：若未结算则视为取消（settled 守卫防重入）。
+                    // 此时栈条目已被 pop，不能再调 dlg.close()（会 discard 掉别人的条目）
+                    _done(false, true);
+                }
+            });
+            if (!dlg) {
+                reject(new Error('配对码弹窗已打开'));
+                return;
+            }
+            var input = dlg.mask.querySelector('.lan-sync-code-dialog-input');
+            var settled = false;
+            /**
+             * @param {boolean} ok
+             * @param {boolean} [fromOnClose] true=由 onClose 触发（back 键/点遮罩），
+             *        此时弹窗已在销毁中，不可两调 dlg.close()
+             */
+            function _done(ok, fromOnClose) {
+                if (settled) return;
+                settled = true;
+                if (ok) {
+                    resolve(input ? input.value.trim() : '');
+                } else {
+                    reject({ code: 'cancelled' });
+                }
+                if (!fromOnClose) {
+                    try { dlg.close(); } catch (e) {}
+                }
+            }
+            if (input) {
+                input.addEventListener('input', function () {
+                    // 只保留数字
+                    input.value = input.value.replace(/\D/g, '').slice(0, 6);
+                });
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') _done(true);
+                });
+                // 自动聚焦（弹层动画后）
+                setTimeout(function () { try { input.focus(); } catch (e) {} }, 60);
+            }
+            var cancelBtn = dlg.mask.querySelector('.lan-sync-code-dialog-cancel');
+            if (cancelBtn) cancelBtn.addEventListener('click', function () { _done(false); });
+            var okBtn = dlg.mask.querySelector('.lan-sync-code-dialog-ok');
+            if (okBtn) okBtn.addEventListener('click', function () {
+                if (!input || !input.value.trim()) { _toast('请输入配对码'); return; }
+                _done(true);
+            });
+        });
+    }
+
+    // Toast 提示（失败/操作反馈，与传输日志互补）
+    var _toastTimer = null;
+    function _toast(msg) {
+        try {
+            if (!document.getElementById('bk-lan-sync-toast-style')) {
+                var st = document.createElement('style');
+                st.id = 'bk-lan-sync-toast-style';
+                st.textContent =
+                    '.bk-lan-sync-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(12px);' +
+                    'background:rgba(0,0,0,.75);color:#FFF;padding:10px 18px;border-radius:8px;font-size:13px;z-index:10001;' +
+                    'opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;max-width:80vw;text-align:center}' +
+                    '.bk-lan-sync-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}';
+                document.head.appendChild(st);
+            }
+            var el = document.createElement('div');
+            el.className = 'bk-lan-sync-toast';
+            el.textContent = msg;
+            document.body.appendChild(el);
+            requestAnimationFrame(function () { el.classList.add('show'); });
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(function () {
+                el.classList.remove('show');
+                setTimeout(function () { try { document.body.removeChild(el); } catch (e) {} }, 300);
+            }, 2400);
+        } catch (e) { /* toast 不影响主流程 */ }
+    }
+
     function _handlePull(ip, port, code) {
-        if (state.transferring) { addLog('正在传输中，请稍候'); return; }
-        state.transferring = true;
-        // 使用对端配对码（来自设备记录或参数），而非本机 pairCode
-        addLog('正在拉取数据...');
-        win.BK.LanSync.pull(ip, port, code, { mode: state.mode }).then(function (result) {
-            addLog('拉取完成：成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
+        if (state.transferring) { _toast('正在传输中，请稍候'); return; }
+        // 无配对码（手动输入 IP 场景）时弹窗输入，成功后回写设备记录
+        var codeReady = code
+            ? Promise.resolve(code)
+            : _askPairCode('从 ' + ip + ':' + port + ' 下载');
+        codeReady.then(function (pairCode) {
+            if (!pairCode) { _toast('请输入配对码'); return; }
+            _doTransfer('pull', ip, port, pairCode);
         }).catch(function (err) {
+            if (err && err.code === 'cancelled') return; // 用户取消
             addLog('拉取失败：' + (err.message || err));
-        }).finally(function () {
-            state.transferring = false;
+            _toast(err.message || '拉取失败');
         });
     }
 
     function _handlePush(ip, port, code) {
-        if (state.transferring) { addLog('正在传输中，请稍候'); return; }
-        state.transferring = true;
-        // 使用对端配对码（来自设备记录或参数），而非本机 pairCode
-        addLog('正在推送数据...');
-        win.BK.LanSync.push(ip, port, code, { mode: state.mode }).then(function (result) {
-            addLog('推送完成：对端成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : ''));
+        if (state.transferring) { _toast('正在传输中，请稍候'); return; }
+        var codeReady = code
+            ? Promise.resolve(code)
+            : _askPairCode('发送到 ' + ip + ':' + port);
+        codeReady.then(function (pairCode) {
+            if (!pairCode) { _toast('请输入配对码'); return; }
+            _doTransfer('push', ip, port, pairCode);
         }).catch(function (err) {
+            if (err && err.code === 'cancelled') return;
             addLog('推送失败：' + (err.message || err));
+            _toast(err.message || '推送失败');
+        });
+    }
+
+    /** 执行传输（pull/push）：按钮 loading、成功/失败 toast、配对码回写设备记录 */
+    function _doTransfer(action, ip, port, code) {
+        state.transferring = true;
+        var isPull = action === 'pull';
+        addLog(isPull ? '正在拉取数据...' : '正在推送数据...');
+
+        // 按钮 loading：所有 pull/push 按钮置灰防重复点击
+        var btns = panelEl.querySelectorAll('.lan-sync-btn-pull, .lan-sync-btn-push');
+        for (var i = 0; i < btns.length; i++) btns[i].classList.add('lan-sync-busy');
+
+        var op = isPull
+            ? win.BK.LanSync.pull(ip, port, code, { mode: state.mode })
+            : win.BK.LanSync.push(ip, port, code, { mode: state.mode });
+
+        op.then(function (result) {
+            var msg = isPull
+                ? '拉取完成：成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : '')
+                : '推送完成：对端成功 ' + result.success + ' 本' + (result.failed ? '，失败 ' + result.failed + ' 本' : '');
+            addLog(msg);
+            _toast(isPull ? '拉取完成' : '发送完成');
+            // 传输成功：配对码回写设备记录，下次免输
+            _updateDeviceCode(ip, port, code);
+        }).catch(function (err) {
+            var msg = (isPull ? '拉取失败：' : '推送失败：') + (err.message || err);
+            addLog(msg);
+            _toast(msg); // 真实报错可见，不再只写日志
         }).finally(function () {
             state.transferring = false;
+            var busy = panelEl.querySelectorAll('.lan-sync-busy');
+            for (var j = 0; j < busy.length; j++) busy[j].classList.remove('lan-sync-busy');
         });
+    }
+
+    /** 传输成功后回写配对码到设备记录（后续 pull/push 免输） */
+    function _updateDeviceCode(ip, port, code) {
+        if (!code) return;
+        for (var i = 0; i < state.devices.length; i++) {
+            if (state.devices[i].ip === ip && state.devices[i].port === port) {
+                if (state.devices[i].code !== code) {
+                    state.devices[i].code = code;
+                    _renderPanel();
+                }
+                return;
+            }
+        }
     }
 
     // ── 公开 API ──────────────────────────────────────────────────

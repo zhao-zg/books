@@ -41,6 +41,44 @@
     font-size: 13px; color: var(--text-muted, #999); padding: 4px 12px;
     background: var(--surface-alt, #FAFAF8); border-radius: 6px;
 }
+
+/* 本机地址行 */
+.lan-sync-self-addr {
+    font-size: 13px; color: var(--text-muted, #999);
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.lan-sync-self-addr-val {
+    font-family: monospace; font-size: 14px; color: var(--text-soft, #666);
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px; padding: 2px 10px;
+}
+
+/* 配对码输入弹窗（BK.openDialog 承载） */
+.lan-sync-code-dialog {
+    display: flex; flex-direction: column; gap: 12px;
+}
+.lan-sync-code-dialog-title { font-size: 16px; font-weight: 600; color: var(--text, #3A3835); }
+.lan-sync-code-dialog-desc { font-size: 13px; color: var(--text-muted, #999); }
+.lan-sync-code-dialog-target {
+    font-size: 13px; color: var(--text-soft, #666);
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px; padding: 6px 10px;
+    text-align: center; word-break: break-all;
+}
+.lan-sync-code-dialog-input {
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 10px 12px;
+    font-size: 18px; letter-spacing: 4px; text-align: center;
+    font-family: monospace; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
+    outline: none; width: 100%; box-sizing: border-box;
+}
+.lan-sync-code-dialog-input:focus { border-color: var(--brand, #D4793A); }
+.lan-sync-code-dialog-actions { display: flex; gap: 10px; }
+.lan-sync-code-dialog-cancel {
+    flex: 1; padding: 10px 0; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-soft, #666); cursor: pointer; font-size: 14px;
+}
+.lan-sync-code-dialog-ok {
+    flex: 1; padding: 10px 0; border: none; border-radius: 8px;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
+}
 .lan-sync-code { font-family: monospace; font-size: 22px; letter-spacing: 2px; font-weight: 600; color: var(--brand, #D4793A); }
 .lan-sync-code-empty { color: var(--text-muted, #CCC); }
 
@@ -101,7 +139,10 @@
 .lan-sync-btn-pull, .lan-sync-btn-push {
     padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
     background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px;
+    transition: opacity .2s;
 }
+/* 传输中：置灰防重复点击，但保留可感知状态 */
+.lan-sync-busy { opacity: .45; pointer-events: none; }
 .lan-sync-btn-pull { color: #4A90D9; }
 [data-theme="dark"] .lan-sync-btn-pull { color: #6B9CFF; }
 .lan-sync-btn-push { color: var(--brand, #D4793A); }
