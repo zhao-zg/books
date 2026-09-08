@@ -102,6 +102,7 @@
                   '  <div class="lan-sync-status-title">本机已就绪</div>' +
                   '  <div class="lan-sync-status-desc">其他设备在「局域网同步」中可以看到这台设备</div>' +
                   '</div>' +
+                  '<button class="lan-sync-btn-stop">停止本机同步</button>' +
                   '<div class="lan-sync-qr-wrap">' +
                   (win.BK.LanSyncQR ? _renderQr(info) : '') +
                   '<div class="lan-sync-qr-tip">对方扫码即可连接本机</div>' +
@@ -122,6 +123,7 @@
             '        <input type="text" class="lan-sync-input-ip" placeholder="输入对方 IP，如 192.168.1.5" />' +
             '        <input type="text" class="lan-sync-input-code" placeholder="配对码" />' +
             '        <button class="lan-sync-btn-connect">连接</button>' +
+            '        <button class="lan-sync-btn-scan-connect">扫码</button>' +
             '      </div>' +
             '      <div class="lan-sync-devices">' + devicesHtml + '</div>' +
             '    </div>' +
@@ -416,6 +418,14 @@
         var backBtn = panelEl.querySelector('.lan-sync-back');
         if (backBtn) backBtn.onclick = function () { hide(); };
 
+        // 停止本机同步（运行中显示在状态卡片内）
+        var stopBtn = panelEl.querySelector('.lan-sync-btn-stop');
+        if (stopBtn) stopBtn.onclick = _handleStop;
+
+        // 扫码连接（扫对方 bk-sync:// 二维码，直接填入设备列表）
+        var scanConnBtn = panelEl.querySelector('.lan-sync-btn-scan-connect');
+        if (scanConnBtn) scanConnBtn.onclick = _handleScanConnect;
+
         // PWA↔PWA WebRTC 事件
         var wrtcCreateBtn = panelEl.querySelector('.lan-sync-wrtc-create');
         if (wrtcCreateBtn) wrtcCreateBtn.onclick = _handleWrtcCreate;
@@ -498,14 +508,56 @@
     }
 
     function _handleStop() {
-        if (win.BK.LanSync.stopDiscovery) {
-            win.BK.LanSync.stopDiscovery().catch(function () {});
+        var LanSync = win.BK && win.BK.LanSync;
+        if (!LanSync) return;
+        if (LanSync.stopDiscovery) {
+            LanSync.stopDiscovery().catch(function () {});
         }
-        win.BK.LanSync.stopServer().then(function () {
+        LanSync.stopServer().then(function () {
             state.serverRunning = false;
             state.serverInfo = null;
+            state.devices = [];
             addLog('本机同步已关闭');
             _renderPanel();
+        }).catch(function (err) {
+            addLog('关闭失败：' + (err.message || err));
+        });
+    }
+
+    /** 扫码连接：扫对方「本机状态」卡片里的 bk-sync:// 二维码，自动填入并连接 */
+    function _handleScanConnect() {
+        var UI = win.BK && win.BK.LanSyncWebRTCUI;
+        var QR = win.BK && win.BK.LanSyncQR;
+        if (!UI || !UI.scanQR) { addLog('当前环境不支持扫码'); return; }
+        if (!QR || !QR.parseConnectionString) { addLog('连接串解析模块未加载'); return; }
+
+        addLog('正在打开摄像头，扫对方设备上的「扫码连接」二维码...');
+        var handled = false;
+        UI.scanQR(function (text) {
+            if (handled) return;
+            handled = true;
+            var info = QR.parseConnectionString(text);
+            if (!info || !info.ip) {
+                addLog('二维码不是书报局域网同步码');
+                return;
+            }
+            if (!info.code) {
+                addLog('二维码缺少配对码，请在对方面板查看后手动输入');
+                addDevice({ name: '对方设备', ip: info.ip, port: info.port, code: '' });
+                return;
+            }
+            addLog('已识别 ' + info.ip + ':' + info.port + '，正在连接...');
+            win.BK.LanSync.connect(info.ip, info.port, info.code).then(function (peer) {
+                addLog('已连接 ' + peer.name + '（' + (peer.books ? peer.books.length : 0) + ' 本书）');
+                addDevice({ name: peer.name, ip: info.ip, port: info.port, code: info.code });
+            }).catch(function (err) {
+                addLog('连接失败：' + (err.message || err));
+                addDevice({ name: '对方设备', ip: info.ip, port: info.port, code: info.code });
+            });
+        }, function (err) {
+            addLog('扫码失败：' + (err.message || err));
+        }).catch(function (err) {
+            addLog('扫码失败：' + (err.message || err));
         });
     }
 
@@ -658,9 +710,15 @@
         _renderPanel();
     }
 
-    function removeDevice(ip) {
-        state.devices = state.devices.filter(function (d) { return d.ip !== ip; });
-        _renderPanel();
+    /** 移除设备：支持按 ip 或按 name（NSD onServiceLost 只有服务名） */
+    function removeDevice(ip, name) {
+        var before = state.devices.length;
+        state.devices = state.devices.filter(function (d) {
+            if (ip) return d.ip !== ip;
+            if (name) return d.name !== name;
+            return true;
+        });
+        if (state.devices.length !== before) _renderPanel();
     }
 
     function getState() {

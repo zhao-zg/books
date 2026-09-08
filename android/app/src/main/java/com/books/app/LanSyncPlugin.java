@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import android.content.Context;
 import android.net.nsd.NsdManager;
 import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
 import android.util.Log;
 
 /**
@@ -58,6 +59,18 @@ public class LanSyncPlugin extends Plugin {
     // NSD 发现监听器（H3：APK↔APK 自动发现）
     private NsdManager.DiscoveryListener nsdDiscoveryListener;
     private static final String NSD_SERVICE_TYPE = "_bk-sync._tcp.";
+
+    // 组播锁：多数 Android 设备默认过滤组播包，NSD/mDNS 发现必须持有 MulticastLock 才能收到应答
+    private WifiManager.MulticastLock multicastLock;
+
+    // 串行 resolve 队列：NsdManager 同一时间只允许一个 resolveService 在跑，
+    // 并发调用第二个会立即 FAIL（errorCode 3/4），必须排队逐个解析
+    private final java.util.ArrayDeque<NsdServiceInfo> resolveQueue = new java.util.ArrayDeque<>();
+    private NsdManager.ResolveListener activeResolveListener;
+    private boolean resolving = false;
+
+    // 注册成功后的实际服务名（NSD 冲突时系统可能改名），用于过滤自身发现
+    private volatile String selfServiceName;
 
     // 自动关闭：定时器
     private ScheduledExecutorService idleExecutor;
@@ -198,8 +211,13 @@ public class LanSyncPlugin extends Plugin {
             return;
         }
 
-        // 先停止旧的发现
+        // 先停止旧的发现（内部会释放组播锁）
         stopDiscoveryInternal();
+
+        // 组播锁：声明了 CHANGE_WIFI_MULTICAST_STATE 权限但未持锁时，
+        // mDNS 组播应答会被系统 WiFi 驱动丢弃，表现为“搜不到设备”。
+        // 必须在 stopDiscoveryInternal() 之后获取，否则刚拿到的锁会被其释放。
+        acquireMulticastLock();
 
         nsdDiscoveryListener = new NsdManager.DiscoveryListener() {
             @Override
@@ -224,40 +242,129 @@ public class LanSyncPlugin extends Plugin {
 
             @Override
             public void onServiceFound(NsdServiceInfo serviceInfo) {
-                Log.d(TAG, "NSD service found: " + serviceInfo.getServiceName());
-                // 解析服务获取 IP+端口
-                nsdManager.resolveService(serviceInfo, new NsdManager.ResolveListener() {
-                    @Override
-                    public void onResolveFailed(NsdServiceInfo info, int errorCode) {
-                        Log.e(TAG, "NSD resolve failed: " + errorCode);
-                    }
-
-                    @Override
-                    public void onServiceResolved(NsdServiceInfo info) {
-                        String name = info.getServiceName();
-                        int port = info.getPort();
-                        String host = info.getHost() != null ? info.getHost().getHostAddress() : "";
-
-                        // 通过 eval 回调 JS 侧的 _onDeviceFound
-                        String json = "{\"name\":\"" + escapeJson(name) + "\",\"ip\":\"" + escapeJson(host) + "\",\"port\":" + port + "}";
-                        String js = "window.BK.LanSync._onDeviceFound('" + json.replace("'", "\\'") + "')";
-                        try {
-                            bridge.eval(js, null);
-                        } catch (Exception e) {
-                            Log.e(TAG, "evaluateJs failed: " + e.getMessage());
-                        }
-                    }
-                });
+                String name = serviceInfo.getServiceName();
+                // 过滤自身：发现自己注册的服务无意义且会造成“连自己”死循环
+                if (selfServiceName != null && selfServiceName.equals(name)) {
+                    Log.d(TAG, "NSD skip self: " + name);
+                    return;
+                }
+                Log.d(TAG, "NSD service found: " + name);
+                // 入队串行 resolve：NsdManager 不允许并发 resolveService
+                synchronized (resolveQueue) {
+                    resolveQueue.add(serviceInfo);
+                }
+                processResolveQueue();
             }
 
             @Override
             public void onServiceLost(NsdServiceInfo serviceInfo) {
                 Log.d(TAG, "NSD service lost: " + serviceInfo.getServiceName());
+                // 从前端设备列表移除下线设备
+                String js = "window.BK.LanSyncPanel&&window.BK.LanSyncPanel.removeDevice&&window.BK.LanSyncPanel.removeDevice(null,'" + escapeJson(serviceInfo.getServiceName()) + "')";
+                try {
+                    bridge.eval(js, null);
+                } catch (Exception e) {
+                    Log.e(TAG, "evaluateJs failed: " + e.getMessage());
+                }
             }
         };
 
         nsdManager.discoverServices(NSD_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, nsdDiscoveryListener);
         call.resolve();
+    }
+
+    /**
+     * 串行处理 resolve 队列：同一时间只发起一个 resolveService，
+     * 完成（成功/失败）后取下一个，避免 NsdManager FAIL 错误
+     */
+    private void processResolveQueue() {
+        NsdManager.ResolveListener listener;
+        NsdServiceInfo info;
+        synchronized (resolveQueue) {
+            if (resolving || nsdManager == null) return;
+            info = resolveQueue.poll();
+            if (info == null) return;
+            resolving = true;
+        }
+        final NsdServiceInfo target = info;
+        listener = new NsdManager.ResolveListener() {
+            @Override
+            public void onResolveFailed(NsdServiceInfo info, int errorCode) {
+                Log.e(TAG, "NSD resolve failed: " + errorCode);
+                synchronized (resolveQueue) { resolving = false; }
+                processResolveQueue();
+            }
+
+            @Override
+            public void onServiceResolved(NsdServiceInfo info) {
+                synchronized (resolveQueue) { resolving = false; }
+                try {
+                    deliverResolved(info);
+                } finally {
+                    processResolveQueue();
+                }
+            }
+        };
+        activeResolveListener = listener;
+        try {
+            nsdManager.resolveService(target, listener);
+        } catch (Exception e) {
+            Log.e(TAG, "resolveService error: " + e.getMessage());
+            synchronized (resolveQueue) { resolving = false; }
+            processResolveQueue();
+        }
+    }
+
+    /** resolve 成功：提取 name/ip/port/code（TXT record）并回调 JS */
+    private void deliverResolved(NsdServiceInfo info) {
+        String name = info.getServiceName();
+        int port = info.getPort();
+        String host = info.getHost() != null ? info.getHost().getHostAddress() : "";
+
+        // 从 TXT record 读取配对码（注册端 setAttribute("code", ...) 写入）
+        String code = "";
+        Map<String, byte[]> attrs = info.getAttributes();
+        if (attrs != null && attrs.get("code") != null) {
+            code = new String(attrs.get("code"), java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        String json = "{\"name\":\"" + escapeJson(name) + "\",\"ip\":\"" + escapeJson(host)
+            + "\",\"port\":" + port + ",\"code\":\"" + escapeJson(code) + "\"}";
+        String js = "window.BK.LanSync._onDeviceFound('" + json.replace("'", "\\'") + "')";
+        try {
+            bridge.eval(js, null);
+        } catch (Exception e) {
+            Log.e(TAG, "evaluateJs failed: " + e.getMessage());
+        }
+    }
+
+    /** 获取组播锁（幂等）；NSD 发现期间必须持有，否则收不到 mDNS 应答 */
+    private void acquireMulticastLock() {
+        if (multicastLock != null && multicastLock.isHeld()) return;
+        try {
+            WifiManager wm = (WifiManager) getContext().getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
+            if (wm == null) return;
+            multicastLock = wm.createMulticastLock("bk-lan-sync");
+            multicastLock.setReferenceCounted(false);
+            multicastLock.acquire();
+            Log.d(TAG, "MulticastLock acquired");
+        } catch (Exception e) {
+            Log.e(TAG, "MulticastLock acquire error: " + e.getMessage());
+        }
+    }
+
+    /** 释放组播锁（幂等） */
+    private void releaseMulticastLock() {
+        if (multicastLock != null && multicastLock.isHeld()) {
+            try {
+                multicastLock.release();
+                Log.d(TAG, "MulticastLock released");
+            } catch (Exception e) {
+                Log.e(TAG, "MulticastLock release error: " + e.getMessage());
+            }
+        }
+        multicastLock = null;
     }
 
     @PluginMethod
@@ -275,6 +382,12 @@ public class LanSyncPlugin extends Plugin {
             }
             nsdDiscoveryListener = null;
         }
+        synchronized (resolveQueue) {
+            resolveQueue.clear();
+            resolving = false;
+        }
+        activeResolveListener = null;
+        releaseMulticastLock();
     }
 
     // ── NSD 内部 ──────────────────────────────────────────────────────────
@@ -288,6 +401,7 @@ public class LanSyncPlugin extends Plugin {
             }
             nsdRegistrationListener = null;
         }
+        selfServiceName = null;
     }
 
     private void registerNsdInternal() {
@@ -305,10 +419,15 @@ public class LanSyncPlugin extends Plugin {
             serviceInfo.setServiceName("书报-" + getDeviceShortId());
             serviceInfo.setServiceType(NSD_SERVICE_TYPE);
             serviceInfo.setPort(server.getListeningPort());
+            // 配对码放入 TXT record：发现方 resolve 后可直接拿到 code，
+            // 否则设备列表按钮无配对码，服务端一律返回 403 invalid_code
+            serviceInfo.setAttribute("code", pairCode);
 
             nsdRegistrationListener = new NsdManager.RegistrationListener() {
                 @Override
                 public void onServiceRegistered(NsdServiceInfo info) {
+                    // 记录实际注册名（NSD 冲突时系统可能追加后缀），供发现时过滤自身
+                    selfServiceName = info.getServiceName();
                     Log.d(TAG, "NSD registered: " + info.getServiceName());
                 }
 
@@ -529,6 +648,26 @@ public class LanSyncPlugin extends Plugin {
     }
 
     private static String getLocalIpAddress() {
+        // InetAddress.getLocalHost() 在 Android 上返回 127.0.0.1/localhost，
+        // 必须遍历网卡接口取 WiFi/以太网的 site-local IPv4，否则二维码里是 127.0.0.1 根本不可连
+        try {
+            java.util.Enumeration<java.net.NetworkInterface> nis =
+                java.net.NetworkInterface.getNetworkInterfaces();
+            while (nis != null && nis.hasMoreElements()) {
+                java.net.NetworkInterface ni = nis.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                java.util.Enumeration<InetAddress> addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    if (!addr.isLoopbackAddress() && addr instanceof java.net.Inet4Address
+                        && addr.isSiteLocalAddress()) {
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getLocalIpAddress error: " + e.getMessage());
+        }
         try {
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {

@@ -56,6 +56,10 @@
     border: none; border-radius: 8px; padding: 12px 24px;
     background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); font-size: 15px; cursor: pointer;
 }
+.lan-sync-btn-stop {
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 8px 20px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-muted, #666); font-size: 13px; cursor: pointer;
+}
 
 /* 分区 */
 .lan-sync-section { margin-bottom: 24px; }
@@ -72,6 +76,10 @@
 .lan-sync-btn-connect {
     padding: 10px 16px; border: none; border-radius: 8px;
     background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
+}
+.lan-sync-btn-scan-connect {
+    padding: 10px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--brand, #D4793A); cursor: pointer; font-size: 14px;
 }
 
 /* 设备列表 */
