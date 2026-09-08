@@ -1,7 +1,8 @@
 // ── Pages Function: 服务端伪装拦截 ──
 // 未验证访客：返回自包含伪装页（零外部资源引用），不触发任何 JS/CSS 请求
 // 验证方式：URL 含 ?zzg 参数、或 Cookie bk_access=ok
-// 放行例外（APK 内检查更新需要跨域）：version.json、changelog.json、*.apk
+// 放行例外（APK 内检查更新需要跨域）：version.json、changelog.json、*.apk、
+// images/zanzhu-*（赞助二维码，App 内跨域拉取不带 Cookie）
 
 const COOKIE_NAME = 'bk_access';
 const COOKIE_VALUE = 'ok';
@@ -22,6 +23,8 @@ function isExempt(path) {
   if (path === '/version.json') return true;
   if (path === '/changelog.json') return true;
   if (path.endsWith('.apk')) return true;
+  // 赞助二维码：App 内跨域拉取（不带 Cookie），探测与弹框加载都用
+  if (path.startsWith('/images/zanzhu-')) return true;
   return false;
 }
 
