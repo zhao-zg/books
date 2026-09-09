@@ -32,8 +32,22 @@
             offerText: null,    // 本机生成的 offer 信令文本
             answerText: null,   // 对端生成的 answer 信令文本
             scanning: false
+        },
+        // NSD 自动发现状态机（P0-1/P1-1/P1-2/P2）
+        scan: {
+            scanning: false,          // 当前是否处于扫描中（UI 反馈）
+            lastResultAt: 0,         // 最近一次发现到设备的时间戳
+            consecutiveEmptyRounds: 0 // 连续无结果轮数（达到阈值触发降级提示）
         }
     };
+
+    // 扫描状态机参数
+    var SCAN_RETRY_MS = 5000;        // P0-1：发现启动后 5s 无任何发现回调 → 重试
+    var SCAN_FAST_RETRY_MAX = 3;     // P0-1：快速重试上限（防连续 discover 打爆系统）
+    var SCAN_PERIOD_MS = 15000;      // P1-2：面板打开期间周期重扫间隔
+    var SCAN_EMPTY_DEGRADE_THRESHOLD = 2; // P2：连续空轮阈值 → 降级提示
+    var _scanTimer = null;           // 重试/周期重扫定时器
+    var _scanFastRetries = 0;        // 当前连续快速重试次数
 
     var panelEl = null;
     var logArea = null;
@@ -67,9 +81,18 @@
                 '</div>';
         }).join('');
 
+        // P1-1/P1-2：扫描状态 UI 反馈（扫描中 / 发现设备后停止扫描反馈）
+        var scanHintHtml = '';
+        if (state.scan.scanning) {
+            scanHintHtml = '<div class="lan-sync-scan-hint">正在扫描附近的设备…</div>';
+        }
+
         if (!devicesHtml) {
-            devicesHtml = '<div class="lan-sync-no-device">还没有发现其他设备</div>' +
+            devicesHtml = scanHintHtml +
+                '<div class="lan-sync-no-device">还没有发现其他设备</div>' +
                 '<div class="lan-sync-no-device-hint">请确认两台设备已连接同一个 WiFi，并已在对方设备上打开「局域网同步」</div>';
+        } else {
+            devicesHtml = devicesHtml + scanHintHtml;
         }
 
         // PWA↔PWA 区域
@@ -538,9 +561,8 @@
     function _handleStop() {
         var LanSync = win.BK && win.BK.LanSync;
         if (!LanSync) return;
-        if (LanSync.stopDiscovery) {
-            LanSync.stopDiscovery().catch(function () {});
-        }
+        // 停止本机同步 = 停止扫描状态机（含周期重扫定时器），避免后台继续空转/自动重启发现
+        _scanStop();
         LanSync.stopServer().then(function () {
             state.serverRunning = false;
             state.serverInfo = null;
@@ -785,19 +807,113 @@
         });
     }
 
-    /** 服务已运行时补开 NSD 自动发现（幂等） */
+    /** 服务已运行时补开 NSD 自动发现（幂等；面板打开期间持续扫描） */
     function _startDiscoveryIfNeeded() {
         var LanSync = win.BK && win.BK.LanSync;
         if (!LanSync || !LanSync.isAvailable() || !LanSync.discover) return;
+        _scanStart();
+    }
+
+    // ── NSD 扫描状态机（P0-1/P1-1/P1-2/P2）──────────────────────────────
+
+    /** 启动扫描：设置 handler + 状态 + 定时器（幂等，重复调用仅重发 discover） */
+    function _scanStart() {
+        var LanSync = win.BK && win.BK.LanSync;
+        if (!LanSync || !LanSync.discover) return;
+
+        // 面板未显示时不扫描
+        if (panelEl && panelEl.style.display === 'none') return;
+
+        // 首次进入或重扫：重置快速重试计数
+        if (!state.scan.scanning) {
+            _scanFastRetries = 0;
+        }
+        state.scan.scanning = true;
+        _renderPanel();
+
         LanSync.discover(function (device) {
-            if (device) addDevice(device);
-        }).catch(function () {});
+            if (device) {
+                addDevice(device);
+                _scanOnDeviceFound();
+            }
+        }).catch(function () {
+            // 环境/桥错误：停止扫描状态，避免一直转
+            state.scan.scanning = false;
+            _clearScanTimer();
+        });
+
+        // P0-1：若 5s 内无任何发现回调，重试一轮（限快速重试次数）
+        _clearScanTimer();
+        _scanTimer = setTimeout(function () {
+            _scanTimer = null;
+            _handleScanRoundEmpty();
+        }, SCAN_RETRY_MS);
+    }
+
+    /** 一轮扫描无任何设备（5s 超时）：快速重试 / 周期重扫 / 降级提示 */
+    function _handleScanRoundEmpty() {
+        if (!state.scan.scanning) return; // 已停止（hide/stop/发现过设备）
+        state.scan.consecutiveEmptyRounds++;
+
+        // P2：连续空轮达到阈值 → 提示手动输入 IP / 扫码降级
+        if (state.scan.consecutiveEmptyRounds >= SCAN_EMPTY_DEGRADE_THRESHOLD) {
+            _toast('未发现设备，可手动输入对方 IP 或用「扫码」连接');
+        }
+
+        // P0-1：快速重试优先（限次）；超限后进入 15s 周期重扫（P1-2：一直扫）
+        if (_scanFastRetries < SCAN_FAST_RETRY_MAX) {
+            _scanFastRetries++;
+            _scanStart();
+        } else {
+            _scanScheduleNext();
+        }
+    }
+
+    /** P1-2：周期重扫（15s 一轮，面板打开期间一直扫） */
+    function _scanScheduleNext() {
+        _clearScanTimer();
+        _scanTimer = setTimeout(function () {
+            _scanTimer = null;
+            if (state.scan.scanning) {
+                _scanFastRetries = 0; // 新周期重新给快速重试额度
+                _scanStart();
+            }
+        }, SCAN_PERIOD_MS);
+    }
+
+    /** 发现设备：停止当前扫描反馈（设备已入列，无需继续转圈） */
+    function _scanOnDeviceFound() {
+        state.scan.consecutiveEmptyRounds = 0; // P2：出现设备即重置空轮计数
+        if (!state.scan.scanning) return;
+        state.scan.scanning = false;
+        state.scan.lastResultAt = Date.now();
+        _clearScanTimer();
+        _renderPanel();
+    }
+
+    /** 停止扫描（hide/_handleStop 时清理） */
+    function _scanStop() {
+        state.scan.scanning = false;
+        state.scan.consecutiveEmptyRounds = 0;
+        _clearScanTimer();
+        var LanSync = win.BK && win.BK.LanSync;
+        if (LanSync && LanSync.stopDiscovery) {
+            LanSync.stopDiscovery().catch(function () {});
+        }
+    }
+
+    function _clearScanTimer() {
+        if (_scanTimer) {
+            clearTimeout(_scanTimer);
+            _scanTimer = null;
+        }
     }
 
     function hide() {
         if (panelEl) panelEl.style.display = 'none';
-        // 主动关闭（返回按钮等）：消耗对应 history 条目；
-        // 系统返回键触发时回调已置 _inBackStack=false，不会走到这里
+        // 隐藏即停止扫描（避免后台空转；下次 show 会重新扫描）
+        _scanStop();
+        // 主动关闭（返回按钮等）：面板已隐藏，直接 discard 即可
         if (_inBackStack && win.BK && win.BK.backStack) {
             _inBackStack = false;
             win.BK.backStack.discard();
@@ -820,15 +936,18 @@
     }
 
     function addDevice(device) {
-        // 去重
+        // 去重（命中已有设备：仍视为一次“发现到设备”，重置空轮计数并停止扫描反馈）
         for (var i = 0; i < state.devices.length; i++) {
             if (state.devices[i].ip === device.ip) {
                 state.devices[i] = device;
+                _scanOnDeviceFound();
                 _renderPanel();
                 return;
             }
         }
         state.devices.push(device);
+        // 设备出现即视为扫描有结果
+        _scanOnDeviceFound();
         _renderPanel();
     }
 
@@ -860,6 +979,37 @@
                 scanning: state.wrtc.scanning
             }
         };
+    }
+
+    /** 扫描状态机查询（测试/调试用） */
+    function getScanState() {
+        return {
+            scanning: state.scan.scanning,
+            lastResultAt: state.scan.lastResultAt,
+            consecutiveEmptyRounds: state.scan.consecutiveEmptyRounds
+        };
+    }
+
+    // 测试辅助：手动置扫描状态（仅供 UI 单测驱动渲染）
+    function _setScanning(v) {
+        state.scan.scanning = !!v;
+        _renderPanel();
+    }
+
+    // 测试辅助：手动触发一轮空扫（等价于 5s 无发现回调）
+    function _handleScanRoundEmptyForTest() {
+        _handleScanRoundEmpty();
+    }
+
+    // 测试辅助：手动标记一轮空扫（等价于 5s 无发现回调，不触发重扫链）
+    function _markScanRoundEmptyForTest() {
+        if (!state.scan.scanning) return;
+        state.scan.consecutiveEmptyRounds++;
+    }
+
+    // 测试辅助：清空当前扫描定时器（防测试进程挂起）
+    function _clearScanTimerForTest() {
+        _clearScanTimer();
     }
 
     function setMode(mode) {
@@ -897,7 +1047,13 @@
         addDevice: addDevice,
         removeDevice: removeDevice,
         getState: getState,
-        setMode: setMode
+        setMode: setMode,
+        getScanState: getScanState,
+        _setScanning: _setScanning,
+        _handleScanRoundEmpty: _handleScanRoundEmpty,
+        _handleScanRoundEmptyForTest: _handleScanRoundEmptyForTest,
+        _markScanRoundEmptyForTest: _markScanRoundEmptyForTest,
+        _clearScanTimerForTest: _clearScanTimerForTest
     };
 
 })(window);

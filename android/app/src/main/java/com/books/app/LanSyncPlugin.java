@@ -198,12 +198,22 @@ public class LanSyncPlugin extends Plugin {
 
     @PluginMethod
     public void discover(PluginCall call) {
+        try {
+            startDiscoveryInternal();
+            call.resolve();
+        } catch (Exception e) {
+            Log.e(TAG, "discover error: " + e.getMessage());
+            call.reject("Discovery start failed: " + e.getMessage());
+        }
+    }
+
+    /** 启动 NSD 发现（内部方法，供 discover() 与注册回调复用；幂等，重复调用会先停旧的） */
+    private void startDiscoveryInternal() {
         if (nsdManager == null) {
             nsdManager = (NsdManager) getContext().getSystemService(Context.NSD_SERVICE);
         }
         if (nsdManager == null) {
-            call.reject("NSD service unavailable");
-            return;
+            throw new IllegalStateException("NSD service unavailable");
         }
 
         // 先停止旧的发现（内部会释放组播锁）
@@ -265,7 +275,6 @@ public class LanSyncPlugin extends Plugin {
         };
 
         nsdManager.discoverServices(NSD_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, nsdDiscoveryListener);
-        call.resolve();
     }
 
     /**
@@ -414,6 +423,17 @@ public class LanSyncPlugin extends Plugin {
                     // 记录实际注册名（NSD 冲突时系统可能追加后缀），供发现时过滤自身
                     selfServiceName = info.getServiceName();
                     Log.d(TAG, "NSD registered: " + info.getServiceName());
+
+                    // P0-2：注册成功后再补一轮发现。
+                    // 若服务注册完成前就启动了发现，可能永远收不到自己的 mDNS 应答；
+                    // 此处重触发发现，消除“注册/发现竞态”，保证新注册服务能被本机发现链路感知。
+                    if (nsdDiscoveryListener != null) {
+                        try {
+                            startDiscoveryInternal();
+                        } catch (Exception e) {
+                            Log.e(TAG, "NSD re-discovery after register failed: " + e.getMessage());
+                        }
+                    }
                 }
 
                 @Override

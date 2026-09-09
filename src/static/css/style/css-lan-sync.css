@@ -134,6 +134,21 @@
 }
 
 /* 设备列表 */
+.lan-sync-scan-hint {
+    color: var(--text-muted, #999); font-size: 13px; padding: 12px 0 2px;
+    display: flex; align-items: center; gap: 8px;
+}
+/* 扫描动画圆点：柔和呼吸效果，低饱和（对齐 Soft Nordic 暖调） */
+.lan-sync-scan-hint::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--brand, #D4793A);
+    animation: lan-sync-scan-pulse 1.2s ease-in-out infinite;
+    flex: 0 0 auto;
+}
+@keyframes lan-sync-scan-pulse {
+    0%, 100% { opacity: .35; transform: scale(.85); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
 .lan-sync-no-device { color: var(--text-muted, #999); padding: 12px 0 2px; }
 .lan-sync-no-device-hint { color: var(--text-muted, #BBB); font-size: 12px; padding-bottom: 8px; line-height: 1.5; }
 .lan-sync-device {

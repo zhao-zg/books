@@ -118,9 +118,10 @@ describe('lan-sync-panel.js', () => {
     });
 
     test('show 显示面板', () => {
-        win.BK.LanSyncPanel.show();
+win.BK.LanSyncPanel.show();
         var panel = document.getElementById('lan-sync-panel');
         assert.notStrictEqual(panel.style.display, 'none', '面板应可见');
+        win.BK.LanSyncPanel.hide(); // 清理扫描定时器
     });
 
     test('hide 隐藏面板', () => {
@@ -138,6 +139,7 @@ describe('lan-sync-panel.js', () => {
         assert.ok(logArea, '日志区域应存在');
         var entries = logArea.querySelectorAll('.lan-sync-log-entry');
         assert.ok(entries.length >= 2, '应至少有 2 条日志');
+        win.BK.LanSyncPanel.hide(); // 清理扫描定时器
     });
 
     test('getServerState 返回当前服务状态', () => {
@@ -163,6 +165,7 @@ describe('lan-sync-panel.js', () => {
         win.BK.LanSyncPanel.show();
         var unsupported = document.querySelector('.lan-sync-wrtc-unsupported');
         assert.ok(unsupported, '不支持 WebRTC 时应显示提示');
+        win.BK.LanSyncPanel.hide();
     });
 
     test('show 渲染 PWA 直连区域（支持时显示创建/扫码按钮）', () => {
@@ -173,6 +176,7 @@ describe('lan-sync-panel.js', () => {
         assert.ok(createBtn, '应显示创建连接按钮');
         assert.ok(scanBtn, '应显示扫码连接按钮');
         win.BK.LanSyncWebRTC.isSupported = function () { return false; };
+        win.BK.LanSyncPanel.hide();
     });
 
     test('wrtc 创建连接生成 offer 后渲染二维码与扫码应答按钮', async () => {
@@ -193,6 +197,7 @@ describe('lan-sync-panel.js', () => {
         assert.strictEqual(state.wrtc.offerText, 'bk-wrtc-v1:offer-test');
         assert.strictEqual(state.wrtc.isInitiator, true);
         win.BK.LanSyncWebRTC.isSupported = function () { return false; };
+        win.BK.LanSyncPanel.hide();
     });
 
     test('wrtc 关闭后重置连接状态但保留 supported', async () => {
@@ -215,6 +220,7 @@ describe('lan-sync-panel.js', () => {
         assert.strictEqual(state.wrtc.connected, false);
         assert.strictEqual(state.wrtc.supported, true, '关闭后 supported 不应被重置');
         win.BK.LanSyncWebRTC.isSupported = function () { return false; };
+        win.BK.LanSyncPanel.hide();
     });
 
     test('setMode 切换传输模式', () => {
@@ -267,6 +273,7 @@ describe('lan-sync-panel.js', () => {
         assert.strictEqual(pushed[0].ip, '192.168.1.8');
         assert.strictEqual(pushed[0].opts.mode, 'full', '应使用所选传输模式');
         assert.strictEqual(pushed[0].opts.code, undefined, '传输参数不应再含配对码');
+        win.BK.LanSyncPanel.hide();
     });
 
     test('内容选择弹窗选「仅阅读数据」后以 data 模式推送', async () => {
@@ -294,6 +301,7 @@ describe('lan-sync-panel.js', () => {
 
         assert.strictEqual(pushed.length, 1, '确认后应执行推送');
         assert.strictEqual(pushed[0].opts.mode, 'data', '应使用仅阅读数据模式');
+        win.BK.LanSyncPanel.hide();
     });
 
     test('内容选择弹窗取消不发起传输（点遮罩/返回键路径）', async () => {
@@ -318,6 +326,7 @@ describe('lan-sync-panel.js', () => {
         assert.strictEqual(pushed.length, 0, '取消后不应发起传输');
         assert.ok(!document.getElementById('bk-lan-sync-mode-dialog'), '弹窗应已关闭');
         assert.ok(!document.querySelector('.bk-lan-sync-toast'), '取消不应弹 toast');
+        win.BK.LanSyncPanel.hide();
     });
 
     test('传输中按钮置灰，失败 toast 提示真实错误', async () => {
@@ -349,6 +358,7 @@ describe('lan-sync-panel.js', () => {
         var toast = document.querySelector('.bk-lan-sync-toast');
         assert.ok(toast, '失败时应弹 toast');
         assert.ok(toast.textContent.indexOf('500 internal error') > -1, 'toast 应含真实错误信息');
+        win.BK.LanSyncPanel.hide();
     });
 
     test('手动连接直接 connect，无配对码输入弹窗', async () => {
@@ -377,5 +387,89 @@ describe('lan-sync-panel.js', () => {
         var devices = win.BK.LanSyncPanel.getState().devices;
         assert.strictEqual(devices.some(function (d) { return d.ip === '192.168.1.12'; }), true,
             '连接成功后设备应入列表');
+        win.BK.LanSyncPanel.hide();
+    });
+
+    // ── 扫描状态机（P0-1/P1-1/P1-2/P2：重试 / 周期重扫 / 降级提示 / 清理）────
+
+    function nextTick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+    function tick(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    test('扫描状态机初始为 idle', () => {
+        var scan = win.BK.LanSyncPanel.getScanState();
+        assert.ok(scan.hasOwnProperty('scanning'));
+        assert.ok(scan.hasOwnProperty('lastResultAt'));
+        assert.ok(scan.hasOwnProperty('consecutiveEmptyRounds'));
+        assert.strictEqual(scan.scanning, false, '未打开面板时不应在扫描');
+    });
+
+    test('打开面板自动开始扫描（面板打开期间一直扫）', async () => {
+        var discoverCalls = 0;
+        win.BK.LanSync.discover = function () { discoverCalls++; return Promise.resolve(); };
+
+        win.BK.LanSyncPanel.show();
+        await nextTick();
+
+        assert.ok(discoverCalls >= 1, '打开面板应至少发起一次发现');
+        assert.strictEqual(win.BK.LanSyncPanel.getScanState().scanning, true, '扫描中状态应为 true');
+        win.BK.LanSyncPanel.hide();
+    });
+
+    test('发现设备时重置空轮计数并停止「正在扫描」', async () => {
+        win.BK.LanSyncPanel.show();
+        await nextTick();
+
+        // 先触发一次无结果（模拟一轮空扫）
+        win.BK.LanSyncPanel._markScanRoundEmptyForTest();
+        assert.strictEqual(win.BK.LanSyncPanel.getScanState().consecutiveEmptyRounds, 1);
+
+        // 设备被发现
+        win.BK.LanSyncPanel.addDevice({ name: '设备G', ip: '192.168.1.13', port: 18080 });
+        var scan = win.BK.LanSyncPanel.getScanState();
+        assert.strictEqual(scan.consecutiveEmptyRounds, 0, '发现设备后空窗计数应重置');
+        assert.strictEqual(scan.scanning, false, '发现设备后应停止扫描反馈');
+        win.BK.LanSyncPanel.hide();
+    });
+
+    test('连续两轮无结果后给出降级提示（手动输入 IP/扫码）', async () => {
+        win.BK.LanSyncPanel.show();
+        await nextTick();
+
+        // 清掉首轮自动 discover 触发的 5s 定时器，避免与手动空扫干扰
+        win.BK.LanSyncPanel._clearScanTimerForTest();
+        win.BK.LanSyncPanel._handleScanRoundEmpty();
+        win.BK.LanSyncPanel._handleScanRoundEmpty();
+
+        var toast = document.querySelector('.bk-lan-sync-toast');
+        assert.ok(toast, '连续空扫后应弹降级 toast');
+        assert.ok(toast.textContent.indexOf('手动输入') > -1 || toast.textContent.indexOf('扫码') > -1,
+            '降级提示应含手动输入 IP/扫码');
+        win.BK.LanSyncPanel.hide();
+    });
+
+    test('hide 面板停止扫描（清理定时器与扫描状态）', async () => {
+        var stopCalls = 0;
+        win.BK.LanSync.stopDiscovery = function () { stopCalls++; return Promise.resolve(); };
+
+        win.BK.LanSyncPanel.show();
+        await nextTick();
+        win.BK.LanSyncPanel.hide();
+
+        var scan = win.BK.LanSyncPanel.getScanState();
+        assert.strictEqual(scan.scanning, false, 'hide 后应停止扫描');
+        assert.ok(stopCalls >= 1, 'hide 应调用 stopDiscovery');
+        win.BK.LanSyncPanel.hide(); // 幂等
+    });
+
+    test('扫描中 UI 显示「正在扫描…」反馈', async () => {
+        win.BK.LanSyncPanel.show();
+        await nextTick();
+        // 手动置为扫描中并重渲染（模拟真实状态）
+        win.BK.LanSyncPanel._setScanning(true);
+        var hint = document.querySelector('.lan-sync-scan-hint');
+        assert.ok(hint, '扫描中应渲染扫描提示元素');
+        assert.ok(hint.textContent.indexOf('正在扫描') >= 0, '提示文案应含「正在扫描」');
+        win.BK.LanSyncPanel._setScanning(false);
+        win.BK.LanSyncPanel.hide();
     });
 });
