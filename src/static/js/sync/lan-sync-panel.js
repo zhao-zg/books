@@ -44,7 +44,7 @@
     // 扫描状态机参数
     var SCAN_RETRY_MS = 5000;        // P0-1：发现启动后 5s 无任何发现回调 → 重试
     var SCAN_FAST_RETRY_MAX = 3;     // P0-1：快速重试上限（防连续 discover 打爆系统）
-    var SCAN_PERIOD_MS = 15000;      // P1-2：面板打开期间周期重扫间隔
+    var SCAN_PERIOD_MS = 5000;       // P1-2：面板打开期间周期重扫间隔（保险丝：NSD 本身持续监听，设备上线即时回调；周期重扫仅防底层发现静默失效）
     var SCAN_EMPTY_DEGRADE_THRESHOLD = 2; // P2：连续空轮阈值 → 降级提示
     var _scanTimer = null;           // 重试/周期重扫定时器
     var _scanFastRetries = 0;        // 当前连续快速重试次数
