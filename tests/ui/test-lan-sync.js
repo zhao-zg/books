@@ -29,6 +29,8 @@ const jszipCode = readFileSync(jszipPath, 'utf-8');
 vm.runInThisContext(jszipCode, { filename: jszipPath, displayErrors: true });
 
 // ── Mock 依赖 ───────────────────────────────────────────────────────────
+var _dialogStack = [];
+
 function setupMocks() {
     win.BK = win.BK || {};
     win.BK.SyncCore = win.BK.SyncCore || {};
@@ -61,7 +63,7 @@ function setupMocks() {
         Plugins: {
             LanSync: {
                 startServer: function (opts) {
-                    return Promise.resolve({ port: 18080, pairCode: '123456', ipAddress: '192.168.1.5' });
+                    return Promise.resolve({ port: 18080, ipAddress: '192.168.1.5' });
                 },
                 stopServer: function () { return Promise.resolve(); },
                 getStatus: function () { return Promise.resolve({ running: true }); },
@@ -107,6 +109,39 @@ function setupMocks() {
     // mock btoa/atob
     win.btoa = function (str) { return Buffer.from(str, 'binary').toString('base64'); };
     win.atob = function (b64) { return Buffer.from(b64, 'base64').toString('binary'); };
+
+    // 清理上一轮测试遗留的弹窗 DOM
+    document.body.innerHTML = '';
+
+    // mock backStack + openDialog（_handleUpload 接收确认框依赖；返回契约与真实实现一致）
+    win.BK.backStack = {
+        push: function (cb) { _dialogStack.push(cb); },
+        pop: function () { _dialogStack.pop(); },
+        discard: function () { _dialogStack.pop(); },
+        silentPop: function () { _dialogStack.pop(); },
+        size: function () { return _dialogStack.length; }
+    };
+    win.BK.openDialog = function (opts) {
+        if (opts.id && document.getElementById(opts.id)) return null; // 同 id 防重复
+        var mask = document.createElement('div');
+        mask.className = opts.className || 'bk-dialog-mask';
+        if (opts.id) mask.id = opts.id;
+        mask.innerHTML = opts.html;
+        document.body.appendChild(mask);
+        var closed = false;
+        var _self = { mask: mask };
+        _self.close = function () {
+            if (closed) return;
+            closed = true;
+            if (opts.onClose) opts.onClose();
+            if (mask.parentNode) mask.parentNode.removeChild(mask);
+        };
+        win.BK.backStack.push(function () {
+            // 系统返回键：销毁并回调 onClose（与真实实现一致：栈条目已被 pop）
+            if (!closed) _self.close();
+        });
+        return _self;
+    };
 }
 
 // ── 加载被测模块 ───────────────────────────────────────────────────────
@@ -142,22 +177,22 @@ describe('lan-sync.js', () => {
     });
 
     test('connect 调用 GET /info 并返回设备信息', async () => {
-        var info = await win.BK.LanSync.connect('192.168.1.5', 18080, '123456');
+        var info = await win.BK.LanSync.connect('192.168.1.5', 18080);
         assert.strictEqual(info.name, '设备B');
         assert.ok(info.books.length > 0);
         assert.strictEqual(info.books[0].id, 'b1');
         // 验证 URL 格式
         assert.ok(win._fetchCalls[0].url.indexOf('http://192.168.1.5:18080/info') === 0);
-        assert.ok(win._fetchCalls[0].url.indexOf('code=123456') > -1);
+        assert.ok(win._fetchCalls[0].url.indexOf('code=') === -1, '去配对码后 URL 不应携带 code 参数');
     });
 
-    test('connect 错误配对码返回 403 时抛异常', async () => {
+    test('connect 对端 HTTP 错误时抛异常', async () => {
         win.fetch = function () {
-            return Promise.resolve({ ok: false, status: 403, statusText: 'Forbidden' });
+            return Promise.resolve({ ok: false, status: 500, statusText: 'Internal Server Error' });
         };
         await assert.rejects(
-            win.BK.LanSync.connect('192.168.1.5', 18080, 'wrong'),
-            /403/
+            win.BK.LanSync.connect('192.168.1.5', 18080),
+            /500/
         );
     });
 
@@ -171,7 +206,7 @@ describe('lan-sync.js', () => {
             return Promise.resolve({ success: 1, failed: 0, errors: [] });
         };
 
-        var result = await win.BK.LanSync.pull('192.168.1.5', 18080, '123456', { mode: 'data' });
+        var result = await win.BK.LanSync.pull('192.168.1.5', 18080, { mode: 'data' });
         assert.ok(importCalled, '应调用 importFromZip');
         assert.ok(importedBuffer instanceof ArrayBuffer, '传给 importFromZip 的应为 ArrayBuffer');
         assert.strictEqual(result.success, 1);
@@ -180,7 +215,7 @@ describe('lan-sync.js', () => {
     });
 
     test('pull 支持 mode=full 参数', async () => {
-        await win.BK.LanSync.pull('192.168.1.5', 18080, '123456', { mode: 'full' });
+        await win.BK.LanSync.pull('192.168.1.5', 18080, { mode: 'full' });
         assert.ok(win._fetchCalls[win._fetchCalls.length - 1].url.indexOf('mode=full') > -1);
     });
 
@@ -193,7 +228,7 @@ describe('lan-sync.js', () => {
             return savedSave(mode, opts);
         };
 
-        var result = await win.BK.LanSync.push('192.168.1.5', 18080, '123456', { mode: 'data' });
+        var result = await win.BK.LanSync.push('192.168.1.5', 18080, { mode: 'data' });
         assert.ok(genCalled, '应调用 generateZipBytes');
         assert.strictEqual(result.success, 2);
 
@@ -203,6 +238,7 @@ describe('lan-sync.js', () => {
         assert.ok(uploadCall.opts.body instanceof FormData,
             'POST body 应为 FormData（multipart 保持二进制，避免 NanoHTTPD UTF-8 字符串化损坏 ZIP）');
         assert.ok(uploadCall.opts.body.has('file'), 'FormData 应包含 file 字段');
+        assert.ok(uploadCall.opts.body.has('name'), 'FormData 应包含 name 字段（接收端确认框展示发送方设备名）');
         var file = uploadCall.opts.body.get('file');
         assert.ok(file instanceof Blob, 'file 应为 Blob');
         assert.strictEqual(file.type, 'application/zip');
@@ -295,7 +331,14 @@ describe('lan-sync.js', () => {
         var bytes = await zip.generateAsync({ type: 'uint8array' });
         var base64 = win.btoa(String.fromCharCode.apply(null, bytes));
 
-        await win.BK.LanSync._handleUpload(base64, 'req-003');
+        var p = win.BK.LanSync._handleUpload(base64, 'req-003', '设备A');
+        // 应弹接收确认框，并展示发送方设备名
+        var okBtn = document.querySelector('#bk-lan-sync-receive-dialog .lan-sync-code-dialog-ok');
+        assert.ok(okBtn, '应弹接收确认框');
+        var desc = document.querySelector('#bk-lan-sync-receive-dialog .lan-sync-code-dialog-desc');
+        assert.ok(desc.textContent.indexOf('设备A') > -1, '确认框应展示发送方设备名');
+        okBtn.click();
+        await p;
         assert.ok(importCalled, '应调用 importFromZip');
         assert.strictEqual(delivered.requestId, 'req-003');
         var result = JSON.parse(delivered.data);
@@ -318,9 +361,40 @@ describe('lan-sync.js', () => {
         var bytes = await zip.generateAsync({ type: 'uint8array' });
         var base64 = win.btoa(String.fromCharCode.apply(null, bytes));
 
-        await win.BK.LanSync._handleUpload(base64, 'req-004');
+        var p = win.BK.LanSync._handleUpload(base64, 'req-004', '设备A');
+        document.querySelector('#bk-lan-sync-receive-dialog .lan-sync-code-dialog-ok').click();
+        await p;
         var result = JSON.parse(delivered.data);
         assert.strictEqual(result.success, 0);
         assert.ok(result.errors.length > 0);
+    });
+
+    test('_handleUpload 拒绝接收时返回 cancelled 标记', async () => {
+        var importCalled = false;
+        win.BK.SyncCore.importFromZip = function () {
+            importCalled = true;
+            return Promise.resolve({ success: 1, failed: 0, errors: [] });
+        };
+
+        var delivered = null;
+        win.Capacitor.Plugins.LanSync.deliverResult = function (opts) {
+            delivered = opts;
+            return Promise.resolve();
+        };
+
+        var zip = new win.JSZip();
+        zip.file('manifest.json', '{}');
+        var bytes = await zip.generateAsync({ type: 'uint8array' });
+        var base64 = win.btoa(String.fromCharCode.apply(null, bytes));
+
+        var p = win.BK.LanSync._handleUpload(base64, 'req-005', '设备A');
+        document.querySelector('#bk-lan-sync-receive-dialog .lan-sync-code-dialog-cancel').click();
+        await p;
+
+        assert.strictEqual(importCalled, false, '拒绝后不应调用 importFromZip');
+        var result = JSON.parse(delivered.data);
+        assert.strictEqual(result.success, 0);
+        assert.strictEqual(result.cancelled, true, '应携带 cancelled 标记供发送方识别');
+        assert.ok(result.errors.indexOf('接收被拒绝') > -1);
     });
 });

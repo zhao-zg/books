@@ -387,14 +387,65 @@
             _onFileCb(buffer);
             return;
         }
-        // 无回调时自动导入
-        if (win.BK && win.BK.SyncCore && win.BK.SyncCore.importFromZip) {
+        // 无回调时（纯防御性兜底）：去除配对码后必须确认才导入，禁止静默自动导入
+        if (!win.BK || !win.BK.SyncCore || !win.BK.SyncCore.importFromZip) return;
+        _askReceive().then(function (accepted) {
+            if (!accepted) {
+                _notifyState({ status: 'rejected' });
+                return;
+            }
             win.BK.SyncCore.importFromZip(buffer).then(function (result) {
                 _notifyState({ status: 'imported', result: result });
             }).catch(function (err) {
                 _notifyState({ status: 'import-error', error: err.message || String(err) });
             });
-        }
+        });
+    }
+
+    /**
+     * 无回调时的接收确认框（复用 BK.openDialog，通用文案）。
+     * 返回 Promise<boolean>：接受→true，拒绝/取消→false。
+     */
+    function _askReceive() {
+        return new Promise(function (resolve) {
+            if (!win.BK || !win.BK.openDialog) {
+                resolve(false);
+                return;
+            }
+            var html =
+                '<div class="lan-sync-code-dialog">' +
+                '  <div class="lan-sync-code-dialog-title">接收传输？</div>' +
+                '  <div class="lan-sync-code-dialog-desc">收到一条 PWA 直连传输数据</div>' +
+                '  <div class="lan-sync-code-dialog-actions">' +
+                '    <button class="lan-sync-code-dialog-cancel">拒绝</button>' +
+                '    <button class="lan-sync-code-dialog-ok">接收</button>' +
+                '  </div>' +
+                '</div>';
+            var dlg = win.BK.openDialog({
+                id: 'bk-lan-sync-wrtc-receive-dialog',
+                html: html,
+                onClose: function () {
+                    _done(false, true);
+                }
+            });
+            if (!dlg) {
+                resolve(false);
+                return;
+            }
+            var settled = false;
+            function _done(ok, fromOnClose) {
+                if (settled) return;
+                settled = true;
+                resolve(ok);
+                if (!fromOnClose) {
+                    try { dlg.close(); } catch (e) {}
+                }
+            }
+            var cancelBtn = dlg.mask.querySelector('.lan-sync-code-dialog-cancel');
+            if (cancelBtn) cancelBtn.addEventListener('click', function () { _done(false); });
+            var okBtn = dlg.mask.querySelector('.lan-sync-code-dialog-ok');
+            if (okBtn) okBtn.addEventListener('click', function () { _done(true); });
+        });
     }
 
     // ── 连接清理 ─────────────────────────────────────────────────

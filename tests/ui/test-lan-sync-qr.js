@@ -35,30 +35,36 @@ describe('lan-sync-qr.js', () => {
 
     test('buildConnectionString 生成 bk-sync:// 协议 URL', () => {
         var str = win.BK.LanSyncQR.buildConnectionString({
-            ip: '192.168.1.5', port: 18080, code: '123456'
+            ip: '192.168.1.5', port: 18080
         });
         assert.ok(str.indexOf('bk-sync://') === 0, '应以 bk-sync:// 开头');
         assert.ok(str.indexOf('192.168.1.5') > -1);
         assert.ok(str.indexOf('18080') > -1);
-        assert.ok(str.indexOf('code=123456') > -1);
+        assert.ok(str.indexOf('code=') === -1, '去配对码后连接串不应携带 code 参数');
     });
 
     test('render 返回包含 QR 数据的对象', () => {
-        var result = win.BK.LanSyncQR.render('bk-sync://192.168.1.5:18080?code=123456');
+        var result = win.BK.LanSyncQR.render('bk-sync://192.168.1.5:18080');
         assert.ok(result, '应返回非空');
         assert.ok(result.html, '应含 html 内容');
     });
 
     test('parseConnectionString 解析 bk-sync:// URL', () => {
+        var parsed = win.BK.LanSyncQR.parseConnectionString('bk-sync://192.168.1.5:18080');
+        assert.strictEqual(parsed.ip, '192.168.1.5');
+        assert.strictEqual(parsed.port, 18080);
+        assert.strictEqual(parsed.code, undefined, '去配对码后不应再返回 code 字段');
+    });
+
+    test('parseConnectionString 向后兼容旧格式 ?code=（忽略 code 段）', () => {
         var parsed = win.BK.LanSyncQR.parseConnectionString('bk-sync://192.168.1.5:18080?code=123456');
         assert.strictEqual(parsed.ip, '192.168.1.5');
         assert.strictEqual(parsed.port, 18080);
-        assert.strictEqual(parsed.code, '123456');
     });
 
     test('buildConnectionString / parseConnectionString 支持 IPv6 地址', () => {
         var str = win.BK.LanSyncQR.buildConnectionString({
-            ip: 'fd00::1', port: 18080, code: '123456'
+            ip: 'fd00::1', port: 18080
         });
         assert.ok(str.indexOf('bk-sync://') === 0);
         assert.ok(str.indexOf('[fd00::1]:18080') > -1, 'IPv6 应以方括号包裹');
@@ -66,6 +72,5 @@ describe('lan-sync-qr.js', () => {
         var parsed = win.BK.LanSyncQR.parseConnectionString(str);
         assert.strictEqual(parsed.ip, 'fd00::1');
         assert.strictEqual(parsed.port, 18080);
-        assert.strictEqual(parsed.code, '123456');
     });
 });

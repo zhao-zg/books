@@ -2,8 +2,8 @@
  * lan-sync-qr.js — QR 码生成与连接字符串处理
  *
  * 功能：
- *   - buildConnectionString({ip, port, code}) → 'bk-sync://ip:port?code=xxx'
- *   - parseConnectionString(str) → {ip, port, code}
+ *   - buildConnectionString({ip, port}) → 'bk-sync://ip:port'
+ *   - parseConnectionString(str) → {ip, port}
  *   - render(str) → {html} 渲染 QR 码为 HTML table
  *
  * 依赖：vendor/qrcode.min.js (qrcode-generator by Kazuhiko Arase)
@@ -18,37 +18,31 @@
     function buildConnectionString(info) {
         // IPv6 地址需用方括号包裹（如 [fd00::1]:18080）
         var ip = info.ip.indexOf(':') > -1 ? '[' + info.ip + ']' : info.ip;
-        return PROTOCOL + ip + ':' + info.port + '?code=' + info.code;
+        // 配对码已废除：连接串只含协议 + IP + 端口
+        return PROTOCOL + ip + ':' + info.port;
     }
 
     function parseConnectionString(str) {
         if (!str || str.indexOf(PROTOCOL) !== 0) return null;
         var rest = str.substring(PROTOCOL.length);
-        var qIdx = rest.indexOf('?code=');
-        var hostPart, code;
-        if (qIdx > -1) {
-            hostPart = rest.substring(0, qIdx);
-            code = rest.substring(qIdx + 6);
-        } else {
-            hostPart = rest;
-            code = '';
-        }
+        // 向后兼容：旧格式可能带 ?code=xxx，直接忽略 code 段
+        var qIdx = rest.indexOf('?');
+        if (qIdx > -1) rest = rest.substring(0, qIdx);
         // IPv6 格式 [addr]:port，IPv4 格式 addr:port
         var ip, port;
-        if (hostPart.charAt(0) === '[') {
-            var closeIdx = hostPart.indexOf(']');
-            ip = hostPart.substring(1, closeIdx);
-            var portPart = hostPart.substring(closeIdx + 2); // 跳过 "]:"
+        if (rest.charAt(0) === '[') {
+            var closeIdx = rest.indexOf(']');
+            ip = rest.substring(1, closeIdx);
+            var portPart = rest.substring(closeIdx + 2); // 跳过 "]:"
             port = parseInt(portPart || '18080', 10);
         } else {
-            var parts = hostPart.split(':');
+            var parts = rest.split(':');
             ip = parts[0];
             port = parseInt(parts[1] || '18080', 10);
         }
         return {
             ip: ip,
-            port: port,
-            code: code
+            port: port
         };
     }
 

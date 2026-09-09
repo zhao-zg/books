@@ -34,7 +34,7 @@ import android.util.Log;
  * 启动嵌入式 HTTP Server（NanoHTTPD），提供 /info、/download、/upload 端点。
  * 通过 evaluateJs 调用 JS 侧的 exportData/importFromZip，用 CountDownLatch 同步等待。
  *
- * 安全：配对码校验 + 私有 IP 过滤 + 10 分钟无活动自动关闭。
+ * 安全：私有 IP 过滤 + 接收端确认框（JS 层）+ 10 分钟无活动自动关闭。
  */
 @CapacitorPlugin(name = "LanSync")
 public class LanSyncPlugin extends Plugin {
@@ -46,7 +46,6 @@ public class LanSyncPlugin extends Plugin {
     private static final int MAX_BODY_SIZE = 50 * 1024 * 1024; // 50MB
 
     private SyncServer server;
-    private String pairCode;
     private volatile long lastRequestTime;
 
     // JS 桥梁：requestId → CountDownLatch + 结果
@@ -82,14 +81,12 @@ public class LanSyncPlugin extends Plugin {
         if (server != null) {
             JSObject ret = new JSObject();
             ret.put("port", server.getListeningPort());
-            ret.put("pairCode", pairCode);
             ret.put("ipAddress", getLocalIpAddress());
             call.resolve(ret);
             return;
         }
 
         try {
-            pairCode = generatePairCode();
             int port = call.getInt("port", DEFAULT_PORT);
 
             server = new SyncServer(port);
@@ -104,7 +101,6 @@ public class LanSyncPlugin extends Plugin {
 
             JSObject ret = new JSObject();
             ret.put("port", server.getListeningPort());
-            ret.put("pairCode", pairCode);
             ret.put("ipAddress", getLocalIpAddress());
             call.resolve(ret);
         } catch (Exception e) {
@@ -159,7 +155,6 @@ public class LanSyncPlugin extends Plugin {
         ret.put("running", server != null && server.isAlive());
         if (server != null) {
             ret.put("port", server.getListeningPort());
-            ret.put("pairCode", pairCode);
             ret.put("ipAddress", getLocalIpAddress());
             long idleSeconds = (System.currentTimeMillis() - lastRequestTime) / 1000;
             ret.put("idleSeconds", idleSeconds);
@@ -315,21 +310,14 @@ public class LanSyncPlugin extends Plugin {
         }
     }
 
-    /** resolve 成功：提取 name/ip/port/code（TXT record）并回调 JS */
+    /** resolve 成功：提取 name/ip/port 并回调 JS */
     private void deliverResolved(NsdServiceInfo info) {
         String name = info.getServiceName();
         int port = info.getPort();
         String host = info.getHost() != null ? info.getHost().getHostAddress() : "";
 
-        // 从 TXT record 读取配对码（注册端 setAttribute("code", ...) 写入）
-        String code = "";
-        Map<String, byte[]> attrs = info.getAttributes();
-        if (attrs != null && attrs.get("code") != null) {
-            code = new String(attrs.get("code"), java.nio.charset.StandardCharsets.UTF_8);
-        }
-
         String json = "{\"name\":\"" + escapeJson(name) + "\",\"ip\":\"" + escapeJson(host)
-            + "\",\"port\":" + port + ",\"code\":\"" + escapeJson(code) + "\"}";
+            + "\",\"port\":" + port + "}";
         String js = "window.BK.LanSync._onDeviceFound('" + json.replace("'", "\\'") + "')";
         try {
             bridge.eval(js, null);
@@ -419,9 +407,6 @@ public class LanSyncPlugin extends Plugin {
             serviceInfo.setServiceName("书报-" + getDeviceShortId());
             serviceInfo.setServiceType(NSD_SERVICE_TYPE);
             serviceInfo.setPort(server.getListeningPort());
-            // 配对码放入 TXT record：发现方 resolve 后可直接拿到 code，
-            // 否则设备列表按钮无配对码，服务端一律返回 403 invalid_code
-            serviceInfo.setAttribute("code", pairCode);
 
             nsdRegistrationListener = new NsdManager.RegistrationListener() {
                 @Override
@@ -492,15 +477,6 @@ public class LanSyncPlugin extends Plugin {
                 if (!entry.getValue().isEmpty()) {
                     params.put(entry.getKey(), entry.getValue().get(0));
                 }
-            }
-
-            // 配对码校验
-            String code = params.get("code");
-            if (code == null || !code.equals(pairCode)) {
-                Response r = newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
-                    "{\"error\":\"invalid_code\"}");
-                addCorsHeaders(r);
-                return r;
             }
 
             // 私有 IP 过滤（改用 session.getRemoteIpAddress 更可靠）
@@ -596,12 +572,16 @@ public class LanSyncPlugin extends Plugin {
             java.nio.file.Path tmpPath = java.nio.file.Paths.get(tmpFilePath);
             byte[] zipBytes = java.nio.file.Files.readAllBytes(tmpPath);
 
+            // 对端设备名：客户端 multipart 附带 name 字段（配对码废除后用于接收确认框展示）
+            String senderName = session.getParms().get("name");
+            if (senderName == null) senderName = "";
+
             // 转 base64 传给 JS
             String base64 = android.util.Base64.encodeToString(zipBytes, android.util.Base64.NO_WRAP);
             String requestId = UUID.randomUUID().toString();
             String js = String.format(
-                "window.BK.LanSync._handleUpload('%s','%s')",
-                base64, requestId
+                "window.BK.LanSync._handleUpload('%s','%s','%s')",
+                base64, requestId, senderName.replace("'", "\\'")
             );
             String resultJson = callJsAndWait("upload", requestId, js);
 
@@ -640,12 +620,6 @@ public class LanSyncPlugin extends Plugin {
     }
 
     // ── 工具方法 ──────────────────────────────────────────────────────────
-
-    private static String generatePairCode() {
-        java.util.Random rnd = new java.security.SecureRandom();
-        int code = 100000 + rnd.nextInt(900000);
-        return String.valueOf(code);
-    }
 
     private static String getLocalIpAddress() {
         // InetAddress.getLocalHost() 在 Android 上返回 127.0.0.1/localhost，

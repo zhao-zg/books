@@ -79,6 +79,14 @@
     flex: 1; padding: 10px 0; border: none; border-radius: 8px;
     background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
 }
+/* 传输内容选择弹窗：两个模式按钮纵向排列 */
+.lan-sync-code-dialog-modes { display: flex; flex-direction: column; gap: 8px; }
+.lan-sync-mode-btn {
+    padding: 12px 14px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835); cursor: pointer; font-size: 14px;
+    text-align: left;
+}
+.lan-sync-mode-btn:active { background: var(--surface-alt, #FAFAF8); }
 .lan-sync-code { font-family: monospace; font-size: 22px; letter-spacing: 2px; font-weight: 600; color: var(--brand, #D4793A); }
 .lan-sync-code-empty { color: var(--text-muted, #CCC); }
 

@@ -2,16 +2,16 @@
  * lan-sync.js — 局域网同步核心 API
  *
  * 客户端 API（APK + PWA 均可用）：
- *   - connect(ip, port, code)   → GET /info，返回对端设备信息
- *   - pull(ip, port, code, opts) → GET /download → importFromZip 合并
- *   - push(ip, port, code, opts) → generateZipBytes → POST /upload（multipart）
+ *   - connect(ip, port)          → GET /info，返回对端设备信息
+ *   - pull(ip, port, opts)       → GET /download → importFromZip 合并
+ *   - push(ip, port, opts)       → generateZipBytes → POST /upload（multipart）
  *   - discover(handler)          → APK：NSD 自动发现对端（回调 onDeviceFound）
  *   - stopDiscovery()           → 停止 NSD 发现
  *
  * 服务端 JS 桥梁（仅 APK，被 NanoHTTPD 通过 evaluateJs 调用）：
  *   - _handleInfo(requestId)           → 收集设备信息 → deliverResult
  *   - _handleDownload(mode, books, id)  → generateZipBytes → base64 → deliverResult
- *   - _handleUpload(base64Zip, id)      → base64 → importFromZip → deliverResult
+ *   - _handleUpload(base64Zip, id, senderName) → 接收确认 → importFromZip → deliverResult
  *   - _onDeviceFound(json)             → NSD 发现回调 → 转发给 discover handler
  *
  * 依赖：
@@ -56,19 +56,19 @@
 
         // ── 客户端（APK + PWA）─────────────────────────────────────────
 
-        connect: function (ip, port, code) {
-            var url = 'http://' + ip + ':' + port + '/info?code=' + win.encodeURIComponent(code);
+        connect: function (ip, port) {
+            var url = 'http://' + ip + ':' + port + '/info';
             return win.fetch(url).then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
             });
         },
 
-        pull: function (ip, port, code, opts) {
+        pull: function (ip, port, opts) {
             opts = opts || {};
             var mode = opts.mode || 'data';
             var booksParam = opts.books ? '&books=' + win.encodeURIComponent(opts.books.join(',')) : '';
-            var url = 'http://' + ip + ':' + port + '/download?code=' + win.encodeURIComponent(code) + '&mode=' + win.encodeURIComponent(mode) + booksParam;
+            var url = 'http://' + ip + ':' + port + '/download?mode=' + win.encodeURIComponent(mode) + booksParam;
 
             return win.fetch(url).then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -81,7 +81,7 @@
             });
         },
 
-        push: function (ip, port, code, opts) {
+        push: function (ip, port, opts) {
             opts = opts || {};
             var mode = opts.mode || 'data';
             var bookIds = opts.books || [];
@@ -95,7 +95,8 @@
                 // multipart 上传：Blob 保持二进制，NanoHTTPD 走临时文件分支，避免 UTF-8 字符串化损坏 ZIP
                 var form = new FormData();
                 form.append('file', new Blob([zipBytes], { type: 'application/zip' }), 'sync.zip');
-                var url = 'http://' + ip + ':' + port + '/upload?code=' + win.encodeURIComponent(code);
+                form.append('name', _getDeviceName());
+                var url = 'http://' + ip + ':' + port + '/upload';
                 return win.fetch(url, {
                     method: 'POST',
                     body: form
@@ -186,7 +187,7 @@
             });
         },
 
-        _handleUpload: function (base64Zip, requestId) {
+        _handleUpload: function (base64Zip, requestId, senderName) {
             var buffer;
             try {
                 buffer = _base64ToArrayBuffer(base64Zip);
@@ -200,12 +201,19 @@
                 return Promise.resolve();
             }
 
-            return win.BK.SyncCore.importFromZip(buffer).then(function (result) {
-                _deliverResult(requestId, JSON.stringify(result));
-            }).catch(function (err) {
-                _deliverResult(requestId, JSON.stringify({
-                    success: 0, failed: 0, errors: [err.message || String(err)]
-                }));
+            // 接收确认：去除配对码后，接收确认框作为唯一安全网（防误收/恶意推送）
+            return _askReceiveConfirm(senderName).then(function (accepted) {
+                if (!accepted) {
+                    _deliverResult(requestId, JSON.stringify({ success: 0, failed: 0, errors: ['接收被拒绝'], cancelled: true }));
+                    return;
+                }
+                return win.BK.SyncCore.importFromZip(buffer).then(function (result) {
+                    _deliverResult(requestId, JSON.stringify(result));
+                }).catch(function (err) {
+                    _deliverResult(requestId, JSON.stringify({
+                        success: 0, failed: 0, errors: [err.message || String(err)]
+                    }));
+                });
             });
         }
     };
@@ -250,6 +258,68 @@
             bytes[i] = binary.charCodeAt(i);
         }
         return bytes.buffer;
+    }
+
+    /**
+     * 弹接收确认框：去除配对码后作为接收端唯一安全网（防误收/恶意推送）。
+     * 返回 Promise<boolean>：接受→true，拒绝/取消/超时→false。
+     * @param {string} [senderName] 对端设备名（Java 上传链路从 multipart name 字段解析）
+     */
+    function _askReceiveConfirm(senderName) {
+        return new Promise(function (resolve) {
+            if (!win.BK || !win.BK.openDialog) {
+                // 弹窗系统不可用（理论不该发生）→ 保守拒绝
+                resolve(false);
+                return;
+            }
+            var shown = senderName ? _esc(senderName) : '';
+            var html =
+                '<div class="lan-sync-code-dialog">' +
+                '  <div class="lan-sync-code-dialog-title">接收传输？</div>' +
+                '  <div class="lan-sync-code-dialog-desc">' + (shown ? '来自「' + shown + '」的传输数据' : '收到一条传输数据') + '</div>' +
+                '  <div class="lan-sync-code-dialog-actions">' +
+                '    <button class="lan-sync-code-dialog-cancel">拒绝</button>' +
+                '    <button class="lan-sync-code-dialog-ok">接收</button>' +
+                '  </div>' +
+                '</div>';
+            var dlg = win.BK.openDialog({
+                id: 'bk-lan-sync-receive-dialog',
+                html: html,
+                onClose: function () {
+                    // 系统返回键/点遮罩关闭：视为拒绝。栈条目已被 pop，不再调 dlg.close()
+                    _done(false, true);
+                }
+            });
+            if (!dlg) {
+                // 已存在同 id 弹窗（上次未关）→ 保守拒绝
+                resolve(false);
+                return;
+            }
+            var settled = false;
+            /**
+             * @param {boolean} ok
+             * @param {boolean} [fromOnClose] true=由 onClose 触发（back 键/点遮罩），此时不可再调 dlg.close()
+             */
+            function _done(ok, fromOnClose) {
+                if (settled) return;
+                settled = true;
+                resolve(ok);
+                if (!fromOnClose) {
+                    try { dlg.close(); } catch (e) {}
+                }
+            }
+            var cancelBtn = dlg.mask.querySelector('.lan-sync-code-dialog-cancel');
+            if (cancelBtn) cancelBtn.addEventListener('click', function () { _done(false); });
+            var okBtn = dlg.mask.querySelector('.lan-sync-code-dialog-ok');
+            if (okBtn) okBtn.addEventListener('click', function () { _done(true); });
+        });
+    }
+
+    function _esc(s) {
+        if (!s) return '';
+        var div = win.document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
     }
 
     // ── 导出 ──────────────────────────────────────────────────────
