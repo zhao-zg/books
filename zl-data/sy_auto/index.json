@@ -1,0 +1,2075 @@
+[
+  {
+    "id": "sy_auto-001",
+    "title": "七十三殉道史",
+    "chapter_count": 73,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-002",
+    "title": "主恢复圣徒信仰问答须知",
+    "chapter_count": 40,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-003",
+    "title": "姊妹成全聚会-才德的妇人",
+    "chapter_count": 20,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-004",
+    "title": "真理",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-005",
+    "title": "生命",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-006",
+    "title": "生命的实行",
+    "chapter_count": 18,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-007",
+    "title": "事奉",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-008",
+    "title": "神圣启示的高峰",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-009",
+    "title": "其他重要事项",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "给寻求信徒之1000处极重要的经节"
+  },
+  {
+    "id": "sy_auto-010",
+    "title": "贰 从亚当到挪亚（4篇）",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-011",
+    "title": "叁 从亚伯拉罕到约瑟（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-012",
+    "title": "肆 从摩西到撒母耳（12篇）",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-013",
+    "title": "伍 从大卫到被掳（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-014",
+    "title": "陆 从被掳到归回（13篇）",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-015",
+    "title": "柒 诗歌书（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "旧约鸟瞰（50篇）",
+    "category_prefix": "7"
+  },
+  {
+    "id": "sy_auto-016",
+    "title": "贰 成肉体时期（3篇）",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-017",
+    "title": "一 马太福音（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-018",
+    "title": "二 马可福音（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-019",
+    "title": "三 路加福音（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-020",
+    "title": "四 约翰福音（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-021",
+    "title": "叁 总括的时期（3篇）",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-022",
+    "title": "一 使徒行传（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-023",
+    "title": "二 保罗的职事（2篇）",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-024",
+    "title": "三 罗马书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-025",
+    "title": "四 哥林多前书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-026",
+    "title": "五 哥林多后书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-027",
+    "title": "六 加拉太书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-028",
+    "title": "七 以弗所书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-029",
+    "title": "八 腓立比书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-030",
+    "title": "九 歌罗西书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-031",
+    "title": "十 帖撒罗尼迦书（4篇）",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-032",
+    "title": "十一 三提书（4篇）",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-033",
+    "title": "十二 希伯来书（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-034",
+    "title": "十三 约翰的职事（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-035",
+    "title": "十四 彼得的职事（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-036",
+    "title": "肆 加强的时期（3篇）",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-037",
+    "title": "一 启示录（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "新约鸟瞰（100篇）",
+    "category_prefix": "8"
+  },
+  {
+    "id": "sy_auto-038",
+    "title": "A1 真理（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-039",
+    "title": "A2 神的经纶（7篇）",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-040",
+    "title": "A3 神圣三一（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-041",
+    "title": "A4 神圣分赐（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-042",
+    "title": "A5 神性与人性的调和（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-043",
+    "title": "B1 包罗万有的基督（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-044",
+    "title": "B2 神圣永远的生命（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-045",
+    "title": "B3 基督的十字架（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-046",
+    "title": "B4 经历并享受基督（3篇）",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-047",
+    "title": "C1 终极完成的灵（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-048",
+    "title": "C2 神完整的救恩（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-049",
+    "title": "C3 信徒（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-050",
+    "title": "C4 神人的生活（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-051",
+    "title": "D1 基督的身体（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-052",
+    "title": "D2 神的建造（10篇）",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-053",
+    "title": "D3 召会（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-054",
+    "title": "E1 基督与召会（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-055",
+    "title": "E2 基督、那灵、生命、召会（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-056",
+    "title": "E3 生命与建造（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-057",
+    "title": "F1 得胜者（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-058",
+    "title": "F2 国度（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-059",
+    "title": "F3 属灵的争战（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-060",
+    "title": "F4 神的行政（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-061",
+    "title": "F5 新耶路撒冷（5篇）",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "圣经里的二十四条重要路线（150篇）",
+    "category_prefix": "9"
+  },
+  {
+    "id": "sy_auto-062",
+    "title": "壹 神命定的路（20篇）",
+    "chapter_count": 20,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "主恢复的道路（65篇）",
+    "category_prefix": "10"
+  },
+  {
+    "id": "sy_auto-063",
+    "title": "贰 召会治理的极重要原则（15 篇）",
+    "chapter_count": 15,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "主恢复的道路（65篇）",
+    "category_prefix": "10"
+  },
+  {
+    "id": "sy_auto-064",
+    "title": "叁 神经纶里独一的工作（15 篇）",
+    "chapter_count": 15,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "主恢复的道路（65篇）",
+    "category_prefix": "10"
+  },
+  {
+    "id": "sy_auto-065",
+    "title": "肆 召会的历程（15 篇）",
+    "chapter_count": 15,
+    "series": "sy_auto",
+    "group": "清明上河图",
+    "category": "主恢复的道路（65篇）",
+    "category_prefix": "10"
+  },
+  {
+    "id": "sy_auto-066",
+    "title": "为主培育属灵后代",
+    "chapter_count": 16,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-067",
+    "title": "为着长大对付我们内里的诸部分",
+    "chapter_count": 9,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-068",
+    "title": "健康生活操练",
+    "chapter_count": 13,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-069",
+    "title": "全备真理的鸟瞰─福音系列",
+    "chapter_count": 30,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-070",
+    "title": "关于如何带领少年人之实行的点",
+    "chapter_count": 2,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-071",
+    "title": "第1系列 区服事的基本则",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "区服事实务手册"
+  },
+  {
+    "id": "sy_auto-072",
+    "title": "第2系列 神命定之路与各类聚会",
+    "chapter_count": 16,
+    "series": "sy_auto",
+    "group": "区服事实务手册"
+  },
+  {
+    "id": "sy_auto-073",
+    "title": "第3系列 事务的服事",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "区服事实务手册"
+  },
+  {
+    "id": "sy_auto-074",
+    "title": "第4系列 对各年龄层的服事",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "区服事实务手册"
+  },
+  {
+    "id": "sy_auto-075",
+    "title": "1 信仰问答类",
+    "chapter_count": 42,
+    "series": "sy_auto",
+    "group": "十二篮子"
+  },
+  {
+    "id": "sy_auto-076",
+    "title": "2 婚姻家庭类",
+    "chapter_count": 97,
+    "series": "sy_auto",
+    "group": "十二篮子"
+  },
+  {
+    "id": "sy_auto-077",
+    "title": "3 职场追求类",
+    "chapter_count": 33,
+    "series": "sy_auto",
+    "group": "十二篮子"
+  },
+  {
+    "id": "sy_auto-078",
+    "title": "4 属灵追求类",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "十二篮子"
+  },
+  {
+    "id": "sy_auto-079",
+    "title": "系列3 擘饼聚会的意义与实行",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "基础造就"
+  },
+  {
+    "id": "sy_auto-080",
+    "title": "系列4 圣经中的预言",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "基础造就"
+  },
+  {
+    "id": "sy_auto-081",
+    "title": "系列5 基督徒的正确为人",
+    "chapter_count": 27,
+    "series": "sy_auto",
+    "group": "基础造就"
+  },
+  {
+    "id": "sy_auto-082",
+    "title": "姊妹们的学习课程",
+    "chapter_count": 48,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-083",
+    "title": "对付主恢复中工作的各种难处",
+    "chapter_count": 25,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-084",
+    "title": "小排喂养系列",
+    "chapter_count": 19,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-085",
+    "title": "01 从神的创造看神的心愿与目的",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-086",
+    "title": "02 预备主回来",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-087",
+    "title": "03 基督作我们的生命，为着召会的实际与实行",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-088",
+    "title": "04 为着召会生活培育下一代",
+    "chapter_count": 27,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-089",
+    "title": "05 建造神家的事奉",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-090",
+    "title": "06 活神与复活的神",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-091",
+    "title": "07 基督徒生活中的两棵树",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-092",
+    "title": "08 启示的事奉",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-093",
+    "title": "09 借着经历并享受基督，以基督为内容来赞美神",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-094",
+    "title": "10 借着操练灵实行召会生活",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息1",
+    "category_prefix": "24"
+  },
+  {
+    "id": "sy_auto-095",
+    "title": "11 各种聚会信息记录",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-096",
+    "title": "12 地方召会的意义、实行、与当前的光景",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-097",
+    "title": "13 祷告的意义与目的",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-098",
+    "title": "14 不住的祷告与活在灵中",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-099",
+    "title": "15 讲说基督以建造召会，使神永远的定旨得以完成",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-100",
+    "title": "16 借着在生命中长大并在生命中尽功用而建造召会，以完成神的定旨",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-101",
+    "title": "17 马太福音中所启示在灵里享受基督使召会得建造",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-102",
+    "title": "18 神计划里的救赎",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-103",
+    "title": "19 一个新人的时代",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-104",
+    "title": "20 基督在我们里面长大并扩展，为着神的国",
+    "chapter_count": 15,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息2",
+    "category_prefix": "25"
+  },
+  {
+    "id": "sy_auto-105",
+    "title": "21 从人的堕落看神的救法",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-106",
+    "title": "22 国度是基督的扩展",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-107",
+    "title": "23 神对召会的计划",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-108",
+    "title": "24 享受基督作为那灵，并顾到基督身体的一与扩增_split",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-109",
+    "title": "25 国度子民的生活与法则",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-110",
+    "title": "26 生命树与善恶树的异象",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-111",
+    "title": "27 为着召会生活享受基督作祭物的实际",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-112",
+    "title": "28 为着召会享受耶稣的人性",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-113",
+    "title": "29 极大的奥秘─基督与召会",
+    "chapter_count": 16,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-114",
+    "title": "30 召会的治理与圣徒的成全",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息3",
+    "category_prefix": "26"
+  },
+  {
+    "id": "sy_auto-115",
+    "title": "31 为着召会作为新人、基督的身体和基督的新妇，而经历基督",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-116",
+    "title": "32 那灵与主的恢复",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-117",
+    "title": "33 经历人灵里神圣的灵，为着建造召会作基督的身体",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-118",
+    "title": "34 在时代的水流中事奉",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-119",
+    "title": "35 那灵与召会",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-120",
+    "title": "36 神救恩的目的",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-121",
+    "title": "37 基督与十字架",
+    "chapter_count": 21,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-122",
+    "title": "38 在生命里长大的路",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-123",
+    "title": "39 主对召会生活的恢复",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-124",
+    "title": "40 在神行动中的移民",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息4",
+    "category_prefix": "27"
+  },
+  {
+    "id": "sy_auto-125",
+    "title": "41 建造召会的异象、预表与实行",
+    "chapter_count": 14,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-126",
+    "title": "42 借着经历并享受基督，以基督为内容来赞美神",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-127",
+    "title": "43 召会的事奉与复兴的律",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-128",
+    "title": "44 众地方召会同七倍之灵的恢复",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-129",
+    "title": "45 召会事奉的中心异象",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-130",
+    "title": "46 为着建造召会作神的居所，经历并享受包罗万有、复合的灵",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-131",
+    "title": "47 建造召会的事奉",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-132",
+    "title": "48 神的运行与膏油的涂抹",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-133",
+    "title": "50 看见从天上来的异象而事奉主",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息5",
+    "category_prefix": "28"
+  },
+  {
+    "id": "sy_auto-134",
+    "title": "51 约翰福音中的生命与建造",
+    "chapter_count": 19,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-135",
+    "title": "52 神对召会的计划",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-136",
+    "title": "53 召会与地方召会的历史",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-137",
+    "title": "54 事奉主者的异象、职事与引导",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-138",
+    "title": "55 认识并经历神作生命",
+    "chapter_count": 14,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-139",
+    "title": "56 神如何来作人的享受",
+    "chapter_count": 9,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-140",
+    "title": "57结常存果子的训练与实行",
+    "chapter_count": 20,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-141",
+    "title": "58地方召会的意义、实行、与当前的光景",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-142",
+    "title": "59新约的核仁---神圣的灵同我们人的灵",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-143",
+    "title": "60召会事奉的基本因素",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息6",
+    "category_prefix": "29"
+  },
+  {
+    "id": "sy_auto-144",
+    "title": "61 关于擘饼聚会的交通",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-145",
+    "title": "62 主的回来",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-146",
+    "title": "63 彼得书信中所启示的生命与建造",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-147",
+    "title": "64 吃基督以建造召会作祂的身体",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-148",
+    "title": "65 传福音的原则",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-149",
+    "title": "66 从罗马书看神完全的救恩",
+    "chapter_count": 34,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-150",
+    "title": "67 与长老们的交通",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-151",
+    "title": "68 从以弗所书看召会在圣灵里的生活与职责",
+    "chapter_count": 22,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-152",
+    "title": "69 享受基督的丰富，好成为召会作神的丰满",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-153",
+    "title": "70 圣经的心脏与圣经的中心启示",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息7",
+    "category_prefix": "30"
+  },
+  {
+    "id": "sy_auto-154",
+    "title": "71 事奉主者性格的建立",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-155",
+    "title": "72 从以弗所书看召会在基督里的福分与地位",
+    "chapter_count": 35,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-156",
+    "title": "73 从亚伯拉罕以撒雅各的经历看神的选召",
+    "chapter_count": 18,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-157",
+    "title": "74 彼得前后书中的生命与建造",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-158",
+    "title": "75 加拉太书和以弗所书中的基督徒生活与召会生活",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-159",
+    "title": "76 读出圣经的本色与中心",
+    "chapter_count": 11,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-160",
+    "title": "77 圣经中的生命与建造",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-161",
+    "title": "78 神人调和与复活的原则",
+    "chapter_count": 23,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-162",
+    "title": "79 信徒尽功用带进国度",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-163",
+    "title": "80 主恢复的基本项目乃是生命，主恢复的结果乃是身体",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息8",
+    "category_prefix": "31"
+  },
+  {
+    "id": "sy_auto-164",
+    "title": "81 人人尽功用使召会得扩增",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-165",
+    "title": "82 关于圣徒的成全",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-166",
+    "title": "83 从文化蒙拯救以及新妇的预备",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-167",
+    "title": "84 关于神对摩西的呼召",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-168",
+    "title": "85 新约的职事与使徒的职分",
+    "chapter_count": 14,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-169",
+    "title": "87 神中心的工作与正确的属灵经历",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-170",
+    "title": "88 召会的信仰、见证与立场",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-171",
+    "title": "89 话语的供应与召会的扩增",
+    "chapter_count": 10,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-172",
+    "title": "90 福音的普及与召会的治理",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "属灵书报及导读",
+    "category": "属灵书报及导读信息9",
+    "category_prefix": "32"
+  },
+  {
+    "id": "sy_auto-173",
+    "title": "属灵短信",
+    "chapter_count": 14,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-174",
+    "title": "建立属灵的家庭",
+    "chapter_count": 4,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-175",
+    "title": "成全圣徒建造基督生机的身体",
+    "chapter_count": 3,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-176",
+    "title": "新约圣经导读",
+    "chapter_count": 28,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-177",
+    "title": "新约的核仁",
+    "chapter_count": 3,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-178",
+    "title": "1 基本生活",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "1 神人的生活",
+    "category_prefix": "33"
+  },
+  {
+    "id": "sy_auto-179",
+    "title": "2 日常生活",
+    "chapter_count": 5,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "1 神人的生活",
+    "category_prefix": "33"
+  },
+  {
+    "id": "sy_auto-180",
+    "title": "1 “福”的架构",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "2 神命定之路",
+    "category_prefix": "34"
+  },
+  {
+    "id": "sy_auto-181",
+    "title": "2 “家”的架构",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "2 神命定之路",
+    "category_prefix": "34"
+  },
+  {
+    "id": "sy_auto-182",
+    "title": "3 “排”的架构",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "2 神命定之路",
+    "category_prefix": "34"
+  },
+  {
+    "id": "sy_auto-183",
+    "title": "4 “区”的架构",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "新路成全系列",
+    "category": "2 神命定之路",
+    "category_prefix": "34"
+  },
+  {
+    "id": "sy_auto-184",
+    "title": "服事者成全信息",
+    "chapter_count": 12,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-185",
+    "title": "活力排的训练与实行",
+    "chapter_count": 39,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-186",
+    "title": "父母成全信息",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "父母成全信息"
+  },
+  {
+    "id": "sy_auto-187",
+    "title": "父母成全信息1『家』系列",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "父母成全信息"
+  },
+  {
+    "id": "sy_auto-188",
+    "title": "父母成全信息2『牧养儿女』系列",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "父母成全信息"
+  },
+  {
+    "id": "sy_auto-189",
+    "title": "父母成全信息3『儿童排』系列",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "父母成全信息"
+  },
+  {
+    "id": "sy_auto-190",
+    "title": "牧养成全",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "牧养成全"
+  },
+  {
+    "id": "sy_auto-191",
+    "title": "1 牧养的榜样",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "牧养成全"
+  },
+  {
+    "id": "sy_auto-192",
+    "title": "2 牧养的成全",
+    "chapter_count": 3,
+    "series": "sy_auto",
+    "group": "牧养成全"
+  },
+  {
+    "id": "sy_auto-193",
+    "title": "5 职事信息摘录",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "牧养成全"
+  },
+  {
+    "id": "sy_auto-194",
+    "title": "牧养生活的建立",
+    "chapter_count": 5,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-195",
+    "title": "生命读经示范",
+    "chapter_count": 11,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-196",
+    "title": "神命定之路的实质（问答题）",
+    "chapter_count": 16,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-197",
+    "title": "神建造中的柱子",
+    "chapter_count": 25,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-198",
+    "title": "第1部分 主恢复中历史的教训与前面的道路",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "管家成全训练"
+  },
+  {
+    "id": "sy_auto-199",
+    "title": "第2部分 负责弟兄在神的家中当怎样行",
+    "chapter_count": 4,
+    "series": "sy_auto",
+    "group": "管家成全训练"
+  },
+  {
+    "id": "sy_auto-200",
+    "title": "第3部分 长老训练纲目",
+    "chapter_count": 24,
+    "series": "sy_auto",
+    "group": "管家成全训练"
+  },
+  {
+    "id": "sy_auto-201",
+    "title": "第4部分 祷研背讲",
+    "chapter_count": 2,
+    "series": "sy_auto",
+    "group": "管家成全训练"
+  },
+  {
+    "id": "sy_auto-202",
+    "title": "第5部分 如何配搭",
+    "chapter_count": 8,
+    "series": "sy_auto",
+    "group": "管家成全训练"
+  },
+  {
+    "id": "sy_auto-203",
+    "title": "01 创世纪结晶读经（一~三）",
+    "chapter_count": 72,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-204",
+    "title": "03 利未记结晶",
+    "chapter_count": 35,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-205",
+    "title": "19 诗篇结晶1",
+    "chapter_count": 70,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-206",
+    "title": "19 诗篇结晶2",
+    "chapter_count": 25,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-207",
+    "title": "22 雅歌结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-208",
+    "title": "23 以赛亚结晶1",
+    "chapter_count": 68,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-209",
+    "title": "23 以赛亚结晶2",
+    "chapter_count": 25,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-210",
+    "title": "26 以西结结晶",
+    "chapter_count": 34,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-211",
+    "title": "27 但以理书与撒迦利亚书结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-212",
+    "title": "39 小申言者书结晶读经",
+    "chapter_count": 12,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "1 旧约",
+    "category_prefix": "48"
+  },
+  {
+    "id": "sy_auto-213",
+    "title": "01 马太福音结晶读经",
+    "chapter_count": 23,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-214",
+    "title": "11 腓立比书结晶读经",
+    "chapter_count": 1,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-215",
+    "title": "12 歌罗西书、腓利门书结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-216",
+    "title": "13 帖撒罗尼迦前后书、雅歌七至八章结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-217",
+    "title": "15 提摩太前后书、提多书结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-218",
+    "title": "19 希伯来书结晶读经",
+    "chapter_count": 25,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-219",
+    "title": "20 雅各书结晶读经",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-220",
+    "title": "21 彼得前后书与犹太书结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-221",
+    "title": "24 约翰书信结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-222",
+    "title": "27 启示录结晶读经",
+    "chapter_count": 25,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "2 新约",
+    "category_prefix": "49"
+  },
+  {
+    "id": "sy_auto-223",
+    "title": "01 创世记中的生命线",
+    "chapter_count": 34,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-224",
+    "title": "02 基督的人性结晶读经",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-225",
+    "title": "03 罗马书中神完整的救恩结晶读经",
+    "chapter_count": 7,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-226",
+    "title": "04 基督的神性结晶读经",
+    "chapter_count": 6,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-227",
+    "title": "05 新耶路撒冷结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-228",
+    "title": "06 神的建造结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-229",
+    "title": "07 基督的身体结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-230",
+    "title": "08 神的福音结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-231",
+    "title": "09 罗马书中神的福音结晶读经",
+    "chapter_count": 13,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-232",
+    "title": "10 包罗万有的基督结晶",
+    "chapter_count": 34,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-233",
+    "title": "11 雅歌中所描绘的生命与建造",
+    "chapter_count": 16,
+    "series": "sy_auto",
+    "group": "结晶读经合辑",
+    "category": "3 专题",
+    "category_prefix": "50"
+  },
+  {
+    "id": "sy_auto-234",
+    "title": "这孩子将来如何",
+    "chapter_count": 14,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-235",
+    "title": "追求中必须看见的信息",
+    "chapter_count": 6,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-236",
+    "title": "青少年的三件事",
+    "chapter_count": 4,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-237",
+    "title": "主日分别与擘饼",
+    "chapter_count": 2,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-238",
+    "title": "区负责在神的家中当怎样行",
+    "chapter_count": 8,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-239",
+    "title": "基督身体生机建造中的彼此互相",
+    "chapter_count": 6,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-240",
+    "title": "如何成全人",
+    "chapter_count": 12,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-241",
+    "title": "家主成全及操练与课程",
+    "chapter_count": 7,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-242",
+    "title": "恢复对主起初的爱",
+    "chapter_count": 24,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-243",
+    "title": "成为系列",
+    "chapter_count": 10,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-244",
+    "title": "擘饼聚会",
+    "chapter_count": 6,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-245",
+    "title": "新耶路撒冷的解释应用于寻求的信徒",
+    "chapter_count": 5,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-246",
+    "title": "新路实行成全训练系列",
+    "chapter_count": 3,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-247",
+    "title": "活力排手册 约翰福音",
+    "chapter_count": 22,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-248",
+    "title": "真理专題",
+    "chapter_count": 92,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-249",
+    "title": "神今日的行动",
+    "chapter_count": 6,
+    "series": "sy_auto"
+  },
+  {
+    "id": "sy_auto-250",
+    "title": "青年人的福音与成全",
+    "chapter_count": 36,
+    "series": "sy_auto"
+  }
+]

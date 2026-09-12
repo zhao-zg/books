@@ -1,0 +1,170 @@
+/* 整个 renderer/pdf/ 目录的视觉样式（页面/工具栏/缩略图/目录/搜索/夜间/响应式）
+   已抽取到 css-pdf.css；本文件仅保留普通文字书（epub/txt/md）排版规则。
+   @import 必须位于所有规则之前，否则会被浏览器忽略。 */
+@import url('css-pdf.css');
+
+/* ── 阅读内容排版 ────────────────────────────────────────── */
+/* 三页轮播中当前页=chapterContent、预览页=carouselContentPrev/Next（均含 .content），
+   字号/行高需统一命中，否则滑动时预览页与当前页字体不一致。 */
+/* 顶部留出浮动导航栏高度（约 48px）+ 刘海安全区，避免长章节首行被遮挡；
+   左右边距相对收窄，使阅读区更居中、上下更平衡。 */
+#chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 28px; line-height: 1.85; font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); }
+@media (min-width: 768px) { #chapterContent, .bk-carousel-page .content { padding: calc(env(safe-area-inset-top, 0px) + 20px) 24px 32px; } }
+/* 横屏（短高）阅读可读性：约束正文宽度居中、顶部对齐，避免超宽行长；
+   设计稿横屏阅读栏 576px，约束到 640px 居中接近可读量度。
+   注：此为手机横屏(max-height:500px)单栏优化；平板/宽屏双栏见 body.bk-split-mode 规则。 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .bk-carousel-page { justify-content: flex-start; }
+  #chapterContent, .bk-carousel-page .content {
+    max-width: 640px;
+    margin-left: auto; margin-right: auto;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+    padding-bottom: 96px; /* 避让底部 TTS/工具栏 */
+  }
+}
+
+/* ── PDF 渲染 / 单页模式 / 工具栏 / 缩略图 / 目录 / 搜索 / 夜间 / 缩放控件 ──
+   所有 .bk-pdf-* 样式已迁移到 css-pdf.css（见本文件顶部 @import）。 */
+
+.bk-paragraph { margin-bottom: 1.2em; text-align: justify; text-indent: 2em; }
+/* 标题用无衬线栈：正文衬线 + 标题黑体形成层次对比，Android 命中 PingFang/Noto Sans
+   而非不可用的 Songti/STSong，保证跨平台一致的标题质感 */
+.bk-heading { color: var(--heading); margin: 1.5em 0 0.5em; line-height: 1.4; font-family: var(--ui-font-family, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif); font-weight: 600; }
+.bk-paragraph + .bk-heading { margin-top: 2em; }
+/* 阅读区超链接样式（MD 行内链接、引用式链接、自动链接等） */
+.bk-paragraph a,
+.bk-list a,
+.bk-blockquote a {
+  color: var(--brand, #3D8A5A);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  word-break: break-all;
+}
+.bk-paragraph a:hover,
+.bk-list a:hover,
+.bk-blockquote a:hover {
+  text-decoration: underline;
+  border-bottom-color: transparent;
+}
+/* 图片链接里的 a 无下划线边框 */
+.bk-figure a {
+  border-bottom: none;
+  display: inline-block;
+}
+/* 跨章节导航链接 */
+[data-chapter-link] { cursor: pointer; color: var(--brand, #007aff); text-decoration: underline; }
+.bk-h1 { font-size: 1.25em; }
+/* 阅读内容顶部：当页章节标题 */
+.bk-page-title {
+  font-family: var(--ui-font-family, -apple-system, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif);
+  font-size: 1.2em;
+  font-weight: 650;
+  color: var(--heading);
+  line-height: 1.35;
+  margin: 0 0 1em;
+  padding-bottom: .5em;
+  border-bottom: 1px solid var(--border);
+}
+.bk-h2 { font-size: 1.15em; }
+.bk-h3 { font-size: 1.08em; }
+.bk-h4 { font-size: 1.02em; }
+.bk-h5, .bk-h6 { font-size: 1em; }
+.bk-quote {
+  margin: 1.4em 0;
+  padding: 0;
+  border: 1px solid rgba(var(--brand-rgb, 61,138,90),.18);
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;
+}
+.bk-quote-content {
+  padding: 14px 20px;
+  background: rgba(var(--brand-rgb, 61,138,90),.04);
+  color: var(--text-soft, var(--text-muted));
+  font-style: italic;
+  line-height: 1.75;
+}
+.bk-figure {
+  margin: 1.2em 0;
+  text-align: center;
+}
+.bk-figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.bk-figure figcaption {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.bk-list {
+  margin: 0.8em 0;
+  padding-left: 1.5em;
+}
+.bk-list li { margin-bottom: 0.4em; }
+/* 经卷缩写等短引用不拆行 */
+#chapterContent b, #chapterContent strong,
+.bk-carousel-page .content b, .bk-carousel-page .content strong {
+  white-space: nowrap;
+}
+.bk-code {
+  background: var(--surface-alt, #EDEAE4);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+.bk-separator {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+
+.bk-footnotes-section {
+  margin-top: 2em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border);
+}
+.bk-footnotes-title {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.bk-footnote {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: flex;
+  gap: 6px;
+}
+.bk-fn-number {
+  color: var(--brand, #3D8A5A);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.bk-fn-ref {
+  display: inline-block;
+  font-size: 0.72em;
+  line-height: 1;
+  vertical-align: super;
+  margin: 0 0.1em;
+  padding: 0.1em 0.3em 0.05em;
+  border-radius: 0.35em;
+}
+.bk-fn-ref a {
+  color: var(--brand, #3D8A5A);
+  text-decoration: none;
+  font-weight: 600;
+}
+.bk-fn-ref a:hover {
+  text-decoration: underline;
+}
+.bk-fn-ref:active { background: rgba(var(--brand-rgb, 61,138,90),.24); }
+.bk-fn-text a {
+  color: var(--brand, #3D8A5A);
+}
+
