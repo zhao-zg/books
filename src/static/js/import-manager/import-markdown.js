@@ -59,6 +59,12 @@
         return m;  // 未定义的脚注保持原样
       });
 
+      // ── 空粗体标记归一化（修复 **\t** 残留）──
+      // 形如 **\t** / ** ** / **　** 的空粗体标记（中间只有空白、无文字），
+      // marked 不会解析为粗体，会原样输出星号。在预处理阶段将其剥离：
+      // 保留标记内部的空白（Tab/空格），使后续 Tab 缩进预处理能正常转换。
+      fnReplaced = fnReplaced.replace(/\*\*([ \t\u3000]*)\*\*/g, function(m, ws) { return ws; });
+
       // ── Tab 缩进预处理：防止行首 \t 被 marked 误判为代码块 ──
       // 策略：保护已有的 fenced code block，将非代码块中的行首 \t 替换为缩进标记
       var fencedBlocks = [];
