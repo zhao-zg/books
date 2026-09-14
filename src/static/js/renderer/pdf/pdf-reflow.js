@@ -64,7 +64,7 @@
             return _extractPageImages(page, pageNum).then(function (images) {
               pages.push({
                 pageNum: pageNum,
-                items: textContent.items || [],
+                items: _normalizeTextItems(textContent.items || []),
                 styles: textContent.styles || {},
                 viewport: page.getViewport({ scale: 1.0 }),
                 images: images,
@@ -79,6 +79,120 @@
 
       return extractPage(1);
     });
+  }
+
+  /**
+   * Bug#47: PDF 源文件 ToUnicode 映射错乱时的字符归一化
+   *
+   * 背景：部分 PDF（如《生命的经历4.pdf》）视觉层正常，但文字层（ToUnicode）
+   * 编码错乱，导致 getTextContent 返回错误字符：
+   *   - 康熙部首区 U+2F00-2FCA / 补充部首区 U+2E80-2EFF（⼈⼀⽣⾥⻅ 等）→ 对应简体汉字
+   *   - '+' (U+002B) → 中文逗号 '，'（视觉是逗号）
+   *   - 'V' (U+0056) → 中文冒号 '：'（视觉是冒号）
+   *   - 'º' (U+00BA) → 右括号 '）'（视觉是右括号，常与序号组合）
+   *   - 'Å' (U+00C5) → 中文问号 '？'（视觉是问号）
+   *   - 'J' (U+004A) → 中文冒号 '：'（视觉是冒号；注意冒号后常跟左单引号『'』或序号『（一）』，
+     那些是独立字符，勿与 J 混淆——2026-09-14 视觉确认 6 处 J 均为冒号）
+   *   - ':' (U+003A) → 中文分号 '；'（视觉是分号——2026-09-14 视觉确认 14 处 : 均为
+     "上圆点+下逗号尾"的分号形态，无一例外；本 PDF 半角标点仅此一种）
+   *   - 控制字符 \x81 \x85 \x93 → 删除
+   *
+   * 注意：
+   *   - 转换以“页面是否含 CJK”为守卫：仅中文书页（页面内存在 CJK/部首字符）才做全局替换，
+   *     纯英文页完全不动，避免误伤正常使用 + / V / J 的文档
+   *   - 康熙部首用 String.prototype.normalize('NFKC') 归一化即可映射回对应汉字
+   *   - 具体字符映射与视觉确认见 .temp/locate_specials.py 与视觉验证
+   */
+  var _REFLOW_CHAR_MAP = {
+    '+': '\uFF0C',  // ，
+    'V': '\uFF1A',  // ：
+    'º': '\uFF09',  // ）
+    'Å': '\uFF1F',  // ？
+    'J': '\uFF1A',  // ：（2026-09-14 视觉确认：6 处 J 均为冒号，非左括号）
+    ':': '\uFF1B'   // ；（2026-09-14 视觉确认：14 处 : 均为分号，非冒号）
+  };
+
+  /**
+   * 补充部首区（U+2E80-2EFF）中与简体汉字同形、但 NFKC 不转换的字符映射表。
+   * 康熙部首（U+2F00-2FD5）单字符 NFKC 可直接转出对应汉字，无需进表；
+   * NFKC 能转的补充部首（⺟ U+2E9F→母、⻳ U+2EF3→龟）也无需进表；
+   * 偏旁形字符（⺅⺆⻌⻏⻐⻠ 等不独立成字）无标准对应，保留原样。
+   * 注：⻭/⻮ 均为「齿」（J/C 两种简化来源），⻯/⻰ 均为「龙」，⻲ 为「龟」。
+   */
+  var _RADICALS_MAP = {
+    '\u2EA0': '\u6C11', // ⺠ → 民
+    '\u2EC4': '\u897F', // ⻄ → 西
+    '\u2EC5': '\u89C1', // ⻅ → 见
+    '\u2EC6': '\u89D2', // ⻆ → 角
+    '\u2EC9': '\u8D1D', // ⻉ → 贝
+    '\u2ECB': '\u8F66', // ⻋ → 车
+    '\u2ED3': '\u957F', // ⻓ → 长
+    '\u2ED4': '\u95E8', // ⻔ → 门
+    '\u2ED7': '\u96E8', // ⻗ → 雨
+    '\u2ED8': '\u9752', // ⻘ → 青
+    '\u2ED9': '\u97E6', // ⻙ → 韦
+    '\u2EDA': '\u9875', // ⻚ → 页
+    '\u2EDB': '\u98CE', // ⻛ → 风
+    '\u2EDC': '\u98DE', // ⻜ → 飞
+    '\u2EDD': '\u98DF', // ⻝ → 食
+    '\u2EE2': '\u9A6C', // ⻢ → 马
+    '\u2EE4': '\u9B3C', // ⻤ → 鬼
+    '\u2EE5': '\u9C7C', // ⻥ → 鱼
+    '\u2EE6': '\u9E1F', // ⻦ → 鸟
+    '\u2EE7': '\u5364', // ⻧ → 卤
+    '\u2EE8': '\u9EA6', // ⻨ → 麦
+    '\u2EE9': '\u9EC4', // ⻩ → 黄
+    '\u2EEA': '\u9EE4', // ⻪ → 黾
+    '\u2EEC': '\u9F50', // ⻬ → 齐
+    '\u2EED': '\u9F7F', // ⻭ → 齿
+    '\u2EEE': '\u9F7F', // ⻮ → 齿
+    '\u2EEF': '\u9F99', // ⻯ → 龙
+    '\u2EF0': '\u9F99', // ⻰ → 龙
+    '\u2EF2': '\u9F9F'  // ⻲ → 龟
+  };
+
+  function _normalizeTextItems(items) {
+    // 页面级 CJK 判定：只要任一 item 含 CJK，视为中文书页（整页启用错码替换）
+    var hasCJK = false;
+    for (var i = 0; i < items.length; i++) {
+      var s = items[i] && items[i].str;
+      if (typeof s === 'string' && s.length) {
+        for (var j = 0; j < s.length; j++) {
+          if (_isCJK(s.charAt(j))) { hasCJK = true; break; }
+        }
+        if (hasCJK) break;
+      }
+    }
+    return items.map(function (item) {
+      if (!item || typeof item.str !== 'string') return item;
+      item.str = _normalizeChars(item.str, hasCJK);
+      return item;
+    });
+  }
+
+  function _normalizeChars(str, hasCJK) {
+    // 1) 删除控制字符垃圾（\x81 \x85 \x93 等）—— 任何页面都执行
+    str = str.replace(/[\u0081\u0085\u0093]/g, '');
+    // 2) 中文书页：错码单字符替换。
+    //    逐 item 处理时左右邻可能在别的 item 里，不能依赖左右邻判定，
+    //    因此以「页面含 CJK」为守卫，页内所有 +/-/V/º/Å/J 一律替换
+    if (hasCJK) {
+      str = str.replace(/[+VºÅJ:]/g, function (ch) {
+        return _REFLOW_CHAR_MAP[ch] || ch;
+      });
+    }
+    // 3) 部首区字符 → 对应汉字（逐字符处理，任何页面都执行）
+    //    注意：不能对整串做 NFKC——会把全角标点 ，：？！（） 折叠成半角，
+    //    也会把 º 变成 o，破坏正常中文 PDF 的排版。
+    //    顺序：先查手写表（补充部首 NFKC 盲区），再对单字符 NFKC（康熙部首可转），
+    //    都转不了的偏旁形字符保留原样。
+    str = str.replace(/[\u2E80-\u2EFF\u2F00-\u2FDF]/g, function (ch) {
+      var mapped = _RADICALS_MAP[ch];
+      if (mapped) return mapped;
+      var n = ch.normalize('NFKC');
+      return n !== ch ? n : ch;
+    });
+    return str;
   }
 
   /**
@@ -489,7 +603,8 @@
     // Bug#15b: 移除 CJK 字符之间的多余空格
     // pdf.js 有时在单个 item 的 str 内部也包含 CJK 间空格（如 "神聖 經"）
     // 使用 lookahead 避免连续 CJK+空格模式下遗漏中间空格
-    text = text.replace(/([\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])\s+(?=[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])/g, '$1');
+    // 覆盖：CJK Unified / Ext A / 部首区（康熙部首 + 补充部首）
+    text = text.replace(/([\u2E80-\u2EFF\u2F00-\u2FDF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])\s+(?=[\u2E80-\u2EFF\u2F00-\u2FDF\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF])/g, '$1');
 
     return text;
   }
@@ -500,7 +615,8 @@
            (code >= 0x3400 && code <= 0x4DBF) ||  // CJK Extension A
            (code >= 0x3000 && code <= 0x303F) ||  // CJK Symbols
            (code >= 0xFF00 && code <= 0xFFEF) ||  // Fullwidth
-           (code >= 0x2E80 && code <= 0x2EFF);    // CJK Radicals
+           (code >= 0x2E80 && code <= 0x2EFF) ||  // CJK Radicals Supplement
+           (code >= 0x2F00 && code <= 0x2FDF);    // Kangxi Radicals
   }
 
   /**
