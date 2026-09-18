@@ -959,7 +959,12 @@
         var statusEl=document.getElementById('bkInstallStatus');
         var progressBar=document.getElementById('bkInstallProgressBar');
         var retryBtn=document.getElementById('bkInstallRetry');
+        // ★ 取消标志：update 模式下用户点"稍后再说"后置 true，
+        //   中止后台 Promise 链（不 SKIP_WAITING、不 reload、不回调 onComplete），
+        //   防止"以为取消了更新，结果缓存完成后仍被强制刷新到新版本"。
+        var cancelled=false;
         function doInstall(){
+            cancelled=false;
             if(retryBtn)retryBtn.style.display='none';
             if(progressBar)progressBar.style.width='0%';
             if(statusEl)statusEl.textContent='开始缓存资源...';
@@ -969,12 +974,14 @@
                 if(progressBar)progressBar.style.width=pct+'%';
                 if(statusEl)statusEl.textContent='缓存资源：'+pct+'% ('+done+'/'+total+')…';
             }, targetVersion).then(function(res){
+                if(cancelled)return;
                 if(progressBar)progressBar.style.width='100%';
                 if(statusEl)statusEl.textContent='✓ 下载完成，正在验证...';
                 return verifyCacheIntegrity(targetVersion).then(function(result){
                     return {res: res, result: result};
                 });
             }).then(function(data){
+                if(cancelled)return;
                 var result=data.result;
                 if(result.ok){
                     if(onComplete){
@@ -984,13 +991,14 @@
                         if(statusEl)statusEl.textContent='✅ 缓存完整，即将完成...';
                         if(progressBar)progressBar.style.width='100%';
                         setTimeout(function(){
+                            if(cancelled)return;
                             closeInstall();
                             if(onComplete) onComplete();
                         },800);
                     }else{
                         if(statusEl)statusEl.textContent='✅ 缓存完整，即将重载...';
                         if(progressBar)progressBar.style.width='100%';
-                        setTimeout(function(){window.location.reload();},1200);
+                        setTimeout(function(){if(cancelled)return;window.location.reload();},1200);
                     }
                 }else{
                     // 缓存不完整时不删旧桶，用户可重试
@@ -1003,13 +1011,14 @@
                     if(statusEl){statusEl.textContent=msg;statusEl.style.whiteSpace='pre-line';}
                     if(retryBtn)retryBtn.style.display='block';
                 }
-            }).catch(function(err){if(statusEl)statusEl.textContent='\u26A0 出错\uff1a'+(err&&err.message||'未知')+'\uff0c请重试';if(retryBtn)retryBtn.style.display='block';});
+            }).catch(function(err){if(cancelled)return;if(statusEl)statusEl.textContent='\u26A0 出错\uff1a'+(err&&err.message||'未知')+'\uff0c请重试';if(retryBtn)retryBtn.style.display='block';});
         }
         if(retryBtn)retryBtn.addEventListener('click',doInstall);
         var laterBtn=document.getElementById('bkInstallLater');
-        if(laterBtn)laterBtn.addEventListener('click',function(){closeInstall();});
-        // update 模式：不自动执行，等用户选择"更新"或"稍后"
-        if(mode!=='update') doInstall();
+        if(laterBtn)laterBtn.addEventListener('click',function(){cancelled=true;closeInstall();});
+        // 无论是首次安装还是更新，都自动开始缓存
+        // （update 模式下用户已在更新对话框中确认"立即更新"，无需再手动点"重试"）
+        doInstall();
     }
     window.showMandatoryInstallDialog=showMandatoryInstallDialog;
 

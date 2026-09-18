@@ -709,6 +709,12 @@
               self._addSearchHistory(self._currentQuery);
             }
 
+            // ★ 对齐书城「点开即入架」语义（renderer-city.js:715）：
+            // 搜索点开的书同样自动加入书架。add 幂等，重复点开无副作用。
+            if (bookId && win.BKShelf && win.BKShelf.add) {
+              try { win.BKShelf.add(bookId); } catch (e) {}
+            }
+
             function doNavigate() {
               if (win.BKRouter) {
                 // 检查阅读进度，有进度则直接跳转到上次阅读的章节
@@ -803,6 +809,12 @@
             // ★ 搜索历史：点击书名分组标题时才保存
             if (self._currentQuery && self._currentQuery.trim()) {
               self._addSearchHistory(self._currentQuery);
+            }
+
+            // ★ 对齐书城「点开即入架」语义（renderer-city.js:715）：
+            // 搜索点开的书同样自动加入书架。add 幂等，重复点开无副作用。
+            if (bookId && win.BKShelf && win.BKShelf.add) {
+              try { win.BKShelf.add(bookId); } catch (e) {}
             }
 
             function doNavigate() {
