@@ -139,11 +139,12 @@
 .scripture-popup-verse { display: flex; align-items: baseline; margin-bottom: 14px; line-height: 1.9; }
 .scripture-popup-verse:last-child { margin-bottom: 0; }
 .scripture-popup-ref { flex-shrink: 0; font-size: 0.82em; color: var(--text-muted, #9A958C); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
-.scripture-popup-text { flex: 1; font-size: var(--text-lg); color: var(--text, #1A1918); }
+/* 正文类内容跟随阅读设置字体/字号（theme-toggle.js 运行时变量） */
+.scripture-popup-text { flex: 1; font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); color: var(--text, #1A1918); }
 .scripture-popup-verse--missing .scripture-popup-text { color: var(--text-muted, #9A958C); font-style: italic; }
 .scripture-popup-empty { color: var(--text-muted, #9A958C); text-align: center; padding: 24px 0; font-size: var(--text-md); }
 .scripture-popup-loading { color: var(--text-muted, #9A958C); text-align: center; padding: 28px 0; font-size: var(--text-md); min-height: 80px; }
-.scripture-popup-fn-body { font-size: var(--text-xl); color: var(--text, #1A1918); line-height: 1.9; text-align: justify; }
+.scripture-popup-fn-body { font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); color: var(--text, #1A1918); line-height: 1.9; text-align: justify; }
 .scripture-popup-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border, #E5E2DD); }
 .scripture-popup-back {
   width: 28px; height: 28px; border: none; background: none; cursor: pointer;
@@ -204,12 +205,12 @@
 .scripture-block {
   margin: 8px 0; padding: 10px 14px; background: rgba(var(--brand-rgb, 61,138,90),.06);
   border: 1px solid rgba(var(--brand-rgb, 61,138,90),.15); border-radius: var(--radius-md, 12px);
-  font-size: var(--text-lg); line-height: 1.85;
+  font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); line-height: 1.85;
 }
 .scripture-block .scripture-popup-verse { display: flex; align-items: baseline; margin-bottom: 6px; }
 .scripture-block .scripture-popup-verse:last-child { margin-bottom: 0; }
 .scripture-block .scripture-popup-ref { flex-shrink: 0; font-size: 0.82em; color: var(--text-muted, #9A958C); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
-.scripture-block .scripture-popup-text { flex: 1; color: var(--text, #1A1918); font-size: var(--text-lg); }
+.scripture-block .scripture-popup-text { flex: 1; color: var(--text, #1A1918); font-size: var(--reading-font-size, 16px); }
 .scripture-block-static {
   margin: 8px 0; padding: 10px 14px; background: rgba(var(--brand-rgb, 61,138,90),.06);
   border: 1px solid rgba(var(--brand-rgb, 61,138,90),.15); border-radius: var(--radius-md, 12px);

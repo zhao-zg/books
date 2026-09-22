@@ -6,6 +6,7 @@
  *   - 按阅读顺序重排为流式段落，适配移动端窄屏
  *   - 嵌入图片资源（文字与图混排）
  *   - 同步呈现高亮/下划线/删除线标注（百分比坐标 → Reflow DOM 映射）
+ *   - 同步呈现 PDF 原生标注（Highlight/Underline/StrikeOut，通过 rect 坐标提取文字）
  *   - 提供进入/退出 Reflow 视图的 DOM 构建与清理
  *
  * 依赖：pdf-state.js, pdf-core.js
@@ -18,6 +19,12 @@
  *   - 在 Reflow 文本中搜索对应文字段
  *   - 对匹配到的 <span> 标记添加对应颜色 class
  *   - 批注以 📝 行内图标呈现，点击弹出批注面板
+ *
+ *   PDF 原生标注（Highlight/Underline/StrikeOut）额外策略：
+ *   - 在文字提取阶段通过 page.getAnnotations() 预取标注信息
+ *   - 标注 rect 与 textContent transform 同为 PDF 用户空间坐标（Y 自底向上）
+ *   - 用 rect 范围匹配 textContent items，提取覆盖文字作为标注文本
+ *   - 转为与自绘标注相同的 { text, type, color, note, hlId } 格式合流渲染
  */
 (function (win) {
   'use strict';
@@ -37,6 +44,7 @@
   var _renderAborted = false;    // 渲染中止标志（exitReflowView 时置 true，阻止后续图片渲染）
   var _reflowRenderedUpTo = 0;  // 增量渲染：已渲染到第几页（1-based）
   var INCREMENTAL_BATCH = 10;    // 每批渲染页数
+  var _nativeAnnotsCache = {};   // pageNum → PDF 原生标注数组 [{ top, bottom, x1, x2, type, color, contents }]
 
   // ==================== 文字提取 ====================
 
@@ -62,16 +70,19 @@
           }).then(function (textContent) {
             // 同时提取页面操作符以获取图片信息
             return _extractPageImages(page, pageNum).then(function (images) {
-              pages.push({
-                pageNum: pageNum,
-                items: _normalizeTextItems(textContent.items || []),
-                styles: textContent.styles || {},
-                viewport: page.getViewport({ scale: 1.0 }),
-                images: images,
-                width: page.getViewport({ scale: 1.0 }).width,
-                height: page.getViewport({ scale: 1.0 }).height
+              // 同时预取 PDF 原生标注（Highlight/Underline/StrikeOut）
+              return _extractNativeAnnots(page, pageNum).then(function (annots) {
+                pages.push({
+                  pageNum: pageNum,
+                  items: _normalizeTextItems(textContent.items || []),
+                  styles: textContent.styles || {},
+                  viewport: page.getViewport({ scale: 1.0 }),
+                  images: images,
+                  width: page.getViewport({ scale: 1.0 }).width,
+                  height: page.getViewport({ scale: 1.0 }).height
+                });
+                return extractPage(pageNum + 1);
               });
-              return extractPage(pageNum + 1);
             });
           });
         });
@@ -278,7 +289,11 @@
    *   - P0-1: 多栏 PDF 用 XY-Cut 单层垂直切分，先左栏再右栏
    *   - P0-2: 标题层级识别（字号 modal 分析）
    *   - P1-2: 智能空格 + 孤行回退 + CJK 不拆字
-   * 策略：按 Y 坐标分行，Y 差距 > 阈值分段落
+   *   - F6-para: 缩进判段 —— 基于「首行缩进 X」判定段落起点，同段多行
+   *     合并进同一 div（Y-gap 判段对行距均一的 PDF 永远失效，导致逐行切段）
+   * 策略：
+   *   - 若页面缩进信号充足（自适应），按缩进判段并合并段落；
+   *   - 否则回退旧行为（Y-gap 判段，每行一个 div）
    */
   function _buildReflowHTML(pages) {
     var html = '';
@@ -308,40 +323,19 @@
       // 按 Y 坐标分组（行）
       var lines = _groupByLines(sortedItems, page.width, LINE_GAP_THRESHOLD);
 
+      // F6-para: 逐页自适应缩进分析——缩进信号充足才启用缩进判段 + 段落合并
+      var indentAnalysis = _analyzeIndentSignal(lines, modalSize);
+
       // 页码标记
       html += '<div class="bk-pdf-reflow-page-divider" data-reflow-page="' + page.pageNum + '">';
       html += '<span class="bk-pdf-reflow-page-num">P' + S.getDisplayPageLabel(page.pageNum) + '</span>';
       html += '</div>';
 
       // 渲染段落
-      for (var l = 0; l < lines.length; l++) {
-        var line = lines[l];
-        var text = _mergeLineText(line);
-        if (!text.trim()) continue;
-
-        // P1-2: 孤行回退——若一个段落最后一行只有 1-2 个字符，合并到上一行
-        if (l > 0 && text.length <= 2 && _isCJK(text.charAt(0))) {
-          // 修改上一段的 HTML 较复杂，这里采用简化策略：不渲染太短的末行
-          // （这会丢失少量信息，但避免「单字成行」视觉问题）
-          // 实际上 PDF 中孤行通常是段落末尾，跳过渲染对内容理解影响微小
-          continue;
-        }
-
-        // 判断是否是段落开头（Y 间距大）
-        var isParagraphStart = line.isParagraphStart;
-
-        // P0-2: 标题层级识别
-        var headingClass = _detectHeading(line, modalSize);
-        if (headingClass) {
-          // 标题：不加段落文本缩进，加 h1/h2 class（data-reflow-page 用于 Reflow 标注选取定位页码）
-          html += '<div class="bk-pdf-reflow-' + headingClass + '" data-reflow-page="' + page.pageNum + '">';
-          html += _buildAnnotatedSpan(line, page.pageNum);
-          html += '</div>';
-        } else {
-          html += '<div class="bk-pdf-reflow-para' + (isParagraphStart ? ' bk-pdf-reflow-para-start' : '') + '" data-reflow-page="' + page.pageNum + '">';
-          html += _buildAnnotatedSpan(line, page.pageNum);
-          html += '</div>';
-        }
+      if (indentAnalysis.enabled) {
+        html += _renderLinesAsParagraphs(lines, modalSize, indentAnalysis, page.pageNum);
+      } else {
+        html += _renderLinesFallback(lines, modalSize, page.pageNum);
       }
 
       // 页面图片（如有可用的）
@@ -355,6 +349,180 @@
       }
     }
 
+    return html;
+  }
+
+  /**
+   * F6-para: 逐页自适应缩进信号分析
+   * 统计每行「行首 X」（行内最小 transform[4]），取众数作为正文左边距 baseX；
+   * 行首 X > baseX + 缩进阈值 的行视为段首。
+   * 启用条件（缩进信号充足，避免对目录页/诗歌页/无缩进版式误判）：
+   *   1. 有效行数 >= 6
+   *   2. 缩进行数 >= 2 且占有效行比例 >= 10%
+   *   3. 众数行数 >= 有效行的 40%（保证 baseX 可信）
+   * @returns {{ enabled: boolean, baseX: number, indentThreshold: number }}
+   */
+  function _analyzeIndentSignal(lines, modalSize) {
+    var MIN_LINES = 6;
+    var result = { enabled: false, baseX: 0, indentThreshold: 0 };
+
+    // 统计行首 X 众数（量化到 1pt 减少浮点抖动）
+    var xCount = {};
+    var validLineCount = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var text = _mergeLineText(lines[i]);
+      if (!text.trim()) continue;
+      validLineCount++;
+      var minX = _lineStartX(lines[i]);
+      var key = Math.round(minX);
+      xCount[key] = (xCount[key] || 0) + 1;
+    }
+    if (validLineCount < MIN_LINES) return result;
+
+    // 找众数 X
+    var modalX = 0;
+    var modalCount = 0;
+    for (var key2 in xCount) {
+      if (xCount[key2] > modalCount) {
+        modalCount = xCount[key2];
+        modalX = parseFloat(key2);
+      }
+    }
+    if (modalCount < validLineCount * 0.4) return result;
+
+    // 缩进阈值：约 0.9 个字宽（modal 字号）。取 0.9 而非 0.5，
+    // 避免把换页抖动/项目符号微小偏移误判为段首；中文段首缩进通常为 2 字宽
+    var indentThreshold = Math.max(3, (modalSize || 12) * 0.9);
+
+    // 统计缩进行
+    var indentCount = 0;
+    for (var j = 0; j < lines.length; j++) {
+      var text2 = _mergeLineText(lines[j]);
+      if (!text2.trim()) continue;
+      if (_lineStartX(lines[j]) > modalX + indentThreshold) indentCount++;
+    }
+    if (indentCount < 2 || indentCount < validLineCount * 0.1) return result;
+
+    result.enabled = true;
+    result.baseX = modalX;
+    result.indentThreshold = indentThreshold;
+    return result;
+  }
+
+  /**
+   * F6-para: 取行首 X（行内最小 transform[4]，通常即该行第一个字符的 X）
+   */
+  function _lineStartX(line) {
+    if (!line || !line.items || !line.items.length) return 0;
+    var minX = Infinity;
+    for (var i = 0; i < line.items.length; i++) {
+      var it = line.items[i];
+      if (!it.str || !it.str.trim()) continue;
+      if (!it.transform || it.transform.length < 5) continue;
+      var x = it.transform[4];
+      if (x < minX) minX = x;
+    }
+    return isFinite(minX) ? minX : 0;
+  }
+
+  /**
+   * F6-para: 按缩进判段渲染——同段多行合并进一个段落 div
+   * 段首判定：行首 X > baseX + indentThreshold
+   * 标题（字号识别）与段首（缩进识别）独立工作：标题行自成一段；
+   * 孤行不再丢弃（合并进所属段落，修复内容丢失）。
+   * @param {Array} lines 行数组
+   * @param {number} modalSize 页面 modal 字号（用于标题识别）
+   * @param {{ baseX: number, indentThreshold: number }} analysis
+   * @param {number} pageNum
+   */
+  function _renderLinesAsParagraphs(lines, modalSize, analysis, pageNum) {
+    var html = '';
+    var paragraphs = []; // { line, isStart, headingClass }
+
+    for (var l = 0; l < lines.length; l++) {
+      var line = lines[l];
+      var text = _mergeLineText(line);
+      if (!text.trim()) continue;
+
+      var isParagraphStart = _lineStartX(line) > analysis.baseX + analysis.indentThreshold;
+      // 标题识别独立于缩进判段（字号 modal 分析）
+      var headingClass = _detectHeading(line, modalSize);
+
+      // 标题行：闭合当前段落，标题自成一段
+      if (headingClass) {
+        paragraphs.push({ line: line, isStart: true, headingClass: headingClass });
+        continue;
+      }
+
+      paragraphs.push({ line: line, isStart: isParagraphStart, headingClass: null });
+    }
+
+    // 渲染：合并连续非段首行进同一 div
+    var buf = [];
+    var bufMeta = null;
+    var flush = function () {
+      if (!buf.length) return;
+      if (bufMeta.headingClass) {
+        html += '<div class="bk-pdf-reflow-' + bufMeta.headingClass + '" data-reflow-page="' + pageNum + '">';
+        html += _buildAnnotatedSpan(bufMeta.line, pageNum);
+        html += '</div>';
+      } else {
+        html += '<div class="bk-pdf-reflow-para' + (bufMeta.isStart ? ' bk-pdf-reflow-para-start' : '') + '" data-reflow-page="' + pageNum + '">';
+        for (var b = 0; b < buf.length; b++) {
+          html += _buildAnnotatedSpan(buf[b], pageNum);
+        }
+        html += '</div>';
+      }
+      buf = [];
+      bufMeta = null;
+    };
+
+    for (var q = 0; q < paragraphs.length; q++) {
+      var entry = paragraphs[q];
+      // 标题或新段首：先 flush 当前缓冲
+      if (entry.headingClass || entry.isStart) {
+        flush();
+        bufMeta = entry;
+        buf = [entry.line];
+      } else {
+        // 非段首行：若当前缓冲是标题行，先 flush 标题（标题不能粘正文）
+        if (bufMeta && bufMeta.headingClass) flush();
+        if (!bufMeta) {
+          bufMeta = { isStart: false, headingClass: null };
+        }
+        buf.push(entry.line);
+      }
+    }
+    flush();
+
+    return html;
+  }
+
+  /**
+   * 旧行为回退：Y-gap 判段（indentAnalysis.enabled 为 false 时使用）
+   * 与原实现一致，但修复孤行吞字问题（不再丢弃短末行）
+   */
+  function _renderLinesFallback(lines, modalSize, pageNum) {
+    var html = '';
+    for (var l = 0; l < lines.length; l++) {
+      var line = lines[l];
+      var text = _mergeLineText(line);
+      if (!text.trim()) continue;
+
+      // 原孤行回退逻辑已移除：单字末行不再被丢弃（避免内容丢失），
+      // 与上一行同段（isParagraphStart=false），自然并入前段
+      var isParagraphStart = line.isParagraphStart;
+      var headingClass = _detectHeading(line, modalSize);
+      if (headingClass) {
+        html += '<div class="bk-pdf-reflow-' + headingClass + '" data-reflow-page="' + pageNum + '">';
+        html += _buildAnnotatedSpan(line, pageNum);
+        html += '</div>';
+      } else {
+        html += '<div class="bk-pdf-reflow-para' + (isParagraphStart ? ' bk-pdf-reflow-para-start' : '') + '" data-reflow-page="' + pageNum + '">';
+        html += _buildAnnotatedSpan(line, pageNum);
+        html += '</div>';
+      }
+    }
     return html;
   }
 
@@ -620,6 +788,134 @@
   }
 
   /**
+   * 预取 PDF 原生标注（Highlight/Underline/StrikeOut）
+   * rect 与 textContent transform 同为 PDF 用户空间坐标（Y 自底向上），无需翻 Y
+   * @returns {Promise<Array>} 标注数组 [{ top, bottom, x1, x2, type, color, contents }]
+   */
+  function _extractNativeAnnots(page, pageNum) {
+    if (!page.getAnnotations) return Promise.resolve([]);
+    return page.getAnnotations({ intent: 'display' }).then(function (annots) {
+      var result = [];
+      if (!annots || !annots.length) return result;
+      for (var i = 0; i < annots.length; i++) {
+        var a = annots[i];
+        var subtype = a.subtype;
+        if (subtype !== 'Highlight' && subtype !== 'Underline' && subtype !== 'StrikeOut') continue;
+        var rect = a.rect;
+        if (!rect || rect.length < 4) continue;
+        var type = subtype === 'Highlight' ? 'highlight' : (subtype === 'Underline' ? 'underline' : 'strikethrough');
+        var color = _mapNativeColor(a.color || []);
+        result.push({
+          top: rect[3],
+          bottom: rect[1],
+          x1: rect[0],
+          x2: rect[2],
+          type: type,
+          color: color,
+          contents: a.contents || ''
+        });
+      }
+      _nativeAnnotsCache[pageNum] = result;
+      return result;
+    }).catch(function () { return []; });
+  }
+
+  /**
+   * 将 PDF 标注 RGB 数组映射到项目五色之一
+   * 五色精确值（css-pdf.css）：yellow #D4A843(212,168,67)、green #5E9E6F(94,158,111)、
+   * blue #5A8BA8(90,139,168)、pink #C4787A(196,120,122)、orange #C4854A(196,133,74)
+   */
+  function _mapNativeColor(rgb) {
+    // pdf.js 返回的 color 可能是数组 [r,g,b] 或类数组对象 {0:r,1:g,2:b}
+    // 值域 0-255（非 0-1）
+    if (!rgb) return 'yellow';
+    var r = rgb[0], g = rgb[1], b = rgb[2];
+    if (r === undefined) r = rgb['0'];
+    if (g === undefined) g = rgb['1'];
+    if (b === undefined) b = rgb['2'];
+    if (r === undefined || g === undefined || b === undefined) return 'yellow';
+    r = Math.round(r); g = Math.round(g); b = Math.round(b);
+    var palette = [
+      { name: 'yellow',  r: 212, g: 168, b: 67 },
+      { name: 'green',   r: 94,  g: 158, b: 111 },
+      { name: 'blue',    r: 90,  g: 139, b: 168 },
+      { name: 'pink',    r: 196, g: 120, b: 122 },
+      { name: 'orange',  r: 196, g: 133, b: 74 }
+    ];
+    var best = 'yellow';
+    var bestDist = Infinity;
+    for (var i = 0; i < palette.length; i++) {
+      var p = palette[i];
+      var dr = r - p.r, dg = g - p.g, db = b - p.b;
+      var dist = dr * dr + dg * dg + db * db;
+      if (dist < bestDist) { bestDist = dist; best = p.name; }
+    }
+    return best;
+  }
+
+  /**
+   * 从页面 items 中提取被原生标注覆盖的文字
+   * rect 与 transform 同为 PDF 用户空间坐标
+   * @param {Array} items 页面 textContent items（已 normalize）
+   * @param {Object} annot { top, bottom, x1, x2, type, color, contents }
+   * @returns {string} 被标注覆盖的文字
+   */
+  function _extractAnnotText(items, annot) {
+    var tolerance = 4; // 坐标容差（pt）
+    var covered = [];
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item || !item.str || !item.transform || item.transform.length < 6) continue;
+      var itemY = item.transform[5];
+      var itemX = item.transform[4];
+      var itemW = item.width || 0;
+      // Y 范围判断：item baseline 在标注 rect 的 Y 范围内（容差）
+      if (itemY > annot.top + tolerance || itemY < annot.bottom - tolerance) continue;
+      // X 范围判断：item 与标注 rect 有重叠
+      var itemXEnd = itemX + itemW;
+      if (itemXEnd <= annot.x1 || itemX >= annot.x2) continue;
+      covered.push(item);
+    }
+    if (!covered.length) return '';
+    // 按 X 坐标排序
+    covered.sort(function (a, b) { return a.transform[4] - b.transform[4]; });
+    // 拼接文字（trim 每个 item，CJK 间不加空格）
+    var text = '';
+    for (var j = 0; j < covered.length; j++) {
+      var s = (covered[j].str || '').replace(/^\s+|\s+$/g, '');
+      text += s;
+    }
+    return text.trim();
+  }
+
+  /**
+   * 获取当前页的合流标注（自绘 + 原生）
+   * 自绘标注先到先得（优先级高），原生标注补在尾部
+   * @returns {Array} 合流后的标注数组 [{ text, type, color, note, id }]
+   */
+  function _getMergedHighlights(bookId, pageNum, pageData) {
+    var highlights = S.highlightsByPage(bookId, pageNum) || [];
+    var nativeAnnots = _nativeAnnotsCache[pageNum];
+    if (!nativeAnnots || !nativeAnnots.length) return highlights;
+    // 从页面 items 提取原生标注文字
+    var items = pageData ? pageData.items : null;
+    if (!items) return highlights;
+    for (var i = 0; i < nativeAnnots.length; i++) {
+      var na = nativeAnnots[i];
+      var naText = _extractAnnotText(items, na);
+      if (!naText) continue;
+      highlights = highlights.concat([{
+        text: naText,
+        type: na.type,
+        color: na.color,
+        note: na.contents || '',
+        id: 'native_p' + pageNum + '_' + i
+      }]);
+    }
+    return highlights;
+  }
+
+  /**
    * 构建带标注的行 HTML
    * 策略：将整行文字包裹在 <span> 中，通过文本匹配查找标注并分段着色
    */
@@ -628,8 +924,12 @@
     var bookId = S.currentBookId();
     if (!bookId) return S.escText(fullText);
 
-    // 获取当前页的标注
-    var highlights = S.highlightsByPage(bookId, pageNum);
+    // 获取当前页的合流标注（自绘 + PDF 原生）
+    var pageData = null;
+    for (var pd = 0; pd < _reflowPages.length; pd++) {
+      if (_reflowPages[pd].pageNum === pageNum) { pageData = _reflowPages[pd]; break; }
+    }
+    var highlights = _getMergedHighlights(bookId, pageNum, pageData);
     if (!highlights || !highlights.length) {
       return S.escText(fullText);
     }
@@ -727,6 +1027,7 @@
     _reflowBookId = bookId;
     _isLoading = true;
     _textLayerCache = {};
+    _nativeAnnotsCache = {};
     _renderAborted = false; // 重置中止标志（上次 exitReflowView 可能设为 true）
     _reflowRenderedUpTo = 0;
 
@@ -834,6 +1135,7 @@
     _reflowBookId = null;
     _reflowPages = [];
     _textLayerCache = {};
+    _nativeAnnotsCache = {};
   }
 
   // ==================== 图片渲染 ====================

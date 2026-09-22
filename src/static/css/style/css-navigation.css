@@ -7,7 +7,7 @@
 .bk-float-nav-link:active { background: var(--nav-hover); transform: translateY(-50%) scale(0.9); }
 .bk-float-nav-link.bk-float-disabled { opacity: 0.25; pointer-events: none; }
 .bk-float-nav-settings { display: none; }
-.bk-float-title { flex: 1; min-width: 0; text-align: center; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--text, #1A1918); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; padding: 0 4px 0 52px; }
+.bk-float-title { flex: 1; min-width: 0; text-align: center; font-size: var(--text-lg, 16px); font-weight: 600; color: var(--text, #1A1918); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; padding: 0 4px 0 52px; }
 .bk-float-play-btn { color: var(--brand, #3D8A5A); border: none; background: transparent; cursor: pointer; padding: 0; }
 .bk-float-play-btn .bk-pause-icon { display: none; }
 .bk-float-play-btn.bk-playing .bk-play-icon { display: none; }
@@ -40,7 +40,7 @@ body.bk-pdf-reading .bk-float-nav,
 body:has(.bk-pdf-mode) .bk-float-bottom,
 body.bk-pdf-reading .bk-float-bottom { display: none !important; }
 .bk-float-tts-bar .bottom-control-bar { flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; border-radius: 16px; border: 1px solid var(--border, #E5E2DD); box-shadow: var(--shadow-card, 0 2px 8px rgba(60,40,10,.06)); background: var(--card-bg, #fff); -webkit-backdrop-filter: none; backdrop-filter: none; padding: 10px 14px; }
-.bk-float-tts-bar .tts-title { flex-basis: 100%; font-size: var(--text-sm, 0.875rem); font-weight: 600; color: var(--brand, #3D8A5A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+.bk-float-tts-bar .tts-title { flex-basis: 100%; font-size: var(--text-lg, 16px); font-weight: 600; color: var(--brand, #3D8A5A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 [data-theme="dark"] .bk-float-tts-bar .bottom-control-bar { background: var(--card-bg, #201F1D); border-color: var(--border, #34322E); }
 
 /* ── 常驻底部 4-Tab 导航栏（bottom-tab-bar.js） ──────────────── */

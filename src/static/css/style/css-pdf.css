@@ -490,7 +490,7 @@
 }
 
 .bk-pdf-tb-page-label {
-  font-size: 13px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   font-weight: 500;
@@ -597,7 +597,7 @@
 
 .bk-pdf-bottom-bar .bk-pdf-zoom-value {
   min-width: 44px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* ── 9. 缩略图导航条（底部弹出）────────────────────────────────── */
@@ -1753,7 +1753,7 @@ body.bk-pdf-night .bk-pdf-note-panel {
   }
 
   .bk-pdf-tb-page-label {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .bk-pdf-tb-btn-group {
@@ -1803,7 +1803,7 @@ body.bk-pdf-night .bk-pdf-note-panel {
   }
 
   .bk-pdf-tb-page-label {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   /* 桌面端缩略图更大 */

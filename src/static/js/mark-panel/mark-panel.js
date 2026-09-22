@@ -22,6 +22,7 @@
         _autoCloseTimer: null,
         _bookTitle: '',
         _dirtyTabs: { toc: true, bookmark: true, mark: true },
+        _inBackStack: false,  // 面板是否已推入 BK.backStack（防重复 push / 双重消耗）
         _scrollCleanup: null,  // lockOverlayScroll 的 cleanup 函数
         _lastBookId: '',  // 记录最近一次面板感知的书籍 ID，用于切换书籍时重置目录/标记缓存
         _lastChapterNum: 0,  // 记录最近一次感知的章节号，用于切章后刷新目录高亮
@@ -72,8 +73,13 @@
             MarkPanel._closePdfDrawers();
 
             // 推入 backStack（系统返回键关闭面板）
-            if (win.BKBackStack && win.BKBackStack.push) {
-                win.BKBackStack.push(function () { MarkPanel.close(); });
+            // 注意：正确挂载点是 win.BK.backStack（back-stack.js），不是 win.BKBackStack
+            if (!MarkPanel._inBackStack && win.BK.backStack && win.BK.backStack.push) {
+                MarkPanel._inBackStack = true;
+                win.BK.backStack.push(function () {
+                    MarkPanel._inBackStack = false;  // 先复位标志再关，防 close 内重复 discard
+                    MarkPanel.close();
+                });
             }
 
             // ESC 键关闭
@@ -85,8 +91,11 @@
 
         /**
          * 关闭面板
+         * @param {Object} [opts]
+         * @param {boolean} [opts.navigate] - 跳转后关闭时传 true：仅弹回调（silentPop），
+         *   不消耗历史条目（路由 navigate 已接管历史）；主动关闭则 discard 消耗条目
          */
-        close: function () {
+        close: function (opts) {
             if (!MarkPanel._isOpen) return;
             MarkPanel._isOpen = false;
 
@@ -103,9 +112,18 @@
                 MarkPanel._autoCloseTimer = null;
             }
 
-            // 退出 backStack（仅弹出回调，不触发 history.back）
-            if (win.BKBackStack && win.BKBackStack.silentPop) {
-                win.BKBackStack.silentPop();
+            // 退出 backStack
+            // - 返回键路径：push 回调已先复位 _inBackStack，此处不成立，不会重复操作
+            // - 主动关闭（遮罩/ESC/autoClose/toggle/互斥）→ discard()：弹回调并消耗历史条目，
+            //   避免留孤儿条目导致下次按返回键误触 fallback（退出阅读页）
+            // - 跳转后关闭 → opts.navigate + silentPop()：仅弹回调，历史已由路由接管
+            if (MarkPanel._inBackStack && win.BK.backStack) {
+                MarkPanel._inBackStack = false;
+                if (opts && opts.navigate && win.BK.backStack.silentPop) {
+                    win.BK.backStack.silentPop();
+                } else if (win.BK.backStack.discard) {
+                    win.BK.backStack.discard();
+                }
             }
         },
 
@@ -462,7 +480,7 @@
                 row.addEventListener('click', function (e) {
                     if (e.target === toggle || (e.target.closest && e.target.closest('.bk-mp-toc-toggle'))) return;
                     MarkPanel._adapter.toc.navigate(item);
-                    MarkPanel.close();
+                    MarkPanel.close({ navigate: true });
                 });
 
                 // 点击展开箭头 → 加载/切换纲目子列表
@@ -509,7 +527,7 @@
 
                 row.addEventListener('click', function () {
                     MarkPanel._adapter.toc.navigate(item);
-                    MarkPanel.close();
+                    MarkPanel.close({ navigate: true });
                     // 跳转后延迟刷新目录高亮
                     setTimeout(function () { MarkPanel.markDirty('toc'); MarkPanel._loadTabData('toc'); }, 300);
                 });
@@ -636,7 +654,7 @@
 
                     subLi.addEventListener('click', function () {
                         MarkPanel._adapter.toc.navigateOutline(bookId, chapterNum, outline.index);
-                        MarkPanel.close();
+                        MarkPanel.close({ navigate: true });
                     });
 
                     sub.appendChild(subLi);
@@ -694,7 +712,7 @@
                     emptyText: '暂无书签',
                     onNavigate: function (item) {
                         adapter.navigate(item);
-                        MarkPanel.close();
+                        MarkPanel.close({ navigate: true });
                     },
                     onDelete: function (item, li) {
                         if (li._deleting) return;
@@ -954,7 +972,7 @@
                 emptyText: '暂无标记',
                 onNavigate: function (item) {
                     adapter.navigate(item);
-                    MarkPanel.close();
+                    MarkPanel.close({ navigate: true });
                 },
                 onDelete: function (item, li) {
                     if (li._deleting) return;
