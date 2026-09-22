@@ -1,0 +1,37 @@
+[
+  {
+    "prefix": "1",
+    "name": "福音类",
+    "count": 70
+  },
+  {
+    "prefix": "2",
+    "name": "造就类",
+    "count": 359
+  },
+  {
+    "prefix": "3",
+    "name": "教会与事奉类",
+    "count": 172
+  },
+  {
+    "prefix": "4",
+    "name": "读经类",
+    "count": 42
+  },
+  {
+    "prefix": "5",
+    "name": "传记文集类",
+    "count": 5
+  },
+  {
+    "prefix": "7",
+    "name": "代售及期刊类",
+    "count": 20
+  },
+  {
+    "prefix": "8",
+    "name": "其他类",
+    "count": 9
+  }
+]

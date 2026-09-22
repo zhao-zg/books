@@ -1,0 +1,641 @@
+﻿'use strict';
+
+  // ── 通用片段：底部控制栏（TTS） ──────────────────────────────────────
+
+  function buildBottomControlBar() {
+    return '' +
+      '<div class="bottom-control-bar" id="bottomControlBar" style="display:none;">' +
+        '<button class="control-btn play-pause-btn" id="playPauseBtn" title="播放/暂停" aria-label="播放">' +
+          '<span class="play-icon">▶</span>' +
+          '<span class="pause-icon" style="display:none;">⏸</span>' +
+        '</button>' +
+        '<div class="progress-section">' +
+          '<div class="progress-column">' +
+            '<input type="range" id="progressBar" class="progress-bar" min="0" max="100" value="0" step="0.1">' +
+            '<span class="speech-time" id="speechTime">00:00 / 00:00</span>' +
+          '</div>' +
+          '<select id="rateSelect" class="control-select" title="语速">' +
+            '<option value="0.5">0.5x</option>' +
+            '<option value="0.75">0.75x</option>' +
+            '<option value="1" selected>1x</option>' +
+            '<option value="1.25">1.25x</option>' +
+            '<option value="1.5">1.5x</option>' +
+            '<option value="2">2x</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── Content → HTML 渲染 ──────────────────────────────────────────────
+
+  function renderContentItem(item, ctx, eager) {
+    if (!item) return '';
+    var type = item.type || 'paragraph';
+    var text = item.text || '';
+    var html = '';
+
+    switch (type) {
+      case 'heading':
+        var level = item.level || 2;
+        level = Math.max(1, Math.min(6, level));
+        var hStyleAttr = item.style ? ' style="' + escAttr(item.style) + '"' : '';
+        var hCls = 'bk-heading bk-h' + level;
+        if (item.epubClass) hCls += ' bk-epub-' + item.epubClass;
+        html = '<h' + level + ' class="' + hCls + '"' + hStyleAttr + '>' +
+          (item.html ? wrapRefsRich(item.html, ctx) : wrapRefs(text, ctx)) + '</h' + level + '>';
+        break;
+
+      case 'quote':
+        var qStyleAttr = item.style ? ' style="' + escAttr(item.style) + '"' : '';
+        var qCls = 'bk-quote';
+        if (item.epubClass) qCls += ' bk-epub-' + item.epubClass;
+        html = '<blockquote class="' + qCls + '"' + qStyleAttr + '>' +
+          '<div class="bk-quote-content">' +
+          (item.html ? wrapRefsRich(item.html, ctx) : wrapRefs(text, ctx)) + '</div>' +
+          '</blockquote>';
+        break;
+
+      case 'image':
+        var src = item.src || '';
+        var alt = item.attrs && item.attrs.alt || '';
+        // 图片链接：[![alt](img)](href) 模式，图片可点击跳转
+        var imgLinkUrl = item.linkUrl || '';
+        // 预览页（carousel prev/next）需要立即加载图片，否则滑动时视口外图片因 lazy 未加载而显示空白
+        var imgLoading = eager ? 'eager' : 'lazy';
+        var imgTag = '<img src="' + escAttr(src) + '" alt="' + escAttr(alt || text) + '" loading="' + imgLoading + '">';
+        html = '<figure class="bk-figure">' +
+          (imgLinkUrl ? '<a href="' + escAttr(imgLinkUrl) + '" target="_blank" rel="noopener noreferrer">' + imgTag + '</a>' : imgTag) +
+          (text ? '<figcaption>' + escText(text) + '</figcaption>' : '') +
+          '</figure>';
+        break;
+
+      case 'list':
+        var items = item.items || [];
+        var itemHtmls = item.itemHtmls || [];
+        var ordered = item.attrs && item.attrs.ordered;
+        var checkboxes = item.checkboxes || null;
+        var tag = ordered ? 'ol' : 'ul';
+        html = '<' + tag + ' class="bk-list">';
+        for (var i = 0; i < items.length; i++) {
+          var liContent = (itemHtmls[i] != null) ? wrapRefsRich(itemHtmls[i], ctx) : wrapRefs(items[i], ctx);
+          // 任务列表：渲染 checkbox
+          var cbHtml = '';
+          if (checkboxes && i < checkboxes.length) {
+            cbHtml = '<input type="checkbox" class="bk-task-checkbox"' + (checkboxes[i] ? ' checked' : '') + ' disabled>';
+          }
+          html += '<li>' + cbHtml + liContent + '</li>';
+        }
+        html += '</' + tag + '>';
+        break;
+
+      case 'code':
+        var lang = (item.attrs && item.attrs.language) || '';
+        var codeInner = item.html || escText(text);
+        html = '<pre class="bk-code' + (lang ? ' language-' + escAttr(lang) : '') + ' hljs"><code' +
+          (lang ? ' class="language-' + escAttr(lang) + '"' : '') + '>' + codeInner + '</code></pre>';
+        break;
+
+      case 'mermaid':
+        html = '<div class="bk-mermaid"><pre class="mermaid">' + escText(text) + '</pre></div>';
+        break;
+
+      case 'math':
+        html = '<div class="bk-math">' + (item.html || escText(text)) + '</div>';
+        break;
+
+      case 'footnote_ref':
+        html = item.html || '';
+        break;
+
+      case 'footnotes_section':
+        // 兼容旧格式（html 直接渲染）和新格式（footnoteRefs 数组）
+        if (item.footnoteRefs && item.footnoteRefs.length) {
+          html = '<section class="bk-footnotes-section">';
+          html += '<h3 class="bk-footnotes-title">脚注</h3>';
+          for (var fnri = 0; fnri < item.footnoteRefs.length; fnri++) {
+            var fnr = item.footnoteRefs[fnri];
+            var fnrRawId = (fnr.attrs && fnr.attrs.id) || '';
+            var fnrDisplayNum = fnri + 1;
+            var fnrText = fnr.html || wrapRefs(fnr.text || '', ctx);
+            html += '<div class="bk-footnote" id="fn-' + escAttr(fnrRawId || String(fnrDisplayNum)) + '">';
+            html += '<span class="bk-fn-number">' + escText(String(fnrDisplayNum)) + '</span>';
+            html += '<div class="bk-fn-text">' + fnrText + '</div>';
+            html += '</div>';
+          }
+          html += '</section>';
+        } else {
+          html = '<section class="bk-footnotes-section">' + (item.html || '') + '</section>';
+        }
+        break;
+
+      case 'footnote':
+        var fnId = (item.attrs && item.attrs.id) || '';
+        html = '<div class="bk-footnote" id="fn-' + escAttr(fnId) + '">' +
+          '<span class="bk-fn-number">' + escText(fnId) + '</span>' +
+          '<div class="bk-fn-text">' + wrapRefs(text, ctx) + '</div>' +
+          '</div>';
+        break;
+
+      case 'pdf_page':
+        // 委托给 BKPdf 模块生成（含文本层/注解层容器）
+        if (win.BKPdf && win.BKPdf.generatePageHTML) {
+          html = win.BKPdf.generatePageHTML(item);
+        } else {
+          // 回退：BKPdf 尚未加载时生成骨架壳（与 S2 generatePageHTML 对齐）
+          var pgNum = item.pageNumber || 1;
+          var pdfBkId = item.pdfBookId || '';
+          html = '<div class="bk-pdf-page" data-pdf-page="' + pgNum + '" data-pdf-book="' + escAttr(pdfBkId) + '"></div>';
+        }
+        break;
+
+      case 'separator':
+        html = '<hr class="bk-separator">';
+        break;
+
+      case 'linebreak':
+        html = '<br class="bk-linebreak">';
+        break;
+
+      case 'table':
+        var tRows = item.rows || [];
+        if (tRows.length) {
+          html = '<table class="bk-table">';
+          for (var ri2 = 0; ri2 < tRows.length; ri2++) {
+            var row2 = tRows[ri2];
+            html += '<tr>';
+            var cells2 = row2.cells || [];
+            for (var ci4 = 0; ci4 < cells2.length; ci4++) {
+              var cell2 = cells2[ci4];
+              var cellTag2 = row2.header ? 'th' : 'td';
+              var cellContent2 = cell2.html
+                ? wrapRefsRich(cell2.html, ctx)
+                : wrapRefs(cell2.text || '', ctx);
+              html += '<' + cellTag2 + '>' + cellContent2 + '</' + cellTag2 + '>';
+            }
+            html += '</tr>';
+          }
+          html += '</table>';
+        }
+        break;
+
+      case 'paragraph':
+      default:
+        if (text || item.html) {
+          var pStyleAttr = item.style ? ' style="' + escAttr(item.style) + '"' : '';
+          // EPUB 语义类：为大纲层级、晨兴等段落添加对应 CSS 类
+          var pCls = 'bk-paragraph';
+          if (item.epubClass) pCls += ' bk-epub-' + item.epubClass;
+          html = '<p class="' + pCls + '"' + pStyleAttr + '>' +
+            (item.html ? wrapRefsRich(item.html, ctx) : wrapRefs(text, ctx)) + '</p>';
+        }
+        break;
+    }
+    return html;
+  }
+
+  function renderChapterContent(chapter, eager) {
+    var contentArr = chapter.content || [];
+    var html = '';
+
+    // 当页章节标题：固定在正文顶部展示，浮动导航自动收起后仍可见当前章节
+    var pageTitle = chapter.title || ('第' + (chapter.number != null ? chapter.number : '') + '章');
+    html += '<h1 class="bk-page-title">' + escText(pageTitle) + '</h1>';
+
+    // ★ 严格模式：不传递经文上下文，每个引用必须自包含（书名+章名+节数）
+    var ctx = '';
+
+    // ★ 超长章节懒渲染：仅当内容为数组且超过阈值时才启用（PDF 章节除外，
+    //   其含 pdf_page，走既有 BKPdf 懒渲染链路，不可叠加本模块）。
+    //   标题由本函数输出（常驻顶部），正文交给 lazy-renderer 按块填充。
+    var isArrayContent = Array.isArray(contentArr);
+    var _isPdf = false;
+    if (isArrayContent) {
+      for (var _pdi = 0; _pdi < contentArr.length; _pdi++) {
+        if (contentArr[_pdi] && contentArr[_pdi].type === 'pdf_page') { _isPdf = true; break; }
+      }
+    }
+    var _useLazy = false;
+    if (isArrayContent && !_isPdf && win.BKLazyRenderer && win.BKLazyRenderer.isLongChapterCandidate) {
+      _useLazy = win.BKLazyRenderer.isLongChapterCandidate(contentArr);
+    }
+    if (_useLazy) {
+      // 只输出章节标题 + 懒渲染容器标记；调用方（renderer-api/carousel）
+      // 在容器挂载后调用 BKLazyRenderer.initLazyRender 完成占位与首屏渲染。
+      return html +
+        '<div class="bk-lazy-root" data-bk-lazy-root="1"></div>';
+    }
+
+    // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
+    if (typeof contentArr === 'string') {
+      var lines = contentArr.split('\n');
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li].trim();
+        if (!line) continue;
+
+        // 检测 heading 标记（## 开头）
+        var headingMatch = /^(#{1,6})\s+(.*)$/.exec(line);
+        if (headingMatch) {
+          var level = Math.min(headingMatch[1].length, 6);
+          var hText = headingMatch[2].trim();
+          html += '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(hText, ctx) + '</h' + level + '>';
+          // ★ 严格模式：不更新上下文
+        } else {
+          html += '<p class="bk-paragraph">' + wrapRefs(line, ctx) + '</p>';
+          // ★ 严格模式：不更新上下文
+        }
+      }
+      return html;
+    }
+
+    // ★ 严格模式：不做预扫描上下文提取
+    // 原逻辑: if (!ctx && win.BKRef && win.BKRef.scanCtx) { ... }
+
+    for (var i = 0; i < contentArr.length; i++) {
+      var item = contentArr[i];
+      html += renderContentItem(item, ctx, eager);
+      // ★ 严格模式：不更新经文上下文（原逻辑: scanCtx 更新 book/ch）
+    }
+    // 脚注区域
+    var footnotes = chapter.footnotes || [];
+    if (footnotes.length) {
+      html += '<div class="bk-footnotes-section">';
+      html += '<h3 class="bk-footnotes-title">脚注</h3>';
+      for (var fi = 0; fi < footnotes.length; fi++) {
+        var fn = footnotes[fi];
+        html += '<div class="bk-footnote" id="fn-' + escAttr(fn.id || fi + 1) + '">';
+        html += '<span class="bk-fn-number">' + escText(fn.id || (fi + 1)) + '</span>';
+        html += '<div class="bk-fn-text">' + wrapRefs(fn.text || '', ctx) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    return html;
+  }
+
+  // ── Markdown 增强后处理：代码高亮、Mermaid 渲染、图片 Lightbox ──
+  function _applyMdEnhancements(containerEl) {
+    if (!containerEl) return;
+
+    // 1. 代码语法高亮：对未高亮的 pre.bk-code > code 调用 hljs
+    if (win.hljs) {
+      var codeBlocks = containerEl.querySelectorAll('pre.bk-code code');
+      for (var cb = 0; cb < codeBlocks.length; cb++) {
+        var codeNode = codeBlocks[cb];
+        // 如果 code 的子节点包含 span.hljs（已被 marked+hljs 高亮），跳过
+        if (codeNode.querySelector('span.hljs-') || codeNode.querySelector('span[class^="hljs-"]')) continue;
+        // 移除之前 escText 产生的纯文本内容，用 hljs 重新高亮
+        if (!codeNode.hasAttribute('data-hljs-done')) {
+          codeNode.setAttribute('data-hljs-done', '1');
+          try { win.hljs.highlightElement(codeNode); } catch (e) {}
+        }
+      }
+    }
+
+    // 2. Mermaid 图表渲染
+    if (win.mermaid) {
+      var mermaidEls = containerEl.querySelectorAll('.bk-mermaid pre.mermaid');
+      if (mermaidEls.length) {
+        // 确保 mermaid 已初始化
+        try {
+          if (!win.mermaid._bkInitialized) {
+            win.mermaid.initialize({
+              startOnLoad: false,
+              theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+              securityLevel: 'loose'
+            });
+            win.mermaid._bkInitialized = true;
+          }
+          win.mermaid.run({ nodes: Array.prototype.slice.call(mermaidEls) });
+        } catch (e) {
+          // mermaid 渲染失败时保留原始代码文本
+        }
+      }
+    }
+
+    // 3. 图片 Lightbox：点击放大
+    var figures = containerEl.querySelectorAll('figure.bk-figure img');
+    for (var fi = 0; fi < figures.length; fi++) {
+      (function(img) {
+        if (img._bkLightboxBound) return;
+        img._bkLightboxBound = true;
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          _openLightbox(img.src, img.alt || '');
+        });
+      })(figures[fi]);
+    }
+
+    // 4. EPUB 脚注弹窗：点击 <sup class="bk-epub-fn-ref"> 显示对应脚注内容
+    var fnRefs = containerEl.querySelectorAll('sup.bk-epub-fn-ref');
+    for (var fnri = 0; fnri < fnRefs.length; fnri++) {
+      (function(fnRef) {
+        if (fnRef._bkFnBound) return;
+        fnRef._bkFnBound = true;
+        fnRef.style.cursor = 'pointer';
+        fnRef.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var fnId = fnRef.getAttribute('data-fn-id');
+          _openFootnotePopup(fnId, fnRef);
+        });
+      })(fnRefs[fnri]);
+    }
+  }
+
+  // ── 超长章节懒渲染接入 ──────────────────────────────────────────────
+  // lazy-renderer.js 在 renderer-content.js 之后加载；此处仅在其可用时注入
+  // 块级增强回调（md 高亮 / 经文标注按块增量执行，避免全容器重复扫描）。
+  if (win.BKLazyRenderer && win.BKLazyRenderer.setEnhanceBlock) {
+    win.BKLazyRenderer.setEnhanceBlock(function (blockEl) {
+      _applyMdEnhancements(blockEl);
+      // 经文行内标注（懒渲染下按块执行，未渲染块无 .bk-paragraph 自动跳过；
+      // 回收重渲染块时 annotation 防重复——span 内文本不再标注）
+      if (win.BKScripturePopup && win.BKScripturePopup.annotateBlock) {
+        try { win.BKScripturePopup.annotateBlock(blockEl); } catch (e) {}
+      }
+    });
+  }
+
+  // EPUB 脚注弹窗
+  function _openFootnotePopup(fnId, anchorEl) {
+    // 查找对应脚注内容
+    var fnEl = fnId ? document.getElementById('fn-' + fnId) : null;
+    if (!fnEl) {
+      // 降级：尝试通过 ID 直接查找
+      fnEl = document.getElementById(fnId);
+    }
+    var fnText = fnEl ? fnEl.querySelector('.bk-fn-text') : null;
+    if (!fnText) return;
+
+    // 创建或复用弹窗
+    var popup = document.getElementById('bk-epub-fn-popup');
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'bk-epub-fn-popup';
+      popup.className = 'bk-epub-fn-popup';
+      popup.innerHTML = '<div class="bk-epub-fn-popup-content"></div><div class="bk-epub-fn-popup-close">&times;</div>';
+      popup.addEventListener('click', function(e) {
+        if (e.target === popup || e.target.classList.contains('bk-epub-fn-popup-close')) {
+          _closeFootnotePopup();
+        }
+      });
+      document.body.appendChild(popup);
+
+      // 创建遮罩层
+      var mask = document.createElement('div');
+      mask.id = 'bk-epub-fn-popup-mask';
+      mask.className = 'bk-epub-fn-popup-mask';
+      mask.addEventListener('click', _closeFootnotePopup);
+      // 移动端：拦截触摸事件，防止穿透到底层阅读区
+      // touchstart 上 preventDefault 会阻止 click 合成，因此需要在此主动关闭弹窗
+      mask.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); _closeFootnotePopup(); }, { passive: false });
+      mask.addEventListener('touchmove', function (e) { e.preventDefault(); e.stopPropagation(); }, { passive: false });
+      document.body.appendChild(mask);
+
+      // 点击弹窗外部关闭
+      document.addEventListener('click', _fnPopupOutsideClickHandler);
+      // ESC 键关闭
+      document.addEventListener('keydown', _fnPopupEscHandler);
+      // 滚动关闭（阅读区域滚动时）
+      var readerEl = document.querySelector('.bk-carousel-page') || document.querySelector('.bk-reader-content') || document.querySelector('.bk-reader-body') || containerEl;
+      if (readerEl) {
+        readerEl.addEventListener('scroll', _fnPopupScrollHandler);
+      }
+      // 同时监听 window scroll 作为兜底
+      window.addEventListener('scroll', _fnPopupScrollHandler, true);
+    }
+
+    // 填充内容
+    var contentDiv = popup.querySelector('.bk-epub-fn-popup-content');
+    if (contentDiv) {
+      contentDiv.innerHTML = fnText.innerHTML;
+    }
+
+    // 定位弹窗（在脚注标记附近）
+    if (anchorEl) {
+      var rect = anchorEl.getBoundingClientRect();
+      var popupWidth = Math.min(480, window.innerWidth - 20);
+      var popupHeight = Math.min(360, window.innerHeight * 0.6);
+      var popupTop = rect.bottom + 8;
+      var popupLeft = rect.left;
+
+      // 右侧空间不足则右对齐
+      if (popupLeft + popupWidth > window.innerWidth - 10) {
+        popupLeft = window.innerWidth - popupWidth - 10;
+      }
+      popupLeft = Math.max(10, popupLeft);
+
+      // 下方空间不足则向上弹出
+      if (popupTop + popupHeight > window.innerHeight - 10) {
+        popupTop = Math.max(10, rect.top - popupHeight - 8);
+      }
+
+      popup.style.top = popupTop + 'px';
+      popup.style.left = popupLeft + 'px';
+    }
+
+    var maskEl = document.getElementById('bk-epub-fn-popup-mask');
+    if (maskEl) maskEl.classList.add('bk-epub-fn-popup-mask-active');
+    popup.classList.add('bk-epub-fn-popup-active');
+  }
+
+  // 关闭脚注弹窗
+  function _closeFootnotePopup() {
+    var popup = document.getElementById('bk-epub-fn-popup');
+    var mask = document.getElementById('bk-epub-fn-popup-mask');
+    if (popup) {
+      popup.classList.remove('bk-epub-fn-popup-active');
+    }
+    if (mask) {
+      mask.classList.remove('bk-epub-fn-popup-mask-active');
+    }
+  }
+
+  // 脚注弹窗：点击外部关闭
+  // 注意：遮罩层已有独立 click 监听，此处排除遮罩避免重复调用
+  function _fnPopupOutsideClickHandler(e) {
+    var popup = document.getElementById('bk-epub-fn-popup');
+    if (!popup || !popup.classList.contains('bk-epub-fn-popup-active')) return;
+    var mask = document.getElementById('bk-epub-fn-popup-mask');
+    // 如果点击的不是脚注引用标记，也不是弹窗内部，也不是遮罩层，则关闭
+    if (!e.target.closest('sup.bk-epub-fn-ref') &&
+        !popup.contains(e.target) &&
+        e.target !== mask) {
+      _closeFootnotePopup();
+    }
+  }
+
+  // 脚注弹窗：ESC 键关闭
+  function _fnPopupEscHandler(e) {
+    if (e.key === 'Escape') {
+      _closeFootnotePopup();
+    }
+  }
+
+  // 脚注弹窗：滚动关闭（阅读区域滚动时）
+  // 注意：弹窗自身滚动（overflow-y: auto）不应触发关闭
+  function _fnPopupScrollHandler(e) {
+    var popup = document.getElementById('bk-epub-fn-popup');
+    // 弹窗内部滚动不关闭
+    if (popup && popup.contains(e.target)) return;
+    _closeFootnotePopup();
+  }
+
+  // Lightbox 显示/隐藏
+  var _lightboxLockCleanup = null;
+  function _closeLightbox() {
+    var overlay = document.getElementById('bk-lightbox');
+    if (overlay) overlay.classList.remove('bk-lightbox-active');
+    if (_lightboxLockCleanup) { _lightboxLockCleanup(); _lightboxLockCleanup = null; }
+  }
+  function _openLightbox(src, alt) {
+    var overlay = document.getElementById('bk-lightbox');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'bk-lightbox';
+      overlay.className = 'bk-lightbox-overlay';
+      overlay.innerHTML = '<div class="bk-lightbox-container"><img class="bk-lightbox-img" alt=""><div class="bk-lightbox-close">&times;</div></div>';
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay || e.target.classList.contains('bk-lightbox-close')) {
+          _closeLightbox();
+        }
+      });
+      document.body.appendChild(overlay);
+    }
+    var lbImg = overlay.querySelector('.bk-lightbox-img');
+    if (lbImg) { lbImg.src = src; lbImg.alt = alt; }
+    overlay.classList.add('bk-lightbox-active');
+    // 防触摸穿透：锁定遮罩滚动
+    if (win.BK && win.BK.lockOverlayScroll) {
+      _lightboxLockCleanup = win.BK.lockOverlayScroll(overlay, function() { _closeLightbox(); });
+    }
+  }
+
+  // ── PDF 页面懒渲染（委托给 renderer-pdf.js 的 BKPdf 模块）─────────────
+  // 实际实现见 renderer-pdf.js，这里仅做薄委托以保持调用方不变。
+
+  function initPdfPageLazyRender(containerEl) {
+    // ★ 超长文本章节：容器内是懒渲染根时，不进入 PDF 链路（懒渲染由
+    //   renderer-api / renderer-carousel 在拿到 chapter 后接管初始化）。
+    //   此处仅确保销毁可能残留的文本懒渲染实例，避免双链路冲突。
+    var lazyRoot = containerEl && containerEl.querySelector
+      ? containerEl.querySelector('.bk-lazy-root[data-bk-lazy-root="1"]')
+      : null;
+    if (lazyRoot) {
+      if (win.BKLazyRenderer && win.BKLazyRenderer.destroyLazyRender) {
+        win.BKLazyRenderer.destroyLazyRender(null);
+      }
+      return;
+    }
+    if (win.BKPdf && win.BKPdf.init) {
+      win.BKPdf.init(containerEl);
+    }
+  }
+
+  function _cleanupPdfCache() {
+    if (win.BKPdf && win.BKPdf.cleanup) {
+      win.BKPdf.cleanup();
+    }
+    // 退出阅读时销毁 PDF 文档缓存（释放 pdf.js PDFDocumentProxy 内存）；
+    // 模式切换内部只调 cleanup() 保留 docCache，避免重新解析 PDF（S3 优化）
+    if (win.BKPdf && win.BKPdf.destroyPdfCache) {
+      win.BKPdf.destroyPdfCache();
+    }
+  }
+
+  // ── 章节去重辅助 ──────────────────────────────────────────────────
+
+  /**
+   * 获取去重后的章节列表（按 number 去重，保留首次出现的章节）
+   * 适用于某些书籍数据中同一编号有多条记录的情况（如读经一年一遍的每日两读）
+   */
+  function _getUniqueChapters(chapters) {
+    var seen = {};
+    var unique = [];
+    for (var i = 0; i < chapters.length; i++) {
+      var num = chapters[i].number;
+      if (!seen[num]) {
+        seen[num] = true;
+        unique.push(chapters[i]);
+      }
+    }
+    return unique;
+  }
+
+  // ── 键盘快捷键管理 ────────────────────────────────────────────────────
+
+  var _readingKeyHandler = null;
+
+  function _installReadingShortcuts(bookId, uniqueChapters, chapterNum) {
+    _removeReadingShortcuts();
+    _readingKeyHandler = function (e) {
+      // 忽略输入框内的按键
+      var tag = (e.target && e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        // 上一章
+        for (var i = 0; i < uniqueChapters.length; i++) {
+          if (uniqueChapters[i].number === chapterNum && i > 0) {
+            if (win.BKRouter) win.BKRouter.navigate(bookId + '/' + uniqueChapters[i - 1].number);
+            break;
+          }
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        // 下一章
+        for (var i = 0; i < uniqueChapters.length; i++) {
+          if (uniqueChapters[i].number === chapterNum && i < uniqueChapters.length - 1) {
+            if (win.BKRouter) win.BKRouter.navigate(bookId + '/' + uniqueChapters[i + 1].number);
+            break;
+          }
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        if (win.BKRouter) win.BKRouter.navigate('');
+      }
+    };
+    document.addEventListener('keydown', _readingKeyHandler);
+  }
+
+  function _removeReadingShortcuts() {
+    if (_readingKeyHandler) {
+      document.removeEventListener('keydown', _readingKeyHandler);
+      _readingKeyHandler = null;
+    }
+    _removeSwipeHandler();
+    _removeChapterLinkHandler();
+  }
+
+  // ── 跨章节链接（事件委托） ──────────────────────────────────────────
+  var _chapterLinkHandler = null;
+  var _chapterLinkBookId = null;
+
+  function _installChapterLinkHandler(bookId) {
+    _removeChapterLinkHandler();
+    _chapterLinkBookId = bookId;
+    _chapterLinkHandler = function (e) {
+      var link = e.target.closest('[data-chapter-link]');
+      if (!link) return;
+      e.preventDefault();
+      var targetChapter = parseInt(link.getAttribute('data-chapter-link'), 10);
+      if (targetChapter && _chapterLinkBookId && win.BKRouter) {
+        win.BKRouter.navigate(_chapterLinkBookId + '/' + targetChapter);
+      }
+    };
+    var app = getApp();
+    if (app) app.addEventListener('click', _chapterLinkHandler);
+  }
+
+  function _removeChapterLinkHandler() {
+    if (_chapterLinkHandler) {
+      var app = getApp();
+      if (app) app.removeEventListener('click', _chapterLinkHandler);
+      _chapterLinkHandler = null;
+    }
+    _chapterLinkBookId = null;
+  }
+
