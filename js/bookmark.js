@@ -1,0 +1,723 @@
+/**
+ * 书签功能模块
+ * 支持添加/删除/查看书签，跳转到书签位置，列表弹框展示
+ *
+ * 数据模型：{id, path, scrollY, title, bookId, chapterNum, note, timestamp}
+ * 存储后端：localForage (IndexedDB)，单键 bk_bookmarks → Array
+ */
+(function (win) {
+    'use strict';
+
+    win.BK = win.BK || {};
+
+    // ─── 常量 ─────────────────────────────────────────────────────────────
+    var STORAGE_KEY = 'bk_bookmarks';
+    var MAX_BOOKMARKS = 100;
+
+    // ─── 存储层 ─────────────────────────────────────────────────────────────
+    var _store = null;
+    var _cache = null;        // 内存缓存：已加载的书签数组（null 表示尚未加载完成）
+    var _initPromise = null;  // 首次加载 Promise（去重，避免并发重复读）
+
+    function _initStore() {
+        if (_store) return;
+        if (typeof localforage === 'undefined') {
+            console.warn('[书签] localforage 未加载，降级到 localStorage');
+            _store = {
+                getItem: function (key) {
+                    return Promise.resolve().then(function () {
+                        try {
+                            return JSON.parse(localStorage.getItem(key) || 'null');
+                        } catch (e) { return null; }
+                    });
+                },
+                setItem: function (key, val) {
+                    return Promise.resolve().then(function () {
+                        try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
+                    });
+                }
+            };
+            return;
+        }
+        _store = localforage.createInstance({
+            driver: [localforage.INDEXEDDB, localforage.LOCALSTORAGE],
+            name: 'books',
+            storeName: 'bookmarks'
+        });
+    }
+
+    /** 真实数据加载完成时通知 UI（如「我的」页书签统计） */
+    function _notifyLoaded() {
+        try {
+            win.dispatchEvent(new CustomEvent('bk:bookmarks-loaded', { detail: { count: (_cache || []).length } }));
+        } catch (e) {}
+    }
+
+    /**
+     * 真实加载（写入 _cache，完成后派发 bk:bookmarks-loaded 事件供 UI 刷新）。
+     * 使用单一 Promise（_initPromise）去重，避免并发重复读。
+     */
+    function _ensureLoaded() {
+        if (_initPromise) return _initPromise;
+        _initStore();
+        _initPromise = _store.getItem(STORAGE_KEY).then(function (arr) {
+            // 仅首次填充：避免覆盖「加载过程中已写入」的缓存（add/remove 在超时窗口内先落库）
+            if (_cache === null) _cache = Array.isArray(arr) ? arr : [];
+            _notifyLoaded();
+            return _cache;
+        }).catch(function (e) {
+            console.warn('[书签] 读取失败，降级为空列表:', e);
+            if (_cache === null) _cache = [];
+            _notifyLoaded();
+            return _cache;
+        });
+        return _initPromise;
+    }
+
+    function _load() {
+        // 已加载：直接返回内存缓存（快路径，瞬间）
+        if (_cache) return Promise.resolve(_cache);
+        // 首次加载：storePromise 始终写 _cache 并派发事件；
+        // 3s 超时仅作首屏防卡死，超时先返回空，真实数据到达后通过 bk:bookmarks-loaded 事件刷新。
+        var storePromise = _ensureLoaded();
+        var timeoutPromise = new Promise(function (resolve) {
+            setTimeout(function () {
+                console.warn('[书签] 读取超时(3s)，本次先返回空列表（后台加载真实数据后将自动刷新）');
+                resolve(null);
+            }, 3000);
+        });
+        return Promise.race([storePromise, timeoutPromise]).then(function (val) {
+            if (val === null) return _cache || [];
+            return val;
+        });
+    }
+
+    function _save(arr) {
+        _initStore();
+        _cache = arr;   // 内存缓存始终与持久化保持一致
+        return _store.setItem(STORAGE_KEY, arr).catch(function (e) {
+            console.error('[书签] 保存失败:', e);
+        });
+    }
+
+    // ─── 工具函数 ──────────────────────────────────────────────────────────
+    function _genId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+    }
+
+    function _relativeTime(ts) {
+        var now = Date.now();
+        var diff = now - ts;
+        if (diff < 60000) return '刚刚';
+        var minutes = Math.floor(diff / 60000);
+        if (minutes < 60) return minutes + '分钟前';
+        var hours = Math.floor(diff / 3600000);
+        if (hours < 24) return hours + '小时前';
+        var days = Math.floor(diff / 86400000);
+        if (days < 30) return days + '天前';
+        var months = Math.floor(days / 30);
+        return months + '月前';
+    }
+
+    // ─── Toast 通知 ─────────────────────────────────────────────────────────
+    var _toastTimer = null;
+    var _toastEl = null;
+
+    function _injectToastStyle() {
+        if (document.getElementById('bk-bm-toast-style')) return;
+        var style = document.createElement('style');
+        style.id = 'bk-bm-toast-style';
+        style.textContent = [
+            '.bk-bm-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);',
+            'background:#1A1918;color:#fff;padding:10px 18px;border-radius:22px;',
+            'font-size:0.875em;z-index:99999;display:flex;align-items:center;gap:12px;',
+            'opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}',
+            '.bk-bm-toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}',
+            '.bk-bm-toast-text{white-space:nowrap}',
+            '.bk-bm-toast-undo{color:#3D8A5A;cursor:pointer;font-weight:500;white-space:nowrap}'
+        ].join('\n');
+        document.head.appendChild(style);
+    }
+
+    function _showToast(text, undoFn) {
+        _injectToastStyle();
+        if (_toastEl) {
+            _toastEl.parentNode && _toastEl.parentNode.removeChild(_toastEl);
+            _toastEl = null;
+        }
+        if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+
+        var el = document.createElement('div');
+        el.className = 'bk-bm-toast';
+        var html = '<span class="bk-bm-toast-text">' + text + '</span>';
+        if (undoFn) {
+            html += '<span class="bk-bm-toast-undo">撤销</span>';
+        }
+        el.innerHTML = html;
+        document.body.appendChild(el);
+        _toastEl = el;
+
+        if (undoFn) {
+            var undoBtn = el.querySelector('.bk-bm-toast-undo');
+            undoBtn.addEventListener('click', function () {
+                _hideToast();
+                undoFn();
+            });
+        }
+
+        void el.offsetWidth;
+        el.classList.add('show');
+
+        _toastTimer = setTimeout(function () {
+            _hideToast();
+        }, 2500);
+    }
+
+    function _hideToast() {
+        if (!_toastEl) return;
+        _toastEl.classList.remove('show');
+        var ref = _toastEl;
+        setTimeout(function () {
+            ref.parentNode && ref.parentNode.removeChild(ref);
+        }, 300);
+        _toastEl = null;
+        if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+    }
+
+    // ─── 核心方法 ──────────────────────────────────────────────────────────
+    var BKBookmark = {
+
+        /**
+         * 添加书签
+         * @param {Object} opts - {path, scrollY, title, bookId, chapterNum, note}
+         * @returns {Promise}
+         */
+        add: function (opts) {
+            opts = opts || {};
+            var path = opts.path || '';
+            var scrollY = opts.scrollY || 0;
+            var title = opts.title || '';
+            var bookId = opts.bookId || '';
+            var chapterNum = opts.chapterNum || 0;
+            var note = opts.note || '';
+            var silent = opts.silent || false;
+
+            return _load().then(function (arr) {
+                var existIdx = -1;
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].path === path) {
+                        existIdx = i;
+                        break;
+                    }
+                }
+
+                var bookmark;
+                var isUpdate = false;
+                if (existIdx >= 0) {
+                    bookmark = arr[existIdx];
+                    bookmark.scrollY = scrollY;
+                    bookmark.timestamp = Date.now();
+                    if (note) bookmark.note = note;
+                    if (title) bookmark.title = title;
+                    isUpdate = true;
+                    arr.splice(existIdx, 1);
+                    arr.unshift(bookmark);
+                } else {
+                    bookmark = {
+                        id: _genId(),
+                        path: path,
+                        scrollY: scrollY,
+                        title: title,
+                        bookId: bookId,
+                        chapterNum: chapterNum,
+                        note: note,
+                        timestamp: Date.now()
+                    };
+                    arr.unshift(bookmark);
+                }
+
+                if (arr.length > MAX_BOOKMARKS) {
+                    arr = arr.slice(0, MAX_BOOKMARKS);
+                }
+
+                return _save(arr).then(function () {
+                    var addedId = bookmark.id;
+                    if (!silent) {
+                        _showToast(isUpdate ? '✓ 已更新书签' : '✓ 已添加书签', function () {
+                            BKBookmark.remove(addedId);
+                        });
+                    }
+                    return bookmark;
+                });
+            });
+        },
+
+        /**
+         * 添加当前页书签
+         * @param {Object} titleInfo - {bookTitle, chapterNum, chapterTitle}
+         * @returns {Promise}
+         */
+        addCurrent: function (titleInfo) {
+            titleInfo = titleInfo || {};
+            var path = win.__bkCurrentPath || '';
+            var scrollY = win.scrollY || 0;
+            var parts = path.split('/').filter(Boolean);
+            var bookId = parts[0] || '';
+            var chapterNum = parseInt(parts[1], 10) || 0;
+
+            var titleParts = [];
+            if (titleInfo.bookTitle) {
+                titleParts.push(titleInfo.bookTitle);
+            } else if (bookId) {
+                titleParts.push(bookId);
+            }
+            if (titleInfo.chapterTitle) {
+                titleParts.push(titleInfo.chapterTitle);
+            } else if (chapterNum) {
+                titleParts.push('第' + chapterNum + '章');
+            }
+            var title = titleParts.join(' · ');
+
+            return BKBookmark.add({
+                path: path,
+                scrollY: scrollY,
+                title: title,
+                bookId: bookId,
+                chapterNum: chapterNum,
+                note: '',
+                silent: titleInfo.silent || false
+            });
+        },
+
+        /**
+         * 删除书签
+         * @param {String} id
+         * @returns {Promise}
+         */
+        remove: function (id) {
+            return _load().then(function (arr) {
+                var filtered = [];
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].id !== id) filtered.push(arr[i]);
+                }
+                return _save(filtered);
+            });
+        },
+
+        /**
+         * 获取全部书签（按时间倒序）
+         * @returns {Promise<Array>}
+         */
+        getAll: function () {
+            return _load().then(function (arr) {
+                arr.sort(function (a, b) { return b.timestamp - a.timestamp; });
+                return arr;
+            });
+        },
+
+        /**
+         * 保存书签数组（供 sync-import 合并后批量写入）
+         * @param {Array} arr 书签数组
+         * @returns {Promise}
+         */
+        _save: function (arr) {
+            return _save(arr);
+        },
+
+        /**
+         * 跳转到书签位置
+         * @param {Object} bookmark
+         */
+        goto: function (bookmark) {
+            if (!bookmark || !bookmark.path) return;
+            if (win.BKRouter) {
+                win.BKRouter.navigate(bookmark.path);
+            }
+            var targetY = bookmark.scrollY || 0;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    win.scrollTo(0, targetY);
+                });
+            });
+        },
+
+        /**
+         * 更新书签笔记
+         * @param {String} id 书签 id
+         * @param {String} note 笔记文本
+         * @returns {Promise}
+         */
+        updateNote: function (id, note) {
+            return _load().then(function (arr) {
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].id === id) {
+                        arr[i].note = note || '';
+                        arr[i].timestamp = Date.now();
+                        break;
+                    }
+                }
+                return _save(arr);
+            });
+        },
+
+        /**
+         * 更新书签标题
+         * @param {String} id 书签 id
+         * @param {String} title 书签标题
+         * @returns {Promise}
+         */
+        updateTitle: function (id, title) {
+            return _load().then(function (arr) {
+                for (var i = 0; i < arr.length; i++) {
+                    if (arr[i].id === id) {
+                        arr[i].title = title || arr[i].title;
+                        arr[i].timestamp = Date.now();
+                        break;
+                    }
+                }
+                return _save(arr);
+            });
+        },
+
+        /**
+         * 显示书签列表弹框（桥接到 MarkPanel）
+         */
+        showList: function () {
+            // 优先使用 MarkPanel
+            if (win.BK && win.BK.MarkPanel) {
+                win.BK.MarkPanel.open('bookmark');
+                return;
+            }
+            BKBookmark.getAll().then(function (arr) {
+                var curPath = win.__bkCurrentPath || '';
+                var curParts = curPath.split('/').filter(Boolean);
+                var isContentPage = curParts.length >= 2;
+
+                var bodyHtml = '';
+                if (!arr.length) {
+                    bodyHtml = '<div class="bk-bm-empty">' +
+                        '<div class="bk-bm-empty-icon">📑</div>' +
+                        '<div class="bk-bm-empty-text">暂无书签</div>' +
+                        '<div class="bk-bm-empty-hint">在阅读页点击"添加当前页"按钮</div>' +
+                        '</div>';
+                } else {
+                    for (var i = 0; i < arr.length; i++) {
+                        var bm = arr[i];
+                        var displayTitle = bm.title || bm.path || '未命名';
+                        var meta = _relativeTime(bm.timestamp);
+                        if (bm.note) meta += ' · ' + bm.note;
+                        bodyHtml += '<div class="bk-bm-item" data-id="' + bm.id + '">' +
+                            '<div class="bk-bm-item-main">' +
+                            '<div class="bk-bm-item-title">' + _escHtml(displayTitle) + '</div>' +
+                            '<div class="bk-bm-item-meta">' + _escHtml(meta) + '</div>' +
+                            '</div>' +
+                            '<div class="bk-bm-item-actions">' +
+                            '<button class="bk-bm-item-edit" aria-label="编辑标题" title="编辑标题">✏️</button>' +
+                            '<button class="bk-bm-item-note" aria-label="编辑笔记" title="编辑笔记">📝</button>' +
+                            '<button class="bk-bm-item-del" aria-label="删除">✕</button>' +
+                            '</div>' +
+                            '</div>';
+                    }
+                }
+
+                var addBtnHtml = isContentPage
+                    ? '<button class="bk-dialog-confirm" data-action="add">添加当前页</button>'
+                    : '';
+                var clearBtnHtml = arr.length
+                    ? '<button class="bk-dialog-cancel bk-dialog-danger" data-action="clear">清空全部</button>'
+                    : '';
+                var footerHtml = '<div class="bk-dialog-actions">' +
+                    '<button class="bk-dialog-cancel" data-action="close"' + (!addBtnHtml && !clearBtnHtml ? ' style="flex:1"' : '') + '>关闭</button>' +
+                    addBtnHtml + clearBtnHtml +
+                    '</div>';
+
+                var dialogHtml = '<div class="bk-dialog" style="width:min(360px,calc(100vw - 40px))">' +
+                    '<div class="bk-dialog-title">📑 我的书签</div>' +
+                    '<div class="bk-bm-list-body">' + bodyHtml + '</div>' +
+                    footerHtml +
+                    '</div>';
+
+                var dlg = win.BK.openDialog({
+                    id: 'bk-bookmark-list',
+                    html: dialogHtml
+                });
+
+                if (!dlg) {
+                    console.warn('[书签] openDialog 返回 null，弹框可能已存在');
+                    return;
+                }
+
+                var dialogEl = document.getElementById('bk-bookmark-list');
+                if (!dialogEl) return;
+
+                dialogEl.addEventListener('click', function (e) {
+                    var t = e.target;
+
+                    if (t.getAttribute('data-action') === 'close') {
+                        dlg.close();
+                        return;
+                    }
+
+                    if (t.getAttribute('data-action') === 'add') {
+                        var p = curParts;
+                        // 从缓存的书籍数据中获取标题
+                        var bookTitle = '';
+                        if (win.__bkBooks) {
+                            for (var bi = 0; bi < win.__bkBooks.length; bi++) {
+                                if (win.__bkBooks[bi].id === p[0]) {
+                                    bookTitle = win.__bkBooks[bi].title || '';
+                                    break;
+                                }
+                            }
+                        }
+                        dlg.close();
+                        BKBookmark.addCurrent({
+                            bookTitle: bookTitle,
+                            chapterNum: parseInt(p[1], 10) || p[1],
+                            silent: true
+                        }).then(function (bm) {
+                            if (bm) _openTitleEditor(bm);
+                        });
+                        return;
+                    }
+
+                    if (t.getAttribute('data-action') === 'clear') {
+                        if (!confirm('确定清空全部书签？')) return;
+                        _save([]).then(function () {
+                            var body = dialogEl.querySelector('.bk-bm-list-body');
+                            if (body) {
+                                body.innerHTML = '<div class="bk-bm-empty">' +
+                                    '<div class="bk-bm-empty-icon">📑</div>' +
+                                    '<div class="bk-bm-empty-text">暂无书签</div>' +
+                                    '<div class="bk-bm-empty-hint">在阅读页点击"添加当前页"按钮</div>' +
+                                    '</div>';
+                            }
+                            var clearBtn = dialogEl.querySelector('[data-action="clear"]');
+                            if (clearBtn) clearBtn.style.display = 'none';
+                        });
+                        return;
+                    }
+
+                    // 标题编辑按钮 → 打开标题编辑面板
+                    var editBtn = t.closest ? t.closest('.bk-bm-item-edit') : null;
+                    if (!editBtn && t.classList && t.classList.contains('bk-bm-item-edit')) editBtn = t;
+                    if (editBtn) {
+                        var editItemDiv = editBtn.closest ? editBtn.closest('.bk-bm-item') : editBtn.parentNode.parentNode;
+                        var editBmId = editItemDiv ? editItemDiv.getAttribute('data-id') : null;
+                        var editTarget = null;
+                        for (var ek = 0; ek < arr.length; ek++) {
+                            if (arr[ek].id === editBmId) { editTarget = arr[ek]; break; }
+                        }
+                        if (editTarget) _openTitleEditor(editTarget);
+                        return;
+                    }
+
+                    // 笔记按钮 → 打开书签笔记编辑面板
+                    var noteBtn = t.closest ? t.closest('.bk-bm-item-note') : null;
+                    if (!noteBtn && t.classList && t.classList.contains('bk-bm-item-note')) noteBtn = t;
+                    if (noteBtn) {
+                        var noteItemDiv = noteBtn.closest ? noteBtn.closest('.bk-bm-item') : noteBtn.parentNode.parentNode;
+                        var noteBmId = noteItemDiv ? noteItemDiv.getAttribute('data-id') : null;
+                        var noteTarget = null;
+                        for (var nk = 0; nk < arr.length; nk++) {
+                            if (arr[nk].id === noteBmId) { noteTarget = arr[nk]; break; }
+                        }
+                        if (noteTarget) _openNoteEditor(noteTarget);
+                        return;
+                    }
+                    var delBtn = t.closest ? t.closest('.bk-bm-item-del') : null;
+                    if (!delBtn && t.classList && t.classList.contains('bk-bm-item-del')) delBtn = t;
+                    if (delBtn) {
+                        // 目标节点是 .bk-bm-item（data-id 挂在其上），而非按钮的父容器 .bk-bm-item-actions
+                        var itemDiv = delBtn.closest ? delBtn.closest('.bk-bm-item') : (delBtn.parentNode && delBtn.parentNode.parentNode);
+                        var bmId = itemDiv ? itemDiv.getAttribute('data-id') : null;
+                        if (!itemDiv || !bmId) return;
+                        itemDiv.style.opacity = '0';
+                        itemDiv.style.transform = 'translateX(30px)';
+                        itemDiv.style.transition = 'opacity .2s,transform .2s';
+                        setTimeout(function () {
+                            if (itemDiv.parentNode) itemDiv.parentNode.removeChild(itemDiv);
+                            var remaining = dialogEl.querySelectorAll('.bk-bm-item');
+                            if (!remaining.length) {
+                                var body = dialogEl.querySelector('.bk-bm-list-body');
+                                if (body) {
+                                    body.innerHTML = '<div class="bk-bm-empty">' +
+                                        '<div class="bk-bm-empty-icon">📑</div>' +
+                                        '<div class="bk-bm-empty-text">暂无书签</div>' +
+                                        '<div class="bk-bm-empty-hint">在阅读页点击"添加当前页"按钮</div>' +
+                                        '</div>';
+                                }
+                                var clearBtn2 = dialogEl.querySelector('[data-action="clear"]');
+                                if (clearBtn2) clearBtn2.style.display = 'none';
+                            }
+                        }, 200);
+                        BKBookmark.remove(bmId);
+                        return;
+                    }
+
+                    var itemMain = t.closest ? t.closest('.bk-bm-item-main') : null;
+                    if (!itemMain && t.classList && t.classList.contains('bk-bm-item-main')) itemMain = t;
+                    if (!itemMain && t.parentNode && t.parentNode.classList && t.parentNode.classList.contains('bk-bm-item-main')) itemMain = t.parentNode;
+                    if (itemMain) {
+                        var parentItem = itemMain.parentNode;
+                        var targetId = parentItem.getAttribute('data-id');
+                        var target = null;
+                        for (var k = 0; k < arr.length; k++) {
+                            if (arr[k].id === targetId) { target = arr[k]; break; }
+                        }
+                        var mask = document.getElementById('bk-bookmark-list');
+                        if (mask && mask.parentNode) mask.parentNode.removeChild(mask);
+                        // ★ 跳转用 silentPop：仅移除回退栈回调，不 history.back。
+                        //   后续 navigateReplace 同步 replaceState 复用 pushState 条目，
+                        //   discard()（含异步 history.back）会与之竞态，可能退回原页。
+                        if (win.BK && win.BK.backStack && win.BK.backStack.silentPop) win.BK.backStack.silentPop();
+                        if (target && target.path) {
+                            var scrollKey = 'bk_scroll:' + target.path;
+                            try { localStorage.setItem(scrollKey, String(target.scrollY || 0)); } catch(e) {}
+                            if (win.BKRouter && win.BKRouter.navigateReplace) {
+                                win.BKRouter.navigateReplace(target.path);
+                            } else if (win.BKRouter) {
+                                win.BKRouter.navigate(target.path);
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    };
+
+    // ─── 书签标题编辑面板 ────────────────────────────────────────────────
+    function _openTitleEditor(bookmark) {
+        if (!bookmark) return;
+        var titleVal = bookmark.title || bookmark.path || '';
+
+        var html =
+            '<div class="bk-dialog bk-bm-note-editor">' +
+                '<div class="bk-dialog-header">' +
+                    '<span class="bk-dialog-title">编辑书签名称</span>' +
+                    '<button class="bk-dialog-close" id="bkTitleClose" aria-label="关闭">×</button>' +
+                '</div>' +
+                '<div class="bk-dialog-body" style="padding:16px">' +
+                    '<input class="bk-bm-note-title-input" id="bkTitleInput" type="text" placeholder="书签名称" maxlength="100">' +
+                '</div>' +
+                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:flex-end">' +
+                    '<button class="bk-btn bk-btn-secondary" id="bkTitleCancel">取消</button>' +
+                    '<button class="bk-btn bk-btn-primary" id="bkTitleSave">保存</button>' +
+                '</div>' +
+            '</div>';
+
+        var dlg = win.BK.openDialog({ id: 'bk-bm-note-editor', html: html });
+        if (!dlg) return;
+        var dialogEl = document.getElementById('bk-bm-note-editor');
+        if (!dialogEl) return;
+
+        var titleInput = dialogEl.querySelector('#bkTitleInput');
+        var closeBtn = dialogEl.querySelector('#bkTitleClose');
+        var cancelBtn = dialogEl.querySelector('#bkTitleCancel');
+        var saveBtn = dialogEl.querySelector('#bkTitleSave');
+
+        if (titleInput) titleInput.value = titleVal;
+
+        function _closeAndRefresh() {
+            dlg.close();
+            var list = document.getElementById('bk-bookmark-list');
+            if (list && list.parentNode) list.parentNode.removeChild(list);
+            if (win.BK && win.BK.backStack && win.BK.backStack.discard) win.BK.backStack.discard();
+            if (win.BKBookmark && win.BKBookmark.showList) win.BKBookmark.showList();
+        }
+
+        if (closeBtn) closeBtn.addEventListener('click', function () { dlg.close(); });
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { dlg.close(); });
+        if (saveBtn) saveBtn.addEventListener('click', function () {
+            var title = titleInput ? titleInput.value.trim() : '';
+            BKBookmark.updateTitle(bookmark.id, title).then(function () {
+                _closeAndRefresh();
+            });
+        });
+        // 回车保存
+        if (titleInput) titleInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                if (saveBtn) saveBtn.click();
+            }
+        });
+        // 自动聚焦并全选
+        if (titleInput) setTimeout(function () { titleInput.focus(); titleInput.select(); }, 50);
+    }
+
+    // ─── 书签笔记编辑面板（设计稿 10:54）────────────────────────────────
+    function _openNoteEditor(bookmark) {
+        if (!bookmark) return;
+        var quote = bookmark.title || bookmark.path || '未命名书签';
+        var noteVal = bookmark.note || '';
+
+        var hasNote = !!(bookmark.note && bookmark.note.trim());
+        var html =
+            '<div class="bk-dialog bk-bm-note-editor">' +
+                '<div class="bk-dialog-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0">' +
+                    '<span class="bk-dialog-title">编辑笔记</span>' +
+                    '<button class="bk-dialog-close" id="bkNoteClose" aria-label="关闭" style="font-size:22px;line-height:1;background:none;border:none;cursor:pointer;padding:4px 8px;color:var(--text-muted,#9A958C)">×</button>' +
+                '</div>' +
+                '<div class="bk-dialog-body" style="padding:16px">' +
+                    '<div class="bk-bm-note-quote">' + _escHtml(quote) + '</div>' +
+                    '<textarea class="bk-bm-note-textarea" id="bkNoteTextarea" placeholder="输入读书笔记…" rows="5"></textarea>' +
+                '</div>' +
+                '<div class="bk-dialog-footer" style="display:flex;align-items:center;gap:10px;padding:0 16px 16px;justify-content:space-between">' +
+                    (hasNote ? '<button class="bk-btn-danger-ghost" id="bkNoteDelete">删除</button>' : '<span></span>') +
+                    '<span style="display:flex;gap:10px">' +
+                        '<button class="bk-btn bk-btn-secondary" id="bkNoteCancel">取消</button>' +
+                        '<button class="bk-btn bk-btn-primary" id="bkNoteSave">保存</button>' +
+                    '</span>' +
+                '</div>' +
+            '</div>';
+
+        var dlg = win.BK.openDialog({ id: 'bk-bm-note-editor', html: html });
+        if (!dlg) return;
+        var dialogEl = document.getElementById('bk-bm-note-editor');
+        if (!dialogEl) return;
+
+        var ta = dialogEl.querySelector('#bkNoteTextarea');
+        var closeBtn = dialogEl.querySelector('#bkNoteClose');
+        var cancelBtn = dialogEl.querySelector('#bkNoteCancel');
+        var saveBtn = dialogEl.querySelector('#bkNoteSave');
+        var delBtn = dialogEl.querySelector('#bkNoteDelete');
+
+        // 安全赋值：避免 HTML 注入
+        if (ta) ta.value = noteVal;
+
+        function _closeAndRefresh() {
+            dlg.close();
+            var list = document.getElementById('bk-bookmark-list');
+            if (list && list.parentNode) list.parentNode.removeChild(list);
+            if (win.BK && win.BK.backStack && win.BK.backStack.discard) win.BK.backStack.discard();
+            if (win.BKBookmark && win.BKBookmark.showList) win.BKBookmark.showList();
+        }
+
+        if (closeBtn) closeBtn.addEventListener('click', function () { dlg.close(); });
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { dlg.close(); });
+        if (saveBtn) saveBtn.addEventListener('click', function () {
+            var val = ta ? ta.value : '';
+            BKBookmark.updateNote(bookmark.id, val).then(function () {
+                _closeAndRefresh();
+            });
+        });
+        if (delBtn) delBtn.addEventListener('click', function () {
+            if (!confirm('确定删除该书签及其笔记？')) return;
+            BKBookmark.remove(bookmark.id).then(function () {
+                _closeAndRefresh();
+            });
+        });
+        if (ta) setTimeout(function () { ta.focus(); }, 50);
+    }
+
+    // ─── HTML 转义 ─────────────────────────────────────────────────────────
+    function _escHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    // ─── 暴露 ──────────────────────────────────────────────────────────────
+    win.BKBookmark = BKBookmark;
+
+}(window));

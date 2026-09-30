@@ -1,0 +1,234 @@
+/* 局域网同步面板样式
+   主题适配：颜色全部走 css-variables.css 语义变量（--surface/--card-bg/--brand/--border 等），
+   随 cool/warm/dark 三主题切换；fallback 值保持原 cool 视觉 */
+.lan-sync-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--surface, #F5F4F1); z-index: 9999; overflow-y: auto; overflow-x: hidden;
+    font-size: 14px;
+}
+.lan-sync-panel { max-width: 600px; margin: 0 auto; padding: 0; }
+.lan-sync-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border, #E0DED9);
+    background: var(--card-bg, #FFFFFF); position: sticky; top: 0; z-index: 1;
+}
+.lan-sync-back { border: none; background: none; font-size: 20px; cursor: pointer; color: var(--text-muted, #666); }
+.lan-sync-title { font-size: 18px; font-weight: 600; }
+.lan-sync-body { padding: 16px; }
+
+/* 顶部使用提示 */
+.lan-sync-tip {
+    background: rgba(181,121,58,.10); color: var(--warning-text, #8A5A33); border-radius: 8px;
+    padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 16px;
+}
+
+/* 本机状态卡片 */
+.lan-sync-card {
+    background: var(--card-bg, #FFFFFF); border: 1px solid var(--border, #E0DED9); border-radius: 10px;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    align-items: center; text-align: center;
+}
+.lan-sync-status-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--success-text, #4CAF50);
+}
+.lan-sync-status-text { display: flex; flex-direction: column; gap: 4px; }
+.lan-sync-status-title { font-size: 16px; font-weight: 600; }
+.lan-sync-status-desc { color: var(--text-muted, #999); font-size: 12px; }
+
+/* 配对码行 */
+.lan-sync-code-line {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 13px; color: var(--text-muted, #999); padding: 4px 12px;
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px;
+}
+
+/* 本机地址行 */
+.lan-sync-self-addr {
+    font-size: 13px; color: var(--text-muted, #999);
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.lan-sync-self-addr-val {
+    font-family: monospace; font-size: 14px; color: var(--text-soft, #666);
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px; padding: 2px 10px;
+}
+
+/* 配对码输入弹窗（BK.openDialog 承载） */
+.lan-sync-code-dialog {
+    display: flex; flex-direction: column; gap: 12px;
+}
+.lan-sync-code-dialog-title { font-size: 16px; font-weight: 600; color: var(--text, #3A3835); }
+.lan-sync-code-dialog-desc { font-size: 13px; color: var(--text-muted, #999); }
+.lan-sync-code-dialog-target {
+    font-size: 13px; color: var(--text-soft, #666);
+    background: var(--surface-alt, #FAFAF8); border-radius: 6px; padding: 6px 10px;
+    text-align: center; word-break: break-all;
+}
+.lan-sync-code-dialog-input {
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 10px 12px;
+    font-size: 18px; letter-spacing: 4px; text-align: center;
+    font-family: monospace; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
+    outline: none; width: 100%; box-sizing: border-box;
+}
+.lan-sync-code-dialog-input:focus { border-color: var(--brand, #D4793A); }
+.lan-sync-code-dialog-actions { display: flex; gap: 10px; }
+.lan-sync-code-dialog-cancel {
+    flex: 1; padding: 10px 0; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-soft, #666); cursor: pointer; font-size: 14px;
+}
+.lan-sync-code-dialog-ok {
+    flex: 1; padding: 10px 0; border: none; border-radius: 8px;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
+}
+/* 传输内容选择弹窗：两个模式按钮纵向排列 */
+.lan-sync-code-dialog-modes { display: flex; flex-direction: column; gap: 8px; }
+.lan-sync-mode-btn {
+    padding: 12px 14px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835); cursor: pointer; font-size: 14px;
+    text-align: left;
+}
+.lan-sync-mode-btn:active { background: var(--surface-alt, #FAFAF8); }
+.lan-sync-code { font-family: monospace; font-size: 22px; letter-spacing: 2px; font-weight: 600; color: var(--brand, #D4793A); }
+.lan-sync-code-empty { color: var(--text-muted, #CCC); }
+
+/* 卡片二维码 */
+.lan-sync-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.lan-sync-qr-tip { font-size: 12px; color: var(--text-muted, #999); }
+.lan-sync-qr { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.lan-sync-qr-label { font-size: 12px; color: var(--text-muted, #999); }
+.lan-sync-qr table { margin: 0 auto; }
+.lan-sync-qr-wrap, .lan-sync-qr { max-width: 100%; }
+
+/* WebRTC 信令 QR：长信令模块多，尺寸由 JS 按视口动态计算（lan-sync-qr.js render） */
+.lan-sync-wrtc-qr table { margin: 0 auto; }
+
+/* 主按钮 */
+.lan-sync-btn-start {
+    border: none; border-radius: 8px; padding: 12px 24px;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); font-size: 15px; cursor: pointer;
+}
+.lan-sync-btn-stop {
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 8px 20px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-muted, #666); font-size: 13px; cursor: pointer;
+}
+
+/* 分区 */
+.lan-sync-section { margin-bottom: 24px; }
+.lan-sync-section-title { font-size: 13px; color: var(--text-muted, #666); margin-bottom: 8px; font-weight: 600; }
+.lan-sync-section-hideable { display: none; }
+
+/* 手动连接：窄屏自动换行（flex 子项 min-width:0 允许收缩，防横向溢出） */
+.lan-sync-manual { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.lan-sync-input-ip, .lan-sync-input-code {
+    border: 1px solid var(--border, #D4D2CD); border-radius: 8px; padding: 10px;
+    font-size: 14px; flex: 1 1 120px; min-width: 0; background: var(--card-bg, #FFFFFF); color: var(--text, #3A3835);
+}
+.lan-sync-input-code { flex: 0 1 110px; max-width: 110px; }
+.lan-sync-btn-connect, .lan-sync-btn-scan-connect { flex: 0 0 auto; }
+.lan-sync-btn-connect {
+    padding: 10px 16px; border: none; border-radius: 8px;
+    background: var(--brand, #D4793A); color: var(--btn-primary-text, #FFF); cursor: pointer; font-size: 14px;
+}
+.lan-sync-btn-scan-connect {
+    padding: 10px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--brand, #D4793A); cursor: pointer; font-size: 14px;
+}
+
+/* 设备列表 */
+.lan-sync-scan-hint {
+    color: var(--text-muted, #999); font-size: 13px; padding: 12px 0 2px;
+    display: flex; align-items: center; gap: 8px;
+}
+/* 扫描动画圆点：柔和呼吸效果，低饱和（对齐 Soft Nordic 暖调） */
+.lan-sync-scan-hint::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--brand, #D4793A);
+    animation: lan-sync-scan-pulse 1.2s ease-in-out infinite;
+    flex: 0 0 auto;
+}
+@keyframes lan-sync-scan-pulse {
+    0%, 100% { opacity: .35; transform: scale(.85); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
+.lan-sync-no-device { color: var(--text-muted, #999); padding: 12px 0 2px; }
+.lan-sync-no-device-hint { color: var(--text-muted, #BBB); font-size: 12px; padding-bottom: 8px; line-height: 1.5; }
+.lan-sync-device {
+    display: flex; align-items: center; gap: 10px; padding: 12px 0;
+    border-bottom: 1px solid var(--nav-hover, #ECEAE5);
+    flex-wrap: wrap;
+}
+.lan-sync-device-icon { font-size: 20px; flex: 0 0 auto; }
+.lan-sync-device-name { font-weight: 500; color: var(--text, #3A3835); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-sync-device-addr { color: var(--text-muted, #999); flex: 1 1 auto; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-sync-btn-pull, .lan-sync-btn-push {
+    padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px;
+    transition: opacity .2s;
+}
+/* 传输中：置灰防重复点击，但保留可感知状态 */
+.lan-sync-busy { opacity: .45; pointer-events: none; }
+.lan-sync-btn-pull { color: #4A90D9; }
+[data-theme="dark"] .lan-sync-btn-pull { color: #6B9CFF; }
+.lan-sync-btn-push { color: var(--brand, #D4793A); }
+
+/* PWA↔PWA WebRTC 直连区域 */
+.lan-sync-wrtc-unsupported {
+    color: var(--text-muted, #999); font-size: 13px; padding: 8px 0;
+}
+.lan-sync-wrtc-connected {
+    display: flex; flex-direction: column; gap: 12px; padding: 4px 0;
+}
+.lan-sync-wrtc-status {
+    font-weight: 600; color: var(--success-text, #4CAF50);
+}
+.lan-sync-wrtc-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.lan-sync-wrtc-actions button {
+    flex: 1; min-width: 90px; padding: 10px; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 14px;
+}
+.lan-sync-wrtc-create { color: #4A90D9; }
+[data-theme="dark"] .lan-sync-wrtc-create { color: #6B9CFF; }
+.lan-sync-wrtc-scan-offer { color: var(--brand, #D4793A); }
+.lan-sync-wrtc-scanning { color: var(--text-muted, #999); padding: 8px 0; }
+.lan-sync-wrtc-hint { color: var(--text-muted, #999); font-size: 12px; margin-top: 8px; }
+.lan-sync-wrtc-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 8px 0; }
+.lan-sync-wrtc-qr-label { font-size: 13px; color: var(--text-soft, #666); }
+.lan-sync-wrtc-qr table { margin: 0 auto; }
+.lan-sync-wrtc-copy { text-align: center; }
+.lan-sync-btn-copy {
+    padding: 6px 16px; border: 1px solid var(--border, #D4D2CD); border-radius: 6px;
+    background: var(--card-bg, #FFFFFF); cursor: pointer; font-size: 13px; color: var(--text-soft, #666);
+}
+
+/* 日志 */
+.lan-sync-log {
+    max-height: 200px; overflow-y: auto; background: var(--surface-alt, #FAFAF8);
+    border-radius: 8px; padding: 8px; font-size: 12px;
+}
+.lan-sync-log-entry { padding: 4px 0; border-bottom: 1px solid var(--nav-hover, #F0EEEA); }
+.lan-sync-log-time { color: var(--text-muted, #999); }
+
+/* ── 扫码遮罩（BK.openDialog 承载，系统返回键可关）──────────── */
+/* .bk-scan-dialog 与 .bk-dialog-mask 同元素（openDialog className 追加），基础遮罩样式见 css-popups.css */
+.bk-scan-dialog .bk-scan-dialog-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: var(--card-bg, #FFFFFF); border-radius: 14px; padding: 20px 20px 16px;
+    max-width: calc(100vw - 48px); width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.bk-scan-dialog .bk-scan-dialog-title { font-size: 16px; font-weight: 600; color: var(--text, #3A3835); }
+.bk-scan-dialog .bk-scan-dialog-video-wrap {
+    position: relative; width: 100%; aspect-ratio: 1/1; overflow: hidden;
+    border-radius: 10px; background: #000;
+}
+.bk-scan-dialog .bk-scan-dialog-video-wrap video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.bk-scan-dialog .bk-scan-dialog-tip {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px 12px; font-size: 12px; color: #FFF;
+    background: rgba(0,0,0,.45); text-align: center;
+}
+.bk-scan-dialog .bk-scan-dialog-cancel {
+    padding: 10px 0; width: 100%; border: 1px solid var(--border, #D4D2CD); border-radius: 8px;
+    background: var(--card-bg, #FFFFFF); color: var(--text-soft, #666); font-size: 14px; cursor: pointer;
+}

@@ -1,0 +1,167 @@
+/* 书报 - 完整样式表 */
+
+/* ── 主题变量 ─────────────────────────────────────────────── */
+:root, [data-theme="cool"] {
+  --surface: #F5F4F1; --surface-alt: #EDEAE4; --nav-hover: #ECEAE5;
+  --text: #1A1918; --text-soft: #2B2620; --text-muted: #9A958C; --heading: #1A1918;
+  --brand: #3D8A5A; --brand-rgb: 61,138,90; --accent-color: #3D8A5A;
+  --border: #E5E2DD; --group-divider-bg: #EAE6DF;
+  --header-text: #1A1918; --btn-primary-bg: #3D8A5A;
+  --btn-primary-text: #fff; --btn-primary-border: #3D8A5A;
+  --card-bg: #ffffff; --shadow-sm: 0 1px 3px rgba(60,40,10,.06);
+  --success-text: #3D8A5A; --danger-text: #C8553D; --danger-border: #EAD9D2; --danger-bg: #FBF3F0;
+  --warning-text: #B5793A; --muted: #9A958C;
+  --menu-shadow: 0 6px 20px rgba(90,65,30,.14);
+  --dialog-shadow: 0 10px 32px rgba(90,65,30,.12);
+  --overlay-strong: rgba(44,24,16,.38);
+  --interactive-soft-bg: rgba(var(--brand-rgb),.10);
+  --interactive-soft-border: rgba(var(--brand-rgb),.20);
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --float-radius: 31px;
+  --shadow-card: 0 2px 8px rgba(60,40,10,.06);
+  --shadow-card-hover: 0 6px 20px rgba(60,40,10,.10);
+  --header-gradient: linear-gradient(135deg, rgba(var(--brand-rgb),.10), rgba(var(--brand-rgb),.03));
+  --progress-bg: rgba(var(--brand-rgb),.14);
+  --progress-fill: var(--brand);
+  --tag-bg: rgba(var(--brand-rgb),.10);
+  --tag-text: #3D8A5A;
+  --text-xs: 12px;        /* auxiliary info */
+  --text-sm: 13px;        /* secondary text */
+  --text-base: 14px;      /* standard UI text */
+  --text-md: 15px;        /* slightly emphasized */
+  --text-lg: 16px;        /* subheadings */
+  --text-xl: 18px;        /* section titles */
+  --text-2xl: 22px;       /* page titles */
+  --text-3xl: 26px;       /* app title */
+  /* Spacing tokens */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  /* Transition tokens */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Extended radius */
+  --radius-full: 9999px;
+  /* Enhanced shadow layers */
+  --shadow-float: 0 8px 24px rgba(60,40,10,.10);
+  --shadow-glass: 0 4px 16px rgba(60,40,10,.06);
+  /* Surface RGB for glassmorphism */
+  --surface-rgb: 245,244,241;
+  --glass-bg: rgba(245,244,241,0.78);
+  /* 系统字体令牌：阅读/标题用系统衬线栈，UI/数字用系统无衬线栈，不下载 webfont */
+  --reading-font-family: 'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
+  --ui-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --heading-font-family: 'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
+  --num-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --mono-font-family: 'SF Mono', 'Menlo', Consolas, 'Courier New', monospace;
+  /* 用户阅读字体（运行时由设置面板切换，空=用默认衬线栈） */
+  --user-reading-font: ;
+  /* 赞助对话框 */
+  --sponsor-wx-color: #07C160;
+  --sponsor-zfb-color: #1677FF;
+  --sponsor-wx-bg: rgba(7,193,96,.08);
+  --sponsor-zfb-bg: rgba(22,119,255,.08);
+  /* 图片查看器 */
+  --viewer-overlay-bg: rgba(0,0,0,.92);
+  --viewer-control-bg: rgba(0,0,0,.45);
+  --viewer-control-bg-active: rgba(0,0,0,.65);
+  --viewer-control-text: #fff;
+  --viewer-hint: rgba(255,255,255,.5);
+}
+[data-theme="warm"] {
+  --surface: #F7F2E8; --surface-alt: #F0E9DB; --nav-hover: #EBE4D2;
+  --text: #1A1918; --text-soft: #3A3128; --text-muted: #9A8E7E; --heading: #2A2018;
+  --brand: #A67C52; --brand-rgb: 166,124,82; --accent-color: #A67C52; --amber-rgb: 217,165,60; --plum-rgb: 145,100,160;
+  --border: #E0D9CC; --group-divider-bg: #E5DCC8;
+  --header-text: #2A2018; --btn-primary-bg: #A67C52;
+  --btn-primary-text: #fff; --btn-primary-border: #A67C52;
+  --card-bg: #FEFCF8; --shadow-sm: 0 1px 3px rgba(80,55,20,.08);
+  --success-text: #A67C52; --danger-text: #C8553D; --danger-border: #EAD9D2; --danger-bg: #FBF3F0;
+  --warning-text: #B5793A; --muted: #9A8E7E;
+  --menu-shadow: 0 6px 20px rgba(120,85,40,.16);
+  --dialog-shadow: 0 10px 32px rgba(120,85,40,.14);
+  --overlay-strong: rgba(60,40,20,.38);
+  --interactive-soft-bg: rgba(var(--brand-rgb),.10);
+  --interactive-soft-border: rgba(var(--brand-rgb),.20);
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --float-radius: 31px;
+  --shadow-card: 0 2px 8px rgba(80,55,20,.08);
+  --shadow-card-hover: 0 6px 20px rgba(80,55,20,.12);
+  --header-gradient: linear-gradient(135deg, rgba(var(--brand-rgb),.10), rgba(var(--brand-rgb),.03));
+  --progress-bg: rgba(var(--brand-rgb),.14);
+  --progress-fill: var(--brand);
+  --tag-bg: rgba(var(--brand-rgb),.10);
+  --tag-text: #A67C52;
+  /* Spacing tokens */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  /* Transition tokens */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Extended radius */
+  --radius-full: 9999px;
+  /* Enhanced shadow layers */
+  --shadow-float: 0 8px 24px rgba(80,55,20,.12);
+  --shadow-glass: 0 4px 16px rgba(80,55,20,.08);
+  /* Surface RGB for glassmorphism */
+  --surface-rgb: 247,242,232;
+  --glass-bg: rgba(247,242,232,0.78);
+  /* 赞助对话框（warm 略高透明度） */
+  --sponsor-wx-bg: rgba(7,193,96,.09);
+  --sponsor-zfb-bg: rgba(22,119,255,.09);
+}
+[data-theme="dark"] {
+  --surface: #1A1917; --surface-alt: #232220; --nav-hover: #2A2926;
+  --text: #E8E6E2; --text-soft: #C9C5BC; --text-muted: #9A958C; --heading: #E8E6E2;
+  --brand: #5EAE7E; --brand-rgb: 94,174,126; --accent-color: #5EAE7E; --amber-rgb: 217,180,80; --plum-rgb: 170,130,185;
+  --border: #34322E; --group-divider-bg: #2A2926;
+  --header-text: #E8E6E2; --btn-primary-bg: #5EAE7E;
+  --btn-primary-text: #1A1917; --btn-primary-border: #5EAE7E;
+  --card-bg: #201F1D; --shadow-sm: 0 1px 3px rgba(0,0,0,.30);
+  --success-text: #5EAE7E; --danger-text: #D8856E; --danger-border: #5A3A33; --danger-bg: #2A201D;
+  --warning-text: #D8A05A; --muted: #9A958C;
+  --menu-shadow: 0 6px 20px rgba(0,0,0,.32);
+  --dialog-shadow: 0 12px 36px rgba(0,0,0,.32);
+  --overlay-strong: rgba(0,0,0,.54);
+  --interactive-soft-bg: rgba(94,174,126,.14);
+  --interactive-soft-border: rgba(94,174,126,.26);
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --float-radius: 31px;
+  --shadow-card: 0 2px 8px rgba(0,0,0,.26);
+  --shadow-card-hover: 0 6px 20px rgba(0,0,0,.38);
+  --header-gradient: linear-gradient(135deg, rgba(94,174,126,.08), rgba(94,174,126,.02));
+  --progress-bg: rgba(94,174,126,.16);
+  --progress-fill: var(--brand);
+  --tag-bg: rgba(94,174,126,.12);
+  --tag-text: #5EAE7E;
+  /* Spacing tokens */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  /* Transition tokens */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Extended radius */
+  --radius-full: 9999px;
+  /* Enhanced shadow layers */
+  --shadow-float: 0 8px 24px rgba(0,0,0,.34);
+  --shadow-glass: 0 4px 16px rgba(0,0,0,.30);
+  /* Surface RGB for glassmorphism */
+  --surface-rgb: 26,25,23;
+  --glass-bg: rgba(26,25,23,0.78);
+  /* Code block background for dark theme */
+  --code-bg: #1b1b1b;
+  /* 赞助对话框（dark 更高透明度以适应深色背景） */
+  --sponsor-wx-bg: rgba(7,193,96,.16);
+  --sponsor-zfb-bg: rgba(22,119,255,.16);
+}
+
+/* ── 深色模式：EPUB 内联颜色安全网（覆盖已导入书籍中残留的硬编码颜色）── */
+[data-theme="dark"] .reading-content [style*="color:#000"],
+[data-theme="dark"] .reading-content [style*="color: #000"],
+[data-theme="dark"] .reading-content [style*="color:#000000"],
+[data-theme="dark"] .reading-content [style*="color: #000000"] {
+  color: var(--text) !important;
+}
+[data-theme="dark"] .reading-content [style*="background-color:#fff"],
+[data-theme="dark"] .reading-content [style*="background-color: #fff"],
+[data-theme="dark"] .reading-content [style*="background-color:#ffffff"],
+[data-theme="dark"] .reading-content [style*="background-color: #ffffff"] {
+  background-color: var(--surface) !important;
+}
+[data-theme="dark"] .reading-content [style*="color:#0433FF"],
+[data-theme="dark"] .reading-content [style*="color: #0433FF"],
+[data-theme="dark"] .reading-content [style*="color:#0433ff"],
+[data-theme="dark"] .reading-content [style*="color: #0433ff"] {
+  color: #6B9CFF !important;
+}
+
