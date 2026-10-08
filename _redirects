@@ -1,0 +1,3 @@
+# Cloudflare Pages 重定向规则
+# APK 下载：直接提供文件，阻止 SPA fallback 把 .apk 路径映射到 index.html
+/*.apk /:splat.apk 200
