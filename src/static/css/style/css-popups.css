@@ -138,7 +138,7 @@
 }
 .scripture-popup-verse { display: flex; align-items: baseline; margin-bottom: 14px; line-height: 1.9; }
 .scripture-popup-verse:last-child { margin-bottom: 0; }
-.scripture-popup-ref { flex-shrink: 0; font-size: 0.82em; color: var(--text-muted, #9A958C); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
+.scripture-popup-ref { flex-shrink: 0; font-size: 0.88em; color: var(--brand, #3D8A5A); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
 /* 正文类内容跟随阅读设置字体/字号（theme-toggle.js 运行时变量） */
 .scripture-popup-text { flex: 1; font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); color: var(--text, #1A1918); }
 .scripture-popup-verse--missing .scripture-popup-text { color: var(--text-muted, #9A958C); font-style: italic; }
@@ -209,7 +209,7 @@
 }
 .scripture-block .scripture-popup-verse { display: flex; align-items: baseline; margin-bottom: 6px; }
 .scripture-block .scripture-popup-verse:last-child { margin-bottom: 0; }
-.scripture-block .scripture-popup-ref { flex-shrink: 0; font-size: 0.82em; color: var(--text-muted, #9A958C); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
+.scripture-block .scripture-popup-ref { flex-shrink: 0; font-size: 0.82em; color: var(--brand, #3D8A5A); font-weight: 600; padding-right: 0.5em; min-width: 1.8em; text-align: right; }
 .scripture-block .scripture-popup-text { flex: 1; color: var(--text, #1A1918); font-size: var(--reading-font-size, 16px); }
 .scripture-block-static {
   margin: 8px 0; padding: 10px 14px; background: rgba(var(--brand-rgb, 61,138,90),.06);

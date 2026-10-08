@@ -470,7 +470,7 @@
 .scripture-popup-body { padding: 20px 24px 24px; }
 .scripture-popup-verse { margin-bottom: 14px; }
 .scripture-popup-text { font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); color: var(--text, #1A1918); }
-.scripture-popup-ref { color: var(--text-muted, #9A958C); font-weight: 600; }
+.scripture-popup-ref { color: var(--brand, #3D8A5A); font-weight: 600; }
 .scripture-popup-fn-body { font-family: var(--user-reading-font, var(--reading-font-family, 'Songti SC', Georgia, serif)); font-size: var(--reading-font-size, 16px); color: var(--text, #1A1918); }
 /* 引用来源 muted + 引用检测 chip sage 半透 */
 .scripture-popup-source { font-size: var(--text-sm, .8125rem); color: var(--text-muted, #9A958C); }

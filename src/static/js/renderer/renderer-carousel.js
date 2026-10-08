@@ -291,6 +291,27 @@
           _swipeState.rejected = true;
           return;
         }
+        // ★ 文字选择让位：长按选中正文文字后拖动（划线扩选）时，横滑必须让位，
+        //   否则下方 preventDefault 会切断原生选区拖动、松手还会误触切章。
+        //   时间条件（>350ms）：真实长按约 500ms 后生成选区，快速横滑通常
+        //   100~200ms 内已越过阈值；划线完成后残留的旧选区因 elapsed 短
+        //   不会触发守卫，不永久封锁翻页。
+        //   范围条件：仅正文容器（.content/.bible-reading）内的选区让位，
+        //   外部控件选区不影响翻页。
+        var _elapsed = Date.now() - _swipeState.startTime;
+        if (_elapsed > 350 && win.getSelection) {
+          var _sel = win.getSelection();
+          if (_sel && !_sel.isCollapsed && _sel.anchorNode) {
+            var _selEl = _sel.anchorNode.nodeType === 1
+              ? _sel.anchorNode
+              : _sel.anchorNode.parentElement;
+            if (_selEl && _selEl.closest &&
+                _selEl.closest('.content, .bible-reading')) {
+              _swipeState.rejected = true;
+              return;
+            }
+          }
+        }
         _swipeState.active = true;
         track.classList.add('bk-swipe-active');
         track.style.transition = 'none';
