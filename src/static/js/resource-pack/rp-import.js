@@ -124,7 +124,9 @@
           '<span class="bk-import-file-icon">' + icon + '</span>' +
           '<div class="bk-import-file-info">' +
             '<div class="bk-import-file-name">' + _escHtml(displayName) + '</div>' +
-            (f.size ? '<div class="bk-import-file-size">' + formatSize(f.size) + '</div>' : '') +
+            (f._lazyError
+              ? '<div style="font-size:var(--text-xs,.75rem);color:var(--danger-text,#C8553D);margin-top:2px">' + _escHtml(f._lazyError) + '</div>'
+              : (f.size ? '<div class="bk-import-file-size">' + formatSize(f.size) + '</div>' : '')) +
           '</div>' +
         '</div>';
       }
@@ -163,7 +165,7 @@
         // 去重（按文件名）
         var existNames = {};
         for (var ei = 0; ei < fileQueue.length; ei++) existNames[fileQueue[ei].name] = true;
-        var added = 0;
+        var added = 0, lazyFailed = 0;
         for (var i = 0; i < files.length; i++) {
           if (!existNames[files[i].name]) {
             var idx = fileQueue.length;
@@ -171,11 +173,14 @@
             fileChecked[idx] = true;
             existNames[files[i].name] = true;
             added++;
+            if (files[i]._lazyError) lazyFailed++;
           }
         }
         renderFileList();
         var statusEl = document.getElementById('bkImportStatus');
-        if (statusEl) statusEl.textContent = added > 0 ? '已添加 ' + added + ' 个文件' : '文件已在列表中';
+        if (statusEl) statusEl.textContent = added > 0
+          ? ('已添加 ' + added + ' 个文件' + (lazyFailed > 0 ? '，' + lazyFailed + ' 个读取失败（详见列表）' : ''))
+          : '文件已在列表中';
       }).catch(function() {});
     }
 
@@ -220,13 +225,32 @@
       }
       if (!selected.length) return;
 
+      // 剔除读取失败的惰性占位条目（_lazyError）：直接产出失败结果，不再送入解析
+      // （多为超大文件被 40MB 上限拒绝；完整备份包应走 设置 → 数据同步中心）
+      var importable = [];
+      var lazyResults = [];
+      for (var s0 = 0; s0 < selected.length; s0++) {
+        var sf = selected[s0];
+        if (sf._lazyError) {
+          var lfErr = sf._lazyError;
+          var lfExt = (sf.name || '').split('.').pop().toLowerCase();
+          if (lfExt === 'zip' && lfErr.indexOf('文件过大') >= 0) {
+            lfErr += '。完整数据包（v3/v4）请到 设置 → 数据同步中心 导入';
+            sf._lazyError = lfErr; // 写回，列表卡片同步显示引导文案
+          }
+          lazyResults.push({ success: false, name: sf.name, error: lfErr });
+        } else {
+          importable.push(sf);
+        }
+      }
+
       // 分离 .zip 文件和普通文件
       var zipFiles = [];
       var normalFiles = [];
-      for (var s = 0; s < selected.length; s++) {
-        var ext = (selected[s].name || '').split('.').pop().toLowerCase();
-        if (ext === 'zip') zipFiles.push(selected[s]);
-        else normalFiles.push(selected[s]);
+      for (var s = 0; s < importable.length; s++) {
+        var ext = (importable[s].name || '').split('.').pop().toLowerCase();
+        if (ext === 'zip') zipFiles.push(importable[s]);
+        else normalFiles.push(importable[s]);
       }
 
       importing = true;
@@ -285,7 +309,7 @@
           })(zipFiles[z]);
         }
 
-        return chain.then(function() { return normalResults.concat(zipResults); });
+        return chain.then(function() { return normalResults.concat(zipResults).concat(lazyResults); });
       }).then(function(results) {
         importing = false;
         var ok = 0, fail = 0;
@@ -309,6 +333,9 @@
           } catch (e) {}
         }
         if (fail === 0) {
+          // 释放队列中的大文件数据引用（base64 字符串），避免导入完成后驻留内存
+          fileQueue = [];
+          fileChecked = {};
           dlg.close();
         } else {
           if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '导入选中的文件'; }

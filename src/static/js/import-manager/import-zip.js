@@ -503,7 +503,7 @@
                 }
 
                 if (!manifest || (manifest.version !== 1 && manifest.version !== 2)) {
-                    return Promise.reject(new Error('不支持的书籍包版本（期望 v1/v2）'));
+                    return Promise.reject(new Error('不支持的书籍包版本（期望 v1/v2）。完整数据包（v3/v4）请到 设置 → 数据同步中心 导入'));
                 }
 
                 // 2. 收集书籍目录名

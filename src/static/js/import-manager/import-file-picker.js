@@ -1,5 +1,87 @@
 ﻿'use strict';
 
+  // ── APK 大文件导入防闪退（2026-10）────────────────────────────────────
+  // 根因：FilePicker readData:true 在选文件瞬间原生层全量读入+base64，
+  // 多选时所有文件同时进内存，大 ZIP 备份包直接 OOM 被 LMK 杀进程（App 整体退出）。
+  // 修复：readData:false 只拿元信息（name/mimeType/path(=content uri)/size），
+  // 导入时再逐个串行 readFile，且超过阈值的大文件直接拒绝并引导去数据同步中心。
+  // ⚠ FilePicker 返回结构无 uri 字段，content uri 在 path 字段（旧代码 f.uri 恒为 undefined）。
+  var MAX_INLINE_FILE_BYTES = 40 * 1024 * 1024; // 单文件惰性读取上限 40MB
+
+  function _nativeFilesystem() {
+    return win.Capacitor && win.Capacitor.Plugins && win.Capacitor.Plugins.Filesystem;
+  }
+
+  // FilePicker 返回条目 → 统一 fileInfo（不读数据，仅元信息 + 惰性读取器）
+  // 返回结构保持向后兼容：{ name, mime, uri, size, data(arrayBuffer 填充后), arrayBuffer, text }
+  function _lazyFromPickEntry(f) {
+    var uri = f.uri || f.path || ''; // readData:false 时 uri 字段不存在，取 path（content://）
+    var info = {
+      name: f.name,
+      mime: f.mimeType,
+      uri: uri,
+      size: typeof f.size === 'number' ? f.size : 0,
+      _lazyUri: uri, // 惰性读取标记：导入时才读数据
+      _read: function() { return _readLazyUri(uri, this.name, this.size); }
+    };
+    return info;
+  }
+
+  // 惰性读取 content uri：二进制走 Filesystem.readFile base64，文本走 utf8
+  function _readLazyUri(uri, name, size) {
+    var Filesystem = _nativeFilesystem();
+    if (!Filesystem || !uri) {
+      return Promise.reject(new Error('当前环境不支持读取所选文件'));
+    }
+    // 大小预检：超限直接拒绝（避免任何形式的整读）
+    if (size && size > MAX_INLINE_FILE_BYTES) {
+      return Promise.reject(new Error('文件过大（' + formatSize(size) + '），超出书架导入上限 40MB'));
+    }
+    var ext = (name || '').split('.').pop().toLowerCase();
+    var isBinary = (ext === 'epub' || ext === 'pdf' || ext === 'zip');
+    var opts = { path: uri }; // directory 不传 → content:// 走 ContentResolver
+    if (!isBinary) opts.encoding = 'utf8';
+    return Filesystem.readFile(opts).then(function(result) {
+      if (!result || typeof result.data !== 'string') {
+        return Promise.reject(new Error('无法读取文件数据'));
+      }
+      if (isBinary) return { data: result.data, size: size || 0 };
+      return { text: result.data, size: size || 0 };
+    });
+  }
+
+  // 将惰性 fileInfo 转为传统可直接导入的形态（填充 data/text 字段，供消费方 arrayBuffer||data / text||decodeBase64(data) 使用）
+  function _materializeLazy(info) {
+    if (!info || !info._lazyUri) return Promise.resolve(info); // 非惰性（Web 路径）直接返回
+    return info._read().then(function(read) {
+      info.data = read.data;       // base64（二进制）
+      info.text = read.text;       // 文本
+      info.size = read.size;
+      info._read = null;           // 释放闭包
+      return info;
+    });
+  }
+
+  // 多文件选择：惰性读取（串行，防内存叠加）
+  function _materializeAllLazy(infos) {
+    var out = [];
+    var chain = Promise.resolve();
+    for (var i = 0; i < infos.length; i++) {
+      (function(info) {
+        chain = chain.then(function() {
+          return _materializeLazy(info).then(function(mat) {
+            out.push(mat);
+          }).catch(function(err) {
+            // 单文件读取失败不中断批次：记录带错误的占位（size>0 保留供上层提示）
+            out.push({ name: info.name, mime: info.mime, uri: info.uri, size: info.size,
+                       _lazyError: (err && err.message) || '文件读取失败' });
+          });
+        });
+      })(infos[i]);
+    }
+    return chain.then(function() { return out; });
+  }
+
   // ── 多文件选择 ──
   function pickFiles() {
     // 判断是否在 Capacitor 原生环境
@@ -20,13 +102,12 @@
           'application/zip',
           'application/octet-stream'
         ],
-        readData: true,
+        readData: false, // ★ 防闪退：只拿元信息（name/path/size），数据导入时再串行读
         limit: 0
       }).then(function(result) {
         if (!result || !result.files || !result.files.length) return [];
-        return result.files.map(function(f) {
-          return { name: f.name, mime: f.mimeType, data: f.data, uri: f.uri };
-        });
+        var infos = result.files.map(_lazyFromPickEntry);
+        return _materializeAllLazy(infos);
       });
     }
 
@@ -93,11 +174,11 @@
           'application/zip',
           'application/octet-stream'
         ],
-        readData: true  // 返回 base64 数据
+        readData: false // ★ 防闪退：只拿元信息，数据导入时再读（返回后立即惰性物化）
       }).then(function(result) {
         if (!result || !result.files || !result.files.length) return null;
-        var f = result.files[0];
-        return { name: f.name, mime: f.mimeType, data: f.data, uri: f.uri };
+        var info = _lazyFromPickEntry(result.files[0]);
+        return _materializeLazy(info);
       });
     }
 
@@ -276,13 +357,12 @@
         'application/zip',
         'application/octet-stream'
       ],
-      readData: true,
+      readData: false, // ★ 防闪退：同 pickFiles 惰性策略
       limit: 0
     }).then(function(result) {
       if (!result || !result.files || !result.files.length) return [];
-      return result.files.map(function(f) {
-        return { name: f.name, mime: f.mimeType, data: f.data, uri: f.uri };
-      });
+      var infos = result.files.map(_lazyFromPickEntry);
+      return _materializeAllLazy(infos);
     }).catch(function() { return []; });
   }
 

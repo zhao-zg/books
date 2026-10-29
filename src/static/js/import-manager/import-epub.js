@@ -2,7 +2,17 @@
 
   // ── EPUB 解析 ──
   function parseEpub(data, fileName) {
-    // data 可以是 base64 字符串（FilePicker readData）或 ArrayBuffer（web FileReader）
+    // data 可以是 base64 字符串（FilePicker readData / open-file-handler）
+    // 或 ArrayBuffer / Uint8Array（web FileReader / rp-import 等）
+    // ★ base64 必须先解码为 Uint8Array：JSZip 对 string 输入按 UTF-8 文本
+    //   转字节（非 base64 解码），直接传 base64 会破坏 zip 结构，
+    //   报 "Can't find end of central directory"（native 端必现）。
+    //   处理方式与 parsePdf（import-pdf.js）保持一致。
+    if (typeof data === 'string') {
+      var raw = atob(data);
+      data = new Uint8Array(raw.length);
+      for (var bi = 0; bi < raw.length; bi++) data[bi] = raw.charCodeAt(bi);
+    }
     return JSZip.loadAsync(data).then(function(zip) {
       // 1. 读 container.xml 找 OPF 路径
       var containerFile = zip.file('META-INF/container.xml');

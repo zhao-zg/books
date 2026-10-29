@@ -365,6 +365,34 @@
     }
   }
 
+  // ==================== 原生崩溃日志（nativeCrashLog）====================
+  // 消费方：theme-toggle.js「反馈与修复」面板（window.BK.nativeCrashLog.get() 取字符串）。
+  // 原生插件 CrashLogPlugin.getLastCrash() 一次性读取（读后文件即删），
+  // 故启动时读一次并缓存到内存；get() 返回缓存字符串，clear() 清空内存缓存。
+  var _crashLog = {
+    text: '',
+    loaded: false
+  };
+
+  function _loadNativeCrashLog() {
+    if (_crashLog.loaded) return;
+    _crashLog.loaded = true; // 无论成败只尝试一次，避免反复打原生层
+    var CrashLog = win.Capacitor && win.Capacitor.Plugins && win.Capacitor.Plugins.CrashLog;
+    if (!CrashLog || typeof CrashLog.getLastCrash !== 'function') return; // PWA/浏览器无此插件
+    try {
+      CrashLog.getLastCrash().then(function (result) {
+        if (result && typeof result.log === 'string' && result.log) {
+          _crashLog.text = result.log;
+          console.log('[AppLifecycle] 检测到上次崩溃日志（' + result.log.length + ' 字符）');
+        }
+      }).catch(function (e) {
+        console.warn('[AppLifecycle] 读取崩溃日志失败:', e && e.message);
+      });
+    } catch (e) {
+      console.warn('[AppLifecycle] CrashLog 调用异常:', e && e.message);
+    }
+  }
+
   // ==================== 公共 API ====================
 
   function isBackground() { return _state.background; }
@@ -413,6 +441,9 @@
       _state.backgroundSince = _now();
     }
 
+    // 启动时读取上次原生崩溃日志（一次性，结果缓存内存）
+    _loadNativeCrashLog();
+
     console.log('[AppLifecycle] 已启动 (native=' + _isNative() + ')');
   }
 
@@ -427,6 +458,11 @@
     onForeground: onForeground,
     registerRefresher: registerRefresher,
     unregisterRefresher: unregisterRefresher
+  };
+  // 原生崩溃日志：theme-toggle.js 反馈面板消费（get()→字符串 / clear()→清缓存）
+  win.BK.nativeCrashLog = {
+    get: function () { return _crashLog.text; },
+    clear: function () { _crashLog.text = ''; }
   };
 
 })(window);

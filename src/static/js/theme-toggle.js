@@ -148,8 +148,8 @@
         setTimeout(function probeSponsor() {
             var sponsorEnabled = !(window.BK_SERVERS && window.BK_SERVERS.sponsor_enabled === false);
             if (!sponsorEnabled) return;
-            // ★ 未开启自动检查更新时，跳过网络请求
-            if (!(window.BK && window.BK.shouldAllowNetworkRequest && window.BK.shouldAllowNetworkRequest())) return;
+            // ★ 赞助探测为轻量只读可达性检查，独立于「自动检查更新」开关；
+            //   不依赖 bk_auto_check_update，避免按钮被无关开关误隐藏。
             try {
                 var firstUse = parseInt(localStorage.getItem('bk_first_use') || '0', 10);
                 var elapsed = firstUse ? (Date.now() - firstUse) : 0;
