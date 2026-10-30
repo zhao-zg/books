@@ -92,6 +92,20 @@
     importFromUri(uri, fileName);
   }
 
+  // ── 绝对路径转缓存目录相对路径 ──
+  // Capacitor Filesystem 传绝对路径（无 scheme）时，native 层
+  // Uri.parse(path).getScheme() 返回 null 导致 NPE 直接闪退。
+  // MainActivity 复制目标固定为 getCacheDir()/open_file/，
+  // 故转换为相对路径并指定 Directory.Cache（"CACHE"）读取。
+  function toCacheRelativePath(filePath) {
+    var marker = '/cache/';
+    var idx = filePath.lastIndexOf(marker);
+    if (idx === -1) {
+      return null;
+    }
+    return filePath.substring(idx + marker.length);
+  }
+
   // ── 从文件路径导入（MainActivity 已将文件复制到缓存目录）──
   function importFromPath(filePath, fileName) {
     if (!isNative || !Filesystem) {
@@ -104,11 +118,23 @@
 
     console.log(TAG + ' 开始读取文件: ' + fileName + ' (binary=' + isBinary + ')');
 
+    // 绝对路径必须转为缓存相对路径，否则 native 层 NPE 闪退
+    var relPath = toCacheRelativePath(filePath);
+    var readOptions;
+    if (relPath !== null) {
+      readOptions = { path: relPath, directory: 'CACHE' };
+      console.log(TAG + ' 使用缓存目录读取: ' + relPath);
+    } else {
+      readOptions = { path: filePath };
+      console.warn(TAG + ' 路径不含 /cache/，按原样读取: ' + filePath);
+    }
+
     var readPromise;
     if (isBinary) {
-      readPromise = Filesystem.readFile({ path: filePath });
+      readPromise = Filesystem.readFile(readOptions);
     } else {
-      readPromise = Filesystem.readFile({ path: filePath, encoding: 'utf8' });
+      readOptions.encoding = 'utf8';
+      readPromise = Filesystem.readFile(readOptions);
     }
 
     readPromise.then(function (result) {
