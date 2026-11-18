@@ -86,8 +86,18 @@
     setTimeout(function () { delete _handledUris[uri]; }, 10000);
 
     // 从 URI 提取文件名
-    var segments = uri.split('/');
-    var fileName = segments[segments.length - 1] || 'unknown';
+    // ★ SAF content URI 的尾段是百分号编码的完整存储路径（如
+    //   document/primary%3ADocuments%2F…%2F1123%20书房），直接取尾段会把
+    //   编码串写进书名（书架/目录面板显示乱码路径）。必须先解码再取真实
+    //   文件名；解码失败（非法编码）保持原样容错。
+    var rawSegment = uri.split('/').pop() || '';
+    var fileName = rawSegment;
+    try { fileName = decodeURIComponent(rawSegment); } catch (e) { /* 非法编码保持原样 */ }
+    var qIdx = fileName.indexOf('?'); // 尾段可能带 query 参数（content://…/file.txt?token=…）
+    if (qIdx > -1) fileName = fileName.substring(0, qIdx);
+    var nameParts = fileName.split('/'); // 解码后仍可能含存储前缀与目录层级（primary:Docs/xx/yy）→ 取最后一段
+    fileName = nameParts[nameParts.length - 1] || fileName;
+    if (!fileName) fileName = 'unknown';
     // 对于 content URI，使用 Filesystem.readFile
     importFromUri(uri, fileName);
   }

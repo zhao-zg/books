@@ -124,6 +124,9 @@
   border-radius: 50%;
 }
 .font-option-label { font-size: 1.05em; color: var(--text); font-weight: 500; }
+/* 本机缺字体的阅读字体卡片置灰并标注「本机不可用」（参考 cx） */
+.font-option.font-option-disabled { opacity: .45; cursor: default; pointer-events: none; }
+.font-unavailable-badge { font-size: 11px; color: var(--text-muted, #9A958C); font-weight: 400; margin-left: 4px; }
 .font-size-slider-container {
   display: flex;
   align-items: center;

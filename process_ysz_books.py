@@ -184,8 +184,10 @@ def sanitize_text(text: str) -> str:
 
 def clean_chapter_title(title: str) -> str:
     """清洗章节标题（仅针对标题字段，不影响正文 content）：
-    1. 去掉 '读经' 前缀（保留经文内容，如 '读经：“她寻找羊绒和麻…”' → '“她寻找羊绒和麻…”'）
+    1. 去掉 '读经' 前缀（保留经文内容，如 '读经："她寻找羊绒和麻…"' → '"她寻找羊绒和麻…"'）
     2. 去掉 '（注：…）' / '（来源：…）' / '（编者：…）' 等编者注括号片段
+    3. 归一化中文顿号序号后的空白：如 '十九、 操练灵' → '十九、操练灵'；
+       仅顿号分支——'第X篇/章/课' 与 '1.' 式数字序号后的空格保留原样
     """
     if not title:
         return title
@@ -197,6 +199,12 @@ def clean_chapter_title(title: str) -> str:
         t = title.strip()
     # 去掉编者注括号（中文/英文括号包裹的 注/来源/编者 说明）
     t = re.sub(r'[（(](?:注|来源|编者)[：:][^（）()]*[）)]', '', t).strip()
+    # 归一化序号标点后的空白（仅中文顿号分支）：
+    # 如 '十九、 操练灵' → '十九、操练灵'，使构建产物标题与源目录（无多余空格）一致。
+    # 注意：'第X篇/章/课' 与 '1.' 式数字序号后的空格不压缩——src 手工基准中
+    # '第X篇 标题' 绝大多数带空格/全角空格（如 '第一篇　回到十字架罢'），保留原样
+    # 避免 16892 条标题被统一压成紧凑格式（与现网风格不一致）。
+    t = re.sub(r'^([一二三四五六七八九十百]+、)\s+', lambda m: m.group(1), t)
     return t
 
 
@@ -1177,17 +1185,19 @@ def extract_markdown_chapter(md_text: str) -> Optional[dict]:
     """
     从 ysz Markdown 文档提取内容。
     按 # 纲目、# 听抄、# 标语 分割。
-    优先从 ## 行提取有意义的章节标题（如 "《马太福音》第一章"），
-    仅当没有 ## 时才回退到 # 行标题。
+    标题选择启发式：h1 命中章序号模式（第X篇/章/课/回、"一、"式序号、"1."式）时
+    直接以 h1 为章标题；否则按旧逻辑 ## 优先、无 ## 回退 h1（书名类 h1 场景）。
     """
     if not md_text or not md_text.strip():
         return None
 
     lines = md_text.strip().split('\n')
 
-    # 提取标题：优先从 ## 行获取，回退到 # 行
+    # 提取标题：优先从 ## 行获取，回退到 # 行；另记录首个非空纯文本行
+    # （861 类源文件标题行无 # 前缀，如 '五、说「阿们」' 直接顶行）
     h1_title = ''
     h2_titles = []
+    plain_first_line = ''
     for line in lines:
         stripped = line.strip()
         if stripped.startswith('# ') and not h1_title:
@@ -1197,9 +1207,29 @@ def extract_markdown_chapter(md_text: str) -> Optional[dict]:
             # 过滤掉纯功能性标题（如【本章思路】）
             if not h2_text.startswith('【'):
                 h2_titles.append(h2_text)
+        elif not plain_first_line and stripped:
+            plain_first_line = stripped
 
-    # 优先使用第一个有意义的 ## 标题，否则回退到 # 标题
-    if h2_titles:
+    # 标题选择启发式：
+    #   - 四类源文件结构并存：
+    #     a) h1 = 章序号标题（第X篇/章/课/回、"一、操练灵"式序号、\d+、/\d+.）→ h1 即章标题；
+    #     b) h1 = 书名（如《马太福音》第一章类、或“台北市召会…纲要”类书名）、## 才是章标题；
+    #     c) 仅有 h1（无 ##）。
+    #     d) 无 h1：文档首行是纯文本章序号标题（如 861 '五、说「阿们」' 顶行无 #），
+    #        ## 是小节标题 → 以首个非空纯文本行为章标题。
+    #   - h1 匹配章序号模式则它就是章标题（a 类）；无 h1 且首个非空行匹配则用首个非空行
+    #     （d 类，not h1_title 守卫保证 h1 优先级不受影响）；否则保持旧逻辑（## 优先，回退 h1）。
+    #   - 全库 239 个内容文件实证：7/2/11 类用 b/c 逻辑，其余用 a 逻辑；
+    #     详见 .temp/probe_title_diff.py（差异清单）与 .temp/probe_titles2.py（分类统计）。
+    NUM_PAT = re.compile(r'^(第[一二三四五六七八九十百千廿卅\d]+[章篇课回]|[一二三四五六七八九十百]+、|\d+\s*[、.])')
+    if h1_title and NUM_PAT.match(h1_title):
+        title = h1_title
+    elif not h1_title and plain_first_line and NUM_PAT.match(plain_first_line):
+        # d 类：无 h1 且首个非空行是章序号标题（861 场景）。
+        # 该行也可能是正文段首（如 '一、祷告是灵的事' 开篇句），但正文段首一般
+        # 不会恰好位于文档开头且同时命中章序号模式；若有误判以探针清单为准。
+        title = plain_first_line
+    elif h2_titles:
         title = h2_titles[0]
     else:
         title = h1_title

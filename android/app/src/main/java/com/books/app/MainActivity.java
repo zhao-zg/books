@@ -43,6 +43,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CrashLogPlugin.class);
         registerPlugin(SaveFilePlugin.class);
         registerPlugin(LanSyncPlugin.class);
+        // 系统字体探针 + WebView 字体族注入（跟随系统字体，自 cx 项目移植）
+        registerPlugin(SystemFontPlugin.class);
 
         // 在 super.onCreate() 之前检查深链 Intent
         checkDeepLinkIntent(getIntent());

@@ -318,6 +318,10 @@
 .bk-feedback-status.success { color: var(--success-text, #2e7d32); }
 .bk-feedback-status.error { color: var(--danger-text, #c62828); }
 .bk-feedback-tip { font-size: var(--text-xs, .75rem); color: var(--text-muted, #9A958C); margin-top: 6px; line-height: 1.4; }
+/* 反馈弹窗内诊断入口行（字体诊断等，仅 APK 环境渲染，参考 cx） */
+.bk-feedback-diag { font-size: 11px; color: var(--text-muted, #9A958C); margin-top: 6px; padding: 6px 8px; background: var(--surface-alt, rgba(0,0,0,.04)); border-radius: 6px; line-height: 1.5; }
+.bk-feedback-diag button { border: none; background: none; padding: 0; font-size: 11px; font-weight: 600; color: var(--brand, #3D8A5A); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.bk-feedback-diag button:active { opacity: .7; }
 /* ── 反馈类型切换按钮（pill） ──────────────────────────────── */
 .bk-pill-row { display: flex; gap: 8px; margin-bottom: 4px; }
 .bk-pill { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border, #E5E2DD); background: transparent; color: var(--text-muted, #9A958C); font: inherit; font-size: var(--text-sm, .875rem); cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s, color .15s, border-color .15s; }

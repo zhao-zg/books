@@ -1,5 +1,9 @@
 /* ── 基础布局 ─────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* 表单控件按浏览器 UA 默认不继承页面字体（button 等被 UA 固定了字体族），导致
+   控件与正文各走各的字体路径：应用内字体设置只影响正文，系统字体却只影响控件。
+   显式继承后两者同源（参考 cx「跟随系统字体」方案的实测结论）。 */
+button, input, select, textarea { font-family: inherit; }
 body { font-size: 16px; font-family: var(--ui-font-family); background: var(--surface); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .container { max-width: 960px; margin: 0 auto; padding: 0; }
 .header { padding: 16px 20px 12px; background: none; border-radius: 0; margin-bottom: 8px; }

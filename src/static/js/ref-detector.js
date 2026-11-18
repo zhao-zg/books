@@ -108,6 +108,17 @@
   // 将文本中完整书名替换为缩写（从长到短）
   var _sortedFullNames = Object.keys(FULL_BOOK_MAP).sort(function(a,b){return b.length-a.length;});
 
+  // 节号兼容转换：中文数字与阿拉伯数字均转整数（「三章十九节」/「一章2节」）
+  function toVerseInt(s) {
+    if (!s) return 0;
+    if (/^[0-9]+$/.test(s)) return parseInt(s, 10);
+    return cnToInt(s);
+  }
+
+  // 节号片段（正则）：中文数字或阿拉伯数字
+  // ★ 必须定义在 _INLINE_F5_RE IIFE 之前（var 不提升赋值）
+  var VN = '(?:[一二三四五六七八九十百〇○]+|\\d+)';
+
   // 行内章节式引用匹配（嵌在句子中、不在括号/破折号内）
   // 例：马可十一章二十三至二十四节、诗篇一百一十九篇、二十五章十四至三十节、三十七节
   var _INLINE_F5_RE = (function () {
@@ -116,9 +127,12 @@
     var bookPat = '(?:(?:' + _sortedFullNames.join('|') + '|' + abbr + '))?';
     var bookReq = '(?:' + _sortedFullNames.join('|') + '|' + abbr + ')';
     // versePart: 支持「的第?」连接词前缀、v1节([至到]v2节)? 及 v1([至到]v2)?节 两种格式
-    // 跨章尾组：v1节[至到]CN章[篇](的)?v2(节)?（如「一节至六章十七节」），吞完整串以便 F5 发单一范围键
-    var versePart = '(?:(?:的第?)?' + CN + '节(?:[至到]' + CN + '节)?(?:[上下]半?)?|(?:的第?)?' + CN + '(?:[至到]' + CN + ')?节(?:[上下]半?)?)'
-      + '(?:(?:的第?)?(?:[至到]' + CN + ')[章篇](?:的第?)?' + CN + '(?:[至到]' + CN + ')?节?)?';
+    // 节号同时支持中文数字与阿拉伯数字（「一章2节」「一章2~9节」等中章+阿节混排）——
+    //   否则 branch2 只能匹配到「一章」，剩余「2节」「3节」被拆成裸节 token，
+    //   在无上下文时整句全部丢失（如「以弗所书一章2节，3节。」）
+    // 跨章尾组：v1节[至到]CN章[篇](的)?v2(节)?（如「一节至六章十七节」「一章2节至三章13节」），吞完整串以便 F5 发单一范围键
+    var versePart = '(?:(?:的第?)?' + VN + '节(?:[至到~～\\-]' + VN + '节)?(?:[上下]半?)?|(?:的第?)?' + VN + '(?:[至到~～\\-]' + VN + ')?节(?:[上下]半?)?)'
+      + '(?:(?:的第?)?(?:[至到]' + CN + ')[章篇](?:的第?)?' + VN + '(?:[至到~～\\-]' + VN + ')?节?)?';
     versePart = '(?:' + versePart + ')?';
     // 「篇」是诗篇专属，须有显式「诗」/「诗篇」前缀；其他书卷用「章」
     // 快捷章节格式（bookReq+CN，无「章」字，如「弗四」「启二一」）：
@@ -156,6 +170,8 @@
     }
     return text;
   }
+
+  // 节号片段 VN 已在上方定义（_INLINE_F5_RE 之前）；此处在 expandCnRefs 内直接引用
 
   // 从 ctx 字符串（如"弗4:17"或"腓四13"或"弗4"）提取 {book, chapter}
   function parseCtx(ctxStr) {
@@ -216,8 +232,8 @@
     // 支持章范围，如「五到七章」→ 整章5-7
     // 跨章扩展：「五章一节至六章十七（节）」→ 单一范围键 书c1:v1-c2:v2（尾组 c6v7-v8）
     var F5 = new RegExp('^(' + BOOK_PAT + ')?的?第?(' + CN_N + ')(?:[至到](' + CN_N + '))?([章篇])'
-      + '(?:(?:的第?)?(' + CN_N + ')(?:[至到](' + CN_N + '))?节([上下]半?)?'
-      + '(?:[至到](' + CN_N + ')(?:[章篇])的?(' + CN_N + ')(?:[至到](' + CN_N + '))?节?)?)?');
+      + '(?:(?:的第?)?(' + VN + ')(?:[至到~～\-](' + VN + '))?节([上下]半?)?'
+      + '(?:[至到](' + CN_N + ')(?:[章篇])的?(' + VN + ')(?:[至到~～\-](' + VN + '))?节?)?)?');
     // Format6: 单章书卷 + 阿拉伯节  e.g. 犹20 / 门10~12 / 俄5
     var SINGLE_BOOK = '(?:犹|门|俄|约贰|约叁)';
     var F6 = new RegExp('^(' + SINGLE_BOOK + ')(\\d+)([上中下]?)(?:[~～\\-](\\d+)([上中下]?))?$');
@@ -322,14 +338,14 @@
         if (!c5end || c5end < c5 || c5end > 150) c5end = c5;
         // ★ 严格模式：必须有具体节数（m[5]），整章引用跳过
         if (!m[5]) continue;
-        var v1_5 = cnToInt(m[5]), v2_5 = m[6] ? cnToInt(m[6]) : v1_5;
+        var v1_5 = toVerseInt(m[5]), v2_5 = m[6] ? toVerseInt(m[6]) : v1_5;
         var mod5 = m[7] ? m[7][0] : '';  // 取首字上/下
-        // 跨章尾组（m[8]）：「五章一节至六章十七（节）」→ 单一范围键 书c1:v1-c2:v2
+        // 跨章尾组（m[8]）：「五章一节至六章十七（节）」「一章2节至三章13节」→ 单一范围键 书c1:v1-c2:v2
         if (m[8]) {
           var c5x = cnToInt(m[8]);
           if (!c5x || c5x > 150 || c5x < c5) continue;  // 跨章端点必须递增
           book = b5; ch = c5x;
-          refs.push(b5 + c5 + ':' + v1_5 + '-' + c5x + ':' + (m[9] ? cnToInt(m[9]) : v1_5));
+          refs.push(b5 + c5 + ':' + v1_5 + '-' + c5x + ':' + (m[9] ? toVerseInt(m[9]) : v1_5));
           continue;
         }
         book = b5; ch = c5end;
@@ -772,6 +788,191 @@
     return cm ? (cm[1] + cm[2] + ':' + cm[3]) : (ctxStr || '');
   }
 
-  win.BKRef = { wrapRefs: wrapRefs, escHtml: escHtml, expandCnRefs: expandCnRefs, cnToInt: cnToInt, scanCtx: scanCtx };
+  // ── inferChapterCtx：推断「篇默认经文上下文」（圣经相关一类数据） ─────
+  // 场景：生命读经/结晶读经等圣经类书籍正文里大量裸节引用（「三节」「在5节里」），
+  // 其所指是该篇所讲解的圣经章节；渲染时以本函数结果作为 wrapRefs 的初始上下文。
+  // 口径（与用户约定一致）：
+  //   · 篇默认上下文 = 该篇所属圣经章节（书卷+章）；
+  //   · 同段内显式引用（如「以弗所书一章2节」）建立的上下文由续接引用（「，3节」）优先继承，
+  //     不回退篇默认——该继承由 wrapRefs/expel 现有逻辑保证，篇默认仅作初始值与兜底。
+  // 推断优先级：
+  //   1) chapter.scripture_ctx 显式字段（数据管道可直接提供，最高优先）
+  //   2) 「读经：」行且行内书卷单一 → 该卷 + 首个书卷章号
+  //   3) 正文首个「有节数」引用：书卷须在白名单内（书名卷 ∪ 读经行卷）；
+  //      书名无卷且无读经行 → 不扫描（严格保持旧行为，防福音类等书籍误链）
+  //   4) 仅书名卷（书卷级上下文，如「弗」，支持「一章二十三节」类相对章引用）
+  // 推断失败 → ''（严格模式：裸节引用不识别，与旧行为一致）
+  // 卷缩写集合（FULL_BOOK_MAP 的值去重）——smdj8 类书名直接是卷缩写（「创」「罗」「弗」「撒上下」）
+  var _ABBR_SET = {};
+  (function () { for (var k in FULL_BOOK_MAP) _ABBR_SET[FULL_BOOK_MAP[k]] = true; })();
 
+  function _matchBooksInTitle(title) {
+    var t = String(title || '');
+    var core = t.replace(/^\s*[0-9０-９]{4}\s*年\s*/, '').replace(/^\s*[0-9０-９]{1,4}\s*[\-—~～·.、:：]?\s*/, '');
+    if (!core) core = t;
+    var set = [], seen = {};
+    // ① 全名/别名匹配（「罗马书」「帖撒罗尼迦前书」等）
+    for (var i = 0; i < _sortedFullNames.length; i++) {
+      var fn = _sortedFullNames[i], ab = FULL_BOOK_MAP[fn];
+      if (!ab || seen[ab]) continue;
+      if (fn.length >= 2 && core.indexOf(fn) !== -1) { seen[ab] = true; set.push(ab); }
+    }
+    // ② 卷缩写匹配（书名即缩写或含缩写）
+    for (var ab2 in _ABBR_SET) {
+      if (seen[ab2]) continue;
+      if (ab2.length >= 2) {
+        if (core.indexOf(ab2) !== -1) { seen[ab2] = true; set.push(ab2); }
+      } else if (core.length <= 3 && core.charAt(0) === ab2) {
+        // 单字卷仅匹配短书名（「罗」「弗」「创」），避免长书名任意汉字误命中
+        seen[ab2] = true; set.push(ab2);
+      }
+    }
+    // ③ 「撒上下」「王上下」「代上下」合集书名：上卷命中后补齐下卷变体，
+    //    保证合集内撒下/王下篇的显式引用（「撒下一1~27」）能通过书卷一致性校验
+    var UPDOWN = { '撒': 1, '王': 1, '代': 1 };
+    for (var si = 0; si < set.length; si++) {
+      var ab3 = set[si];
+      if (ab3.length === 2 && ab3.charAt(1) === '上' && UPDOWN[ab3.charAt(0)] && core.indexOf(ab3.charAt(0) + '上下') !== -1) {
+        var dn = ab3.charAt(0) + '下';
+        if (!seen[dn]) { seen[dn] = true; set.push(dn); }
+      }
+    }
+    return set;
+  }
+
+  // token 是否自带书卷线索（全名/别名子串，或单字卷缩写后接章号）
+  function _hasBookInToken(tk) {
+    for (var i = 0; i < _sortedFullNames.length; i++) {
+      if (tk.indexOf(_sortedFullNames[i]) !== -1) return true;
+    }
+    return /[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启](?:[一二三四五六七八九十百〇○0-9])/.test(tk);
+  }
+
+  // 正文首个「有节数」引用扫描（用于推断篇主章）
+  // whitelist: 允许作为主章的书卷集合（书名卷 ∪ 读经行卷）；rb 须在其中，否则视为交叉引用跳过
+  function _scanFirstBodyRef(head, titleBooks, whitelist) {
+    var bookHint = titleBooks.length ? titleBooks[0] : '';
+    whitelist = whitelist || titleBooks || [];  // 防御：调试直调缺省时退化为书名卷白名单
+    _INLINE_F5_RE.lastIndex = 0;
+    var m2, tried = 0;
+    while ((m2 = _INLINE_F5_RE.exec(head)) !== null && tried < 80) {
+      var tk = m2[0];
+      if (!tk || tk.length < 2) continue;
+      tried++;
+      var selfBook = _hasBookInToken(tk);
+      var refs = [];
+      try { refs = expandCnRefs(tk, selfBook ? '' : bookHint, 0); } catch (e) { refs = []; }
+      if (!refs.length) continue;
+      // 整章引用（无节数）不参与主章推断
+      var withVerse = true;
+      for (var ri = 0; ri < refs.length; ri++) {
+        var vm = refs[ri].match(/:(\d+)/);
+        if (!vm || parseInt(vm[1], 10) === 0) { withVerse = false; break; }
+      }
+      if (!withVerse) continue;
+      var lm = refs[0].match(/^([^\d:]+)(\d+):/);
+      if (!lm) continue;
+      var rb = lm[1], rc = parseInt(lm[2], 10);
+      if (!rb || !rc || rc > 150) continue;
+      // 交叉书卷引用（引用其他经文）不参与主章推断：书卷须在白名单内
+      if (whitelist.indexOf(rb) === -1) continue;
+      _INLINE_F5_RE.lastIndex = 0;
+      return rb + rc;
+    }
+    _INLINE_F5_RE.lastIndex = 0;
+    return '';
+  }
+
+  function inferChapterCtx(chapter, bookTitle) {
+    try {
+      if (!chapter) return '';
+      // 1) 数据显式字段优先
+      if (chapter.scripture_ctx) return String(chapter.scripture_ctx);
+      // 取篇首文本（正文 / 数组 content 拼接，均截 2000 字）
+      var text = '';
+      var content = chapter.content;
+      if (typeof content === 'string') {
+        text = content;
+      } else if (content && content.length) {
+        for (var i = 0; i < content.length && text.length < 2000; i++) {
+          var it = content[i];
+          if (it && it.text) text += it.text + '\n';
+        }
+      }
+      if (!text) return '';
+      var head = text.slice(0, 2000);
+      var titleBooks = _matchBooksInTitle(bookTitle);
+      // 正文扫描白名单：书名卷 ∪ 读经行卷；扫描起点默认篇首
+      var whitelist = titleBooks.slice();
+      var scanFrom = 0;
+
+      // 2) 读经行（声明性强，优先）：行内书卷单一时取该卷 + 首个书卷章号；
+      //    多卷时降级为「白名单」供正文扫描使用（正文从读经行之后扫）
+      var rIdx = head.search(/(?:读经|诵读)[：:∶]/);
+      if (rIdx >= 0) {
+        var m0 = /(?:读经|诵读)[：:∶]([^\n]*)/.exec(head.slice(rIdx));
+        var seg = m0 && m0[1] ? m0[1] : '';
+        var segEndAbs = m0 ? rIdx + m0.index + m0[0].length : rIdx;
+        if (!seg || seg.replace(/^[「『"\s]+/, '').length < 4) {
+          // 「读经：」后直接换行的形态，取标记后的第一段文本
+          var after = head.slice(rIdx).replace(/^(?:读经|诵读)[：:∶][^\n]*\n?/, '');
+          var segM = /^[^\n]{1,300}/.exec(after);
+          seg = segM ? segM[0] : '';
+        }
+        if (seg) {
+          var rn = normalizeBookNames(seg);
+          // 卷集合（单卷验证）：「耶和华」含「耶」等误扫可容忍——多卷则降级为白名单
+          var RB_RE = /[创出利民申书士得撒王代拉尼斯伯诗箴传歌赛耶哀结但何珥摩俄拿弥鸿哈番该亚玛太可路约徒罗林加弗腓西帖提门多来雅彼犹启](?:前|后|上|下|壹|贰|叁)?/g;
+          var rbm, bookSet = {};
+          while ((rbm = RB_RE.exec(rn)) !== null) bookSet[rbm[0]] = true;
+          var books = Object.keys(bookSet);
+          if (books.length === 1) {
+            var CH_RE = new RegExp('(' + books[0] + ')([一二三四五六七八九十百〇○]+|[0-9]+)', 'g');
+            var chM = CH_RE.exec(rn);
+            while (chM) {
+              var c2 = toVerseInt(chM[2]);
+              if (c2 > 0 && c2 <= 150) return books[0] + c2;
+              chM = CH_RE.exec(rn);
+            }
+          }
+          // 多卷降级：仅当书名无卷（信息合集类）时，读经行声明的卷才加入正文扫描白名单
+          // （书名卷已知时保持 titleBooks 严格白名单，防止「提后三16」这类读经行交叉引用
+          //   被误判为申命记生命读经介言的主章）
+          if (!titleBooks.length) {
+            for (var bi = 0; bi < books.length; bi++) {
+              if (whitelist.indexOf(books[bi]) === -1) whitelist.push(books[bi]);
+            }
+          }
+          // m0[0] 已含「读经：」与 seg，segEndAbs 即正文扫描起点
+          scanFrom = Math.min(segEndAbs, head.length);
+        } else {
+          scanFrom = segEndAbs;
+        }
+      }
+
+      // 3) 正文首个有节数引用（书卷须在白名单内；无白名单 → 不扫描，保持严格）
+      if (whitelist.length) {
+        var ctx2 = _scanFirstBodyRef(head.slice(scanFrom), titleBooks, whitelist);
+        if (ctx2) return ctx2;
+      }
+
+      // 4) 仅书名卷（书卷级上下文，支持「一章二十三节」「二15」类相对章引用）
+      if (titleBooks.length) return titleBooks[0];
+      return '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  win.BKRef = { wrapRefs: wrapRefs, escHtml: escHtml, expandCnRefs: expandCnRefs, cnToInt: cnToInt, scanCtx: scanCtx, inferChapterCtx: inferChapterCtx, scanInlineTokens: scanInlineTokens, _dbgMatchBooksInTitle: _matchBooksInTitle, _dbgScanFirstBodyRef: _scanFirstBodyRef };
+
+  // 内部调试钩子：返回 _INLINE_F5_RE 对文本的 token 列表（供单测/诊断用，不影响渲染行为）
+  function scanInlineTokens(text) {
+    var out = [];
+    _INLINE_F5_RE.lastIndex = 0;
+    var m;
+    while ((m = _INLINE_F5_RE.exec(text || '')) !== null) out.push(m[0]);
+    _INLINE_F5_RE.lastIndex = 0;
+    return out;
+  }
 }(window));

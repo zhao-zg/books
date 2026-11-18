@@ -17,6 +17,7 @@
   var _swipeAnimating = false;  // 动画进行中，拒绝新滑动手势
   var _carouselResizeHandler = null;  // 视口变化重算 transform 的防抖处理器
   var _carouselResizeTimer = null;    // 防抖定时器（模块级，_removeSwipeHandler 中需 clearTimeout）
+  var _vcenterRO = null;              // 内容高度观察器（bk-vcenter 垂直居中判定重估，_removeSwipeHandler 中 disconnect）
   var SWIPE_THRESHOLD = 80;
   var SWIPE_MAX_VERTICAL = 60;
   var SWIPE_DURATION = 280;
@@ -42,10 +43,11 @@
     if (!win.BKLazyRenderer || !win.BKLazyRenderer.initLazyRender) return null;
     // 该页若已有旧懒渲染实例，先销毁（重填场景）
     win.BKLazyRenderer.destroyLazyRender(contentEl);
+    var lazyCtx = lazyRoot.getAttribute('data-bk-ctx') || '';
     return win.BKLazyRenderer.initLazyRender(chapter, lazyRoot, {
       eager: true,
       renderItem: function (item, idx) {
-        return renderContentItem(item, '', true);
+        return renderContentItem(item, lazyCtx, true);
       }
     });
   }
@@ -74,6 +76,34 @@
     var targetIdx = idx + direction;
     if (targetIdx < 0 || targetIdx >= uniqueChapters.length) return null;
     return uniqueChapters[targetIdx].number;
+  }
+
+  // 垂直居中判定（鸿蒙 ArkWeb flex 溢出居中 bug 规避，方案 A：JS 度量切类）
+  // 历史背景见 css-reader-views.css 中 .bk-carousel-page 注释：华为系内核对
+  // "flex 溢出居中"两次踩坑（safe center 失效、margin:auto 溢出不归零），
+  // 长内容顶部被顶出滚动原点导致正文开头截断。最终方案：JS 实测内容高度，
+  // 仅当内容 ≤ 一屏（不溢出）时才给 page 加 bk-vcenter 走 margin:auto 居中；
+  // 溢出页保持默认顶部排列（margin 0），彻底不依赖内核的溢出居中行为。
+  // 高度变化由 ResizeObserver（_vcenterRO）与 resize 防抖兜底重估；
+  // 字体加载等场景引发的高度变化均会被 RO 捕获，无需再挂 document.fonts.ready。
+  // 测量用 content 的 rect 高度：bk-vcenter 的 margin:auto 不改变内容盒高度，
+  // 已居中页可安全复测，无"移除→测量→加回"的闪烁循环。
+  function _applyVerticalCenter(pageEl) {
+    if (!pageEl) return;
+    var contentEl = pageEl.querySelector('.content');
+    if (!contentEl) return;
+    // PDF 页排除：PDF 渲染管线自行管理布局（canvas 定高），不参与居中
+    if (contentEl.classList.contains('bk-pdf-mode') || contentEl.querySelector('.bk-pdf-page')) {
+      contentEl.classList.remove('bk-vcenter');
+      return;
+    }
+    var contentH = contentEl.getBoundingClientRect().height;
+    var pageH = pageEl.clientHeight;
+    if (contentH > 0 && contentH <= pageH) {
+      pageEl.classList.add('bk-vcenter');
+    } else {
+      pageEl.classList.remove('bk-vcenter');
+    }
   }
 
   // 填充 carousel page 的内容
@@ -112,9 +142,13 @@
       // 解决"往后翻没缓存"问题：next 页是骨架壳，canvas 未渲染，
       // 用户滑到 next 时需等 IntersectionObserver 触发渲染才看到内容
       _prerenderAdjacentPdfPages(contentEl);
+
+      // 垂直居中判定（鸿蒙 ArkWeb 溢出居中 bug 规避，见 _applyVerticalCenter 注释）
+      _applyVerticalCenter(pageEl);
     } else {
       contentEl.innerHTML = '';
       contentEl.classList.remove('bk-pdf-mode', 'bk-pdf-single');
+      _applyVerticalCenter(pageEl);
     }
   }
 
@@ -235,6 +269,28 @@
     //   （当前页已在 renderer-api 中接管，不在此重复，避免销毁重建闪烁）
     _maybeInitCarouselLazy(pages[0], _getChapter(uniqueChapters, _getAdjacentChapterNum(uniqueChapters, chapterNum, -1)));
     _maybeInitCarouselLazy(pages[2], _getChapter(uniqueChapters, _getAdjacentChapterNum(uniqueChapters, chapterNum, 1)));
+
+    // ── 垂直居中判定：初始对三页各估一次，并用 ResizeObserver 监听内容高度变化 ──
+    // 覆盖场景：超长章节懒渲染分批输出、图片加载、字体/字号变化导致的高度跳变。
+    // reorder 仅移动 DOM 不替换 .content 元素，observe 目标持续有效。
+    _applyVerticalCenter(pages[0]);
+    _applyVerticalCenter(pages[1]);
+    _applyVerticalCenter(pages[2]);
+    if (_vcenterRO) { _vcenterRO.disconnect(); _vcenterRO = null; }
+    if (win.ResizeObserver) {
+      _vcenterRO = new win.ResizeObserver(function (entries) {
+        for (var _i = 0; _i < entries.length; _i++) {
+          var _ce = entries[_i].target;
+          var _pe = _ce && _ce.closest ? _ce.closest('.bk-carousel-page') : null;
+          if (_pe) _applyVerticalCenter(_pe);
+        }
+      });
+      var _vcPages = [pages[0], pages[1], pages[2]];
+      for (var _j = 0; _j < _vcPages.length; _j++) {
+        var _vcContent = _vcPages[_j].querySelector('.content');
+        if (_vcContent) _vcenterRO.observe(_vcContent);
+      }
+    }
 
     // 用像素精确设定静止位置，与滑动手势的像素定位保持一致，避免亚像素跳动
     if (track.parentElement) {
@@ -517,6 +573,12 @@
           _carouselTrack.style.transition = 'none';
           _carouselTrack.style.transform = 'translateX(' + (-pageW) + 'px)';
         }
+        // 视口高度变化（旋转/软键盘/双栏切换）后重估垂直居中判定
+        if (_carouselPages) {
+          _applyVerticalCenter(_carouselPages.prev);
+          _applyVerticalCenter(_carouselPages.curr);
+          _applyVerticalCenter(_carouselPages.next);
+        }
         _carouselResizeTimer = null;
       }, 200);
     };
@@ -547,6 +609,11 @@
     if (_carouselResizeTimer) {
       clearTimeout(_carouselResizeTimer);
       _carouselResizeTimer = null;
+    }
+    // 断开内容高度观察器（bk-vcenter 判定），避免离开阅读视图后仍触发
+    if (_vcenterRO) {
+      _vcenterRO.disconnect();
+      _vcenterRO = null;
     }
   }
 

@@ -10,7 +10,11 @@
         serif:  { label: '宋体', stack: "'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif" },
         sans:   { label: '黑体', stack: "'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
         kai:    { label: '楷体', stack: "'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif" },
-        system: { label: '系统', stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" }
+        /* 系统：栈首 'BKSysFont' 为跟随系统字体注入的兜底族名（theme-toggle.js
+           用 FontFace 注册主题字体文件，未注入时自动跳过），system-ui 是浏览器
+           UA 的「系统字体」入口——MIUI/HyperOS 主题字体挂载路径，显式引用即可
+           跟随系统字体（参考 cx 项目实测方案）。 */
+        system: { label: '系统', stack: "'BKSysFont', system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" }
     };
     const defaultFontKey = 'serif';
     let currentFontKey = defaultFontKey;
@@ -114,6 +118,8 @@
         try { savedFont = localStorage.getItem('readingFontFamily'); } catch (e) {}
         if (savedFont && fontPresets[savedFont]) currentFontKey = savedFont;
         applyReadingFont(currentFontKey);
+        // 跟随系统字体注入（参考 cx：system-ui 探测 → 族名注入 → 主题字体文件注入）
+        applySystemFontInjection();
 
         // 应用级操作已移至「我的」页面，设置面板仅保留阅读模式 + 字体大小
         // 但保留全局函数注册（downloadApk / showGuideDialog / showFeedbackDialog）
@@ -413,6 +419,8 @@
     function showFeedbackDialog() {
         var PUSH_URLS = (window.BK_SERVERS && window.BK_SERVERS.push) || [];
         var MAX_LEN = 500;
+        var isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform &&
+                             window.Capacitor.isNativePlatform());
 
         var dlg = window.BK.openDialog({
             id: 'bkFeedbackMask',
@@ -432,6 +440,7 @@
                 '    <textarea class="bk-feedback-textarea" id="bkFeedbackText" maxlength="' + MAX_LEN + '" placeholder="请描述您遇到的问题或建议…" style="margin-top:14px"></textarea>',
                 '    <div class="bk-feedback-count" id="bkFeedbackCount">0/' + MAX_LEN + '</div>',
                 '    <div class="bk-feedback-tip">请先确认已是最新版本，部分问题在新版中已修复。</div>',
+                isCapacitor ? '    <div class="bk-feedback-diag" id="bkFeedbackFontDiag">🔤 <span>字体显示不对？试试</span><button type="button" id="bkFeedbackFontDiagBtn">字体诊断</button></div>' : '',
                 '    <div class="bk-feedback-status" id="bkFeedbackStatus"></div>',
                 '  </div>',
                 '  <div class="bk-feedback-actions">',
@@ -450,6 +459,23 @@
 
         var closeBtn = document.getElementById('bkFeedbackClose');
         if (closeBtn) closeBtn.addEventListener('click', dlg.close);
+
+        // ── 字体诊断入口（仅 APK + SystemFont 插件可用时显示，参考 cx）──
+        // 打开字体诊断弹窗（原生系统字体注册表 + 注入状态），返回键回到反馈。
+        var fontDiagEntry = document.getElementById('bkFeedbackFontDiagBtn');
+        if (fontDiagEntry) {
+            var sysFontPlugin = window.Capacitor && window.Capacitor.Plugins &&
+                                window.Capacitor.Plugins.SystemFont;
+            if (!sysFontPlugin || typeof sysFontPlugin.getDiagnostics !== 'function') {
+                var fontDiagRow = document.getElementById('bkFeedbackFontDiag');
+                if (fontDiagRow) fontDiagRow.style.display = 'none';
+            } else {
+                fontDiagEntry.addEventListener('click', function() {
+                    dlg.close();
+                    showFontDiagnostics();
+                });
+            }
+        }
 
         var cancelBtn = document.getElementById('bkFeedbackCancelBtn');
         if (cancelBtn) cancelBtn.addEventListener('click', dlg.close);
@@ -903,21 +929,470 @@
         document.documentElement.style.setProperty('--user-reading-font', preset.stack);
         try { localStorage.setItem('readingFontFamily', key); } catch (e) {}
         currentFontKey = preset === fontPresets[key] ? key : defaultFontKey;
+        // 触发翻页容器高度重算（字体变化会改变内容高度）
+        try { window.dispatchEvent(new Event('resize')); } catch (e) {}
     }
 
     function updateReadingFontUI() {
         var options = document.querySelectorAll('#bk-theme-dialog .font-option');
         for (var i = 0; i < options.length; i++) {
             var el = options[i];
-            var isActive = el.getAttribute('data-font') === currentFontKey;
+            var fontMode = el.getAttribute('data-font');
+            var isActive = fontMode === currentFontKey;
             el.classList.toggle('active', isActive);
+            // 本机缺字体的卡片置灰并标注「本机不可用」（参考 cx）
+            var unavailable = fontMode !== 'system' && !getReadingFontAvailability(fontMode);
+            var label = el.querySelector('.font-option-label');
+            var badge = label ? label.querySelector('.font-unavailable-badge') : null;
+            if (unavailable) {
+                el.classList.add('font-option-disabled');
+                if (label && !badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'font-unavailable-badge';
+                    badge.textContent = '本机不可用';
+                    label.appendChild(badge);
+                }
+            } else {
+                el.classList.remove('font-option-disabled');
+                if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+            }
         }
     }
 
     window.setReadingFont = function(key) {
+        if (!fontPresets[key]) return;
+        // 本机缺字体的选项忽略（与置灰标注一致，参考 cx）
+        if (key !== 'system' && !getReadingFontAvailability(key)) return;
         applyReadingFont(key);
         updateReadingFontUI();
     };
+
+    // ── 字体可用性探测（canvas 墨迹比对，参考 cx 实现）──────────────────
+    // 各模式候选命名字体（不含 serif/sans-serif 通用族），任一存在即视为可用
+    var READING_FONT_CANDIDATES = {
+        serif: ['Songti SC', 'STSong', 'SimSun', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+        sans:  ['PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei'],
+        kai:   ['STKaiti', 'KaiTi', 'KaiTi_GB2312']
+    };
+
+    // 可用性探测结果缓存（true=可用 false=本机缺失，null=未探测）
+    var readingFontAvailability = { serif: null, sans: null, kai: null };
+
+    // canvas 墨迹度量：CJK 汉字宽度在不同字体下常相同（全角等宽），
+    // 必须结合上下墨迹边界（actualBoundingBox*）才能区分字体。
+    // 注意：实测 document.fonts.check 不可靠（Chromium 对本机不存在的字体名也返回 true），
+    // 故统一以 canvas 墨迹比对为准，不做 fonts.check 快捷路径。
+    function measureFontInk(fontSpec) {
+        var ctx = document.createElement('canvas').getContext('2d');
+        ctx.font = '48px ' + fontSpec;
+        var m = ctx.measureText('永国楷鸣信');
+        return { w: m.width, a: m.actualBoundingBoxAscent, d: m.actualBoundingBoxDescent };
+    }
+
+    function inkMetricsEqual(a, b) {
+        return Math.abs(a.w - b.w) <= 0.5 &&
+               Math.abs(a.a - b.a) <= 0.5 &&
+               Math.abs(a.d - b.d) <= 0.5;
+    }
+
+    // 探测单个命名字体是否真实存在：候选字体渲染结果须与 sans-serif、serif
+    // 双参照均不同才视为存在（字体缺失时浏览器会 fallback 到与参照相同的渲染）。
+    // 墨迹 API 缺失（旧内核 actualBoundingBox 未定义）时保守放行，保持旧行为。
+    function detectNamedFont(name) {
+        try {
+            var probe = measureFontInk('"' + name + '"');
+            if (probe.a === undefined || probe.d === undefined) return true;
+            return !inkMetricsEqual(probe, measureFontInk('sans-serif')) &&
+                   !inkMetricsEqual(probe, measureFontInk('serif'));
+        } catch (e) {
+            return true; // canvas 不可用时保守放行
+        }
+    }
+
+    // 设备是否存在与黑体不同的衬线中文字体（部分安卓 ROM 内置 Noto Serif）：
+    // 宋体选项的兜底救援判定——没有命名字体但 serif 渲染与黑体不同也算可用
+    function detectSerifDistinct() {
+        try {
+            var probe = measureFontInk('serif');
+            if (probe.a === undefined || probe.d === undefined) return true;
+            return !inkMetricsEqual(probe, measureFontInk('sans-serif'));
+        } catch (e) { return true; }
+    }
+
+    function getReadingFontAvailability(mode) {
+        if (mode === 'system') return true; // 系统栈以 sans-serif 兜底，始终可用
+        if (readingFontAvailability[mode] !== null) return readingFontAvailability[mode];
+        var result = false;
+        var names = READING_FONT_CANDIDATES[mode] || [];
+        for (var i = 0; i < names.length; i++) {
+            if (detectNamedFont(names[i])) { result = true; break; }
+        }
+        if (!result && mode === 'serif' && detectSerifDistinct()) result = true;
+        readingFontAvailability[mode] = result;
+        return result;
+    }
+
+    // ── 跟随系统字体：系统字体注入（族名注入 + 主题字体文件注入，参考 cx）──
+    // 安卓 WebView(Chromium) 用自己的字体配置解析 CSS 泛型（sans-serif 等），
+    // 用户在系统设置里换的主题字体通常不注册进去，「系统」选项拿不到该字体。
+    // 三级策略（每级先墨迹验证再采用）：
+    //   0) system-ui：CSS 栈已引用（css-variables.css 的 --ui-font-family 与
+    //      「系统」预设栈首）——它正是浏览器「系统字体」入口，MIUI/HyperOS 的
+    //      主题字体挂载在 WebView 标准族这条路径上，渲染与 sans-serif 不同即
+    //      已生效，无需任何原生调用；
+    //   1) 族名注入：resolvedFontFamily 可解析时直接用；否则探测 fonts.xml 的
+    //      miui 族（主题字体槽位），墨迹不同即注入 WebView 标准族（reload 一次
+    //      生效，sessionStorage 防循环）；
+    //   2) 字体文件注入（小米等 ROM 的可靠路径）：小米把主题字体放在
+    //      /data/system/theme/fonts（可读）且 /data/system/fonts/theme_webview/
+    //      专为 WebView 准备，但这些字体不注册进 WebView 字体配置、族名也解析
+    //      不出——因此直接分块读字体文件字节，FontFace 加载为 'BKSysFont'，
+    //      canvas 墨迹验证渲染确实变化后即生效（正文的「系统」预设栈首与 UI 的
+    //      --ui-font-family 栈首均引用 BKSysFont，注册后自动命中）。
+    //      候选顺序：theme_webview 目录 → Miui-Regular → MiuiEx-Regular →
+    //      Roboto-Regular → /system/fonts/MiSansVF_Overlay.ttf。
+    // 全部尝试与结果记录进 window.__bkFontInjection，供「字体诊断」输出。
+    function _inkOf(fontSpec) {
+        try { return measureFontInk(fontSpec); } catch (e) { return null; }
+    }
+    function _inkDiffers(a, b) {
+        if (!a || !b) return false;
+        return a.w !== b.w || a.a !== b.a || a.d !== b.d;
+    }
+
+    // 分块读取字体文件 → ArrayBuffer。每块独立 atob 解码后拼接字节——
+    // 不能先 join 再整体 atob：每块 base64 自带 '=' 填充符，拼接后中间出现
+    // 填充符会报 "The string to be decoded is not correctly encoded"（cx 项目
+    // 真机诊断实测的失败点）。块大小取 3 的倍数（304128≈297KB），每段 base64
+    // 无填充，双保险；单块仍低于原生 512KB 上限。
+    function _readFontFile(plugin, path) {
+        var CHUNK = 304128; // 3 × 101376
+        var parts = [];
+        function readAt(offset) {
+            return plugin.readFontChunk({ path: path, offset: offset, length: CHUNK }).then(function (r) {
+                var bin = atob(r.chunk);
+                var arr = new Uint8Array(bin.length);
+                for (var j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+                parts.push(arr);
+                var next = r.offset + r.read;
+                if (r.read > 0 && next < r.total) return readAt(next);
+                return null;
+            });
+        }
+        return readAt(0).then(function () {
+            var total = 0, i;
+            for (i = 0; i < parts.length; i++) total += parts[i].length;
+            var buf = new Uint8Array(total);
+            var p = 0;
+            for (i = 0; i < parts.length; i++) { buf.set(parts[i], p); p += parts[i].length; }
+            return buf.buffer;
+        });
+    }
+
+    function _registerFontFace(family, buffer, weight) {
+        var face = new FontFace(family, buffer, { weight: weight, style: 'normal' });
+        return face.load().then(function (loaded) {
+            document.fonts.add(loaded);
+            return loaded;
+        });
+    }
+
+    // 候选构建：theme_webview（MIUI 专为 WebView 放的主题字体）优先，
+    // 然后主题目录的 Miui/MiuiEx/Roboto 槽位，最后系统默认 sans-serif 字体文件
+    function _buildFontFileCandidates(info) {
+        var out = [];
+        var dirs = (info && info.dirs) || [];
+        function rank(name) {
+            if (/miui-?regular/i.test(name)) return 0;
+            if (/miuiex-?regular/i.test(name)) return 1;
+            if (/roboto-?regular/i.test(name)) return 2;
+            if (/regular/i.test(name)) return 3;
+            if (/bold/i.test(name)) return 4;
+            return 5;
+        }
+        function pushDir(dir) {
+            if (!dir || !dir.readable || !dir.files || !dir.files.length) return;
+            var files = dir.files.filter(function (f) {
+                return f.rd && /\.(ttf|otf|ttc)$/i.test(f.name);
+            });
+            files.sort(function (a, b) { return rank(a.name) - rank(b.name); });
+            var picked = 0;
+            for (var i = 0; i < files.length && picked < 3; i++) {
+                var f = files[i];
+                var boldPath = null;
+                var boldName = f.name.replace(/regular/i, 'Bold');
+                for (var j = 0; j < files.length; j++) {
+                    if (files[j].name === boldName) {
+                        boldPath = dir.path + '/' + files[j].name;
+                        break;
+                    }
+                }
+                out.push({
+                    path: dir.path + '/' + f.name,
+                    kb: f.kb,
+                    boldPath: boldPath,
+                    vf: /vf/i.test(f.name)
+                });
+                picked++;
+            }
+        }
+        if (dirs[0]) pushDir(dirs[0]); // /data/system/fonts/theme_webview
+        if (dirs[1]) pushDir(dirs[1]); // /data/system/theme/fonts
+        var known = (info && info.knownFiles) || [];
+        for (var k = 0; k < known.length; k++) {
+            if (known[k] && known[k].rd) {
+                out.push({ path: known[k].path, kb: known[k].kb, boldPath: null, vf: /vf/i.test(known[k].path) });
+            }
+        }
+        return out;
+    }
+
+    function _tryFontFileInjection(plugin, record) {
+        var baseInk = _inkOf('sans-serif');
+        record.inkBase = baseInk ? [baseInk.w, baseInk.a, baseInk.d] : null;
+        plugin.getThemeFontInfo().then(function (info) {
+            var candidates = _buildFontFileCandidates(info);
+            record.candidates = candidates.map(function (c) { return c.path; });
+            function tryNext(i) {
+                if (i >= candidates.length) {
+                    record.ok = false;
+                    record.stage = 'no-match';
+                    window.__bkFontInjection = record;
+                    return;
+                }
+                var c = candidates[i];
+                _readFontFile(plugin, c.path).then(function (buffer) {
+                    _registerFontFace('BKSysProbe', buffer, '400').then(function (face) {
+                        // 待 face 就绪后测墨迹；与当前 sans-serif 相同则换下一候选
+                        setTimeout(function () {
+                            var ink = _inkOf('BKSysProbe');
+                            try { document.fonts.delete(face); } catch (e) {}
+                            record.tried.push({
+                                path: c.path, kb: c.kb,
+                                ink: ink ? [ink.w, ink.a, ink.d] : null
+                            });
+                            if (_inkDiffers(ink, baseInk)) {
+                                // 采纳：注册正式 BKSysFont（VF 用 100-900 字重区间）+ Bold
+                                var mainWeight = c.vf ? '100 900' : '400';
+                                _registerFontFace('BKSysFont', buffer, mainWeight).then(function () {
+                                    var boldStep = Promise.resolve(null);
+                                    if (!c.vf && c.boldPath) {
+                                        (function (bp) {
+                                            boldStep = _readFontFile(plugin, bp).then(function (bbuf) {
+                                                return _registerFontFace('BKSysFont', bbuf, '700');
+                                            }).catch(function () { return null; });
+                                        })(c.boldPath);
+                                    }
+                                    boldStep.then(function () {
+                                        record.ok = true;
+                                        record.adopted = c.path;
+                                        record.bold = c.boldPath;
+                                        var fin = _inkOf('BKSysFont');
+                                        record.inkFinal = fin ? [fin.w, fin.a, fin.d] : null;
+                                        window.__bkFontInjection = record;
+                                        // BKSysFont 已被「系统」预设栈首与 UI 字体栈引用，注册即生效；
+                                        // 触发翻页容器高度重算
+                                        try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+                                    });
+                                }).catch(function (e) {
+                                    record.tried[record.tried.length - 1].error = String(e && e.message || e);
+                                    tryNext(i + 1);
+                                });
+                            } else {
+                                tryNext(i + 1);
+                            }
+                        }, 80);
+                    }).catch(function (e) {
+                        record.tried.push({ path: c.path, error: String(e && e.message || e) });
+                        tryNext(i + 1);
+                    });
+                }).catch(function (e) {
+                    record.tried.push({ path: c.path, error: String(e && e.message || e) });
+                    tryNext(i + 1);
+                });
+            }
+            tryNext(0);
+        }).catch(function (e) {
+            record.ok = false;
+            record.stage = 'info-error';
+            record.err = String(e && e.message || e);
+            window.__bkFontInjection = record;
+        });
+    }
+
+    function applySystemFontInjection() {
+        // 幂等：启动与设置面板初始化可能各触发一次，只探测一次
+        if (window.__bkFontInjection || window.__bkFontInjectionPending) return;
+        window.__bkFontInjectionPending = true;
+        // 级 0：system-ui（CSS 栈已引用）——它就是浏览器「系统字体」入口，
+        // MIUI/HyperOS 上解析到 WebView 标准族（主题字体挂载路径）。与
+        // sans-serif 墨迹不同说明已实际跟随系统字体，无需任何原生调用。
+        try {
+            var sansInk0 = _inkOf('sans-serif');
+            var sysInk0 = _inkOf('system-ui');
+            if (_inkDiffers(sysInk0, sansInk0)) {
+                window.__bkFontInjection = {
+                    mode: 'css-system-ui', ok: true,
+                    inkSans: sansInk0 && [sansInk0.w, sansInk0.a, sansInk0.d],
+                    inkSystem: sysInk0 && [sysInk0.w, sysInk0.a, sysInk0.d]
+                };
+                return;
+            }
+        } catch (e) {}
+        var plugin = window.Capacitor && window.Capacitor.Plugins &&
+                     window.Capacitor.Plugins.SystemFont;
+        if (!plugin || typeof plugin.getDiagnostics !== 'function' ||
+            typeof plugin.setWebFontFamilies !== 'function') return;
+        var STANDARD_FAMILIES = ['sans-serif', 'serif', 'monospace', 'system-ui', 'cursive', 'fantasy'];
+        // 延后少量时间，等 Capacitor 桥完全就绪；仍赶在首屏内容渲染前完成
+        setTimeout(function() {
+            plugin.getDiagnostics().then(function(info) {
+                var fam = info && info.resolvedFontFamily;
+                fam = fam ? String(fam).trim() : '';
+                var valid = !!fam && fam !== '(unresolved)' && fam.indexOf('ERR:') !== 0 &&
+                            STANDARD_FAMILIES.indexOf(fam.toLowerCase()) < 0;
+                if (!valid) {
+                    // 级 1b：MIUI 主题字体槽位族（fonts.xml name="miui" 指向
+                    // /data/system/theme/fonts 槽位文件）；墨迹与 sans-serif 不同才采用
+                    var sansInk = _inkOf('sans-serif');
+                    var miuiInk = _inkOf('miui');
+                    if (_inkDiffers(miuiInk, sansInk)) { fam = 'miui'; valid = true; }
+                }
+                if (valid) {
+                    // 级 1：WebView standard/sans-serif 默认族指向主题字体族名
+                    // （reload 一次生效，sessionStorage 防循环）
+                    var wantReload = true;
+                    try {
+                        wantReload = sessionStorage.getItem('bk_font_inj_reload') !== '1';
+                        if (wantReload) sessionStorage.setItem('bk_font_inj_reload', '1');
+                    } catch (e) {}
+                    var opts = { family: fam };
+                    if (wantReload) opts.reload = true;
+                    plugin.setWebFontFamilies(opts).then(function() {
+                        window.__bkFontInjection = { mode: 'family', family: fam, ok: true, reloaded: !!opts.reload };
+                        try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+                    }).catch(function(err) {
+                        window.__bkFontInjection = { mode: 'family', family: fam, ok: false, err: String(err && err.message || err) };
+                    });
+                    return;
+                }
+                // 级 2：主题字体文件注入（读文件 → WebFont → 墨迹验证 → 栈首命中）
+                if (typeof plugin.getThemeFontInfo !== 'function' ||
+                    typeof plugin.readFontChunk !== 'function') {
+                    window.__bkFontInjection = { ok: false, stage: 'no-plugin-api' };
+                    return;
+                }
+                var record = { mode: 'file', tried: [] };
+                window.__bkFontInjection = record;
+                _tryFontFileInjection(plugin, record);
+            }).catch(function(e) {
+                window.__bkFontInjection = { ok: false, err: String(e && e.message || e) };
+            });
+        }, 300);
+    }
+
+    // ── 字体诊断（参考 cx：查「系统」选项拿不到用户自定义系统字体的根因）──
+    // 原生 SystemFontPlugin 吐出系统字体注册表与主题字体目录扫描；
+    // Web 侧附加 canvas 墨迹探针（各泛型/已知字体在本机 WebView 的实际渲染指纹，
+    // 交叉比对可知 sans-serif 泛型实际解析到了哪个字体）。
+    var FONT_PROBE_FAMILIES = [
+        'system-ui', 'sans-serif', 'serif', 'monospace', 'sans-serif-medium',
+        'Roboto', 'HarmonyOS Sans', 'HarmonyOS Sans SC', 'EMUI Sans', 'HwSans',
+        'MiSans', 'PingFang SC', 'Songti SC', 'STSong', 'SimSun',
+        'STKaiti', 'KaiTi', 'Noto Sans CJK SC', 'Noto Serif CJK SC',
+        'miui', 'mipro', 'BKSysFont'
+    ];
+
+    function collectWebFontProbe() {
+        var probe = {};
+        try { probe.bodyComputed = getComputedStyle(document.body).fontFamily; } catch (e) {}
+        try {
+            var chapter = document.getElementById('chapterContent');
+            probe.readingComputed = chapter ? getComputedStyle(chapter).fontFamily : '';
+        } catch (e) {}
+        try { probe.storedMode = localStorage.getItem('readingFontFamily') || 'serif'; } catch (e) {}
+        try { probe.injection = window.__bkFontInjection || null; } catch (e) {}
+        probe.ink = {};
+        for (var i = 0; i < FONT_PROBE_FAMILIES.length; i++) {
+            var name = FONT_PROBE_FAMILIES[i];
+            try {
+                var ctx = document.createElement('canvas').getContext('2d');
+                ctx.font = '48px "' + name + '"';
+                var m = ctx.measureText('永国楷鸣信');
+                probe.ink[name] = [Math.round(m.width),
+                                   Math.round(m.actualBoundingBoxAscent || 0),
+                                   Math.round(m.actualBoundingBoxDescent || 0)];
+            } catch (e) { probe.ink[name] = 'ERR'; }
+        }
+        return probe;
+    }
+
+    function showFontDiagnostics() {
+        var plugin = window.Capacitor && window.Capacitor.Plugins &&
+                     window.Capacitor.Plugins.SystemFont;
+        if (!plugin || typeof plugin.getDiagnostics !== 'function') return;
+        plugin.getDiagnostics().then(function(native) {
+            var report = { native: native, web: collectWebFontProbe() };
+            // 主题字体目录详情（各字体文件大小/可读性）与注入过程记录一并输出
+            if (typeof plugin.getThemeFontInfo === 'function') {
+                plugin.getThemeFontInfo().then(function(themeInfo) {
+                    report.themeFontInfo = themeInfo;
+                    openFontDiagDialog(report);
+                }).catch(function() { openFontDiagDialog(report); });
+            } else {
+                openFontDiagDialog(report);
+            }
+        }).catch(function(err) {
+            openFontDiagDialog({
+                nativeError: String(err && err.message || err),
+                web: collectWebFontProbe()
+            });
+        });
+    }
+
+    // 诊断结果弹框：完整 JSON 放只读 textarea，一键复制后发给开发者
+    function openFontDiagDialog(report) {
+        var text;
+        try { text = JSON.stringify(report, null, 1); } catch (e) { text = String(report); }
+        var dlg = window.BK.openDialog({
+            id: 'bkFontDiagMask',
+            html: [
+                '<div class="bk-dialog">',
+                '  <div class="bk-drawer-header">',
+                '    <div class="bk-drawer-title">字体诊断</div>',
+                '    <button class="bk-drawer-close" id="bkFontDiagClose" aria-label="关闭">×</button>',
+                '  </div>',
+                '  <hr class="bk-drawer-divider">',
+                '  <div class="bk-drawer-body">',
+                '    <div class="bk-feedback-tip">点「复制全部」后粘贴发给开发者，用于分析系统字体注入方案。</div>',
+                '    <textarea class="bk-feedback-textarea" id="bkFontDiagText" readonly ',
+                '      style="height:280px;font-size:11px;line-height:1.45;font-family:\'SF Mono\',Consolas,monospace;margin-top:8px"></textarea>',
+                '    <div class="bk-feedback-tip" id="bkFontDiagTip">长按文本也可手动全选复制</div>',
+                '  </div>',
+                '  <div class="bk-dialog-actions">',
+                '    <button class="bk-dialog-cancel" id="bkFontDiagDoneBtn">关闭</button>',
+                '    <button class="bk-dialog-confirm" id="bkFontDiagCopyBtn">复制全部</button>',
+                '  </div>',
+                '</div>'
+            ].join('')
+        });
+        if (!dlg) return;
+        var ta = document.getElementById('bkFontDiagText');
+        if (ta) ta.value = text;
+        dlg.mask.addEventListener('click', function(e) {
+            if (e.target.id === 'bkFontDiagClose' || e.target.id === 'bkFontDiagDoneBtn') { dlg.close(); return; }
+            if (e.target.id === 'bkFontDiagCopyBtn') {
+                var tip = document.getElementById('bkFontDiagTip');
+                var ok = false;
+                try {
+                    if (ta) { ta.focus(); ta.select(); }
+                    ok = document.execCommand('copy');
+                } catch (e2) {}
+                if (tip) tip.textContent = ok ? '已复制到剪贴板 ✓' : '复制失败，请长按文本手动复制';
+                e.stopPropagation();
+            }
+        });
+    }
     
     window.BKFontControl = {
         decrease: decreaseFontSize,

@@ -685,10 +685,11 @@
         // ★ 超长文本章节懒渲染接管：当前页若是懒渲染根，则用 chapter 初始化
         var lazyRootEl = chapterContent ? chapterContent.querySelector('.bk-lazy-root[data-bk-lazy-root="1"]') : null;
         if (lazyRootEl && win.BKLazyRenderer && win.BKLazyRenderer.initLazyRender) {
+          var _lazyCtx = lazyRootEl.getAttribute('data-bk-ctx') || '';
           win.BKLazyRenderer.initLazyRender(chapter, lazyRootEl, {
             eager: true,
             renderItem: function (item, idx) {
-              return renderContentItem(item, '', true);
+              return renderContentItem(item, _lazyCtx, true);
             }
           });
         }

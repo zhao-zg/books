@@ -46,9 +46,13 @@
   --glass-bg: rgba(245,244,241,0.78);
   /* 系统字体令牌：阅读/标题用系统衬线栈，UI/数字用系统无衬线栈，不下载 webfont */
   --reading-font-family: 'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
-  --ui-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* UI/数字栈以 'BKSysFont' + system-ui 打头（参考 cx「跟随系统字体」方案）：
+     system-ui 是浏览器 UA 的「系统字体」入口，MIUI/HyperOS 的主题字体就挂在
+     这条路径上，显式引用即可跟随系统字体；栈首 'BKSysFont' 为 theme-toggle.js
+     主题字体文件注入的兜底族名（FontFace），未注入时自动跳过落回 system-ui。 */
+  --ui-font-family: 'BKSysFont', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --heading-font-family: 'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif;
-  --num-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --num-font-family: 'BKSysFont', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --mono-font-family: 'SF Mono', 'Menlo', Consolas, 'Courier New', monospace;
   /* 用户阅读字体（运行时由设置面板切换，空=用默认衬线栈） */
   --user-reading-font: ;

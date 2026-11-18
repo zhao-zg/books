@@ -201,8 +201,17 @@
     var pageTitle = chapter.title || ('第' + (chapter.number != null ? chapter.number : '') + '章');
     html += '<h1 class="bk-page-title">' + escText(pageTitle) + '</h1>';
 
-    // ★ 严格模式：不传递经文上下文，每个引用必须自包含（书名+章名+节数）
+    // ★ 篇默认经文上下文：圣经相关一类数据（生命读经/结晶读经等，书名含圣经卷名
+    //   或含单卷「读经：」行）默认使用该篇所属圣经章节（书卷+章）。
+    //   正文裸节引用（「三节」「在5节里」）用它补全；同段内显式引用建立的上下文
+    //   仍由续接引用（「以弗所书一章2节，3节」的「3节」）优先继承，不回退篇默认。
+    //   非圣经类书籍推断结果为 '' → 保持严格模式（裸节引用不识别），行为不变。
     var ctx = '';
+    if (win.BKRef && win.BKRef.inferChapterCtx) {
+      try {
+        ctx = win.BKRef.inferChapterCtx(chapter, (win.BKRenderer && win.BKRenderer._currentBookTitle) || '');
+      } catch (e) { ctx = ''; }
+    }
 
     // ★ 超长章节懒渲染：仅当内容为数组且超过阈值时才启用（PDF 章节除外，
     //   其含 pdf_page，走既有 BKPdf 懒渲染链路，不可叠加本模块）。
@@ -221,8 +230,9 @@
     if (_useLazy) {
       // 只输出章节标题 + 懒渲染容器标记；调用方（renderer-api/carousel）
       // 在容器挂载后调用 BKLazyRenderer.initLazyRender 完成占位与首屏渲染。
+      // 篇默认上下文随 data-bk-ctx 下传，懒渲染分块渲染时保持同一上下文。
       return html +
-        '<div class="bk-lazy-root" data-bk-lazy-root="1"></div>';
+        '<div class="bk-lazy-root" data-bk-lazy-root="1"' + (ctx ? ' data-bk-ctx="' + escAttr(ctx) + '"' : '') + '></div>';
     }
 
     // 兼容：如果 content 是字符串（未经转换的纯文本），按 \n 拆分渲染
@@ -238,10 +248,9 @@
           var level = Math.min(headingMatch[1].length, 6);
           var hText = headingMatch[2].trim();
           html += '<h' + level + ' class="bk-heading bk-h' + level + '">' + wrapRefs(hText, ctx) + '</h' + level + '>';
-          // ★ 严格模式：不更新上下文
+          // 篇默认上下文不因标题内容更新（标题内显式引用不外溢）
         } else {
           html += '<p class="bk-paragraph">' + wrapRefs(line, ctx) + '</p>';
-          // ★ 严格模式：不更新上下文
         }
       }
       return html;
