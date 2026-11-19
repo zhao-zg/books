@@ -7,13 +7,13 @@
     let currentSizeIndex = defaultSizeIndex;
     // 阅读字体预设：key → { label, stack }（系统 / 宋体 / 黑体 三选）
     const fontPresets = {
-        serif:  { label: '宋体', stack: "'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif" },
-        sans:   { label: '黑体', stack: "'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
         /* 系统：栈首 'BKSysFont' 为跟随系统字体注入的兜底族名（theme-toggle.js
            用 FontFace 注册主题字体文件，未注入时自动跳过），system-ui 是浏览器
            UA 的「系统字体」入口——MIUI/HyperOS 主题字体挂载路径，显式引用即可
            跟随系统字体（参考 cx 项目实测方案）。 */
-        system: { label: '系统', stack: "'BKSysFont', system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" }
+        system: { label: '系统', stack: "'BKSysFont', system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif" },
+        serif:  { label: '宋体', stack: "'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif" },
+        sans:   { label: '黑体', stack: "'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" }
     };
     const defaultFontKey = 'serif';
     let currentFontKey = defaultFontKey;
