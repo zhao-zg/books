@@ -5,11 +5,10 @@
     const fontSizes = [14, 15, 16, 18, 20, 22, 24, 26]; // px 固定值
     const defaultSizeIndex = 3; // 18px
     let currentSizeIndex = defaultSizeIndex;
-    // 阅读字体预设：key → { label, stack }
+    // 阅读字体预设：key → { label, stack }（系统 / 宋体 / 黑体 三选）
     const fontPresets = {
         serif:  { label: '宋体', stack: "'Songti SC', 'STSong', SimSun, 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, 'Times New Roman', serif" },
         sans:   { label: '黑体', stack: "'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif" },
-        kai:    { label: '楷体', stack: "'STKaiti', 'KaiTi', '楷体', 'KaiTi_GB2312', 'Noto Serif CJK SC', 'Source Han Serif SC', serif" },
         /* 系统：栈首 'BKSysFont' 为跟随系统字体注入的兜底族名（theme-toggle.js
            用 FontFace 注册主题字体文件，未注入时自动跳过），system-ui 是浏览器
            UA 的「系统字体」入口——MIUI/HyperOS 主题字体挂载路径，显式引用即可
@@ -116,6 +115,8 @@
         // 恢复阅读字体选择
         var savedFont = null;
         try { savedFont = localStorage.getItem('readingFontFamily'); } catch (e) {}
+        // 旧版「楷体」选项已移除：同位置迁移到黑体（applyReadingFont 会写回存储键）
+        if (savedFont === 'kai') savedFont = 'sans';
         if (savedFont && fontPresets[savedFont]) currentFontKey = savedFont;
         applyReadingFont(currentFontKey);
         // 跟随系统字体注入（参考 cx：system-ui 探测 → 族名注入 → 主题字体文件注入）
@@ -798,9 +799,6 @@
                         '<div class="font-option" data-font="sans" onclick="setReadingFont(\'sans\')">' +
                             '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: \'PingFang SC\', \'Microsoft YaHei\', sans-serif;">黑体</div></div>' +
                         '</div>' +
-                        '<div class="font-option" data-font="kai" onclick="setReadingFont(\'kai\')">' +
-                            '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: \'STKaiti\', KaiTi, serif;">楷体</div></div>' +
-                        '</div>' +
                         '<div class="font-option" data-font="system" onclick="setReadingFont(\'system\')">' +
                             '<div class="font-option-content"><div class="theme-radio"></div><div class="font-option-label" style="font-family: -apple-system, \'Microsoft YaHei\', sans-serif;">系统</div></div>' +
                         '</div>' +
@@ -937,99 +935,28 @@
         var options = document.querySelectorAll('#bk-theme-dialog .font-option');
         for (var i = 0; i < options.length; i++) {
             var el = options[i];
-            var fontMode = el.getAttribute('data-font');
-            var isActive = fontMode === currentFontKey;
+            var isActive = el.getAttribute('data-font') === currentFontKey;
             el.classList.toggle('active', isActive);
-            // 本机缺字体的卡片置灰并标注「本机不可用」（参考 cx）
-            var unavailable = fontMode !== 'system' && !getReadingFontAvailability(fontMode);
-            var label = el.querySelector('.font-option-label');
-            var badge = label ? label.querySelector('.font-unavailable-badge') : null;
-            if (unavailable) {
-                el.classList.add('font-option-disabled');
-                if (label && !badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'font-unavailable-badge';
-                    badge.textContent = '本机不可用';
-                    label.appendChild(badge);
-                }
-            } else {
-                el.classList.remove('font-option-disabled');
-                if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
-            }
         }
     }
 
     window.setReadingFont = function(key) {
         if (!fontPresets[key]) return;
-        // 本机缺字体的选项忽略（与置灰标注一致，参考 cx）
-        if (key !== 'system' && !getReadingFontAvailability(key)) return;
         applyReadingFont(key);
         updateReadingFontUI();
     };
 
-    // ── 字体可用性探测（canvas 墨迹比对，参考 cx 实现）──────────────────
-    // 各模式候选命名字体（不含 serif/sans-serif 通用族），任一存在即视为可用
-    var READING_FONT_CANDIDATES = {
-        serif: ['Songti SC', 'STSong', 'SimSun', 'Noto Serif CJK SC', 'Source Han Serif SC'],
-        sans:  ['PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei'],
-        kai:   ['STKaiti', 'KaiTi', 'KaiTi_GB2312']
-    };
-
-    // 可用性探测结果缓存（true=可用 false=本机缺失，null=未探测）
-    var readingFontAvailability = { serif: null, sans: null, kai: null };
-
-    // canvas 墨迹度量：CJK 汉字宽度在不同字体下常相同（全角等宽），
-    // 必须结合上下墨迹边界（actualBoundingBox*）才能区分字体。
-    // 注意：实测 document.fonts.check 不可靠（Chromium 对本机不存在的字体名也返回 true），
-    // 故统一以 canvas 墨迹比对为准，不做 fonts.check 快捷路径。
+    // ── canvas 墨迹度量（仅用于字体注入的渲染差异验证，参考 cx）──────────
+    // CJK 汉字宽度在不同字体下常相同（全角等宽），必须结合上下墨迹边界
+    // （actualBoundingBox*）才能区分字体。
+    // 注意：字体「存在性」探测在安卓 WebView 上不可靠（字体族名常被 ROM
+    // 别名映射到 sans-serif/serif 泛型后端，实测会把真实存在的字体误判为
+    // 缺失而置灰全部选项），故不提供可用性置灰，缺字体时由浏览器 fallback。
     function measureFontInk(fontSpec) {
         var ctx = document.createElement('canvas').getContext('2d');
         ctx.font = '48px ' + fontSpec;
         var m = ctx.measureText('永国楷鸣信');
         return { w: m.width, a: m.actualBoundingBoxAscent, d: m.actualBoundingBoxDescent };
-    }
-
-    function inkMetricsEqual(a, b) {
-        return Math.abs(a.w - b.w) <= 0.5 &&
-               Math.abs(a.a - b.a) <= 0.5 &&
-               Math.abs(a.d - b.d) <= 0.5;
-    }
-
-    // 探测单个命名字体是否真实存在：候选字体渲染结果须与 sans-serif、serif
-    // 双参照均不同才视为存在（字体缺失时浏览器会 fallback 到与参照相同的渲染）。
-    // 墨迹 API 缺失（旧内核 actualBoundingBox 未定义）时保守放行，保持旧行为。
-    function detectNamedFont(name) {
-        try {
-            var probe = measureFontInk('"' + name + '"');
-            if (probe.a === undefined || probe.d === undefined) return true;
-            return !inkMetricsEqual(probe, measureFontInk('sans-serif')) &&
-                   !inkMetricsEqual(probe, measureFontInk('serif'));
-        } catch (e) {
-            return true; // canvas 不可用时保守放行
-        }
-    }
-
-    // 设备是否存在与黑体不同的衬线中文字体（部分安卓 ROM 内置 Noto Serif）：
-    // 宋体选项的兜底救援判定——没有命名字体但 serif 渲染与黑体不同也算可用
-    function detectSerifDistinct() {
-        try {
-            var probe = measureFontInk('serif');
-            if (probe.a === undefined || probe.d === undefined) return true;
-            return !inkMetricsEqual(probe, measureFontInk('sans-serif'));
-        } catch (e) { return true; }
-    }
-
-    function getReadingFontAvailability(mode) {
-        if (mode === 'system') return true; // 系统栈以 sans-serif 兜底，始终可用
-        if (readingFontAvailability[mode] !== null) return readingFontAvailability[mode];
-        var result = false;
-        var names = READING_FONT_CANDIDATES[mode] || [];
-        for (var i = 0; i < names.length; i++) {
-            if (detectNamedFont(names[i])) { result = true; break; }
-        }
-        if (!result && mode === 'serif' && detectSerifDistinct()) result = true;
-        readingFontAvailability[mode] = result;
-        return result;
     }
 
     // ── 跟随系统字体：系统字体注入（族名注入 + 主题字体文件注入，参考 cx）──
