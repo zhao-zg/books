@@ -245,3 +245,213 @@
     prog.style.width = pct + '%';
   }
 
+  // ── 阅读时长统计 ─────────────────────────────────────────────────────
+  //
+  // 语义：用户停留在阅读视图、页面可见且无全屏搜索浮层时的时长。
+  //   - 进入阅读视图（renderReadingView）开启会话，退出（_exitReadingView）结束；
+  //   - 切后台 / 页面隐藏 / 打开搜索浮层 / 离开阅读页 → 暂停，恢复后重新起算；
+  //   - 每 10s tick 跑一次状态机（engaged→累计 / 失焦→暂停），时钟差而非定时器
+  //     次数，规避后台定时器挂起；visibilitychange 与 Capacitor AppLifecycle
+  //     仅作「立即暂停/恢复」的快路径（双触发幂等）；
+  //   - 累计 ≥60s 批量落盘，pagehide / beforeunload 兜底结算落盘；
+  //   - 单次对账最大计入 120s，防止休眠/挂起后的巨额跳变。
+  // 存储：bk_readtime_total（累计秒数）、bk_readtime_day:<YYYY-MM-DD>（当日秒数，
+  //   会话启动时清理 30 天前的旧日键）。
+
+  var _READTIME_KEY_TOTAL = 'bk_readtime_total';
+  var _READTIME_KEY_DAY = 'bk_readtime_day:';
+  var _READTIME_TICK_MS = 10000;     // 对账间隔
+  var _READTIME_FLUSH_MS = 60000;    // 落盘阈值
+  var _READTIME_MAX_DELTA = 120000;  // 单次对账最大计入（防跳变）
+  var _READTIME_DAY_KEEP = 30;       // 日键保留天数
+
+  var _readTimeSession = null;   // { bookId, lastTs, pendingMs }；lastTs=0 表示暂停态
+  var _readTimeTimer = null;
+  var _readTimeClock = Date.now;  // 时钟（测试可注入受控时钟驱动对账）
+  var _readTimeLifecycleBound = false; // AppLifecycle 快路径是否已注册（惰性，晚加载）
+
+  function _readTimeNow() { return _readTimeClock(); }
+
+  function _readTimeDayKey() {
+    var d = new Date();
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
+  }
+
+  /**
+   * 当前是否处于「计入时长」状态：
+   * 页面可见 + 位于阅读视图（bk-reading-page）+ 无全屏搜索浮层。
+   * 任一条件不满足即暂停（MarkPanel 目录/设置面板等书内面板仍视为阅读中）。
+   */
+  function _readTimeEngaged() {
+    try {
+      if (document.visibilityState === 'hidden') return false;
+      if (!document.body.classList.contains('bk-reading-page')) return false;
+      var so = document.querySelector('.bk-search-overlay');
+      if (so) {
+        var disp = (win.getComputedStyle ? win.getComputedStyle(so).display : so.style.display) || '';
+        if (disp !== 'none') return false;
+      }
+    } catch (e) { /* 环境异常兜底视为计入 */ }
+    return true;
+  }
+
+  /** 读取累计阅读时长（秒） */
+  function _getTotalReadTimeSecs() {
+    try { return parseInt(localStorage.getItem(_READTIME_KEY_TOTAL) || '0', 10) || 0; } catch (e) { return 0; }
+  }
+
+  /** 读取当日阅读时长（秒） */
+  function _getTodayReadTimeSecs() {
+    try { return parseInt(localStorage.getItem(_READTIME_KEY_DAY + _readTimeDayKey()) || '0', 10) || 0; } catch (e) { return 0; }
+  }
+
+  /** 清理 30 天前的旧日键（会话启动时执行一次） */
+  function _pruneOldReadTimeDays() {
+    try {
+      var ls = localStorage;
+      var cutoff = _readTimeNow() - _READTIME_DAY_KEEP * 86400000;
+      var remove = [];
+      for (var i = 0; i < ls.length; i++) {
+        var k = ls.key(i);
+        if (!k || k.indexOf(_READTIME_KEY_DAY) !== 0) continue;
+        var dayStr = k.substring(_READTIME_KEY_DAY.length);
+        var t = Date.parse(dayStr);
+        if (!isNaN(t) && t < cutoff) remove.push(k);
+      }
+      for (var j = 0; j < remove.length; j++) ls.removeItem(remove[j]);
+    } catch (e) {}
+  }
+
+  /** 结算 lastTs 以来的增量并推进基准（仅在 engaged 时调用；lastTs=0 时增量为 0） */
+  function _readTimeSettle(now) {
+    var s = _readTimeSession;
+    if (!s || !now) return;
+    var delta = now - (s.lastTs || now);
+    if (delta > 0 && delta <= _READTIME_MAX_DELTA) {
+      s.pendingMs = (s.pendingMs || 0) + delta;
+    }
+    s.lastTs = now;
+  }
+
+  /** 暂停：结算尾款并落盘，lastTs 归零（幂等：重复调用无副作用） */
+  function _readTimePause() {
+    var s = _readTimeSession;
+    if (!s || !s.lastTs) { if (s) _flushReadTime(); return; }
+    var delta = _readTimeNow() - s.lastTs;
+    if (delta > 0 && delta <= _READTIME_MAX_DELTA) {
+      s.pendingMs = (s.pendingMs || 0) + delta;
+    }
+    _flushReadTime();
+    s.lastTs = 0;
+  }
+
+  /** 恢复：重置对账基准（幂等：仅 lastTs=0 时生效） */
+  function _readTimeResume() {
+    var s = _readTimeSession;
+    if (s && !s.lastTs) s.lastTs = _readTimeNow();
+  }
+
+  /** pending 落盘：写入总计 + 当日 */
+  function _flushReadTime() {
+    var s = _readTimeSession;
+    if (!s) return;
+    var ms = s.pendingMs || 0;
+    s.pendingMs = 0;
+    if (ms < 1000) return;
+    try {
+      var secs = Math.floor(ms / 1000);
+      localStorage.setItem(_READTIME_KEY_TOTAL, String(_getTotalReadTimeSecs() + secs));
+      var dayKey = _READTIME_KEY_DAY + _readTimeDayKey();
+      var daySecs = parseInt(localStorage.getItem(dayKey) || '0', 10) || 0;
+      localStorage.setItem(dayKey, String(daySecs + secs));
+    } catch (e) {}
+  }
+
+  /**
+   * 定时对账状态机：
+   *   engaged →（lastTs=0 时先恢复基准）结算增量，达阈值落盘；
+   *   失焦（后台/搜索浮层/离开阅读页）→ 结算尾款并暂停。
+   * 搜索浮层无开合事件可挂，靠此轮询完成暂停/恢复。
+   */
+  function _readTimeTick() {
+    var s = _readTimeSession;
+    if (!s) return;
+    if (_readTimeEngaged()) {
+      if (!s.lastTs) { s.lastTs = _readTimeNow(); return; }
+      _readTimeSettle(_readTimeNow());
+      if ((s.pendingMs || 0) >= _READTIME_FLUSH_MS) _flushReadTime();
+    } else if (s.lastTs) {
+      _readTimePause();
+    }
+  }
+
+  /** AppLifecycle 快路径（Capacitor 原生前后台信号；惰性注册，app-lifecycle.js 晚于本文件加载） */
+  function _ensureReadTimeLifecycleHooks() {
+    if (_readTimeLifecycleBound) return;
+    var AL = win.BK && win.BK.AppLifecycle;
+    if (!AL || !AL.onBackground || !AL.onForeground) return;
+    _readTimeLifecycleBound = true;
+    // 双触发幂等：pause 重复调用无副作用（lastTs=0 → 不重复结算），resume 仅 lastTs=0 时生效
+    AL.onBackground(function () { _readTimePause(); });
+    AL.onForeground(function () { _readTimeResume(); });
+  }
+
+  /** 开启（或延续）阅读时长会话；同书重复进入视为同一会话（先结算已历时长） */
+  function _startReadTimeSession(bookId) {
+    _ensureReadTimeLifecycleHooks();
+    if (_readTimeSession && _readTimeSession.bookId === bookId) {
+      if (_readTimeEngaged()) _readTimeSettle(_readTimeNow());
+      return;
+    }
+    _stopReadTimeSession();
+    _pruneOldReadTimeDays();
+    // 后台/搜索浮层中开书：以暂停态起步，恢复时由 tick/事件重置基准
+    _readTimeSession = { bookId: bookId, lastTs: _readTimeEngaged() ? _readTimeNow() : 0, pendingMs: 0 };
+    if (_readTimeTimer) clearInterval(_readTimeTimer);
+    _readTimeTimer = setInterval(_readTimeTick, _READTIME_TICK_MS);
+  }
+
+  /** 结束会话：结算尾款并落盘 */
+  function _stopReadTimeSession() {
+    if (!_readTimeSession) return;
+    if (_readTimeSession.lastTs) {
+      var delta = _readTimeNow() - _readTimeSession.lastTs;
+      if (delta > 0 && delta <= _READTIME_MAX_DELTA) {
+        _readTimeSession.pendingMs = (_readTimeSession.pendingMs || 0) + delta;
+      }
+    }
+    _flushReadTime();
+    _readTimeSession = null;
+    if (_readTimeTimer) { clearInterval(_readTimeTimer); _readTimeTimer = null; }
+  }
+
+  // 可见性变化快路径：切后台立即暂停，回前台立即恢复（与 tick 状态机互补）
+  document.addEventListener('visibilitychange', function () {
+    if (!_readTimeSession) return;
+    if (document.visibilityState === 'hidden') _readTimePause();
+    else _readTimeResume();
+  });
+  // 页面卸载兜底：结算尾款并落盘（幂等：暂停态/隐藏态下重复调用无副作用）
+  win.addEventListener('pagehide', function () { if (_readTimeSession) _readTimePause(); });
+  win.addEventListener('beforeunload', function () { if (_readTimeSession) _readTimePause(); });
+
+  // 挂载到 BKStats（命名空间定义于 renderer-utils.js，先于本文件加载）
+  if (win.BKStats) {
+    win.BKStats.getTotalReadSecs = _getTotalReadTimeSecs;
+    win.BKStats.getTodayReadSecs = _getTodayReadTimeSecs;
+    win.BKStats.startReadingTime = _startReadTimeSession;
+    win.BKStats.stopReadingTime = _stopReadTimeSession;
+    // 测试钩子：注入受控时钟驱动对账/落盘
+    win.BKStats.__test = {
+      settle: _readTimeSettle,
+      flush: _flushReadTime,
+      tick: _readTimeTick,
+      pause: _readTimePause,
+      resume: _readTimeResume,
+      engaged: _readTimeEngaged,
+      session: function () { return _readTimeSession; },
+      setClock: function (fn) { _readTimeClock = (typeof fn === 'function') ? fn : Date.now; }
+    };
+  }
+

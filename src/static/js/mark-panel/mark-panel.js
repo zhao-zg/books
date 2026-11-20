@@ -442,6 +442,21 @@
             var ul = document.createElement('ul');
             ul.className = 'bk-mp-toc-list';
 
+            // 全书汇总行（章数 + 字数；搜索结果视图不显示汇总）
+            if (!MarkPanel._searchQuery) {
+                var total = 0;
+                for (var si = 0; si < items.length; si++) {
+                    total += (items[si].wordCount || 0);
+                }
+                if (items.length > 0) {
+                    var summary = document.createElement('div');
+                    summary.className = 'bk-mp-toc-summary';
+                    summary.textContent = items.length + ' 章' +
+                        (total > 0 ? ' · ' + (win.BKStats ? win.BKStats.fmtWordCount(total) : total + '字') : '');
+                    pane.appendChild(summary);
+                }
+            }
+
             items.forEach(function (item, idx) {
                 var li = document.createElement('li');
                 li.className = 'bk-mp-toc-item-wrapper';
@@ -466,6 +481,13 @@
                 row.appendChild(toggle);
                 row.appendChild(num);
                 row.appendChild(title);
+                // 章节字数（>0 才显示；renderer-utils 的 BKStats.fmtWordCount）
+                if (item.wordCount > 0) {
+                    var wc = document.createElement('span');
+                    wc.className = 'bk-mp-toc-count';
+                    wc.textContent = (win.BKStats && win.BKStats.fmtWordCount) ? win.BKStats.fmtWordCount(item.wordCount) : (item.wordCount + '字');
+                    row.appendChild(wc);
+                }
                 li.appendChild(row);
 
                 // 搜索上下文片段（全文搜索结果才有）

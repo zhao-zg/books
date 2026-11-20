@@ -117,7 +117,7 @@
              * 获取目录数据：直接通过 loadBook 获取章节数据，不依赖旧 TOC 抽屉 DOM
              */
             getItems: function () {
-                // 优先从旧抽屉 DOM 读取（已打开过的场景）
+                // 优先从旧抽屉 DOM 读取（已打开过的场景；data-wc 携带原始字数）
                 var chapterItems = document.querySelectorAll('.bk-toc-chapter-item');
                 if (chapterItems.length > 0) {
                     var items = [];
@@ -126,6 +126,7 @@
                         if (el.classList.contains('bk-toc-hidden')) continue;
                         var numEl = el.querySelector('.bk-toc-chapter-num');
                         var titleEl = el.querySelector('.bk-toc-chapter-title');
+                        var wcAttr = parseInt(el.getAttribute('data-wc') || '', 10);
                         items.push({
                             id: el.getAttribute('data-toc-nav') || el.getAttribute('href') || ('toc-' + i),
                             title: titleEl ? titleEl.textContent.trim() : '',
@@ -133,6 +134,7 @@
                             depth: 0,
                             position: i,
                             isActive: el.classList.contains('bk-toc-current'),
+                            wordCount: isNaN(wcAttr) ? 0 : wcAttr,
                             element: el
                         });
                     }
@@ -159,6 +161,8 @@
                         }
                     }
                     var progress = (typeof getReadingProgress === 'function') ? getReadingProgress(bookId) : 0;
+                    // 章节字数（renderer-utils 全局函数，晚于本文件加载但运行时可用）
+                    var wcFn = (typeof _chapterWordCount === 'function') ? _chapterWordCount : null;
                     var items = [];
                     for (var k = 0; k < unique.length; k++) {
                         var c = unique[k];
@@ -170,6 +174,7 @@
                             depth: 0,
                             position: k,
                             isActive: (num === progress),
+                            wordCount: wcFn ? (wcFn(c) || 0) : 0,
                             chapterNum: num,
                             bookId: bookId
                         });

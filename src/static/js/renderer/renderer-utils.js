@@ -215,3 +215,216 @@
       delete _bookCache[oldest];
     }
   }
+
+  // ── 字数统计（每书籍 / 每章节） ────────────────────────────────────────
+  //
+  // 口径：正文可见字符数（去除 HTML 标签、实体解码、忽略所有空白），
+  // 与中文「字数」习惯一致；图片 / 分隔线 / PDF 页 / 公式 / 图表不计数。
+  // 展示位置：目录抽屉章节项（每章）、目录头部与书籍详情（全书汇总）。
+
+  /** 解码常见 HTML 实体（计数前归一化） */
+  var _WC_ENTITIES = [
+    [/&nbsp;/g, ' '],
+    [/&amp;/g, '&'],
+    [/&lt;/g, '<'],
+    [/&gt;/g, '>'],
+    [/&quot;/g, '"'],
+    [/&#39;/g, "'"],
+    [/&#x27;/g, "'"]
+  ];
+  function _decodeEntities(s) {
+    var t = String(s);
+    for (var i = 0; i < _WC_ENTITIES.length; i++) t = t.replace(_WC_ENTITIES[i][0], _WC_ENTITIES[i][1]);
+    return t;
+  }
+
+  /** 提取纯文本并统计非空白字符数（中文「字数」口径） */
+  function _plainTextChars(s) {
+    if (!s) return 0;
+    var t = String(s);
+    if (t.indexOf('<') !== -1) t = t.replace(/<[^>]*>/g, ' ');
+    t = _decodeEntities(t);
+    t = t.replace(/\s/g, '');
+    return t.length;
+  }
+
+  /** 统计单个 content 项的字数（按类型分发，与渲染口径对齐） */
+  function _itemWordCount(item) {
+    if (!item) return 0;
+    var type = item.type || 'paragraph';
+    // 非文本内容不计
+    if (type === 'image' || type === 'separator' || type === 'linebreak' ||
+        type === 'pdf_page' || type === 'mermaid' || type === 'math') return 0;
+    var n = 0;
+    if (item.html) n += _plainTextChars(item.html);
+    else if (item.text) n += _plainTextChars(item.text);
+    if (type === 'list') {
+      // 与 renderContentItem 一致：itemHtmls[i] 优先，缺省回退 items[i]
+      var its = item.items || [];
+      var hs = item.itemHtmls || [];
+      for (var i = 0; i < its.length; i++) {
+        n += (hs[i] != null) ? _plainTextChars(hs[i]) : _plainTextChars(its[i]);
+      }
+    }
+    if (type === 'table') {
+      var rows = item.rows || [];
+      for (var r = 0; r < rows.length; r++) {
+        var cells = (rows[r] && rows[r].cells) || [];
+        for (var c = 0; c < cells.length; c++) {
+          var cell = cells[c] || {};
+          if (cell.html) n += _plainTextChars(cell.html);
+          else if (cell.text) n += _plainTextChars(cell.text);
+        }
+      }
+    }
+    return n;
+  }
+
+  /**
+   * 统计单个章节字数。
+   * @param {object} ch 章节对象，content 可为字符串或结构化数组
+   * @returns {number}
+   */
+  function _chapterWordCount(ch) {
+    if (!ch) return 0;
+    var c = ch.content;
+    if (typeof c === 'string') return _plainTextChars(c);
+    if (Array.isArray(c)) {
+      var n = 0;
+      for (var i = 0; i < c.length; i++) n += _itemWordCount(c[i]);
+      return n;
+    }
+    return 0;
+  }
+
+  /** 字数格式化：1234字 / 1.2万字 */
+  function _fmtWordCount(n) {
+    n = Math.floor(n || 0);
+    if (n <= 0) return '';
+    if (n >= 10000) {
+      var w = Math.round(n / 10000 * 10) / 10;
+      return (w % 1 === 0 ? String(w) : w.toFixed(1)) + '万字';
+    }
+    return n + '字';
+  }
+
+  /**
+   * 全书字数（去重章节汇总），带 localStorage 缓存（bk_wordcount:<id>）。
+   * 章节数变化时自动重算；PDF 书返回 0（无可计文本）。
+   * @param {object} book 已加载的完整书籍数据
+   * @returns {number}
+   */
+  function _ensureBookWordCountCache(book) {
+    if (!book || !book.id) return 0;
+    var chapters = (typeof _getUniqueChapters === 'function')
+      ? _getUniqueChapters(book.chapters || [])
+      : (book.chapters || []);
+    var cc = chapters.length;
+    var key = 'bk_wordcount:' + book.id;
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+    if (cached && typeof cached.t === 'number' && cached.n === cc) return cached.t;
+    var total = 0;
+    for (var i = 0; i < cc; i++) total += _chapterWordCount(chapters[i]);
+    try { localStorage.setItem(key, JSON.stringify({ n: cc, t: total })); } catch (e) {}
+    return total;
+  }
+
+  /**
+   * 读取全书字数缓存（不触发计算）。
+   * @param {string} bookId
+   * @param {number} chapterCount 索引章节数，与缓存不匹配视为失效
+   * @returns {number} 无缓存返回 -1
+   */
+  function _getCachedBookWordCount(bookId, chapterCount) {
+    if (!bookId) return -1;
+    try {
+      var cached = JSON.parse(localStorage.getItem('bk_wordcount:' + bookId) || 'null');
+      if (cached && typeof cached.t === 'number' && cached.n === chapterCount) return cached.t;
+    } catch (e) {}
+    return -1;
+  }
+
+  // ── 已读章节计数（「我的」页统计卡，与书架「已读 X%」同口径） ────────────
+  //   章节已读 = 显式滚动标记（bk_chapter_read:<id>/<n>）∪ 旧进度兜底（n ≤ bk_progress）；
+  //   BKShelf 标记读完的书按全部章节计（与书架「已于 X 读完」=100% 一致）。
+
+  /**
+   * 统计全部书籍已读章节总数。
+   * @param {Array} books 书籍列表（含 id 与 chapter_count）
+   * @returns {number}
+   */
+  function _countAllReadChapters(books) {
+    var markerNums = {};
+    try {
+      var ls = win.localStorage;
+      for (var i = 0; i < ls.length; i++) {
+        var k = ls.key(i);
+        if (!k || k.indexOf('bk_chapter_read:') !== 0) continue;
+        var rest = k.substring(16); // 'bk_chapter_read:'.length
+        var slash = rest.lastIndexOf('/');
+        if (slash <= 0) continue;
+        var bid = rest.substring(0, slash);
+        var num = parseInt(rest.substring(slash + 1), 10);
+        if (!bid || isNaN(num)) continue;
+        if (!markerNums[bid]) markerNums[bid] = {};
+        markerNums[bid][num] = true;
+      }
+    } catch (e) {}
+
+    var total = 0;
+    for (var b = 0; b < books.length; b++) {
+      var book = books[b];
+      if (!book || !book.id) continue;
+      var cc = book.chapter_count || 0;
+      if (win.BKShelf && win.BKShelf.isRead && win.BKShelf.isRead(book.id)) {
+        total += cc; // 已读完的书：全部章节计为已读
+        continue;
+      }
+      var prog = 0;
+      try { prog = parseInt(win.localStorage.getItem('bk_progress:' + book.id) || '0', 10) || 0; } catch (e) {}
+      var capped = Math.max(0, Math.min(prog, cc));
+      var count = capped;
+      var nums = markerNums[book.id];
+      if (nums) {
+        for (var n in nums) {
+          var nn = parseInt(n, 10);
+          if (nn >= 1 && nn <= cc && nn > capped) count++;
+        }
+      }
+      total += count;
+    }
+    return total;
+  }
+
+  // ── 阅读时长格式化 ─────────────────────────────────────────────────────
+  //   紧凑格式（统计卡）：35分 / 12.5时
+  //   完整格式（详情）：12时34分
+
+  function _fmtReadTimeCompact(secs) {
+    secs = Math.floor(secs || 0);
+    if (secs <= 0) return '0分';
+    if (secs < 3600) return Math.max(1, Math.floor(secs / 60)) + '分';
+    return (Math.round(secs / 3600 * 10) / 10) + '时';
+  }
+
+  function _fmtReadTime(secs) {
+    secs = Math.floor(secs || 0);
+    if (secs <= 0) return '0分';
+    var h = Math.floor(secs / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    if (h > 0) return (m > 0 ? (h + '时' + m + '分') : (h + '时'));
+    return Math.max(1, m) + '分';
+  }
+
+  // ── 统计命名空间（供本套件内部跨文件调用与单元测试） ────────────────────
+  //   阅读时长追踪部分由 renderer-progress.js 在加载时补充挂载。
+  win.BKStats = {
+    chapterWordCount: _chapterWordCount,
+    ensureBookWordCountCache: _ensureBookWordCountCache,
+    getCachedBookWordCount: _getCachedBookWordCount,
+    fmtWordCount: _fmtWordCount,
+    countAllReadChapters: _countAllReadChapters,
+    fmtReadTime: _fmtReadTime,
+    fmtReadTimeCompact: _fmtReadTimeCompact
+  };

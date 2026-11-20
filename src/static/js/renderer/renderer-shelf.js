@@ -503,6 +503,14 @@
       var tocLen = (book.toc && book.toc.length) ? book.toc.length : 0;
       addRow('章节', cc + ' 章' + (tocLen ? ('（目录 ' + tocLen + ' 条）') : ''));
     }
+    // 全书字数：优先阅读视图预计算的缓存（书城书打开阅读后写入）；
+    // 导入书含内存 chapters 时可直接计算。未读过的书无缓存则跳过该行。
+    var bookWordCount = -1;
+    try {
+      if (book.chapters && book.chapters.length) bookWordCount = _ensureBookWordCountCache(book);
+      else bookWordCount = _getCachedBookWordCount(book.id, cc);
+    } catch (e) {}
+    if (bookWordCount > 0) addRow('字数', _fmtWordCount(bookWordCount));
     if (book.description) {
       rows.push(
         '<div class="bk-detail-row bk-detail-row-block"><div class="bk-detail-label">简介</div>' +

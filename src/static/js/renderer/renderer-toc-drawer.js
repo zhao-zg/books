@@ -22,11 +22,16 @@
     return loadBook(bookId).then(function (book) {
       var chapters = _getUniqueChapters(book.chapters || []);
       var progress = getReadingProgress(bookId);
+      // 全书字数（去重章节汇总，带缓存）；章节字数逐项计算
+      var bookWordCount = 0;
+      try { bookWordCount = _ensureBookWordCountCache(book); } catch (e) {}
 
       // 填充标题
       if (titlesEl) {
         titlesEl.innerHTML = '<div class="bk-toc-drawer-book-title">' + escText(book.title) + '</div>' +
-          (book.author ? '<div class="bk-toc-drawer-author">' + escText(book.author) + '</div>' : '');
+          (book.author ? '<div class="bk-toc-drawer-author">' + escText(book.author) + '</div>' : '') +
+          (chapters.length ? '<div class="bk-toc-drawer-stats">' + chapters.length + ' 章' +
+            (bookWordCount > 0 ? ' · ' + _fmtWordCount(bookWordCount) : '') + '</div>' : '');
       }
 
       // 填充章节列表
@@ -35,12 +40,16 @@
         var ch = chapters[i];
         var chNum = ch.number || (i + 1);
         var isCurrent = chNum === progress;
+        var chWordCount = 0;
+        try { chWordCount = _chapterWordCount(ch); } catch (e) {}
         // ★ 不用 href="#/..." 原生导航——原生 <a> 绕过 BKRouter.navigate()，
         //   导致 __bkForwardNavPending 标记未设置，PWA 中 popstate 误触 backStack
         //   fallback 会闪回书架。改用 data-nav 存储路径，href 留空防跳转。
-        html += '<a class="bk-toc-chapter-item' + (isCurrent ? ' bk-toc-current' : '') + '" data-nav="' + escAttr(bookId) + '/' + chNum + '" data-toc-nav="1" href="javascript:void(0)">';
+        // data-wc：原始字数（供 MarkPanel 目录适配器读取，避免解析格式化文本）
+        html += '<a class="bk-toc-chapter-item' + (isCurrent ? ' bk-toc-current' : '') + '" data-nav="' + escAttr(bookId) + '/' + chNum + '" data-toc-nav="1" data-wc="' + (chWordCount || 0) + '" href="javascript:void(0)">';
         html += '<span class="bk-toc-chapter-num">' + chNum + '</span>';
         html += '<span class="bk-toc-chapter-title">' + escText(ch.title || '第' + chNum + '章') + '</span>';
+        if (chWordCount > 0) html += '<span class="bk-toc-chapter-count">' + _fmtWordCount(chWordCount) + '</span>';
         if (isCurrent) html += '<span class="bk-toc-chapter-badge">在读</span>';
         html += '</a>';
       }
@@ -138,21 +147,24 @@
   }
 
   /**
-   * 异步填充「我的」页统计卡（书籍数 / 章节数）
+   * 异步填充「我的」页统计卡（书籍数 / 已读章节数 / 读书时长）
+   *   - 书籍：书籍总数
+   *   - 已读章节：与书架「已读 X%」同口径（滚动标记 ∪ 旧进度兜底；已读完书按全部章节计）
+   *   - 读书时长：bk_readtime_total 累计值（会话每分钟落盘，读取时含最近一分钟内未落盘误差）
    */
   function _fillSettingsStats() {
-    // 书籍数 + 章节数
     try {
       var books = win.__bkBooks || [];
       var bookCount = books.length;
-      var chapterCount = 0;
-      for (var i = 0; i < books.length; i++) {
-        if (books[i] && books[i].chapters) chapterCount += books[i].chapters.length;
-      }
+      var readChapters = _countAllReadChapters(books);
+      var readTimeText = '0分';
+      try { readTimeText = _fmtReadTimeCompact(_getTotalReadTimeSecs()); } catch (e) {}
       var elBooks = document.getElementById('meStatBooks');
-      var elChapters = document.getElementById('meStatChapters');
+      var elRead = document.getElementById('meStatRead');
+      var elTime = document.getElementById('meStatTime');
       if (elBooks) elBooks.textContent = bookCount;
-      if (elChapters) elChapters.textContent = chapterCount;
+      if (elRead) elRead.textContent = readChapters;
+      if (elTime) elTime.textContent = readTimeText;
     } catch (e) {}
   }
 

@@ -145,6 +145,8 @@ mark.bk-tts-sent.bk-tts-active { background-color: rgba(var(--brand-rgb, 61,138,
 .bk-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .bk-stat-num { font-family: var(--num-font-family); font-variant-numeric: tabular-nums; font-size: var(--text-2xl); font-weight: 700; color: var(--brand); }
 .bk-stat-label { font-size: var(--text-xs); color: var(--text-muted); }
+/* 时长值（如「12.5时」）较纯数字宽，收敛一档字号保证三列不溢出 */
+.bk-stat-num--time { font-size: var(--text-xl); white-space: nowrap; }
 
 /* 设置分区 */
 .bk-settings-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }

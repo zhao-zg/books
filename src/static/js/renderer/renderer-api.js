@@ -5,6 +5,7 @@
   // 公共退出阅读视图：清理资源 + 移除阅读页标记 + 同步进度条清零
   // （5 处退出路径统一调用，避免未来新增路径漏掉进度条清零）
   function _exitReadingView() {
+    _stopReadTimeSession();
     stopScrollTracking();
     _removeReadingShortcuts();
     _exitSplitMode();
@@ -155,10 +156,11 @@
       html += '<div class="bk-profile-info"><div class="bk-profile-name">书报读者</div><div class="bk-profile-sub">在阅读中遇见美好</div></div>';
       html += '</div>';
 
-      // 统计卡
+      // 统计卡：书籍 / 已读章节 / 读书时长（时长随会话每分钟落盘，此处读累计值）
       html += '<div class="bk-stats-card">';
       html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatBooks">—</span><span class="bk-stat-label">书籍</span></div>';
-      html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatChapters">—</span><span class="bk-stat-label">章节</span></div>';
+      html += '<div class="bk-stat"><span class="bk-stat-num" id="meStatRead">—</span><span class="bk-stat-label">已读章节</span></div>';
+      html += '<div class="bk-stat"><span class="bk-stat-num bk-stat-num--time" id="meStatTime">—</span><span class="bk-stat-label">读书时长</span></div>';
       html += '</div>';
 
       // 设置入口：打开阅读界面的设置弹窗（阅读模式 + 字体大小），避免「我的」页内联冗余
@@ -696,6 +698,10 @@
         initPdfPageLazyRender(chapterContent || app);
         document.body.classList.add('bk-reading-page');
         _maybeEnterSplitMode(bookId);
+        // ★ 阅读时长统计：进入阅读视图开启会话（同书重入视为同一会话）
+        _startReadTimeSession(bookId);
+        // ★ 全书字数缓存（每书首次打开计算一次，供书籍详情/目录头部展示）
+        try { _ensureBookWordCountCache(book); } catch (e) {}
 
         var pageKey = bookId + '/' + chapterNum;
         win.__bkCurrentPath = pageKey;
@@ -782,6 +788,9 @@
         try { _updateTopReadingProgress(); } catch(e) {}
         _firePageRendered();
       }).catch(function (err) {
+        // ★ 加载失败：错误页替换了阅读视图，必须停止阅读时长会话，
+        //   否则上一本书的会话会继续计时（renderReadingView 不经过 _exitReadingView）
+        _stopReadTimeSession();
         app.innerHTML = '<div class="bk-error">' +
           '<div class="bk-error-icon">⚠️</div>' +
           '<div class="bk-error-text">加载失败: ' + escText(err.message) + '</div>' +
