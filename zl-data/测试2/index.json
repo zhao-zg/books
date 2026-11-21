@@ -1,0 +1,20 @@
+[
+  {
+    "id": "bundle-测试2__classic-tales",
+    "title": "classic-tales",
+    "chapter_count": 3,
+    "series": "测试2"
+  },
+  {
+    "id": "bundle-测试2__祷读神的话",
+    "title": "祷读神的话",
+    "chapter_count": 1,
+    "series": "测试2"
+  },
+  {
+    "id": "bundle-测试2__阅读的艺术",
+    "title": "阅读的艺术",
+    "chapter_count": 1,
+    "series": "测试2"
+  }
+]
