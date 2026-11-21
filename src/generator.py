@@ -71,7 +71,7 @@ class BooksGenerator:
             shutil.copy2(manifest_src, os.path.join(self.output_dir, 'manifest.json'))
             print("✓ manifest.json 已生成")
 
-        # sw.js - 缓存名固定为 bk-main，不再注入版本号
+        # sw.js - 缓存名固定为 bk-main；每次构建注入唯一 ID 触发 PWA 更新
         sw_src = os.path.join(template_dir, 'main_sw.js')
         if os.path.exists(sw_src):
             sw_dst = os.path.join(self.output_dir, 'sw.js')
@@ -95,8 +95,32 @@ class BooksGenerator:
                 '/* __VENDOR_PRECACHE_URLS__ */', vendor_list_str
             )
 
-            # 注入 App 版本号到 SW 注释（驱动 SW 字节变化检测）
+            # 注入完整应用资源清单：SW 更新时刷新 bk-main，避免旧静态缓存遮挡新版本。
+            html_src = os.path.join(static_dir, 'index.html')
+            with open(html_src, 'r', encoding='utf-8') as f:
+                html_text = f.read()
+            core_m = re.search(
+                r'window\.__bkCoreUrls\s*=\s*\[(.*?)\]', html_text, re.DOTALL
+            )
+            if not core_m:
+                raise ValueError(f"未找到 __bkCoreUrls: {html_src}")
+            core_urls = re.findall(r"'(\./[^']+)'", core_m.group(1))
+            core_urls.extend(re.findall(
+                r"window\.__bkCoreUrls\.push\('(\./[^']+)'\)", html_text
+            ))
+            app_urls_str = ',\n  '.join(
+                f"'{url}'" for url in dict.fromkeys(core_urls)
+            )
+            sw_content = sw_content.replace(
+                '/* __APP_CORE_URLS__ */', app_urls_str
+            )
+
+            # 注入 App 版本号及构建 ID；构建 ID 驱动 SW 字节变化检测
             sw_content = sw_content.replace('{{APP_VERSION}}', app_version)
+
+            # 即使未升级应用版本，每次部署构建也应触发 SW 更新，刷新缓存的静态资源
+            build_id = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            sw_content = sw_content.replace('{{BUILD_ID}}', build_id)
 
             with open(sw_dst, 'w', encoding='utf-8') as f:
                 f.write(sw_content)

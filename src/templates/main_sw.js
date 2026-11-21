@@ -1,12 +1,13 @@
 /**
  * Service Worker for 书报 - 电子书阅读应用
  * App 版本: {{APP_VERSION}}
+ * Build: {{BUILD_ID}}
  *
  * 缓存策略（v4，数据桶版本化 + 静态桶固定名）：
  *  - CACHE_NAME 固定为 'bk-main'，不带版本号（SW 运行时缓存：cache.put 覆盖更新）
  *  - 数据缓存桶由页面 pwaCache 管理（bk-data-{version} 切换桶方案），SW 不参与其生命周期
  *  - SW activate 零清理：不删除任何缓存（含旧版数据桶），只做 clients.claim() 接管页面
- *  - SW 字节变化检测由注释中的 App 版本号驱动（升级时 sw.js 内容变化触发更新）
+ *  - SW 字节变化检测由每次构建注入的 Build ID 驱动
  *  - 核心资源（HTML/JS/CSS/图标）安装时预缓存到 bk-main
  *  - 书籍 JSON 数据由 data-manager.js 通过 localforage 管理，SW 不介入
  *  - data CDN 索引文件（books-index.json / manifest.json）使用 stale-while-revalidate
@@ -21,12 +22,9 @@ const CONFIG = {
   CACHEABLE_TYPES: ['basic', 'cors']
 };
 
-// 安装时预加载的核心资源列表（仅首屏必需）
-// 数据桶（__bkCoreUrls 全量）由页面 pwaCache 安装/更新时全量缓存，SW 预缓存仅兜底
 // 首屏启动必需资源（无 defer 的阻塞脚本 + 首屏 CSS + 启动 Vendor + 图标），
-// 保证首次进入不白屏。defer 模块与 cmaps 之外的 vendor 依赖数据桶全量缓存。
-// ⚠ 此列表须与 index.html 中 __bkCoreUrls 保持同步（子集关系），
-// 构建时 generator.py 会校验一致性。
+// 保证首次进入不白屏。应用完整资源清单则在每次 SW 更新时刷新。
+// ⚠ 此列表须为 index.html 中 __bkCoreUrls 的子集，构建时会校验。
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -90,9 +88,12 @@ const PRECACHE_URLS = [
   './icons/icon.png'
 ];
 
-// vendor/cmaps + vendor/standard_fonts 的文件列表由构建脚本（generator.py）
-// 在构建时扫描目录生成，替换 __VENDOR_PRECACHE_URLS__ 占位符。
-// 独立于 PRECACHE_URLS 预缓存：install 时单独 addAll，失败不阻塞核心安装。
+// 页面完整资源清单由构建脚本从 index.html 注入。
+// SW 更新时刷新固定名缓存，避免旧 bk-main 条目遮挡新版数据桶。
+const APP_CORE_URLS = [/* __APP_CORE_URLS__ */];
+
+// vendor/cmaps + vendor/standard_fonts 的文件列表由构建脚本扫描并注入。
+// 独立于应用资源清单预缓存，失败不阻塞 SW 安装。
 // 确保首次离线打开中文 PDF 时 CJK 字体映射和标准字体可用。
 const VENDOR_CMAP_FONT_URLS = [/* __VENDOR_PRECACHE_URLS__ */];
 
@@ -100,24 +101,30 @@ const VENDOR_CMAP_FONT_URLS = [/* __VENDOR_PRECACHE_URLS__ */];
 // 1. 生命周期
 // --------------------------------------------------------------------------
 
+async function cacheUrls(cache, urls) {
+  const batchSize = 6;
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+    await Promise.all(batch.map(async url => {
+      try {
+        await cache.add(new Request(url, { cache: 'reload' }));
+      } catch (e) {
+        console.warn('[SW] Cache refresh failed:', url, e);
+      }
+    }));
+  }
+}
+
 self.addEventListener('install', event => {
   event.waitUntil(
     (async () => {
       try {
         const cache = await caches.open(CACHE_NAME);
-        await cache.addAll(PRECACHE_URLS);
+        const appUrls = Array.from(new Set(PRECACHE_URLS.concat(APP_CORE_URLS)));
+        await cacheUrls(cache, appUrls);
+        await cacheUrls(cache, VENDOR_CMAP_FONT_URLS);
       } catch (e) {
         // 预缓存失败不阻塞安装（部分资源可能暂时不可用）
-      }
-      // 独立预缓存 vendor cMaps/fonts（PDF CJK 字体支持）。
-      // 失败不阻塞安装——首次在线打开 PDF 时默认策略会运行时缓存。
-      if (VENDOR_CMAP_FONT_URLS.length > 0) {
-        try {
-          const vendorCache = await caches.open(CACHE_NAME);
-          await vendorCache.addAll(VENDOR_CMAP_FONT_URLS);
-        } catch (e) {
-          // vendor 预缓存失败不阻塞安装
-        }
       }
       // 快速激活：install 完成后立即 skipWaiting，让新版 SW 尽快接管页面
       // 缓存版本管理由页面 pwaCache 切换桶方案控制，SW 不参与
